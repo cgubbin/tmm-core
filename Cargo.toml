@@ -1,0 +1,38 @@
+[package]
+name = "tmm-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Rust project template with library and binary"
+license = "MIT"
+
+[lib]
+name = "tmm_rore"
+path = "src/lib.rs"
+
+
+[dependencies]
+nalgebra = "0.33.3"
+ndarray = { version = "0.17.2", optional = true }
+num-complex = "0.4.6"
+num-traits = "0.2.19"
+
+[dev-dependencies]
+approx = "0.5.1"
+
+
+[profile.dev]
+debug = true
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[workspace.metadata.release]
+tag = true
+push = true
+publish = true
+sign-commit = false
+
+[features]
+ndarray = ["dep:ndarray"]
