@@ -5,18 +5,20 @@
 //! material trait.
 
 pub mod builder;
+pub mod enums;
 pub mod model;
 pub mod sample;
-
-// #[cfg(any(test, feature = "fixtures"))]
-// pub mod fixtures;
+pub mod tensor;
 
 pub use builder::DrudeLorentzBuilder;
-pub use model::{Drude, DrudeLorentz, Lorentz};
+pub use enums::IsotropicMaterial;
+pub use model::{Constant, Drude, DrudeLorentz, Lorentz};
+pub use sample::Scalar;
 
-use sample::{Sampled, Scalar};
+use sample::{Sampled, TensorSampled};
+use tensor::{DiagonalTensorMaterial, TensorMaterial};
 
-use crate::ComplexScalar;
+use crate::{ComplexScalar, tensor::Tensor3};
 
 use num_traits::{One, Zero};
 

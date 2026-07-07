@@ -7,18 +7,20 @@ description = "Rust project template with library and binary"
 license = "MIT"
 
 [lib]
-name = "tmm_rore"
+name = "tmm_core"
 path = "src/lib.rs"
 
 
 [dependencies]
+either = "1.16.0"
 nalgebra = "0.33.3"
-ndarray = { version = "0.17.2", optional = true }
+ndarray = "0.17.2"
 num-complex = "0.4.6"
 num-traits = "0.2.19"
+thiserror = "2.0.18"
 
 [dev-dependencies]
-approx = "0.5.1"
+approx = { version = "0.5.1", features = ["num-complex"] }
 
 
 [profile.dev]
@@ -35,4 +37,3 @@ publish = true
 sign-commit = false
 
 [features]
-ndarray = ["dep:ndarray"]

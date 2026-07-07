@@ -46,7 +46,7 @@ where
         I: Sampled<Elem = C>,
         C: ComplexScalar<RealField = R>,
     {
-        wavenumber.map(|_| <C as ComplexScalar>::zero())
+        wavenumber.map(|_| C::zero())
     }
 }
 
@@ -154,7 +154,7 @@ where
     where
         C: ComplexScalar<RealField = R> + Copy,
     {
-        let mut deps = <C as ComplexScalar>::zero();
+        let mut deps = C::zero();
 
         if let Some(drude) = self.drude {
             deps = deps + drude.epsilon_derivative(w, order, variable);
@@ -186,7 +186,7 @@ where
     where
         C: ComplexScalar<RealField = R>,
     {
-        let two = <C as ComplexScalar>::one() + <C as ComplexScalar>::one();
+        let two = C::one() + C::one();
         let four = two + two;
 
         let wp2 = C::from_real(self.plasma_frequency).powi(2);
@@ -258,7 +258,7 @@ where
     where
         C: ComplexScalar<RealField = R>,
     {
-        let two = <C as ComplexScalar>::one() + <C as ComplexScalar>::one();
+        let two = C::one() + C::one();
         let four = two + two;
 
         let strength = C::from_real(self.strength);
@@ -383,7 +383,7 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "ndarray"))]
+#[cfg(test)]
 mod ndarray_tests {
     use super::*;
     use crate::material::Scalar;
