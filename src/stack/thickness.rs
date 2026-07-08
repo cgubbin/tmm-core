@@ -1,4 +1,4 @@
-use num_traits::{Float, Zero};
+use num_traits::Float;
 use std::fmt;
 
 use super::units::{self, UnitError};

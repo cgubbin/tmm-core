@@ -4,17 +4,20 @@ mod input;
 mod layer;
 mod matrix;
 mod result;
+mod state;
 
 pub use backend::Transfer2;
-pub use input::{DerivativeRequest, DerivativeVariable, Polarisation, Transfer2Input};
+pub use input::{DerivativeVariable, Polarisation, Transfer2Input};
 pub use layer::{
-    IsotropicLayerQuantities, isotropic_layer_matrix, isotropic_layer_thickness_derivative,
-    isotropic_layer_thickness_second_derivative,
+    IsotropicLayerQuantities, isotropic_layer_frequency_squared_derivative,
+    isotropic_layer_frequency_squared_second_derivative, isotropic_layer_matrix,
+    isotropic_layer_propagation_constant_squared_derivative,
+    isotropic_layer_propagation_constant_squared_second_derivative,
+    isotropic_layer_thickness_derivative, isotropic_layer_thickness_second_derivative,
 };
-pub use matrix::{
-    identity_matrix, multiply, multiply_first_derivative, multiply_second_derivative, scale,
-};
-pub use result::{Matrix2, TransferDerivatives, TransferResult};
+pub use matrix::{Matrix2, multiply_first_derivative, multiply_second_derivative};
+pub use result::{TransferDerivatives, TransferResult};
+use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
 
 #[cfg(test)]
 mod tests {
