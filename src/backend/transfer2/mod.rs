@@ -1,23 +1,27 @@
 mod accumulator;
 mod backend;
 mod input;
-mod layer;
 mod matrix;
+mod quantities;
 mod result;
+mod spectral;
 mod state;
+mod thickness;
 
 pub use backend::Transfer2;
 pub use input::{DerivativeVariable, Polarisation, Transfer2Input};
-pub use layer::{
-    IsotropicLayerQuantities, isotropic_layer_frequency_squared_derivative,
-    isotropic_layer_frequency_squared_second_derivative, isotropic_layer_matrix,
-    isotropic_layer_propagation_constant_squared_derivative,
-    isotropic_layer_propagation_constant_squared_second_derivative,
-    isotropic_layer_thickness_derivative, isotropic_layer_thickness_second_derivative,
-};
 pub use matrix::{Matrix2, multiply_first_derivative, multiply_second_derivative};
+use quantities::{IsotropicLayerQuantities, isotropic_layer_quantities};
 pub use result::{TransferDerivatives, TransferResult};
+pub use spectral::{
+    frequency_squared_derivative, frequency_squared_second_derivative,
+    propagation_constant_squared_derivative, propagation_constant_squared_second_derivative,
+};
 use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
+use thickness::{
+    isotropic_layer_matrix, isotropic_layer_thickness_derivative,
+    isotropic_layer_thickness_second_derivative,
+};
 
 #[cfg(test)]
 mod tests {

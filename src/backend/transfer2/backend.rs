@@ -30,13 +30,10 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::transfer2::{
-        DerivativeVariable, Matrix2, accumulator::MatrixAccumulator,
-        isotropic_layer_frequency_squared_derivative,
-        isotropic_layer_frequency_squared_second_derivative,
-        isotropic_layer_propagation_constant_squared_derivative,
-        isotropic_layer_propagation_constant_squared_second_derivative,
-        isotropic_layer_thickness_derivative, isotropic_layer_thickness_second_derivative,
-        layer::isotropic_layer_quantities,
+        DerivativeVariable, Matrix2, accumulator::MatrixAccumulator, frequency_squared_derivative,
+        frequency_squared_second_derivative, isotropic_layer_thickness_derivative,
+        isotropic_layer_thickness_second_derivative, propagation_constant_squared_derivative,
+        propagation_constant_squared_second_derivative,
     },
     material::Material,
     stack::Stack,
@@ -122,7 +119,7 @@ impl Transfer2 {
                     accumulator.update_first(primitive_variable, &layer_matrix, &zero);
                 }
                 DerivativeVariable::FrequencySquared => {
-                    let dlayer = isotropic_layer_frequency_squared_derivative(
+                    let dlayer = frequency_squared_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
@@ -134,7 +131,7 @@ impl Transfer2 {
                 }
 
                 DerivativeVariable::PropagationConstantSquared => {
-                    let dlayer = isotropic_layer_propagation_constant_squared_derivative(
+                    let dlayer = propagation_constant_squared_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
@@ -211,7 +208,7 @@ impl Transfer2 {
                     accumulator.update_second(variable, &layer_matrix, &zero, &zero);
                 }
                 DerivativeVariable::FrequencySquared => {
-                    let dlayer = isotropic_layer_frequency_squared_derivative(
+                    let dlayer = frequency_squared_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
@@ -219,7 +216,7 @@ impl Transfer2 {
                         input.polarisation,
                     );
 
-                    let ddlayer = isotropic_layer_frequency_squared_second_derivative(
+                    let ddlayer = frequency_squared_second_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
@@ -229,7 +226,7 @@ impl Transfer2 {
                     accumulator.update_second(primitive_variable, &layer_matrix, &dlayer, &ddlayer);
                 }
                 DerivativeVariable::PropagationConstantSquared => {
-                    let dlayer = isotropic_layer_propagation_constant_squared_derivative(
+                    let dlayer = propagation_constant_squared_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
@@ -237,7 +234,7 @@ impl Transfer2 {
                         input.polarisation,
                     );
 
-                    let ddlayer = isotropic_layer_propagation_constant_squared_second_derivative(
+                    let ddlayer = propagation_constant_squared_second_derivative(
                         layer.material(),
                         layer.thickness(),
                         &input.wavenumber,
