@@ -1,3 +1,5 @@
+mod derivatives;
+
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
@@ -24,10 +26,7 @@ where
     D: Dimension,
 {
     /// Compute isotropic layer quantities for a sampled input grid.
-    pub(crate) fn from_parts<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> IsotropicLayerQuantities<C, D>
+    pub(crate) fn new<M>(material: &M, planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self
     where
         M: Material<Real = C::RealField>,
     {

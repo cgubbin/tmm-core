@@ -30,7 +30,8 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, MatrixDerivatives, MatrixEvaluation, PlanarInput,
+        DerivativeVariable, IsotropicLayerQuantities, MatrixDerivatives, MatrixEvaluation,
+        PlanarInput,
         derivative::ChainRule,
         transfer2::{
             Matrix2, TransferError,
@@ -41,7 +42,6 @@ use crate::{
                 vacuum_wavenumber_squared_derivatives,
                 vacuum_wavenumber_squared_second_derivatives,
             },
-            quantities::{IsotropicLayerQuantities, isotropic_layer_quantities},
         },
     },
     material::Material,
@@ -70,7 +70,7 @@ impl Transfer2 {
         let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
 
         for layer in stack.layers_in_propagation_order() {
-            let q = isotropic_layer_quantities(layer.material(), &input);
+            let q = IsotropicLayerQuantities::new(layer.material(), &input);
 
             let layer_matrix = Matrix2::from_layer(&q, layer.thickness());
 
@@ -107,7 +107,7 @@ impl Transfer2 {
         let primitive_variable = request.primitive();
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let q = isotropic_layer_quantities(layer.material(), &input);
+            let q = IsotropicLayerQuantities::new(layer.material(), &input);
 
             let matrix = Matrix2::from_layer(&q, layer.thickness());
 
@@ -154,7 +154,7 @@ impl Transfer2 {
         let primitive_variable = request.primitive();
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let q = isotropic_layer_quantities(layer.material(), &input);
+            let q = IsotropicLayerQuantities::new(layer.material(), &input);
             let matrix = Matrix2::from_layer(&q, layer.thickness());
 
             if let Some(dmatrix) = second_derivative(index, layer, &q, &input, primitive_variable) {

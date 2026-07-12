@@ -3,13 +3,11 @@ mod backend;
 mod derivatives;
 mod error;
 mod matrix;
-mod quantities;
 mod result;
 mod state;
 
 pub use error::TransferError;
 pub use matrix::{Matrix2, multiply_first_derivative, multiply_second_derivative};
-// pub use result::{TransferDerivatives, TransferResult};
 use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
 
 use crate::{

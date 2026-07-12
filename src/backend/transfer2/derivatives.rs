@@ -2,8 +2,7 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
-    backend::Polarisation,
-    backend::transfer2::quantities::IsotropicLayerQuantities,
+    backend::{IsotropicLayerQuantities, Polarisation},
     material::{DerivativeOrder, Material, Scalar, SpectralVariable},
 };
 

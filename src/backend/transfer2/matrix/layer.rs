@@ -2,10 +2,8 @@ use ndarray::Dimension;
 
 use crate::{
     ComplexScalar,
-    backend::transfer2::{
-        derivatives::{LayerFirstDerivatives, LayerSecondDerivatives},
-        quantities::IsotropicLayerQuantities,
-    },
+    backend::IsotropicLayerQuantities,
+    backend::transfer2::derivatives::{LayerFirstDerivatives, LayerSecondDerivatives},
     stack::Thickness,
 };
 
