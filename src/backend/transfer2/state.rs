@@ -194,7 +194,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        backend::transfer2::{DerivativeVariable, Polarisation, Transfer2, Transfer2Input},
+        backend::{
+            DerivativeVariable, MatrixEvaluation, PlanarInput, Polarisation, transfer2::Transfer2,
+        },
         material::{Constant, IsotropicMaterial},
         stack::{Stack, Thickness},
     };
@@ -262,8 +264,8 @@ mod tests {
         }
     }
 
-    fn input0() -> Transfer2Input<ndarray::Array0<C>> {
-        Transfer2Input::new(
+    fn input0() -> PlanarInput<ndarray::Array0<C>> {
+        PlanarInput::new(
             arr0(c(1000.0)),
             arr0(c(100.0)),
             Polarisation::TransverseElectric,
@@ -324,7 +326,7 @@ mod tests {
     #[test]
     fn outgoing_residual_matches_manual_formula() {
         let matrix = Matrix2::new(arr0(c(1.0)), arr0(c(2.0)), arr0(c(3.0)), arr0(c(4.0)));
-        let result = crate::backend::transfer2::TransferResult::new(matrix);
+        let result = MatrixEvaluation::new(matrix);
 
         let incident = scalar_mode(5.0, 2.0);
         let transmission = scalar_mode(3.0, 1.5);
@@ -367,6 +369,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input.clone(), variable)
+            .unwrap()
             .outgoing_residual_derivative(&incident, &zero_first, &transmission, &zero_first)
             .unwrap();
 
@@ -397,22 +400,23 @@ mod tests {
     }
 
     #[test]
-    fn outgoing_residual_first_derivative_matches_finite_difference_for_frequency_squared() {
+    fn outgoing_residual_first_derivative_matches_finite_difference_for_vacuum_wavenumber_squared()
+    {
         let stack = Stack::builder(mat(1.0), mat(1.0))
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega2 = 1000.0_f64.powi(2);
-        let beta2 = 100.0;
-        let h = 1e-2 * omega2;
+        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
+        let parallel_wavenumber2 = 100.0;
+        let h = 1e-2 * vacuum_wavenumber2;
 
-        let variable = DerivativeVariable::FrequencySquared;
+        let variable = DerivativeVariable::VacuumWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega2.sqrt())),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber2.sqrt())),
+            arr0(c(parallel_wavenumber2)),
             Polarisation::TransverseElectric,
         );
 
@@ -422,15 +426,16 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input, variable)
+            .unwrap()
             .outgoing_residual_derivative(&incident, &zero_first, &transmission, &zero_first)
             .unwrap();
 
         let plus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c((omega2 + h).sqrt())),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c((vacuum_wavenumber2 + h).sqrt())),
+                    arr0(c(parallel_wavenumber2)),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -439,9 +444,9 @@ mod tests {
         let minus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c((omega2 - h).sqrt())),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c((vacuum_wavenumber2 - h).sqrt())),
+                    arr0(c(parallel_wavenumber2)),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -453,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn outgoing_residual_first_derivative_matches_finite_difference_for_propagation_constant_squared()
+    fn outgoing_residual_first_derivative_matches_finite_difference_for_parallel_wavenumber_squared()
      {
         let stack = Stack::builder(mat(1.0), mat(1.0))
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
@@ -461,15 +466,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber2 = 100.0_f64;
         let h = 1e-2;
 
-        let variable = DerivativeVariable::PropagationConstantSquared;
+        let variable = DerivativeVariable::ParallelWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber2.sqrt())),
             Polarisation::TransverseElectric,
         );
 
@@ -479,15 +484,16 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input, variable)
+            .unwrap()
             .outgoing_residual_derivative(&incident, &zero_first, &transmission, &zero_first)
             .unwrap();
 
         let plus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega)),
-                    arr0(c(beta2 + h)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c((parallel_wavenumber2 + h).sqrt())),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -496,9 +502,9 @@ mod tests {
         let minus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega)),
-                    arr0(c(beta2 - h)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c((parallel_wavenumber2 - h).sqrt())),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -534,6 +540,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input.clone(), variable)
+            .unwrap()
             .outgoing_residual_second_derivative(
                 &incident,
                 &zero_derivatives,
@@ -579,22 +586,23 @@ mod tests {
     }
 
     #[test]
-    fn outgoing_residual_second_derivative_matches_finite_difference_for_frequency_squared() {
+    fn outgoing_residual_second_derivative_matches_finite_difference_for_vacuum_wavenumber_squared()
+    {
         let stack = Stack::builder(mat(1.0), mat(1.0))
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega2 = 1000.0_f64.powi(2);
-        let beta2 = 100.0;
-        let h = 1e-2 * omega2;
+        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
+        let parallel_wavenumber = 100.0;
+        let h = 1e-2 * vacuum_wavenumber2;
 
-        let variable = DerivativeVariable::FrequencySquared;
+        let variable = DerivativeVariable::VacuumWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega2.sqrt())),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber2.sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
@@ -605,6 +613,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .outgoing_residual_second_derivative(
                 &incident,
                 &zero_derivatives,
@@ -616,9 +625,9 @@ mod tests {
         let plus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c((omega2 + h).sqrt())),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c((vacuum_wavenumber2 + h).sqrt())),
+                    arr0(c(parallel_wavenumber)),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -627,9 +636,9 @@ mod tests {
         let zero = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega2.sqrt())),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber2.sqrt())),
+                    arr0(c(parallel_wavenumber)),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -638,9 +647,9 @@ mod tests {
         let minus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c((omega2 - h).sqrt())),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c((vacuum_wavenumber2 - h).sqrt())),
+                    arr0(c(parallel_wavenumber)),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -652,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn outgoing_residual_second_derivative_matches_finite_difference_for_propagation_constant_squared()
+    fn outgoing_residual_second_derivative_matches_finite_difference_for_parallel_wavenumber_squared()
      {
         let stack = Stack::builder(mat(1.0), mat(1.0))
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
@@ -660,15 +669,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber2 = 100.0_f64;
         let h = 1e-2;
 
-        let variable = DerivativeVariable::PropagationConstantSquared;
+        let variable = DerivativeVariable::ParallelWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber2)),
             Polarisation::TransverseElectric,
         );
 
@@ -679,6 +688,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .outgoing_residual_second_derivative(
                 &incident,
                 &zero_derivatives,
@@ -690,9 +700,9 @@ mod tests {
         let plus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega)),
-                    arr0(c(beta2 + h)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c((parallel_wavenumber2 + h).sqrt())),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -701,9 +711,9 @@ mod tests {
         let zero = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega)),
-                    arr0(c(beta2)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c((parallel_wavenumber2).sqrt())),
                     Polarisation::TransverseElectric,
                 ),
             )
@@ -712,9 +722,9 @@ mod tests {
         let minus = Transfer2::new()
             .solve(
                 &stack,
-                Transfer2Input::new(
-                    arr0(c(omega)),
-                    arr0(c(beta2 - h)),
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c((parallel_wavenumber2 - h).sqrt())),
                     Polarisation::TransverseElectric,
                 ),
             )

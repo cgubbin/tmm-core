@@ -21,12 +21,12 @@
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::ComplexScalar;
-
-use super::{
-    DerivativeVariable, Matrix2, TransferDerivatives, TransferResult, multiply_first_derivative,
-    multiply_second_derivative,
+use crate::{
+    ComplexScalar,
+    backend::{DerivativeVariable, MatrixDerivatives, MatrixEvaluation},
 };
+
+use super::{Matrix2, multiply_first_derivative, multiply_second_derivative};
 
 pub(crate) struct MatrixAccumulator<C, D>
 where
@@ -84,6 +84,26 @@ where
         self.matrix = layer * &self.matrix;
     }
 
+    /// Accumulate one layer matrix assuming zero first derivative
+    pub(crate) fn update_first_constant(
+        &mut self,
+        dvariable: DerivativeVariable,
+        layer: &Matrix2<C, D>,
+    ) {
+        if let Some(variable) = self.variable {
+            debug_assert!(variable == dvariable);
+        }
+        self.variable = Some(dvariable);
+
+        let dcurrent = self
+            .first
+            .take()
+            .unwrap_or_else(|| Matrix2::zeros_like(layer.m11()));
+
+        self.first = Some(layer * &dcurrent);
+        self.matrix = layer * &self.matrix;
+    }
+
     /// Accumulate one layer matrix and its first and second derivatives.
     pub(crate) fn update_second(
         &mut self,
@@ -127,18 +147,45 @@ where
         self.matrix = layer * &self.matrix;
     }
 
+    /// Accumulate one layer matrix and its first and second derivatives assuming zero derivative
+    pub(crate) fn update_second_constant(
+        &mut self,
+        dvariable: DerivativeVariable,
+        layer: &Matrix2<C, D>,
+    ) {
+        if let Some(variable) = self.variable {
+            debug_assert!(variable == dvariable);
+        }
+
+        self.variable = Some(dvariable);
+
+        let ddcurrent = self
+            .second
+            .take()
+            .unwrap_or_else(|| Matrix2::zeros_like(layer.m11()));
+
+        let dcurrent = self
+            .first
+            .take()
+            .unwrap_or_else(|| Matrix2::zeros_like(layer.m11()));
+
+        self.first = Some(layer * &dcurrent);
+        self.second = Some(layer * &ddcurrent);
+        self.matrix = layer * &self.matrix;
+    }
+
     /// Convert the accumulator into a public transfer result.
-    pub(crate) fn finish(self) -> TransferResult<C, D> {
+    pub(crate) fn finish(self) -> MatrixEvaluation<Matrix2<C, D>> {
         match (self.variable, self.first, self.second) {
-            (Some(variable), Some(first), Some(second)) => TransferResult::with_derivatives(
+            (Some(variable), Some(first), Some(second)) => MatrixEvaluation::with_derivatives(
                 self.matrix,
-                TransferDerivatives::new(variable, first).with_second(second),
+                MatrixDerivatives::new(variable, first).with_second(second),
             ),
-            (Some(variable), Some(first), None) => TransferResult::with_derivatives(
+            (Some(variable), Some(first), None) => MatrixEvaluation::with_derivatives(
                 self.matrix,
-                TransferDerivatives::new(variable, first),
+                MatrixDerivatives::new(variable, first),
             ),
-            _ => TransferResult::new(self.matrix),
+            _ => MatrixEvaluation::new(self.matrix),
         }
     }
 }
@@ -148,8 +195,6 @@ mod tests {
     use approx::assert_relative_eq;
     use ndarray::{ArrayBase, Dimension, OwnedRepr, arr0};
     use num_complex::Complex64;
-
-    use std::ops::Add;
 
     use super::*;
 

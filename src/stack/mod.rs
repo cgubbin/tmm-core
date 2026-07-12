@@ -46,6 +46,10 @@ impl<M, F> Stack<M, F> {
         &self.layers
     }
 
+    pub fn len(&self) -> usize {
+        self.layers.len()
+    }
+
     pub fn layers_in_propagation_order(&self) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
         match self.direction {
             PropagationDirection::Forward => Either::Left(self.layers.iter()),

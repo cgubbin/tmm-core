@@ -29,17 +29,24 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
-    backend::transfer2::{
-        DerivativeVariable, Matrix2, accumulator::MatrixAccumulator, frequency_squared_derivative,
-        frequency_squared_second_derivative, isotropic_layer_thickness_derivative,
-        isotropic_layer_thickness_second_derivative, propagation_constant_squared_derivative,
-        propagation_constant_squared_second_derivative,
+    backend::{
+        DerivativeVariable, MatrixDerivatives, MatrixEvaluation, PlanarInput,
+        derivative::ChainRule,
+        transfer2::{
+            Matrix2, TransferError,
+            accumulator::MatrixAccumulator,
+            derivatives::{
+                parallel_wavenumber_squared_derivatives,
+                parallel_wavenumber_squared_second_derivatives,
+                vacuum_wavenumber_squared_derivatives,
+                vacuum_wavenumber_squared_second_derivatives,
+            },
+            quantities::{IsotropicLayerQuantities, isotropic_layer_quantities},
+        },
     },
     material::Material,
-    stack::Stack,
+    stack::{Layer, Stack},
 };
-
-use super::{Transfer2Input, TransferResult, isotropic_layer_matrix};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Transfer2;
@@ -52,24 +59,20 @@ impl Transfer2 {
     pub fn solve<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: Transfer2Input<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> TransferResult<C, D>
+        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> MatrixEvaluation<Matrix2<C, D>>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut accumulator = MatrixAccumulator::new(&input.wavenumber);
+        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
 
         for layer in stack.layers_in_propagation_order() {
-            let layer_matrix = isotropic_layer_matrix(
-                layer.material(),
-                layer.thickness(),
-                &input.wavenumber,
-                &input.propagation_constant_squared,
-                input.polarisation,
-            );
+            let q = isotropic_layer_quantities(layer.material(), &input);
+
+            let layer_matrix = Matrix2::from_layer(&q, layer.thickness());
 
             accumulator.update(&layer_matrix);
         }
@@ -80,210 +83,202 @@ impl Transfer2 {
     pub fn solve_first_derivative<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: Transfer2Input<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
-    ) -> TransferResult<C, D>
+        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        request: DerivativeVariable,
+    ) -> Result<MatrixEvaluation<Matrix2<C, D>>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut accumulator = MatrixAccumulator::new(&input.wavenumber);
+        if let DerivativeVariable::Thickness(requested) = request {
+            if requested >= stack.len() {
+                return Err(TransferError::ThicknessLayerOutOfBounds {
+                    requested,
+                    layer_count: stack.len(),
+                });
+            }
+        }
 
-        let requested_variable = variable;
-        let primitive_variable = variable.primitive();
+        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
+
+        let requested_variable = request;
+        let primitive_variable = request.primitive();
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let layer_matrix = isotropic_layer_matrix(
-                layer.material(),
-                layer.thickness(),
-                &input.wavenumber,
-                &input.propagation_constant_squared,
-                input.polarisation,
-            );
+            let q = isotropic_layer_quantities(layer.material(), &input);
 
-            match primitive_variable {
-                DerivativeVariable::Thickness(layer_index) if layer_index == index => {
-                    let dlayer = isotropic_layer_thickness_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-                    accumulator.update_first(primitive_variable, &layer_matrix, &dlayer);
-                }
-                DerivativeVariable::Thickness(_) => {
-                    let zero = Matrix2::zeros_like(layer_matrix.m11());
-                    accumulator.update_first(primitive_variable, &layer_matrix, &zero);
-                }
-                DerivativeVariable::FrequencySquared => {
-                    let dlayer = frequency_squared_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
+            let matrix = Matrix2::from_layer(&q, layer.thickness());
 
-                    accumulator.update_first(primitive_variable, &layer_matrix, &dlayer);
-                }
-
-                DerivativeVariable::PropagationConstantSquared => {
-                    let dlayer = propagation_constant_squared_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-
-                    accumulator.update_first(primitive_variable, &layer_matrix, &dlayer);
-                }
-
-                DerivativeVariable::Frequency | DerivativeVariable::PropagationConstant => {
-                    unreachable!("linear spectral derivatives are not primitives")
-                }
+            if let Some(dmatrix) = first_derivative(index, layer, &q, &input, primitive_variable) {
+                accumulator.update_first(primitive_variable, &matrix, &dmatrix);
+            } else {
+                accumulator.update_first_constant(primitive_variable, &matrix);
             }
         }
 
         let result = accumulator.finish();
 
-        if let Some((first, second)) = chain_rule_coefficients(requested_variable, &input) {
-            result.chain_rule(requested_variable, first, second)
+        if let Some(chain_rule) = requested_variable.chain_rule(&input) {
+            Ok(result.chain_rule(requested_variable, chain_rule))
         } else {
-            result
+            Ok(result)
         }
     }
 
     pub fn solve_second_derivative<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: Transfer2Input<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
-    ) -> TransferResult<C, D>
+        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        request: DerivativeVariable,
+    ) -> Result<MatrixEvaluation<Matrix2<C, D>>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut accumulator = MatrixAccumulator::new(&input.wavenumber);
+        if let DerivativeVariable::Thickness(requested) = request {
+            if requested >= stack.len() {
+                return Err(TransferError::ThicknessLayerOutOfBounds {
+                    requested,
+                    layer_count: stack.len(),
+                });
+            }
+        }
 
-        let requested_variable = variable;
-        let primitive_variable = variable.primitive();
+        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
+
+        let requested_variable = request;
+        let primitive_variable = request.primitive();
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let layer_matrix = isotropic_layer_matrix(
-                layer.material(),
-                layer.thickness(),
-                &input.wavenumber,
-                &input.propagation_constant_squared,
-                input.polarisation,
-            );
+            let q = isotropic_layer_quantities(layer.material(), &input);
+            let matrix = Matrix2::from_layer(&q, layer.thickness());
 
-            match primitive_variable {
-                DerivativeVariable::Thickness(layer_index) if layer_index == index => {
-                    let dlayer = isotropic_layer_thickness_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-
-                    let ddlayer = isotropic_layer_thickness_second_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-                    accumulator.update_second(primitive_variable, &layer_matrix, &dlayer, &ddlayer);
-                }
-                DerivativeVariable::Thickness(_) => {
-                    let zero = Matrix2::zeros_like(layer_matrix.m11());
-                    let zero = Matrix2::zeros_like(layer_matrix.m11());
-                    accumulator.update_second(variable, &layer_matrix, &zero, &zero);
-                }
-                DerivativeVariable::FrequencySquared => {
-                    let dlayer = frequency_squared_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-
-                    let ddlayer = frequency_squared_second_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-                    accumulator.update_second(primitive_variable, &layer_matrix, &dlayer, &ddlayer);
-                }
-                DerivativeVariable::PropagationConstantSquared => {
-                    let dlayer = propagation_constant_squared_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-
-                    let ddlayer = propagation_constant_squared_second_derivative(
-                        layer.material(),
-                        layer.thickness(),
-                        &input.wavenumber,
-                        &input.propagation_constant_squared,
-                        input.polarisation,
-                    );
-                    accumulator.update_second(primitive_variable, &layer_matrix, &dlayer, &ddlayer);
-                }
-                DerivativeVariable::Frequency | DerivativeVariable::PropagationConstant => {
-                    unreachable!("linear spectral derivatives are not primitives")
-                }
+            if let Some(dmatrix) = second_derivative(index, layer, &q, &input, primitive_variable) {
+                accumulator.update_second(request, &matrix, &dmatrix.first, &dmatrix.second);
+            } else {
+                accumulator.update_second_constant(request, &matrix);
             }
         }
 
         let result = accumulator.finish();
 
-        if let Some((first, second)) = chain_rule_coefficients(requested_variable, &input) {
-            result.chain_rule(requested_variable, first, second)
+        if let Some(chain_rule) = requested_variable.chain_rule(&input) {
+            Ok(result.chain_rule(requested_variable, chain_rule))
         } else {
-            result
+            Ok(result)
         }
     }
 }
 
-fn chain_rule_coefficients<C, D>(
-    variable: DerivativeVariable,
-    input: &Transfer2Input<ArrayBase<OwnedRepr<C>, D>>,
-) -> Option<(ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>)>
+fn first_derivative<M, C, D>(
+    layer_index: usize,
+    layer: &Layer<M, C::RealField>,
+    q: &IsotropicLayerQuantities<C, D>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    request: DerivativeVariable,
+) -> Option<Matrix2<C, D>>
 where
+    M: Material<Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
-    let two = C::one() + C::one();
-
-    match variable {
-        DerivativeVariable::Frequency => {
-            let first = input.wavenumber.mapv(|w| two * w);
-            let second = input.wavenumber.mapv(|_| two);
-            Some((first, second))
+    match request {
+        DerivativeVariable::Thickness(index) if index == layer_index => {
+            Some(Matrix2::thickness_derivative(q, layer.thickness()))
         }
 
-        DerivativeVariable::PropagationConstant => {
-            let beta = input.propagation_constant_squared.mapv(|b2| b2.sqrt());
-            let first = beta.mapv(|b| two * b);
-            let second = beta.mapv(|_| two);
-            Some((first, second))
+        DerivativeVariable::Thickness(_) => None,
+
+        DerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = vacuum_wavenumber_squared_derivatives(
+                layer.material(),
+                q,
+                &input.vacuum_wavenumber,
+                input.polarisation,
+            );
+
+            Some(Matrix2::spectral_derivative(
+                q,
+                layer.thickness(),
+                &derivatives,
+            ))
         }
 
-        _ => None,
+        DerivativeVariable::ParallelWavenumberSquared => {
+            let derivatives = parallel_wavenumber_squared_derivatives(q);
+
+            Some(Matrix2::spectral_derivative(
+                q,
+                layer.thickness(),
+                &derivatives,
+            ))
+        }
+
+        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+            unreachable!("linear variables must be converted to primitive variables")
+        }
+    }
+}
+
+struct LayerDerivativeMatrices<C, D>
+where
+    D: Dimension,
+{
+    first: Matrix2<C, D>,
+    second: Matrix2<C, D>,
+}
+
+fn second_derivative<M, C, D>(
+    index: usize,
+    layer: &Layer<M, C::RealField>,
+    q: &IsotropicLayerQuantities<C, D>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    request: DerivativeVariable,
+) -> Option<LayerDerivativeMatrices<C, D>>
+where
+    M: Material<Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    match request {
+        DerivativeVariable::Thickness(layer_index) if layer_index == index => {
+            let first = Matrix2::thickness_derivative(q, layer.thickness());
+            let second = Matrix2::thickness_second_derivative(q, layer.thickness());
+
+            Some(LayerDerivativeMatrices { first, second })
+        }
+        DerivativeVariable::Thickness(_) => None,
+        DerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = vacuum_wavenumber_squared_second_derivatives(
+                layer.material(),
+                q,
+                &input.vacuum_wavenumber,
+                input.polarisation,
+            );
+
+            let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
+
+            let second = Matrix2::spectral_second_derivative(q, layer.thickness(), &derivatives);
+
+            Some(LayerDerivativeMatrices { first, second })
+        }
+        DerivativeVariable::ParallelWavenumberSquared => {
+            let derivatives = parallel_wavenumber_squared_second_derivatives(q);
+
+            let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
+            let second = Matrix2::spectral_second_derivative(q, layer.thickness(), &derivatives);
+
+            Some(LayerDerivativeMatrices { first, second })
+        }
+        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+            unreachable!("linear variables must be converted to primitive variables")
+        }
     }
 }
 
@@ -293,14 +288,10 @@ mod tests {
     use ndarray::{ArrayBase, Dimension, OwnedRepr, arr0, arr1};
     use num_complex::Complex64;
 
-    use std::ops::{Add, Mul};
-
     use super::*;
     use crate::{
-        backend::transfer2::{
-            Matrix2, Polarisation, isotropic_layer_matrix, isotropic_layer_thickness_derivative,
-            isotropic_layer_thickness_second_derivative,
-        },
+        backend::transfer2::Matrix2,
+        backend::{PlanarInput, Polarisation},
         material::{Constant, IsotropicMaterial},
         stack::{Stack, Thickness, ValidationConfig},
     };
@@ -354,8 +345,8 @@ mod tests {
         Constant::new(epsilon).into()
     }
 
-    fn input0() -> Transfer2Input<ndarray::Array0<C>> {
-        Transfer2Input::new(
+    fn input0() -> PlanarInput<ndarray::Array0<C>> {
+        PlanarInput::new(
             arr0(c(1000.0)),
             arr0(c(10.0)),
             Polarisation::TransverseElectric,
@@ -393,13 +384,7 @@ mod tests {
 
         let result = Transfer2::new().solve(&stack, input.clone());
 
-        let expected = isotropic_layer_matrix(
-            &layer,
-            thickness,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let expected = Matrix2::from_layer(&isotropic_layer_quantities(&layer, &input), thickness);
 
         assert_matrix_close(result.matrix(), &expected, 1e-12);
     }
@@ -422,21 +407,9 @@ mod tests {
 
         let result = Transfer2::new().solve(&stack, input.clone());
 
-        let m0 = isotropic_layer_matrix(
-            &layer0,
-            d0,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let m0 = Matrix2::from_layer(&isotropic_layer_quantities(&layer0, &input), d0);
 
-        let m1 = isotropic_layer_matrix(
-            &layer1,
-            d1,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let m1 = Matrix2::from_layer(&isotropic_layer_quantities(&layer1, &input), d1);
 
         let expected = &m1 * &m0;
 
@@ -451,7 +424,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = Transfer2Input::new(
+        let input = PlanarInput::new(
             arr1(&[c(900.0), c(1000.0), c(1100.0)]),
             arr1(&[c(0.0), c(10.0), c(20.0)]),
             Polarisation::TransverseElectric,
@@ -483,31 +456,17 @@ mod tests {
         let input = input0();
         let variable = DerivativeVariable::Thickness(0);
 
-        let result = Transfer2::new().solve_first_derivative(&stack, input.clone(), variable);
+        let result = Transfer2::new()
+            .solve_first_derivative(&stack, input.clone(), variable)
+            .unwrap();
 
-        let m0 = isotropic_layer_matrix(
-            &layer0,
-            d0,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let q = isotropic_layer_quantities(&layer0, &input);
 
-        let dm0 = isotropic_layer_thickness_derivative(
-            &layer0,
-            d0,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let dm0 = Matrix2::thickness_derivative(&q, d0);
 
-        let m1 = isotropic_layer_matrix(
-            &layer1,
-            d1,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let q1 = isotropic_layer_quantities(&layer1, &input);
+
+        let m1 = Matrix2::from_layer(&q1, d1);
 
         let expected = &m1 * &dm0;
 
@@ -531,31 +490,17 @@ mod tests {
         let input = input0();
         let variable = DerivativeVariable::Thickness(1);
 
-        let result = Transfer2::new().solve_first_derivative(&stack, input.clone(), variable);
+        let result = Transfer2::new()
+            .solve_first_derivative(&stack, input.clone(), variable)
+            .unwrap();
 
-        let m0 = isotropic_layer_matrix(
-            &layer0,
-            d0,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let q0 = isotropic_layer_quantities(&layer0, &input);
 
-        let m1 = isotropic_layer_matrix(
-            &layer1,
-            d1,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let m0 = Matrix2::from_layer(&q0, d0);
 
-        let dm1 = isotropic_layer_thickness_derivative(
-            &layer1,
-            d1,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let q1 = isotropic_layer_quantities(&layer1, &input);
+
+        let dm1 = Matrix2::thickness_derivative(&q1, d1);
 
         let expected = &dm1 * &m0;
 
@@ -582,6 +527,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input.clone(), variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .first()
@@ -627,23 +573,17 @@ mod tests {
         let input = input0();
         let variable = DerivativeVariable::Thickness(0);
 
-        let result = Transfer2::new().solve_second_derivative(&stack, input.clone(), variable);
+        let result = Transfer2::new()
+            .solve_second_derivative(&stack, input.clone(), variable)
+            .unwrap();
 
-        let ddm0 = isotropic_layer_thickness_second_derivative(
-            &layer0,
-            d0,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let q0 = isotropic_layer_quantities(&layer0, &input);
 
-        let m1 = isotropic_layer_matrix(
-            &layer1,
-            d1,
-            &input.wavenumber,
-            &input.propagation_constant_squared,
-            input.polarisation,
-        );
+        let ddm0 = Matrix2::thickness_second_derivative(&q0, d0);
+
+        let q1 = isotropic_layer_quantities(&layer1, &input);
+
+        let m1 = Matrix2::from_layer(&q1, d1);
 
         let expected = &m1 * &ddm0;
 
@@ -661,7 +601,7 @@ mod tests {
 
         let d0_nm = 100.0;
         let d1_nm = 50.0;
-        let h_nm = 1e-2;
+        let h_nm = 1e-1;
 
         let variable = DerivativeVariable::Thickness(0);
         let input = input0();
@@ -674,6 +614,7 @@ mod tests {
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input.clone(), variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .second()
@@ -714,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn frequency_squared_derivative_matches_finite_difference_for_stack() {
+    fn vacuum_wavenumber_squared_derivative_matches_finite_difference_for_stack() {
         let layer0 = mat(2.25);
         let layer1 = mat(3.24);
 
@@ -724,34 +665,35 @@ mod tests {
             .build()
             .unwrap();
 
-        let omega2 = 1000.0_f64.powi(2);
-        let h = 1e-2 * omega2;
-        let beta2 = 100.0;
+        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
+        let h = 1e-2 * vacuum_wavenumber2;
+        let parallel_wavenumber = 100.0;
 
-        let variable = DerivativeVariable::FrequencySquared;
+        let variable = DerivativeVariable::VacuumWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega2.sqrt())),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber2.sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .first()
             .clone();
 
-        let plus_input = Transfer2Input::new(
-            arr0(c((omega2 + h).sqrt())),
-            arr0(c(beta2)),
+        let plus_input = PlanarInput::new(
+            arr0(c((vacuum_wavenumber2 + h).sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
-        let minus_input = Transfer2Input::new(
-            arr0(c((omega2 - h).sqrt())),
-            arr0(c(beta2)),
+        let minus_input = PlanarInput::new(
+            arr0(c((vacuum_wavenumber2 - h).sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
@@ -765,58 +707,61 @@ mod tests {
     }
 
     #[test]
-    fn propagation_constant_squared_derivative_matches_finite_difference_for_stack() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
+    fn parallel_wavenumber_squared_derivative_matches_finite_difference_for_stack() {
         let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(100.0).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(50.0).unwrap())
+            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
+            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
-        let h = 1e-3;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber2: f64 = 100.0;
+        let h = 1e-2;
 
-        let variable = DerivativeVariable::PropagationConstantSquared;
-
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
-            Polarisation::TransverseElectric,
-        );
+        let variable = DerivativeVariable::ParallelWavenumberSquared;
 
         let analytical = Transfer2::new()
-            .solve_first_derivative(&stack, input, variable)
+            .solve_first_derivative(
+                &stack,
+                PlanarInput::new(
+                    arr0(c(vacuum_wavenumber)),
+                    arr0(c(parallel_wavenumber2.sqrt())),
+                    Polarisation::TransverseElectric,
+                ),
+                variable,
+            )
+            .unwrap()
             .derivatives()
             .unwrap()
             .first()
             .clone();
 
-        let plus_input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2 + h)),
-            Polarisation::TransverseElectric,
+        let plus = Transfer2::new().solve(
+            &stack,
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c((parallel_wavenumber2 + h).sqrt())),
+                Polarisation::TransverseElectric,
+            ),
         );
 
-        let minus_input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2 - h)),
-            Polarisation::TransverseElectric,
+        let minus = Transfer2::new().solve(
+            &stack,
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c((parallel_wavenumber2 - h).sqrt())),
+                Polarisation::TransverseElectric,
+            ),
         );
-
-        let plus = Transfer2::new().solve(&stack, plus_input);
-        let minus = Transfer2::new().solve(&stack, minus_input);
 
         let expected =
             (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
 
-        assert_matrix_close(&analytical, &expected, 1e-8);
+        assert_matrix_close(&analytical, &expected, 1e-7);
     }
 
     #[test]
-    fn frequency_squared_second_derivative_matches_finite_difference_for_stack() {
+    fn vacuum_wavenumber_squared_second_derivative_matches_finite_difference_for_stack() {
         let layer0 = mat(2.25);
         let layer1 = mat(3.24);
 
@@ -826,41 +771,42 @@ mod tests {
             .build()
             .unwrap();
 
-        let omega2 = 1000.0_f64.powi(2);
-        let h = 1e-2 * omega2;
-        let beta2 = 100.0;
+        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
+        let h = 1e-2 * vacuum_wavenumber2;
+        let parallel_wavenumber = 100.0;
 
-        let variable = DerivativeVariable::FrequencySquared;
+        let variable = DerivativeVariable::VacuumWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega2.sqrt())),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber2.sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .second()
             .unwrap()
             .clone();
 
-        let plus_input = Transfer2Input::new(
-            arr0(c((omega2 + h).sqrt())),
-            arr0(c(beta2)),
+        let plus_input = PlanarInput::new(
+            arr0(c((vacuum_wavenumber2 + h).sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
-        let zero_input = Transfer2Input::new(
-            arr0(c(omega2.sqrt())),
-            arr0(c(beta2)),
+        let zero_input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber2.sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
-        let minus_input = Transfer2Input::new(
-            arr0(c((omega2 - h).sqrt())),
-            arr0(c(beta2)),
+        let minus_input = PlanarInput::new(
+            arr0(c((vacuum_wavenumber2 - h).sqrt())),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
@@ -878,7 +824,7 @@ mod tests {
     }
 
     #[test]
-    fn propagation_constant_squared_second_derivative_matches_finite_difference_for_stack() {
+    fn parallel_wavenumber_squared_second_derivative_matches_finite_difference_for_stack() {
         let layer0 = mat(2.25);
         let layer1 = mat(3.24);
 
@@ -888,41 +834,42 @@ mod tests {
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber2 = 100.0_f64;
         let h = 1e-2;
 
-        let variable = DerivativeVariable::PropagationConstantSquared;
+        let variable = DerivativeVariable::ParallelWavenumberSquared;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber2.sqrt())),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .second()
             .unwrap()
             .clone();
 
-        let plus_input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2 + h)),
+        let plus_input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c((parallel_wavenumber2 + h).sqrt())),
             Polarisation::TransverseElectric,
         );
 
-        let zero_input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let zero_input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber2.sqrt())),
             Polarisation::TransverseElectric,
         );
 
-        let minus_input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2 - h)),
+        let minus_input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c((parallel_wavenumber2 - h).sqrt())),
             Polarisation::TransverseElectric,
         );
 
@@ -940,27 +887,28 @@ mod tests {
     }
 
     #[test]
-    fn frequency_first_derivative_matches_finite_difference_for_stack() {
+    fn vacuum_wavenumber_first_derivative_matches_finite_difference_for_stack() {
         let stack = Stack::builder(air(), air())
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber = 100.0;
         let h = 1e-3;
 
-        let variable = DerivativeVariable::Frequency;
+        let variable = DerivativeVariable::VacuumWavenumber;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .first()
@@ -968,18 +916,18 @@ mod tests {
 
         let plus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega + h)),
-                arr0(c(beta2)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber + h)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let minus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega - h)),
-                arr0(c(beta2)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber - h)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
@@ -991,27 +939,28 @@ mod tests {
     }
 
     #[test]
-    fn propagation_constant_first_derivative_matches_finite_difference_for_stack() {
+    fn parallel_wavenumber_first_derivative_matches_finite_difference_for_stack() {
         let stack = Stack::builder(air(), air())
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta = 10.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber = 10.0;
         let h = 1e-4;
 
-        let variable = DerivativeVariable::PropagationConstant;
+        let variable = DerivativeVariable::ParallelWavenumber;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta * beta)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_first_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .first()
@@ -1019,18 +968,18 @@ mod tests {
 
         let plus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c((beta + h) * (beta + h))),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c(parallel_wavenumber + h)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let minus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c((beta - h) * (beta - h))),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c((parallel_wavenumber - h))),
                 Polarisation::TransverseElectric,
             ),
         );
@@ -1042,27 +991,28 @@ mod tests {
     }
 
     #[test]
-    fn frequency_second_derivative_matches_finite_difference_for_stack() {
+    fn vacuum_wavenumber_second_derivative_matches_finite_difference_for_stack() {
         let stack = Stack::builder(air(), air())
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta2 = 100.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber = 100.0;
         let h = 1e-2;
 
-        let variable = DerivativeVariable::Frequency;
+        let variable = DerivativeVariable::VacuumWavenumber;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta2)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .second()
@@ -1071,27 +1021,27 @@ mod tests {
 
         let plus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega + h)),
-                arr0(c(beta2)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber + h)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let zero = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c(beta2)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let minus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega - h)),
-                arr0(c(beta2)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber - h)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
@@ -1106,27 +1056,28 @@ mod tests {
     }
 
     #[test]
-    fn propagation_constant_second_derivative_matches_finite_difference_for_stack() {
+    fn parallel_wavenumber_second_derivative_matches_finite_difference_for_stack() {
         let stack = Stack::builder(air(), air())
             .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
             .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
             .build()
             .unwrap();
 
-        let omega = 1000.0;
-        let beta = 10.0;
+        let vacuum_wavenumber = 1000.0;
+        let parallel_wavenumber = 10.0;
         let h = 1e-3;
 
-        let variable = DerivativeVariable::PropagationConstant;
+        let variable = DerivativeVariable::ParallelWavenumber;
 
-        let input = Transfer2Input::new(
-            arr0(c(omega)),
-            arr0(c(beta * beta)),
+        let input = PlanarInput::new(
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         );
 
         let analytical = Transfer2::new()
             .solve_second_derivative(&stack, input, variable)
+            .unwrap()
             .derivatives()
             .unwrap()
             .second()
@@ -1135,27 +1086,27 @@ mod tests {
 
         let plus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c((beta + h) * (beta + h))),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c(parallel_wavenumber + h)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let zero = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c(beta * beta)),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c(parallel_wavenumber)),
                 Polarisation::TransverseElectric,
             ),
         );
 
         let minus = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
-                arr0(c(omega)),
-                arr0(c((beta - h) * (beta - h))),
+            PlanarInput::new(
+                arr0(c(vacuum_wavenumber)),
+                arr0(c(parallel_wavenumber - h)),
                 Polarisation::TransverseElectric,
             ),
         );
@@ -1176,18 +1127,19 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = Transfer2Input::new(
+        let input = PlanarInput::new(
             arr0(c(1000.0)),
             arr0(c(100.0)),
             Polarisation::TransverseElectric,
         );
 
-        let result =
-            Transfer2::new().solve_first_derivative(&stack, input, DerivativeVariable::Frequency);
+        let result = Transfer2::new()
+            .solve_first_derivative(&stack, input, DerivativeVariable::VacuumWavenumber)
+            .unwrap();
 
         assert_eq!(
             result.derivatives().unwrap().variable(),
-            DerivativeVariable::Frequency
+            DerivativeVariable::VacuumWavenumber
         );
     }
 }

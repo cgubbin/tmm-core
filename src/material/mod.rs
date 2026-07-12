@@ -18,7 +18,7 @@ pub use sample::Scalar;
 use sample::{Sampled, TensorSampled};
 use tensor::{DiagonalTensorMaterial, TensorMaterial};
 
-use crate::{ComplexScalar, tensor::Tensor3};
+use crate::ComplexScalar;
 
 use num_traits::{One, Zero};
 

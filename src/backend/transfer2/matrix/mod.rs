@@ -17,6 +17,9 @@
 //! d(LM)  = dL M + L dM
 //! d²(LM) = d²L M + 2 dL dM + L d²M
 //! ```
+
+mod layer;
+
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::ComplexScalar;
@@ -200,14 +203,12 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+mod matrix_math_tests {
     use approx::assert_relative_eq;
     use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr, arr0, arr1};
     use num_complex::Complex64;
 
     use super::*;
-
-    use std::ops::Add;
 
     const TOL: f64 = 1e-5;
 

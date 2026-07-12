@@ -1,27 +1,65 @@
 mod accumulator;
 mod backend;
-mod input;
+mod derivatives;
+mod error;
 mod matrix;
 mod quantities;
 mod result;
-mod spectral;
 mod state;
-mod thickness;
 
-pub use backend::Transfer2;
-pub use input::{DerivativeVariable, Polarisation, Transfer2Input};
+pub use error::TransferError;
 pub use matrix::{Matrix2, multiply_first_derivative, multiply_second_derivative};
-use quantities::{IsotropicLayerQuantities, isotropic_layer_quantities};
-pub use result::{TransferDerivatives, TransferResult};
-pub use spectral::{
-    frequency_squared_derivative, frequency_squared_second_derivative,
-    propagation_constant_squared_derivative, propagation_constant_squared_second_derivative,
-};
+// pub use result::{TransferDerivatives, TransferResult};
 use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
-use thickness::{
-    isotropic_layer_matrix, isotropic_layer_thickness_derivative,
-    isotropic_layer_thickness_second_derivative,
+
+use crate::{
+    ComplexScalar,
+    backend::{
+        DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend,
+        transfer2::backend::Transfer2,
+    },
+    material::Material,
+    stack::Stack,
 };
+
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
+
+impl<C, D, M> RawMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: Material<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    type Matrix = Matrix2<C, D>;
+    type Error = TransferError;
+
+    fn solve_matrix(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        Ok(self.solve(stack, input.clone()))
+    }
+
+    fn solve_matrix_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        self.solve_first_derivative(stack, input.clone(), variable)
+    }
+
+    fn solve_matrix_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        self.solve_second_derivative(stack, input.clone(), variable)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -30,7 +68,8 @@ mod tests {
     use num_complex::Complex64;
 
     use crate::{
-        backend::transfer2::{Polarisation, Transfer2, Transfer2Input},
+        backend::transfer2::Transfer2,
+        backend::{PlanarInput, Polarisation},
         material::{Constant, IsotropicMaterial},
         stack::{Stack, Thickness, ValidationConfig},
     };
@@ -50,7 +89,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = Transfer2Input::new(
+        let input = PlanarInput::new(
             arr0(c(1000.0)),
             arr0(c(0.0)),
             Polarisation::TransverseElectric,
@@ -78,7 +117,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = Transfer2Input::new(
+        let input = PlanarInput::new(
             arr0(c(1000.0)),
             arr0(c(0.0)),
             Polarisation::TransverseElectric,
@@ -103,7 +142,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = Transfer2Input::new(
+        let input = PlanarInput::new(
             arr1(&[c(1000.0), c(1200.0), c(1400.0)]),
             arr1(&[c(0.0), c(0.0), c(0.0)]),
             Polarisation::TransverseElectric,
@@ -130,7 +169,7 @@ mod tests {
 
         let te = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
+            PlanarInput::new(
                 arr0(c(1000.0)),
                 arr0(c(0.0)),
                 Polarisation::TransverseElectric,
@@ -139,7 +178,7 @@ mod tests {
 
         let tm = Transfer2::new().solve(
             &stack,
-            Transfer2Input::new(
+            PlanarInput::new(
                 arr0(c(1000.0)),
                 arr0(c(0.0)),
                 Polarisation::TransverseMagnetic,

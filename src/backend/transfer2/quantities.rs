@@ -2,44 +2,45 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
+    backend::{PlanarInput, Polarisation},
     material::{Material, Scalar},
 };
 
-use super::Polarisation;
-
 /// Material and propagation quantities used by the isotropic 2×2 kernel.
 #[derive(Clone, Debug, PartialEq)]
-pub struct IsotropicLayerQuantities<C, D>
+pub(crate) struct IsotropicLayerQuantities<C, D>
 where
     D: Dimension,
 {
-    pub epsilon: ArrayBase<OwnedRepr<C>, D>,
-    pub mu: ArrayBase<OwnedRepr<C>, D>,
-    pub kappa: ArrayBase<OwnedRepr<C>, D>,
-    pub factor: ArrayBase<OwnedRepr<C>, D>,
+    pub(crate) epsilon: ArrayBase<OwnedRepr<C>, D>,
+    pub(crate) mu: ArrayBase<OwnedRepr<C>, D>,
+    pub(crate) kappa: ArrayBase<OwnedRepr<C>, D>,
+    pub(crate) factor: ArrayBase<OwnedRepr<C>, D>,
 }
 
 /// Compute isotropic layer quantities for a sampled input grid.
-pub fn isotropic_layer_quantities<M, C, D>(
+pub(crate) fn isotropic_layer_quantities<M, C, D>(
     material: &M,
-    wavenumber: &ArrayBase<OwnedRepr<C>, D>,
-    propagation_constant_squared: &ArrayBase<OwnedRepr<C>, D>,
-    polarisation: Polarisation,
+    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
 ) -> IsotropicLayerQuantities<C, D>
 where
     M: Material<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
-    let epsilon = wavenumber.mapv(|w| material.relative_permittivity(Scalar(w)));
-    let mu = wavenumber.mapv(|w| material.relative_permeability(Scalar(w)));
+    let epsilon = planar
+        .vacuum_wavenumber
+        .mapv(|k0| material.relative_permittivity(Scalar(k0)));
+    let mu = planar
+        .vacuum_wavenumber
+        .mapv(|k0| material.relative_permeability(Scalar(k0)));
 
-    let kappa = epsilon.clone() * mu.clone() * wavenumber.mapv(|w| w * w)
-        - propagation_constant_squared.clone();
+    let kappa = epsilon.clone() * mu.clone() * planar.vacuum_wavenumber.mapv(|k0| k0 * k0)
+        - planar.parallel_wavenumber.mapv(|kp| kp * kp);
 
     let kappa = kappa.mapv(|x| x.sqrt());
 
-    let factor = match polarisation {
+    let factor = match planar.polarisation {
         Polarisation::TransverseElectric => mu.clone(),
         Polarisation::TransverseMagnetic => epsilon.clone(),
     };
