@@ -1,4 +1,4 @@
-use crate::backend::{DerivativeVariable, PlanarInput};
+use crate::backend::{DerivativeVariable, PlanarInput, derivative::DerivativeOrder, jet::Jet};
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
@@ -71,6 +71,27 @@ pub struct MatrixEvaluation<M> {
 }
 
 impl<M> MatrixEvaluation<M> {
+    pub(crate) fn from_jet(
+        jet: Jet<M>,
+        variable: Option<DerivativeVariable>,
+        order: DerivativeOrder,
+    ) -> Self {
+        let (value, first, second) = jet.into_parts();
+
+        match (order, variable) {
+            (DerivativeOrder::Value, _) | (_, None) => Self::new(value),
+
+            (DerivativeOrder::First, Some(variable)) => {
+                Self::with_derivatives(value, MatrixDerivatives::new(variable, first))
+            }
+
+            (DerivativeOrder::Second, Some(variable)) => Self::with_derivatives(
+                value,
+                MatrixDerivatives::new(variable, first).with_second(second),
+            ),
+        }
+    }
+
     /// Construct a value-only matrix evaluation.
     pub fn new(matrix: M) -> Self {
         Self {

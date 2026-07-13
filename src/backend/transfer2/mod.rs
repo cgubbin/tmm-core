@@ -1,12 +1,12 @@
-mod accumulator;
 mod backend;
 mod error;
+mod jet;
 mod matrix;
 mod result;
 mod state;
 
 pub use error::TransferError;
-pub use matrix::{Matrix2, multiply_first_derivative, multiply_second_derivative};
+pub use matrix::Matrix2;
 use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
 
 use crate::{
@@ -14,12 +14,9 @@ use crate::{
     backend::{
         DerivativeVariable, MatrixEvaluation, PlanarInput, PlaneWaveBackend, PlaneWaveResponse,
         RawMatrixBackend,
-        isotropic::{
-            AdmittanceEvaluation, IsotropicLayerAdmittance,
-            IsotropicLayerAdmittanceFirstDerivative, IsotropicLayerAdmittanceSecondDerivative,
-            IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
-        },
-        plane_wave::{PlaneWaveAmplitudes, PlaneWaveResponseDerivatives},
+        derivative::DerivativeOrder,
+        isotropic::{AdmittanceEvaluation, IsotropicLayerAdmittance, IsotropicLayerQuantities},
+        plane_wave::PlaneWaveAmplitudes,
         transfer2::backend::Transfer2,
     },
     material::Material,
@@ -43,7 +40,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        Ok(self.solve(stack, input.clone()))
+        self.solve(stack, input.clone()).map(MatrixEvaluation::new)
     }
 
     fn solve_matrix_first_derivative(
@@ -53,6 +50,7 @@ where
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         self.solve_first_derivative(stack, input.clone(), variable)
+            .map(|j| MatrixEvaluation::from_jet(j, Some(variable), DerivativeOrder::First))
     }
 
     fn solve_matrix_second_derivative(
@@ -62,6 +60,7 @@ where
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         self.solve_second_derivative(stack, input.clone(), variable)
+            .map(|j| MatrixEvaluation::from_jet(j, Some(variable), DerivativeOrder::Second))
     }
 }
 
@@ -81,29 +80,27 @@ where
     ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
         let planar = input.planar();
 
-        let matrix = self.solve_matrix(stack, planar)?;
+        let matrix = self.solve(stack, planar.clone())?;
 
         let left_q = IsotropicLayerQuantities::new(stack.left_exterior(), planar);
         let right_q = IsotropicLayerQuantities::new(stack.right_exterior(), planar);
-        let left_a = IsotropicLayerAdmittance::from_quantities(&left_q);
-        let right_a = IsotropicLayerAdmittance::from_quantities(&right_q);
+        let left_admittance = IsotropicLayerAdmittance::from_quantities(&left_q);
+        let right_admittance = IsotropicLayerAdmittance::from_quantities(&right_q);
 
-        let left_admittance_jet = AdmittanceEvaluation::value_only(left_a).jets();
+        // let left_admittance_jet = AdmittanceEvaluation::value_only(left_a).jets();
 
-        let right_admittance_jet = AdmittanceEvaluation::value_only(right_a).jets();
+        // let right_admittance_jet = AdmittanceEvaluation::value_only(right_a).jets();
 
-        let (reflection, transmission) = matrix.amplitude_jets(
-            &left_admittance_jet,
-            &right_admittance_jet,
+        let (reflection, transmission) = matrix.amplitudes(
+            &left_admittance.into_inner(),
+            &right_admittance.into_inner(),
             input.incident_side(),
         );
 
-        Ok(PlaneWaveResponse::from_jets(
+        Ok(PlaneWaveResponse::new(PlaneWaveAmplitudes::new(
             reflection,
             transmission,
-            None,
-            false,
-        ))
+        )))
     }
 
     fn solve_plane_wave_first_derivative(
@@ -114,7 +111,7 @@ where
     ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
         let planar = input.planar();
 
-        let matrix = self.solve_matrix_first_derivative(stack, planar, variable)?;
+        let matrix = self.solve_first_derivative(stack, planar.clone(), variable)?;
 
         let mut left_admittance_jet =
             AdmittanceEvaluation::evaluate_first(stack.left_exterior(), &planar, variable).jets();
@@ -148,7 +145,7 @@ where
     ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
         let planar = input.planar();
 
-        let matrix = self.solve_matrix_first_derivative(stack, planar, variable)?;
+        let matrix = self.solve_first_derivative(stack, planar.clone(), variable)?;
 
         let mut left_admittance_jet =
             AdmittanceEvaluation::evaluate_second(stack.left_exterior(), &planar, variable).jets();

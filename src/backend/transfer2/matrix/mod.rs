@@ -22,7 +22,7 @@ mod layer;
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::ComplexScalar;
+use crate::{ComplexScalar, backend::input::IncidentSide};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matrix2<C, D>
@@ -126,6 +126,68 @@ where
     {
         self + rhs
     }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        ArrayBase<OwnedRepr<C>, D>,
+        ArrayBase<OwnedRepr<C>, D>,
+        ArrayBase<OwnedRepr<C>, D>,
+        ArrayBase<OwnedRepr<C>, D>,
+    ) {
+        (self.m11, self.m12, self.m21, self.m22)
+    }
+
+    pub(super) fn amplitudes(
+        self,
+        left_admittance: &ArrayBase<OwnedRepr<C>, D>,
+        right_admittance: &ArrayBase<OwnedRepr<C>, D>,
+        incident_side: IncidentSide,
+    ) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>)
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        use std::ops::{Add, Div, Mul, Sub};
+
+        let (a, b, c, d) = self.into_parts();
+
+        let two = a.mapv(|_| C::one() + C::one());
+
+        let b_yr = b.clone() * right_admittance;
+        let d_yr = d.clone() * right_admittance;
+
+        let u = a.clone() - &b_yr;
+        let v = c.clone() - &d_yr;
+
+        let denominator = left_admittance.mul(&u).sub(&v);
+
+        match incident_side {
+            IncidentSide::Left => {
+                let reflection = left_admittance.mul(&u).add(&v).div(&denominator);
+
+                let transmission = two.mul(left_admittance).div(&denominator);
+
+                (reflection, transmission)
+            }
+
+            IncidentSide::Right => {
+                let p = a.clone().add(&b_yr);
+                let q = c.clone().add(&d_yr);
+
+                let reflection = q.sub(&left_admittance.mul(&p)).div(&denominator);
+
+                let determinant = a.mul(d).sub(&b.mul(c));
+
+                let transmission = two
+                    .mul(right_admittance)
+                    .mul(&determinant)
+                    .div(&denominator);
+
+                (reflection, transmission)
+            }
+        }
+    }
 }
 
 impl<C, D> std::ops::Add for &Matrix2<C, D>
@@ -144,6 +206,22 @@ where
     }
 }
 
+impl<C, D> std::ops::Sub for &Matrix2<C, D>
+where
+    D: Dimension,
+    C: ComplexScalar,
+{
+    type Output = Matrix2<C, D>;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Matrix2::new(
+            self.m11.clone() - rhs.m11.view(),
+            self.m12.clone() - rhs.m12.view(),
+            self.m21.clone() - rhs.m21.view(),
+            self.m22.clone() - rhs.m22.view(),
+        )
+    }
+}
+
 impl<C, D> std::ops::Mul for &Matrix2<C, D>
 where
     D: Dimension,
@@ -158,48 +236,6 @@ where
             self.m21().clone() * rhs.m12() + self.m22().clone() * rhs.m22(),
         )
     }
-}
-
-/// First derivative product rule for matrix products
-///
-/// Computes
-/// ```text
-/// d(LM) = dL M + L dM
-/// ```
-pub fn multiply_first_derivative<C, D>(
-    left: &Matrix2<C, D>,
-    dleft: &Matrix2<C, D>,
-    right: &Matrix2<C, D>,
-    dright: &Matrix2<C, D>,
-) -> Matrix2<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    &(dleft * right) + &(left * dright)
-}
-
-/// Second derivative product rule for matrix products
-///
-/// Computes
-/// ```text
-/// d2(LM) = d2L M + 2 dL dM + L d2M
-/// ```
-pub fn multiply_second_derivative<C, D>(
-    left: &Matrix2<C, D>,
-    dleft: &Matrix2<C, D>,
-    ddleft: &Matrix2<C, D>,
-    right: &Matrix2<C, D>,
-    dright: &Matrix2<C, D>,
-    ddright: &Matrix2<C, D>,
-) -> Matrix2<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    let two = C::one() + C::one();
-
-    &(&(ddleft * right) + &(&(dleft * dright)).scale(two)) + &(left * ddright)
 }
 
 #[cfg(test)]

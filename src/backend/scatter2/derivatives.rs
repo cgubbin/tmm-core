@@ -1,6 +1,6 @@
 //! Analytic first- and second-order scattering-matrix derivatives.
 
-use ndarray::Dimension;
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,

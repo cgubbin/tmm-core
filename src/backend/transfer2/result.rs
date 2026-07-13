@@ -11,122 +11,122 @@ use crate::{
 use ndarray::{ArrayBase, Dimension, OwnedRepr, ScalarOperand};
 use num_traits::One;
 
-impl<C, D> MatrixEvaluation<Matrix2<C, D>>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn jets(
-        &self,
-    ) -> (
-        ArrayJet<C, D>,
-        ArrayJet<C, D>,
-        ArrayJet<C, D>,
-        ArrayJet<C, D>,
-    )
-    where
-        C: ComplexScalar,
-        D: Dimension,
-    {
-        let matrix = self.matrix();
+// impl<C, D> MatrixEvaluation<Matrix2<C, D>>
+// where
+//     C: ComplexScalar,
+//     D: Dimension,
+// {
+//     fn jets(
+//         &self,
+//     ) -> (
+//         ArrayJet<C, D>,
+//         ArrayJet<C, D>,
+//         ArrayJet<C, D>,
+//         ArrayJet<C, D>,
+//     )
+//     where
+//         C: ComplexScalar,
+//         D: Dimension,
+//     {
+//         let matrix = self.matrix();
 
-        match self.derivatives() {
-            None => (
-                ArrayJet::value_only(matrix.m11().clone()),
-                ArrayJet::value_only(matrix.m12().clone()),
-                ArrayJet::value_only(matrix.m21().clone()),
-                ArrayJet::value_only(matrix.m22().clone()),
-            ),
+//         match self.derivatives() {
+//             None => (
+//                 ArrayJet::value_only(matrix.m11().clone()),
+//                 ArrayJet::value_only(matrix.m12().clone()),
+//                 ArrayJet::value_only(matrix.m21().clone()),
+//                 ArrayJet::value_only(matrix.m22().clone()),
+//             ),
 
-            Some(derivatives) => {
-                let first = derivatives.first();
+//             Some(derivatives) => {
+//                 let first = derivatives.first();
 
-                match derivatives.second() {
-                    None => (
-                        ArrayJet::with_first(matrix.m11().clone(), first.m11().clone()),
-                        ArrayJet::with_first(matrix.m12().clone(), first.m12().clone()),
-                        ArrayJet::with_first(matrix.m21().clone(), first.m21().clone()),
-                        ArrayJet::with_first(matrix.m22().clone(), first.m22().clone()),
-                    ),
+//                 match derivatives.second() {
+//                     None => (
+//                         ArrayJet::with_first(matrix.m11().clone(), first.m11().clone()),
+//                         ArrayJet::with_first(matrix.m12().clone(), first.m12().clone()),
+//                         ArrayJet::with_first(matrix.m21().clone(), first.m21().clone()),
+//                         ArrayJet::with_first(matrix.m22().clone(), first.m22().clone()),
+//                     ),
 
-                    Some(second) => (
-                        ArrayJet::with_second(
-                            matrix.m11().clone(),
-                            first.m11().clone(),
-                            second.m11().clone(),
-                        ),
-                        ArrayJet::with_second(
-                            matrix.m12().clone(),
-                            first.m12().clone(),
-                            second.m12().clone(),
-                        ),
-                        ArrayJet::with_second(
-                            matrix.m21().clone(),
-                            first.m21().clone(),
-                            second.m21().clone(),
-                        ),
-                        ArrayJet::with_second(
-                            matrix.m22().clone(),
-                            first.m22().clone(),
-                            second.m22().clone(),
-                        ),
-                    ),
-                }
-            }
-        }
-    }
+//                     Some(second) => (
+//                         ArrayJet::with_second(
+//                             matrix.m11().clone(),
+//                             first.m11().clone(),
+//                             second.m11().clone(),
+//                         ),
+//                         ArrayJet::with_second(
+//                             matrix.m12().clone(),
+//                             first.m12().clone(),
+//                             second.m12().clone(),
+//                         ),
+//                         ArrayJet::with_second(
+//                             matrix.m21().clone(),
+//                             first.m21().clone(),
+//                             second.m21().clone(),
+//                         ),
+//                         ArrayJet::with_second(
+//                             matrix.m22().clone(),
+//                             first.m22().clone(),
+//                             second.m22().clone(),
+//                         ),
+//                     ),
+//                 }
+//             }
+//         }
+//     }
 
-    pub(super) fn amplitude_jets(
-        &self,
-        left_admittance: &ArrayJet<C, D>,
-        right_admittance: &ArrayJet<C, D>,
-        incident_side: IncidentSide,
-    ) -> (ArrayJet<C, D>, ArrayJet<C, D>)
-    where
-        C: ComplexScalar,
-        D: Dimension,
-    {
-        let (a, b, c, d) = self.jets();
+//     pub(super) fn amplitude_jets(
+//         &self,
+//         left_admittance: &ArrayJet<C, D>,
+//         right_admittance: &ArrayJet<C, D>,
+//         incident_side: IncidentSide,
+//     ) -> (ArrayJet<C, D>, ArrayJet<C, D>)
+//     where
+//         C: ComplexScalar,
+//         D: Dimension,
+//     {
+//         let (a, b, c, d) = self.jets();
 
-        let two = ArrayJet::constant_like(self.matrix().m11(), C::one() + C::one());
+//         let two = ArrayJet::constant_like(self.matrix().m11(), C::one() + C::one());
 
-        let b_yr = b.multiply(right_admittance);
-        let d_yr = d.multiply(right_admittance);
+//         let b_yr = b.multiply(right_admittance);
+//         let d_yr = d.multiply(right_admittance);
 
-        let u = a.subtract(&b_yr);
-        let v = c.subtract(&d_yr);
+//         let u = a.subtract(&b_yr);
+//         let v = c.subtract(&d_yr);
 
-        let denominator = left_admittance.multiply(&u).subtract(&v);
+//         let denominator = left_admittance.multiply(&u).subtract(&v);
 
-        match incident_side {
-            IncidentSide::Left => {
-                let reflection = left_admittance.multiply(&u).add(&v).divide(&denominator);
+//         match incident_side {
+//             IncidentSide::Left => {
+//                 let reflection = left_admittance.multiply(&u).add(&v).divide(&denominator);
 
-                let transmission = two.multiply(left_admittance).divide(&denominator);
+//                 let transmission = two.multiply(left_admittance).divide(&denominator);
 
-                (reflection, transmission)
-            }
+//                 (reflection, transmission)
+//             }
 
-            IncidentSide::Right => {
-                let p = a.add(&b_yr);
-                let q = c.add(&d_yr);
+//             IncidentSide::Right => {
+//                 let p = a.add(&b_yr);
+//                 let q = c.add(&d_yr);
 
-                let reflection = q
-                    .subtract(&left_admittance.multiply(&p))
-                    .divide(&denominator);
+//                 let reflection = q
+//                     .subtract(&left_admittance.multiply(&p))
+//                     .divide(&denominator);
 
-                let determinant = a.multiply(&d).subtract(&b.multiply(&c));
+//                 let determinant = a.multiply(&d).subtract(&b.multiply(&c));
 
-                let transmission = two
-                    .multiply(right_admittance)
-                    .multiply(&determinant)
-                    .divide(&denominator);
+//                 let transmission = two
+//                     .multiply(right_admittance)
+//                     .multiply(&determinant)
+//                     .divide(&denominator);
 
-                (reflection, transmission)
-            }
-        }
-    }
-}
+//                 (reflection, transmission)
+//             }
+//         }
+//     }
+// }
 
 impl<C, D> MatrixEvaluation<Matrix2<C, D>>
 where

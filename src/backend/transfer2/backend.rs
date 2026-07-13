@@ -30,12 +30,12 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, MatrixEvaluation, PlanarInput,
+        DerivativeVariable, PlanarInput,
         isotropic::{
             IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
-        transfer2::{Matrix2, TransferError, accumulator::MatrixAccumulator},
+        transfer2::{Matrix2, TransferError, jet::Transfer2Jet},
     },
     material::Material,
     stack::{Layer, Stack},
@@ -53,24 +53,24 @@ impl Transfer2 {
         &self,
         stack: &Stack<M, C::RealField>,
         input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> MatrixEvaluation<Matrix2<C, D>>
+    ) -> Result<Matrix2<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
+        let mut matrix = Matrix2::identity_like(&input.vacuum_wavenumber);
 
         for layer in stack.layers_in_propagation_order() {
             let q = IsotropicLayerQuantities::new(layer.material(), &input);
 
             let layer_matrix = Matrix2::from_layer(&q, layer.thickness());
 
-            accumulator.update(&layer_matrix);
+            matrix = layer_matrix.multiply(&matrix);
         }
 
-        accumulator.finish()
+        Ok(matrix)
     }
 
     pub fn solve_first_derivative<M, C, D>(
@@ -78,7 +78,7 @@ impl Transfer2 {
         stack: &Stack<M, C::RealField>,
         input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         request: DerivativeVariable,
-    ) -> Result<MatrixEvaluation<Matrix2<C, D>>, TransferError>
+    ) -> Result<Transfer2Jet<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -94,7 +94,7 @@ impl Transfer2 {
             }
         }
 
-        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
+        let mut jet = Transfer2Jet::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
 
         let requested_variable = request;
         let primitive_variable = request.primitive();
@@ -104,20 +104,22 @@ impl Transfer2 {
 
             let matrix = Matrix2::from_layer(&q, layer.thickness());
 
-            if let Some(dmatrix) = first_derivative(index, layer, &q, &input, primitive_variable) {
-                accumulator.update_first(primitive_variable, &matrix, &dmatrix);
+            let layer_jet = if let Some(first) =
+                first_derivative(index, layer, &q, &input, primitive_variable)
+            {
+                Transfer2Jet::with_first(matrix, first)
             } else {
-                accumulator.update_first_constant(primitive_variable, &matrix);
-            }
+                Transfer2Jet::value_only(matrix)
+            };
+
+            jet = layer_jet.multiply(&jet);
         }
 
-        let result = accumulator.finish();
-
-        if let Some(chain_rule) = requested_variable.chain_rule(&input) {
-            Ok(result.chain_rule(requested_variable, chain_rule))
-        } else {
-            Ok(result)
+        if let Some(rule) = requested_variable.chain_rule(&input) {
+            jet = jet.chain_rule(&rule);
         }
+
+        Ok(jet)
     }
 
     pub fn solve_second_derivative<M, C, D>(
@@ -125,7 +127,7 @@ impl Transfer2 {
         stack: &Stack<M, C::RealField>,
         input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         request: DerivativeVariable,
-    ) -> Result<MatrixEvaluation<Matrix2<C, D>>, TransferError>
+    ) -> Result<Transfer2Jet<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -141,7 +143,7 @@ impl Transfer2 {
             }
         }
 
-        let mut accumulator = MatrixAccumulator::new(&input.vacuum_wavenumber);
+        let mut jet = Transfer2Jet::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
 
         let requested_variable = request;
         let primitive_variable = request.primitive();
@@ -150,20 +152,22 @@ impl Transfer2 {
             let q = IsotropicLayerQuantities::new(layer.material(), &input);
             let matrix = Matrix2::from_layer(&q, layer.thickness());
 
-            if let Some(dmatrix) = second_derivative(index, layer, &q, &input, primitive_variable) {
-                accumulator.update_second(request, &matrix, &dmatrix.first, &dmatrix.second);
+            let layer_jet = if let Some(dmatrix) =
+                second_derivative(index, layer, &q, &input, primitive_variable)
+            {
+                Transfer2Jet::with_second(matrix, dmatrix.first, dmatrix.second)
             } else {
-                accumulator.update_second_constant(request, &matrix);
-            }
+                Transfer2Jet::value_only(matrix)
+            };
+
+            jet = layer_jet.multiply(&jet);
         }
 
-        let result = accumulator.finish();
-
-        if let Some(chain_rule) = requested_variable.chain_rule(&input) {
-            Ok(result.chain_rule(requested_variable, chain_rule))
-        } else {
-            Ok(result)
+        if let Some(rule) = requested_variable.chain_rule(&input) {
+            jet = jet.chain_rule(&rule);
         }
+
+        Ok(jet)
     }
 }
 
