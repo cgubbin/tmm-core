@@ -2,7 +2,10 @@ use crate::{
     ComplexScalar,
     backend::{
         input::IncidentSide,
-        jet::{ArrayJet, ChainRuleScale, Jet, JetAdditive, JetBilinear, JetZeroLike},
+        jet::{
+            ArrayJet, ArrayJetFirst, ChainRuleScale, Jet, JetAdditive, JetBilinear, JetFirst,
+            JetZeroLike,
+        },
         transfer2::Matrix2,
     },
 };
@@ -10,13 +13,14 @@ use crate::{
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 pub(crate) type Transfer2Jet<C, D> = Jet<Matrix2<C, D>>;
+pub(crate) type Transfer2JetFirst<C, D> = JetFirst<Matrix2<C, D>>;
 
 impl<C, D> JetZeroLike for Matrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn zeros_like(shape_source: &Self) -> Self {
+    fn jet_zeros_like(shape_source: &Self) -> Self {
         Self::zeros_like(shape_source.m11())
     }
 }
@@ -125,6 +129,96 @@ where
         let d = scalar.m22;
 
         let two = ArrayJet::constant_like(a.value(), C::one() + C::one());
+
+        let b_yr = b.multiply(right_admittance);
+        let d_yr = d.multiply(right_admittance);
+
+        let u = a.subtract(&b_yr);
+        let v = c.subtract(&d_yr);
+
+        let denominator = left_admittance.multiply(&u).subtract(&v);
+
+        match incident_side {
+            IncidentSide::Left => {
+                let reflection = left_admittance.multiply(&u).add(&v).divide(&denominator);
+
+                let transmission = two.multiply(left_admittance).divide(&denominator);
+
+                (reflection, transmission)
+            }
+
+            IncidentSide::Right => {
+                let p = a.add(&b_yr);
+                let q = c.add(&d_yr);
+
+                let reflection = q
+                    .subtract(&left_admittance.multiply(&p))
+                    .divide(&denominator);
+
+                let determinant = a.multiply(&d).subtract(&b.multiply(&c));
+
+                let transmission = two
+                    .multiply(right_admittance)
+                    .multiply(&determinant)
+                    .divide(&denominator);
+
+                (reflection, transmission)
+            }
+        }
+    }
+}
+
+pub(crate) struct Matrix2EntryJetsFirst<C, D>
+where
+    D: Dimension,
+{
+    pub(crate) m11: ArrayJetFirst<C, D>,
+    pub(crate) m12: ArrayJetFirst<C, D>,
+    pub(crate) m21: ArrayJetFirst<C, D>,
+    pub(crate) m22: ArrayJetFirst<C, D>,
+}
+
+impl<C, D> Transfer2JetFirst<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn scalar_jets(self) -> Matrix2EntryJetsFirst<C, D>
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let (value, first) = self.into_parts();
+
+        let (a, b, c, d) = value.into_parts();
+        let (da, db, dc, dd) = first.into_parts();
+
+        Matrix2EntryJetsFirst {
+            m11: ArrayJetFirst::with_first(a, da),
+            m12: ArrayJetFirst::with_first(b, db),
+            m21: ArrayJetFirst::with_first(c, dc),
+            m22: ArrayJetFirst::with_first(d, dd),
+        }
+    }
+
+    pub(super) fn amplitude_jets(
+        self,
+        left_admittance: &ArrayJetFirst<C, D>,
+        right_admittance: &ArrayJetFirst<C, D>,
+        incident_side: IncidentSide,
+    ) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let scalar = self.scalar_jets();
+
+        let a = scalar.m11;
+        let b = scalar.m12;
+        let c = scalar.m21;
+        let d = scalar.m22;
+
+        let two = ArrayJetFirst::constant_like(a.value(), C::one() + C::one());
 
         let b_yr = b.multiply(right_admittance);
         let d_yr = d.multiply(right_admittance);

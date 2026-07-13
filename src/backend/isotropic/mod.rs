@@ -4,8 +4,7 @@ mod derivatives;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 pub(crate) use admittance::{
-    AdmittanceEvaluation, IsotropicLayerAdmittance, IsotropicLayerAdmittanceFirstDerivative,
-    IsotropicLayerAdmittanceSecondDerivative,
+    AdmittanceEvaluation, IsotropicLayerAdmittance,
 };
 pub(crate) use derivatives::{IsotropicLayerFirstDerivatives, IsotropicLayerSecondDerivatives};
 

@@ -50,7 +50,7 @@ where
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         self.solve_first_derivative(stack, input.clone(), variable)
-            .map(|j| MatrixEvaluation::from_jet(j, Some(variable), DerivativeOrder::First))
+            .map(|j| MatrixEvaluation::from_jet_first(j, Some(variable), DerivativeOrder::First))
     }
 
     fn solve_matrix_second_derivative(
@@ -114,9 +114,11 @@ where
         let matrix = self.solve_first_derivative(stack, planar.clone(), variable)?;
 
         let mut left_admittance_jet =
-            AdmittanceEvaluation::evaluate_first(stack.left_exterior(), &planar, variable).jets();
+            AdmittanceEvaluation::evaluate_first(stack.left_exterior(), &planar, variable)
+                .first_jets();
         let mut right_admittance_jet =
-            AdmittanceEvaluation::evaluate_first(stack.right_exterior(), &planar, variable).jets();
+            AdmittanceEvaluation::evaluate_first(stack.right_exterior(), &planar, variable)
+                .first_jets();
 
         if let Some(rule) = variable.chain_rule(planar) {
             left_admittance_jet = left_admittance_jet.chain_rule(&rule);
@@ -129,11 +131,10 @@ where
             input.incident_side(),
         );
 
-        Ok(PlaneWaveResponse::from_jets(
+        Ok(PlaneWaveResponse::from_jets_first(
             reflection,
             transmission,
             Some(variable),
-            false,
         ))
     }
 
@@ -145,7 +146,7 @@ where
     ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
         let planar = input.planar();
 
-        let matrix = self.solve_first_derivative(stack, planar.clone(), variable)?;
+        let matrix = self.solve_second_derivative(stack, planar.clone(), variable)?;
 
         let mut left_admittance_jet =
             AdmittanceEvaluation::evaluate_second(stack.left_exterior(), &planar, variable).jets();

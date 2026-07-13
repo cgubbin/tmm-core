@@ -8,7 +8,7 @@ use crate::{
             IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
-        jet::ArrayJet,
+        jet::{ArrayJet, ArrayJetFirst},
     },
     material::Material,
 };
@@ -232,6 +232,16 @@ where
             value,
             first: None,
             second: Some(second),
+        }
+    }
+
+    pub(crate) fn first_jets(&self) -> ArrayJetFirst<C, D> {
+        match &self.first {
+            Some(first) => {
+                ArrayJetFirst::with_first(self.value.value().clone(), first.value().clone())
+            }
+
+            None => ArrayJetFirst::value_only(self.value.value().clone()),
         }
     }
 

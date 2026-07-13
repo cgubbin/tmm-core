@@ -1,7 +1,6 @@
 use crate::{
     ComplexScalar,
     backend::{DerivativeVariable, PlanarInput},
-    stack::Stack,
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};

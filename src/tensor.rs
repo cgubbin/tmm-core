@@ -1,4 +1,4 @@
-use ndarray::{Array2, arr1, arr2};
+use ndarray::{Array2, arr1};
 
 use crate::ComplexScalar;
 

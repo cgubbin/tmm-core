@@ -35,7 +35,10 @@ use crate::{
             IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
-        transfer2::{Matrix2, TransferError, jet::Transfer2Jet},
+        transfer2::{
+            Matrix2, TransferError,
+            jet::{Transfer2Jet, Transfer2JetFirst},
+        },
     },
     material::Material,
     stack::{Layer, Stack},
@@ -78,7 +81,7 @@ impl Transfer2 {
         stack: &Stack<M, C::RealField>,
         input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         request: DerivativeVariable,
-    ) -> Result<Transfer2Jet<C, D>, TransferError>
+    ) -> Result<Transfer2JetFirst<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -94,7 +97,8 @@ impl Transfer2 {
             }
         }
 
-        let mut jet = Transfer2Jet::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
+        let mut jet =
+            Transfer2JetFirst::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
 
         let requested_variable = request;
         let primitive_variable = request.primitive();
@@ -107,9 +111,9 @@ impl Transfer2 {
             let layer_jet = if let Some(first) =
                 first_derivative(index, layer, &q, &input, primitive_variable)
             {
-                Transfer2Jet::with_first(matrix, first)
+                Transfer2JetFirst::with_first(matrix, first)
             } else {
-                Transfer2Jet::value_only(matrix)
+                Transfer2JetFirst::value_only(matrix)
             };
 
             jet = layer_jet.multiply(&jet);

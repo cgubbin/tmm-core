@@ -2,7 +2,6 @@ use crate::{
     ComplexScalar,
     backend::{
         MatrixEvaluation, PlanarInput,
-        isotropic::IsotropicLayerQuantities,
         scatter2::{accumulator::ScatterAccumulator, matrix::ScatterMatrix2},
     },
     material::Material,
@@ -30,9 +29,9 @@ impl Scatter2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut accumulator = ScatterAccumulator::new(&input.vacuum_wavenumber);
+        let accumulator = ScatterAccumulator::new(&input.vacuum_wavenumber);
 
-        for layer in stack.layers_in_propagation_order() {
+        for _layer in stack.layers_in_propagation_order() {
             //     let q = IsotropicLayerQuantities::new(layer.material(), &input);
 
             //     let layer_matrix = ScatterMatrix2::from_layer(&q, layer.thickness());

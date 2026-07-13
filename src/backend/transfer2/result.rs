@@ -4,7 +4,6 @@ use crate::{
         DerivativeVariable, MatrixDerivatives, MatrixEvaluation,
         derivative::ChainRule,
         input::IncidentSide,
-        jet::ArrayJet,
         transfer2::{BoundaryMode, BoundaryModeDerivatives, FieldState, Matrix2},
     },
 };
@@ -365,26 +364,26 @@ where
 
         match incident_side {
             IncidentSide::Left => {
-                let m21 = self.matrix().m21().clone();
-                let m22 = self.matrix().m22().clone();
+                let _m21 = self.matrix().m21().clone();
+                let _m22 = self.matrix().m22().clone();
 
-                let dm21 = dm.m21().clone();
-                let dm22 = dm.m22().clone();
+                let _dm21 = dm.m21().clone();
+                let _dm22 = dm.m22().clone();
 
-                let ddm21 = ddm.m21().clone();
-                let ddm22 = ddm.m22().clone();
+                let _ddm21 = ddm.m21().clone();
+                let _ddm22 = ddm.m22().clone();
 
                 todo!()
             }
             IncidentSide::Right => {
-                let m12 = self.matrix().m12().clone();
-                let m11 = self.matrix().m11().clone();
+                let _m12 = self.matrix().m12().clone();
+                let _m11 = self.matrix().m11().clone();
 
-                let dm12 = dm.m12().clone();
-                let dm11 = dm.m11().clone();
+                let _dm12 = dm.m12().clone();
+                let _dm11 = dm.m11().clone();
 
-                let ddm12 = ddm.m12().clone();
-                let ddm11 = ddm.m11().clone();
+                let _ddm12 = ddm.m12().clone();
+                let _ddm11 = ddm.m11().clone();
 
                 todo!()
             }

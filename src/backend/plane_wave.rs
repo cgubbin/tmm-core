@@ -1,6 +1,9 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{ComplexScalar, backend::jet::ArrayJet};
+use crate::{
+    ComplexScalar,
+    backend::jet::{ArrayJet, ArrayJetFirst},
+};
 
 use super::{DerivativeVariable, PlaneWaveInput};
 
@@ -69,6 +72,29 @@ where
             amplitudes,
             derivatives: None,
         }
+    }
+
+    pub(crate) fn from_jets_first(
+        reflection: ArrayJetFirst<C, D>,
+        transmission: ArrayJetFirst<C, D>,
+        variable: Option<DerivativeVariable>,
+    ) -> Self
+    where
+        C: ComplexScalar,
+    {
+        let amplitudes =
+            PlaneWaveAmplitudes::new(reflection.value().clone(), transmission.value().clone());
+
+        let Some(variable) = variable else {
+            return PlaneWaveResponse::new(amplitudes);
+        };
+
+        let first =
+            PlaneWaveAmplitudes::new(reflection.first().clone(), transmission.first().clone());
+
+        let mut derivatives = PlaneWaveResponseDerivatives::new(variable, first);
+
+        PlaneWaveResponse::with_derivatives(amplitudes, derivatives)
     }
 
     pub(crate) fn from_jets(

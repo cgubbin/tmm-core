@@ -17,8 +17,6 @@ mod interface;
 mod propagation;
 
 pub(crate) use algebra::star_product;
-pub(crate) use interface::interface_scattering_matrix;
-pub(crate) use propagation::propagation_scattering_matrix;
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 

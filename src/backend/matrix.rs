@@ -1,4 +1,8 @@
-use crate::backend::{DerivativeVariable, PlanarInput, derivative::DerivativeOrder, jet::Jet};
+use crate::backend::{
+    DerivativeVariable, PlanarInput,
+    derivative::DerivativeOrder,
+    jet::{Jet, JetFirst},
+};
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
@@ -89,6 +93,24 @@ impl<M> MatrixEvaluation<M> {
                 value,
                 MatrixDerivatives::new(variable, first).with_second(second),
             ),
+        }
+    }
+
+    pub(crate) fn from_jet_first(
+        jet: JetFirst<M>,
+        variable: Option<DerivativeVariable>,
+        order: DerivativeOrder,
+    ) -> Self {
+        let (value, first) = jet.into_parts();
+
+        match (order, variable) {
+            (DerivativeOrder::Value, _) | (_, None) => Self::new(value),
+
+            (DerivativeOrder::First, Some(variable)) => {
+                Self::with_derivatives(value, MatrixDerivatives::new(variable, first))
+            }
+
+            (DerivativeOrder::Second, Some(variable)) => panic!("should not happen"),
         }
     }
 

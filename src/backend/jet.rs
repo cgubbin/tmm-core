@@ -19,7 +19,7 @@ pub(crate) struct JetFirst<I> {
 }
 
 pub(crate) trait JetZeroLike: Clone {
-    fn zeros_like(shape_source: &Self) -> Self;
+    fn jet_zeros_like(shape_source: &Self) -> Self;
 }
 
 pub(crate) trait JetAdditive {
@@ -70,7 +70,7 @@ where
     I: JetZeroLike,
 {
     pub(crate) fn value_only(value: I) -> Self {
-        let zero = I::zeros_like(&value);
+        let zero = I::jet_zeros_like(&value);
 
         Self {
             value,
@@ -80,7 +80,7 @@ where
     }
 
     pub(crate) fn with_first(value: I, first: I) -> Self {
-        let second = I::zeros_like(&value);
+        let second = I::jet_zeros_like(&value);
 
         Self {
             value,
@@ -237,7 +237,7 @@ where
     I: JetZeroLike,
 {
     pub(crate) fn value_only(value: I) -> Self {
-        let zero = I::zeros_like(&value);
+        let zero = I::jet_zeros_like(&value);
 
         Self {
             value,
@@ -317,7 +317,7 @@ where
     pub(crate) fn reciprocal(&self) -> Self {
         let inverse = self.value.elementwise_reciprocal();
         let inverse_squared = inverse.jet_multiply(&inverse);
-        let inverse_cubed = inverse_squared.jet_multiply(&inverse);
+        let _inverse_cubed = inverse_squared.jet_multiply(&inverse);
 
         let first = self.first.jet_negate().jet_multiply(&inverse_squared);
 
@@ -342,7 +342,7 @@ impl<I> JetFirst<I> {
 
         let transformed_first = primitive_first.scale_by(&rule.first);
 
-        let first_squared = rule.first.square();
+        let _first_squared = rule.first.square();
 
         Self {
             value: self.value,
@@ -356,8 +356,8 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn zeros_like(shape_source: &Self) -> Self {
-        ArrayBase::zeros_like(shape_source)
+    fn jet_zeros_like(shape_source: &Self) -> Self {
+        ArrayBase::zeros(shape_source.raw_dim())
     }
 }
 
