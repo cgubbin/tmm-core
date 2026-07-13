@@ -2,8 +2,9 @@ use ndarray::Dimension;
 
 use crate::{
     ComplexScalar,
-    backend::IsotropicLayerQuantities,
-    backend::transfer2::derivatives::{LayerFirstDerivatives, LayerSecondDerivatives},
+    backend::isotropic::{
+        IsotropicLayerFirstDerivatives, IsotropicLayerQuantities, IsotropicLayerSecondDerivatives,
+    },
     stack::Thickness,
 };
 
@@ -77,7 +78,7 @@ where
     pub(crate) fn spectral_derivative(
         q: &IsotropicLayerQuantities<C, D>,
         thickness: Thickness<C::RealField>,
-        derivatives: &LayerFirstDerivatives<C, D>,
+        derivatives: &IsotropicLayerFirstDerivatives<C, D>,
     ) -> Self {
         let d = C::from_real(thickness.as_cm());
 
@@ -109,7 +110,7 @@ where
     pub(crate) fn spectral_second_derivative(
         q: &IsotropicLayerQuantities<C, D>,
         thickness: Thickness<C::RealField>,
-        derivatives: &LayerSecondDerivatives<C, D>,
+        derivatives: &IsotropicLayerSecondDerivatives<C, D>,
     ) -> Self {
         let d = C::from_real(thickness.as_cm());
 
@@ -177,7 +178,7 @@ mod thickness_tests {
 
     use super::*;
     use crate::backend::PlanarInput;
-    use crate::backend::{Polarisation, transfer2::quantities::isotropic_layer_quantities};
+    use crate::backend::{Polarisation, isotropic::IsotropicLayerQuantities};
     use crate::material::Constant;
 
     type C = Complex64;
@@ -225,7 +226,7 @@ mod thickness_tests {
     fn zero_thickness_layer_is_identity() {
         let material = Constant::new(2.25);
 
-        let q = isotropic_layer_quantities(
+        let q = IsotropicLayerQuantities::new(
             &material,
             &PlanarInput::new(
                 arr0(c(1000.0)),
@@ -249,7 +250,7 @@ mod thickness_tests {
             Polarisation::TransverseElectric,
             Polarisation::TransverseMagnetic,
         ] {
-            let q = isotropic_layer_quantities(
+            let q = IsotropicLayerQuantities::new(
                 &material,
                 &PlanarInput::new(arr0(c(1000.0)), arr0(c(100.0)), polarisation),
             );
@@ -273,7 +274,7 @@ mod thickness_tests {
         let vacuum_wavenumber = arr0(c(1000.0));
         let parallel_wavenumber = arr0(c(100.0));
 
-        let q = isotropic_layer_quantities(
+        let q = IsotropicLayerQuantities::new(
             &material,
             &PlanarInput::new(
                 vacuum_wavenumber,
@@ -303,7 +304,7 @@ mod thickness_tests {
         let vacuum_wavenumber = arr0(c(1000.0));
         let parallel_wavenumber = arr0(c(100.0));
 
-        let q = isotropic_layer_quantities(
+        let q = IsotropicLayerQuantities::new(
             &material,
             &PlanarInput::new(
                 vacuum_wavenumber,
@@ -335,7 +336,7 @@ mod thickness_tests {
         let vacuum_wavenumber = arr1(&[c(1000.0), c(1100.0), c(1200.0)]);
         let parallel_wavenumber = arr1(&[c(0.0), c(10.0), c(20.0)]);
 
-        let q = isotropic_layer_quantities(
+        let q = IsotropicLayerQuantities::new(
             &material,
             &PlanarInput::new(
                 vacuum_wavenumber,
@@ -358,7 +359,7 @@ mod thickness_tests {
         let vacuum_wavenumber = arr0(c(1000.0));
         let parallel_wavenumber = arr0(c(0.0));
 
-        let q = isotropic_layer_quantities(
+        let q = IsotropicLayerQuantities::new(
             &material,
             &PlanarInput::new(
                 vacuum_wavenumber,

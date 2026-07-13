@@ -3,6 +3,8 @@ use crate::{
     backend::{
         DerivativeVariable, MatrixDerivatives, MatrixEvaluation,
         derivative::ChainRule,
+        input::IncidentSide,
+        jet::ArrayJet,
         transfer2::{BoundaryMode, BoundaryModeDerivatives, FieldState, Matrix2},
     },
 };
@@ -14,27 +16,123 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Complex reflection amplitude, assuming the standard convention:
-    ///
-    /// incident-side field = incident + reflected
-    /// transmission-side field = transmitted only
-    pub fn reflection_amplitude(&self) -> ArrayBase<OwnedRepr<C>, D> {
-        -self.matrix().m21().clone() / self.matrix().m22().clone()
+    fn jets(
+        &self,
+    ) -> (
+        ArrayJet<C, D>,
+        ArrayJet<C, D>,
+        ArrayJet<C, D>,
+        ArrayJet<C, D>,
+    )
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let matrix = self.matrix();
+
+        match self.derivatives() {
+            None => (
+                ArrayJet::value_only(matrix.m11().clone()),
+                ArrayJet::value_only(matrix.m12().clone()),
+                ArrayJet::value_only(matrix.m21().clone()),
+                ArrayJet::value_only(matrix.m22().clone()),
+            ),
+
+            Some(derivatives) => {
+                let first = derivatives.first();
+
+                match derivatives.second() {
+                    None => (
+                        ArrayJet::with_first(matrix.m11().clone(), first.m11().clone()),
+                        ArrayJet::with_first(matrix.m12().clone(), first.m12().clone()),
+                        ArrayJet::with_first(matrix.m21().clone(), first.m21().clone()),
+                        ArrayJet::with_first(matrix.m22().clone(), first.m22().clone()),
+                    ),
+
+                    Some(second) => (
+                        ArrayJet::with_second(
+                            matrix.m11().clone(),
+                            first.m11().clone(),
+                            second.m11().clone(),
+                        ),
+                        ArrayJet::with_second(
+                            matrix.m12().clone(),
+                            first.m12().clone(),
+                            second.m12().clone(),
+                        ),
+                        ArrayJet::with_second(
+                            matrix.m21().clone(),
+                            first.m21().clone(),
+                            second.m21().clone(),
+                        ),
+                        ArrayJet::with_second(
+                            matrix.m22().clone(),
+                            first.m22().clone(),
+                            second.m22().clone(),
+                        ),
+                    ),
+                }
+            }
+        }
     }
 
-    pub fn transmission_amplitude(&self) -> ArrayBase<OwnedRepr<C>, D> {
-        let one = self.matrix().m22().mapv(|_| C::one());
-        one / self.matrix().m22().clone()
-    }
+    pub(super) fn amplitude_jets(
+        &self,
+        left_admittance: &ArrayJet<C, D>,
+        right_admittance: &ArrayJet<C, D>,
+        incident_side: IncidentSide,
+    ) -> (ArrayJet<C, D>, ArrayJet<C, D>)
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let (a, b, c, d) = self.jets();
 
-    pub fn reflectance(&self) -> ArrayBase<OwnedRepr<C::RealField>, D> {
-        self.reflection_amplitude().mapv(|r| r.modulus_squared())
-    }
+        let two = ArrayJet::constant_like(self.matrix().m11(), C::one() + C::one());
 
-    pub fn transmittance_unscaled(&self) -> ArrayBase<OwnedRepr<C::RealField>, D> {
-        self.transmission_amplitude().mapv(|t| t.modulus_squared())
-    }
+        let b_yr = b.multiply(right_admittance);
+        let d_yr = d.multiply(right_admittance);
 
+        let u = a.subtract(&b_yr);
+        let v = c.subtract(&d_yr);
+
+        let denominator = left_admittance.multiply(&u).subtract(&v);
+
+        match incident_side {
+            IncidentSide::Left => {
+                let reflection = left_admittance.multiply(&u).add(&v).divide(&denominator);
+
+                let transmission = two.multiply(left_admittance).divide(&denominator);
+
+                (reflection, transmission)
+            }
+
+            IncidentSide::Right => {
+                let p = a.add(&b_yr);
+                let q = c.add(&d_yr);
+
+                let reflection = q
+                    .subtract(&left_admittance.multiply(&p))
+                    .divide(&denominator);
+
+                let determinant = a.multiply(&d).subtract(&b.multiply(&c));
+
+                let transmission = two
+                    .multiply(right_admittance)
+                    .multiply(&determinant)
+                    .divide(&denominator);
+
+                (reflection, transmission)
+            }
+        }
+    }
+}
+
+impl<C, D> MatrixEvaluation<Matrix2<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
     pub fn outgoing_state(&self, boundary: &BoundaryMode<C, D>) -> FieldState<C, D> {
         self.matrix().apply_state(&boundary.outgoing_state())
     }
@@ -208,34 +306,137 @@ where
     C::RealField: One,
     D: Dimension,
 {
-    pub fn reflection_amplitude_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>> {
-        let dm = self.derivatives()?.first();
-
-        let m21 = self.matrix().m21().clone();
-        let m22 = self.matrix().m22().clone();
-
-        let dm21 = dm.m21().clone();
-        let dm22 = dm.m22().clone();
-
-        Some(-(dm21 * m22.clone() - m21 * dm22) / m22.mapv(|x| x * x))
+    /// Complex reflection amplitude, assuming the standard convention:
+    ///
+    /// incident-side field = incident + reflected
+    /// transmission-side field = transmitted only
+    pub fn reflection_amplitude(&self, incident_side: IncidentSide) -> ArrayBase<OwnedRepr<C>, D> {
+        match incident_side {
+            IncidentSide::Left => -self.matrix().m21().clone() / self.matrix().m22().clone(),
+            IncidentSide::Right => todo!(),
+        }
     }
 
-    pub fn transmission_amplitude_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>> {
-        let dm = self.derivatives()?.first();
-
-        let m22 = self.matrix().m22().clone();
-        let dm22 = dm.m22().clone();
-
-        Some(-dm22 / m22.mapv(|x| x * x))
+    pub fn transmission_amplitude(
+        &self,
+        incident_side: IncidentSide,
+    ) -> ArrayBase<OwnedRepr<C>, D> {
+        let one = self.matrix().m22().mapv(|_| C::one());
+        match incident_side {
+            IncidentSide::Left => one / self.matrix().m22().clone(),
+            IncidentSide::Right => one / self.matrix().m11().clone(),
+        }
     }
 
-    pub fn reflectance_derivative(&self) -> Option<ArrayBase<OwnedRepr<C::RealField>, D>> {
-        let r = self.reflection_amplitude();
-        let dr = self.reflection_amplitude_derivative()?;
+    pub fn reflection_amplitude_derivative(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<ArrayBase<OwnedRepr<C>, D>> {
+        let dm = self.derivatives()?.first();
 
-        Some((r.mapv(|x| x.conjugate()) * dr).mapv(|x| {
-            let two = C::RealField::one() + C::RealField::one();
-            two * x.real()
-        }))
+        match incident_side {
+            IncidentSide::Left => {
+                let m21 = self.matrix().m21().clone();
+                let m22 = self.matrix().m22().clone();
+
+                let dm21 = dm.m21().clone();
+                let dm22 = dm.m22().clone();
+
+                Some(-(dm21 * m22.clone() - m21 * dm22) / m22.mapv(|x| x * x))
+            }
+            IncidentSide::Right => {
+                let m12 = self.matrix().m12().clone();
+                let m11 = self.matrix().m11().clone();
+
+                let dm12 = dm.m12().clone();
+                let dm11 = dm.m11().clone();
+
+                Some(-(dm12 * m11.clone() - m12 * dm11) / m11.mapv(|x| x * x))
+            }
+        }
+    }
+
+    pub fn reflection_amplitude_second_derivative(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<ArrayBase<OwnedRepr<C>, D>> {
+        let dm = self.derivatives()?.first();
+        let ddm = self.derivatives()?.second()?;
+
+        match incident_side {
+            IncidentSide::Left => {
+                let m21 = self.matrix().m21().clone();
+                let m22 = self.matrix().m22().clone();
+
+                let dm21 = dm.m21().clone();
+                let dm22 = dm.m22().clone();
+
+                let ddm21 = ddm.m21().clone();
+                let ddm22 = ddm.m22().clone();
+
+                todo!()
+            }
+            IncidentSide::Right => {
+                let m12 = self.matrix().m12().clone();
+                let m11 = self.matrix().m11().clone();
+
+                let dm12 = dm.m12().clone();
+                let dm11 = dm.m11().clone();
+
+                let ddm12 = ddm.m12().clone();
+                let ddm11 = ddm.m11().clone();
+
+                todo!()
+            }
+        }
+    }
+
+    pub fn transmission_amplitude_derivative(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<ArrayBase<OwnedRepr<C>, D>> {
+        let dm = self.derivatives()?.first();
+
+        match incident_side {
+            IncidentSide::Left => {
+                let m22 = self.matrix().m22().clone();
+                let dm22 = dm.m22().clone();
+                Some(-dm22 / m22.mapv(|x| x * x))
+            }
+            IncidentSide::Right => {
+                let m11 = self.matrix().m11().clone();
+                let dm11 = dm.m11().clone();
+                Some(-dm11 / m11.mapv(|x| x * x))
+            }
+        }
+    }
+
+    pub fn transmission_amplitude_second_derivative(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<ArrayBase<OwnedRepr<C>, D>> {
+        let dm = self.derivatives()?.first();
+        let ddm = self.derivatives()?.second()?;
+
+        match incident_side {
+            IncidentSide::Left => {
+                let m22 = self.matrix().m22().clone();
+                let dm22 = dm.m22().clone();
+                let ddm22 = ddm.m22().clone();
+                Some(
+                    -ddm22 / m22.mapv(|x| x * x)
+                        + dm22.mapv(|x| x * x + x * x) / m22.mapv(|x| x * x * x),
+                )
+            }
+            IncidentSide::Right => {
+                let m11 = self.matrix().m11().clone();
+                let dm11 = dm.m11().clone();
+                let ddm11 = ddm.m11().clone();
+                Some(
+                    -ddm11 / m11.mapv(|x| x * x)
+                        + dm11.mapv(|x| x * x + x * x) / m11.mapv(|x| x * x * x),
+                )
+            }
+        }
     }
 }

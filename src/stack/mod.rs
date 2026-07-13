@@ -20,8 +20,8 @@ pub enum PropagationDirection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stack<M, F> {
-    incident: M,
-    substrate: M,
+    left_exterior: M,
+    right_exterior: M,
     layers: Vec<Layer<M, F>>,
     direction: PropagationDirection,
 }
@@ -34,12 +34,12 @@ impl<M, F> Stack<M, F> {
         StackBuilder::new(incident, substrate)
     }
 
-    pub fn incident(&self) -> &M {
-        &self.incident
+    pub fn left_exterior(&self) -> &M {
+        &self.left_exterior
     }
 
-    pub fn substrate(&self) -> &M {
-        &self.substrate
+    pub fn right_exterior(&self) -> &M {
+        &self.right_exterior
     }
 
     pub fn layers(&self) -> &[Layer<M, F>] {

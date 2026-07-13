@@ -8,18 +8,18 @@ use super::{
 use num_traits::Float;
 
 pub struct StackBuilder<M, F> {
-    incident: M,
-    substrate: M,
+    left_exterior: M,
+    right_exterior: M,
     layers: Vec<Layer<M, F>>,
     direction: PropagationDirection,
     validation: ValidationConfig<F>,
 }
 
 impl<M, F: Float> StackBuilder<M, F> {
-    pub fn new(incident: M, substrate: M) -> Self {
+    pub fn new(left_exterior: M, right_exterior: M) -> Self {
         Self {
-            incident,
-            substrate,
+            left_exterior,
+            right_exterior,
             layers: Vec::new(),
             direction: PropagationDirection::Forward,
             validation: ValidationConfig::default(),
@@ -52,8 +52,8 @@ where
         validator.validate_thicknesses(&thicknesses)?;
 
         Ok(Stack {
-            incident: self.incident,
-            substrate: self.substrate,
+            left_exterior: self.left_exterior,
+            right_exterior: self.right_exterior,
             layers: self.layers,
             direction: self.direction,
         })

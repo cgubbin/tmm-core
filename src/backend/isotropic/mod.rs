@@ -1,6 +1,13 @@
+mod admittance;
 mod derivatives;
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+
+pub(crate) use admittance::{
+    AdmittanceEvaluation, IsotropicLayerAdmittance, IsotropicLayerAdmittanceFirstDerivative,
+    IsotropicLayerAdmittanceSecondDerivative,
+};
+pub(crate) use derivatives::{IsotropicLayerFirstDerivatives, IsotropicLayerSecondDerivatives};
 
 use crate::{
     ComplexScalar,
@@ -55,7 +62,7 @@ where
         }
     }
 
-    pub(crate) fn admittance(&self) -> ArrayBase<OwnedRepr<C>, D> {
-        self.kappa.clone() / self.factor.view()
+    pub(crate) fn admittance(&self) -> IsotropicLayerAdmittance<C, D> {
+        IsotropicLayerAdmittance::from_quantities(self)
     }
 }

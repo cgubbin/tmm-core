@@ -30,19 +30,12 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, IsotropicLayerQuantities, MatrixDerivatives, MatrixEvaluation,
-        PlanarInput,
-        derivative::ChainRule,
-        transfer2::{
-            Matrix2, TransferError,
-            accumulator::MatrixAccumulator,
-            derivatives::{
-                parallel_wavenumber_squared_derivatives,
-                parallel_wavenumber_squared_second_derivatives,
-                vacuum_wavenumber_squared_derivatives,
-                vacuum_wavenumber_squared_second_derivatives,
-            },
+        DerivativeVariable, MatrixEvaluation, PlanarInput,
+        isotropic::{
+            IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
+            IsotropicLayerSecondDerivatives,
         },
+        transfer2::{Matrix2, TransferError, accumulator::MatrixAccumulator},
     },
     material::Material,
     stack::{Layer, Stack},
@@ -195,12 +188,13 @@ where
         DerivativeVariable::Thickness(_) => None,
 
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = vacuum_wavenumber_squared_derivatives(
-                layer.material(),
-                q,
-                &input.vacuum_wavenumber,
-                input.polarisation,
-            );
+            let derivatives =
+                IsotropicLayerFirstDerivatives::with_respect_to_vacuum_wavenumber_squared(
+                    layer.material(),
+                    q,
+                    &input.vacuum_wavenumber,
+                    input.polarisation,
+                );
 
             Some(Matrix2::spectral_derivative(
                 q,
@@ -210,7 +204,8 @@ where
         }
 
         DerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives = parallel_wavenumber_squared_derivatives(q);
+            let derivatives =
+                IsotropicLayerFirstDerivatives::with_respect_to_parallel_wavenumber_squared(q);
 
             Some(Matrix2::spectral_derivative(
                 q,
@@ -255,12 +250,13 @@ where
         }
         DerivativeVariable::Thickness(_) => None,
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = vacuum_wavenumber_squared_second_derivatives(
-                layer.material(),
-                q,
-                &input.vacuum_wavenumber,
-                input.polarisation,
-            );
+            let derivatives =
+                IsotropicLayerSecondDerivatives::with_respect_to_vacuum_wavenumber_squared(
+                    layer.material(),
+                    q,
+                    &input.vacuum_wavenumber,
+                    input.polarisation,
+                );
 
             let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
 
@@ -269,7 +265,8 @@ where
             Some(LayerDerivativeMatrices { first, second })
         }
         DerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives = parallel_wavenumber_squared_second_derivatives(q);
+            let derivatives =
+                IsotropicLayerSecondDerivatives::with_respect_to_parallel_wavenumber_squared(q);
 
             let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
             let second = Matrix2::spectral_second_derivative(q, layer.thickness(), &derivatives);
@@ -384,7 +381,8 @@ mod tests {
 
         let result = Transfer2::new().solve(&stack, input.clone());
 
-        let expected = Matrix2::from_layer(&isotropic_layer_quantities(&layer, &input), thickness);
+        let expected =
+            Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer, &input), thickness);
 
         assert_matrix_close(result.matrix(), &expected, 1e-12);
     }
@@ -407,9 +405,9 @@ mod tests {
 
         let result = Transfer2::new().solve(&stack, input.clone());
 
-        let m0 = Matrix2::from_layer(&isotropic_layer_quantities(&layer0, &input), d0);
+        let m0 = Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer0, &input), d0);
 
-        let m1 = Matrix2::from_layer(&isotropic_layer_quantities(&layer1, &input), d1);
+        let m1 = Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer1, &input), d1);
 
         let expected = &m1 * &m0;
 
@@ -460,11 +458,11 @@ mod tests {
             .solve_first_derivative(&stack, input.clone(), variable)
             .unwrap();
 
-        let q = isotropic_layer_quantities(&layer0, &input);
+        let q = IsotropicLayerQuantities::new(&layer0, &input);
 
         let dm0 = Matrix2::thickness_derivative(&q, d0);
 
-        let q1 = isotropic_layer_quantities(&layer1, &input);
+        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
 
         let m1 = Matrix2::from_layer(&q1, d1);
 
@@ -494,11 +492,11 @@ mod tests {
             .solve_first_derivative(&stack, input.clone(), variable)
             .unwrap();
 
-        let q0 = isotropic_layer_quantities(&layer0, &input);
+        let q0 = IsotropicLayerQuantities::new(&layer0, &input);
 
         let m0 = Matrix2::from_layer(&q0, d0);
 
-        let q1 = isotropic_layer_quantities(&layer1, &input);
+        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
 
         let dm1 = Matrix2::thickness_derivative(&q1, d1);
 
@@ -577,11 +575,11 @@ mod tests {
             .solve_second_derivative(&stack, input.clone(), variable)
             .unwrap();
 
-        let q0 = isotropic_layer_quantities(&layer0, &input);
+        let q0 = IsotropicLayerQuantities::new(&layer0, &input);
 
         let ddm0 = Matrix2::thickness_second_derivative(&q0, d0);
 
-        let q1 = isotropic_layer_quantities(&layer1, &input);
+        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
 
         let m1 = Matrix2::from_layer(&q1, d1);
 

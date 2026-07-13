@@ -1,6 +1,5 @@
 mod accumulator;
 mod backend;
-mod derivatives;
 mod error;
 mod matrix;
 mod result;
@@ -13,7 +12,14 @@ use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend,
+        DerivativeVariable, MatrixEvaluation, PlanarInput, PlaneWaveBackend, PlaneWaveResponse,
+        RawMatrixBackend,
+        isotropic::{
+            AdmittanceEvaluation, IsotropicLayerAdmittance,
+            IsotropicLayerAdmittanceFirstDerivative, IsotropicLayerAdmittanceSecondDerivative,
+            IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
+        },
+        plane_wave::{PlaneWaveAmplitudes, PlaneWaveResponseDerivatives},
         transfer2::backend::Transfer2,
     },
     material::Material,
@@ -56,6 +62,116 @@ where
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         self.solve_second_derivative(stack, input.clone(), variable)
+    }
+}
+
+impl<C, D, M> PlaneWaveBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: Material<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    type Error = TransferError;
+
+    fn solve_plane_wave(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.planar();
+
+        let matrix = self.solve_matrix(stack, planar)?;
+
+        let left_q = IsotropicLayerQuantities::new(stack.left_exterior(), planar);
+        let right_q = IsotropicLayerQuantities::new(stack.right_exterior(), planar);
+        let left_a = IsotropicLayerAdmittance::from_quantities(&left_q);
+        let right_a = IsotropicLayerAdmittance::from_quantities(&right_q);
+
+        let left_admittance_jet = AdmittanceEvaluation::value_only(left_a).jets();
+
+        let right_admittance_jet = AdmittanceEvaluation::value_only(right_a).jets();
+
+        let (reflection, transmission) = matrix.amplitude_jets(
+            &left_admittance_jet,
+            &right_admittance_jet,
+            input.incident_side(),
+        );
+
+        Ok(PlaneWaveResponse::from_jets(
+            reflection,
+            transmission,
+            None,
+            false,
+        ))
+    }
+
+    fn solve_plane_wave_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.planar();
+
+        let matrix = self.solve_matrix_first_derivative(stack, planar, variable)?;
+
+        let mut left_admittance_jet =
+            AdmittanceEvaluation::evaluate_first(stack.left_exterior(), &planar, variable).jets();
+        let mut right_admittance_jet =
+            AdmittanceEvaluation::evaluate_first(stack.right_exterior(), &planar, variable).jets();
+
+        if let Some(rule) = variable.chain_rule(planar) {
+            left_admittance_jet = left_admittance_jet.chain_rule(&rule);
+            right_admittance_jet = right_admittance_jet.chain_rule(&rule);
+        }
+
+        let (reflection, transmission) = matrix.amplitude_jets(
+            &left_admittance_jet,
+            &right_admittance_jet,
+            input.incident_side(),
+        );
+
+        Ok(PlaneWaveResponse::from_jets(
+            reflection,
+            transmission,
+            Some(variable),
+            false,
+        ))
+    }
+
+    fn solve_plane_wave_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.planar();
+
+        let matrix = self.solve_matrix_first_derivative(stack, planar, variable)?;
+
+        let mut left_admittance_jet =
+            AdmittanceEvaluation::evaluate_second(stack.left_exterior(), &planar, variable).jets();
+        let mut right_admittance_jet =
+            AdmittanceEvaluation::evaluate_second(stack.right_exterior(), &planar, variable).jets();
+
+        if let Some(rule) = variable.chain_rule(planar) {
+            left_admittance_jet = left_admittance_jet.chain_rule(&rule);
+            right_admittance_jet = right_admittance_jet.chain_rule(&rule);
+        }
+
+        let (reflection, transmission) = matrix.amplitude_jets(
+            &left_admittance_jet,
+            &right_admittance_jet,
+            input.incident_side(),
+        );
+
+        Ok(PlaneWaveResponse::from_jets(
+            reflection,
+            transmission,
+            Some(variable),
+            true,
+        ))
     }
 }
 

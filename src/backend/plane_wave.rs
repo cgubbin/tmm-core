@@ -1,5 +1,7 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
+use crate::{ComplexScalar, backend::jet::ArrayJet};
+
 use super::{DerivativeVariable, PlaneWaveInput};
 
 /// Backend capable of solving a physical plane-wave scattering problem.
@@ -67,6 +69,37 @@ where
             amplitudes,
             derivatives: None,
         }
+    }
+
+    pub(crate) fn from_jets(
+        reflection: ArrayJet<C, D>,
+        transmission: ArrayJet<C, D>,
+        variable: Option<DerivativeVariable>,
+        include_second: bool,
+    ) -> Self
+    where
+        C: ComplexScalar,
+    {
+        let amplitudes =
+            PlaneWaveAmplitudes::new(reflection.value().clone(), transmission.value().clone());
+
+        let Some(variable) = variable else {
+            return PlaneWaveResponse::new(amplitudes);
+        };
+
+        let first =
+            PlaneWaveAmplitudes::new(reflection.first().clone(), transmission.first().clone());
+
+        let mut derivatives = PlaneWaveResponseDerivatives::new(variable, first);
+
+        if include_second {
+            derivatives = derivatives.with_second(PlaneWaveAmplitudes::new(
+                reflection.second().clone(),
+                transmission.second().clone(),
+            ));
+        }
+
+        PlaneWaveResponse::with_derivatives(amplitudes, derivatives)
     }
 
     /// Construct a plane-wave response containing derivatives.

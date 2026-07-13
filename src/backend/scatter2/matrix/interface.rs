@@ -16,15 +16,16 @@ where
     let left_admittance = left.admittance();
     let right_admittance = right.admittance();
 
-    let denominator = left_admittance.clone() + right_admittance.view();
+    let denominator = left_admittance.value().to_owned() + right_admittance.value().view();
 
     let two = C::one() + C::one();
 
-    let reflection_left = (left_admittance.clone() - right_admittance.view()) / denominator.view();
+    let reflection_left =
+        (left_admittance.value().to_owned() - right_admittance.value().view()) / denominator.view();
 
-    let transmission_left = left_admittance.mapv(|x| two * x) / denominator.view();
+    let transmission_left = left_admittance.value().mapv(|x| two * x) / denominator.view();
 
-    let transmission_right = right_admittance.mapv(|x| two * x) / denominator;
+    let transmission_right = right_admittance.value().mapv(|x| two * x) / denominator;
 
     ScatterMatrix2::new(
         reflection_left.clone(),

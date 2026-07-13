@@ -4,6 +4,7 @@ use ndarray::{ArrayBase, OwnedRepr};
 mod derivative;
 mod input;
 mod isotropic;
+mod jet;
 mod matrix;
 mod mode;
 mod plane_wave;
