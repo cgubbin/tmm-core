@@ -1,92 +1,15 @@
 //! Analytic first- and second-order scattering-matrix derivatives.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::Dimension;
 
-use crate::{ComplexScalar, backend::DerivativeVariable};
+use crate::{
+    ComplexScalar,
+    backend::{DerivativeVariable, jet::ArrayJet},
+};
 
 use super::ScatterMatrix2;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ArrayJet<C, D>
-where
-    D: Dimension,
-{
-    value: ArrayBase<OwnedRepr<C>, D>,
-    first: ArrayBase<OwnedRepr<C>, D>,
-    second: ArrayBase<OwnedRepr<C>, D>,
-}
-
-impl<C, D> ArrayJet<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    pub(crate) fn new(
-        value: ArrayBase<OwnedRepr<C>, D>,
-        first: ArrayBase<OwnedRepr<C>, D>,
-        second: ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self {
-        Self {
-            value,
-            first,
-            second,
-        }
-    }
-
-    pub(crate) fn constant(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        let zero = value.mapv(|_| C::zero());
-
-        Self::new(value, zero.clone(), zero)
-    }
-
-    pub(crate) fn add(&self, rhs: &Self) -> Self {
-        Self::new(
-            self.value.clone() + rhs.value.view(),
-            self.first.clone() + rhs.first.view(),
-            self.second.clone() + rhs.second.view(),
-        )
-    }
-
-    pub(crate) fn subtract(&self, rhs: &Self) -> Self {
-        Self::new(
-            self.value.clone() - rhs.value.view(),
-            self.first.clone() - rhs.first.view(),
-            self.second.clone() - rhs.second.view(),
-        )
-    }
-
-    pub(crate) fn multiply(&self, rhs: &Self) -> Self {
-        let two = C::one() + C::one();
-
-        Self::new(
-            self.value.clone() * rhs.value.view(),
-            self.first.clone() * rhs.value.view() + self.value.clone() * rhs.first.view(),
-            self.second.clone() * rhs.value.view()
-                + (self.first.clone() * rhs.first.view()).mapv(|x| two * x)
-                + self.value.clone() * rhs.second.view(),
-        )
-    }
-
-    pub(crate) fn reciprocal(&self) -> Self {
-        let two = C::one() + C::one();
-
-        let value_squared = self.value.mapv(|x| x * x);
-        let value_cubed = self.value.mapv(|x| x * x * x);
-
-        Self::new(
-            self.value.mapv(|x| C::one() / x),
-            -self.first.clone() / value_squared.view(),
-            self.first.mapv(|x| two * x * x) / value_cubed.view()
-                - self.second.clone() / value_squared,
-        )
-    }
-
-    pub(crate) fn divide(&self, rhs: &Self) -> Self {
-        self.multiply(&rhs.reciprocal())
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct ScatterJet2<C, D>
 where
     D: Dimension,
@@ -104,10 +27,10 @@ where
 {
     pub(crate) fn from_value(value: ScatterMatrix2<C, D>) -> Self {
         Self {
-            s11: ArrayJet::constant(value.s11().clone()),
-            s12: ArrayJet::constant(value.s12().clone()),
-            s21: ArrayJet::constant(value.s21().clone()),
-            s22: ArrayJet::constant(value.s22().clone()),
+            s11: ArrayJet::value_only(value.s11().clone()),
+            s12: ArrayJet::value_only(value.s12().clone()),
+            s21: ArrayJet::value_only(value.s21().clone()),
+            s22: ArrayJet::value_only(value.s22().clone()),
         }
     }
 
@@ -117,22 +40,22 @@ where
         second: ScatterMatrix2<C, D>,
     ) -> Self {
         Self {
-            s11: ArrayJet::new(
+            s11: ArrayJet::with_second(
                 value.s11().clone(),
                 first.s11().clone(),
                 second.s11().clone(),
             ),
-            s12: ArrayJet::new(
+            s12: ArrayJet::with_second(
                 value.s12().clone(),
                 first.s12().clone(),
                 second.s12().clone(),
             ),
-            s21: ArrayJet::new(
+            s21: ArrayJet::with_second(
                 value.s21().clone(),
                 first.s21().clone(),
                 second.s21().clone(),
             ),
-            s22: ArrayJet::new(
+            s22: ArrayJet::with_second(
                 value.s22().clone(),
                 first.s22().clone(),
                 second.s22().clone(),
@@ -141,7 +64,7 @@ where
     }
 
     pub(crate) fn star(&self, right: &Self) -> Self {
-        let one = ArrayJet::constant(self.s11.value.mapv(|_| C::one()));
+        let one = ArrayJet::value_only(self.s11.value().mapv(|_| C::one()));
 
         let denominator = one.subtract(&right.s11.multiply(&self.s22));
 
@@ -176,24 +99,24 @@ where
         ScatterMatrix2<C, D>,
     ) {
         let value = ScatterMatrix2::new(
-            self.s11.value,
-            self.s12.value,
-            self.s21.value,
-            self.s22.value,
+            self.s11.value().clone(),
+            self.s12.value().clone(),
+            self.s21.value().clone(),
+            self.s22.value().clone(),
         );
 
         let first = ScatterMatrix2::new(
-            self.s11.first,
-            self.s12.first,
-            self.s21.first,
-            self.s22.first,
+            self.s11.first().clone(),
+            self.s12.first().clone(),
+            self.s21.first().clone(),
+            self.s22.first().clone(),
         );
 
         let second = ScatterMatrix2::new(
-            self.s11.second,
-            self.s12.second,
-            self.s21.second,
-            self.s22.second,
+            self.s11.second().clone(),
+            self.s12.second().clone(),
+            self.s21.second().clone(),
+            self.s22.second().clone(),
         );
 
         (value, first, second)
