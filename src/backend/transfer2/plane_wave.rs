@@ -843,8 +843,7 @@ mod transfer2_pw_tests {
     use crate::{
         backend::transfer2::{Transfer2, TransferError},
         backend::{
-            DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveBackend, PlaneWaveInput,
-            Polarisation,
+            DerivativeVariable, PlanarInput, PlaneWaveBackend, PlaneWaveInput, Polarisation,
         },
         material::Constant,
         stack::{Stack, Thickness, ValidationConfig},

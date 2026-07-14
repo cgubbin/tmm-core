@@ -10,7 +10,7 @@ mod plane_wave;
 mod transfer2;
 
 pub use derivative::DerivativeVariable;
-pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
+pub use input::{PlanarInput, PlaneWaveInput, Polarisation};
 pub use matrix::{MatrixEvaluation, RawMatrixBackend};
 pub use mode::{AnalyticResidual, OutgoingModeBackend};
 pub use plane_wave::{PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveResponse};

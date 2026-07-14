@@ -288,11 +288,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{
-        backend::Polarisation,
-        material::Constant,
-        stack::{Thickness, ValidationConfig},
-    };
+    use crate::{backend::Polarisation, material::Constant, stack::Thickness};
 
     type C = Complex64;
 

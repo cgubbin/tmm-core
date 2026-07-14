@@ -47,7 +47,7 @@
 use crate::{
     ComplexScalar,
     backend::{
-        jet::{ChainRuleScale, Jet, JetAdditive, JetBilinear, JetConstant, JetFirst, JetZeroLike},
+        jet::{ChainRuleScale, Jet, JetAdditive, JetBilinear, JetFirst, JetZeroLike},
         transfer2::Matrix2,
     },
 };
@@ -104,18 +104,6 @@ where
 
     fn jet_double(&self) -> Self {
         self * (C::one() + C::one())
-    }
-}
-
-impl<C, D> JetConstant for Matrix2<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    type Scalar = C;
-
-    fn constant_like(&self, value: Self::Scalar) -> Self {
-        todo!()
     }
 }
 

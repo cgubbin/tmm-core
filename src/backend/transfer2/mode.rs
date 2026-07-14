@@ -123,9 +123,9 @@ mod tests {
     use super::*;
 
     use crate::{
-        backend::{IncidentSide, PlaneWaveBackend, PlaneWaveInput, Polarisation},
+        backend::Polarisation,
         material::Constant,
-        stack::{Layer, Thickness, ValidationConfig},
+        stack::{Thickness, ValidationConfig},
     };
 
     type C = Complex64;
