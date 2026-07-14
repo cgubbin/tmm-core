@@ -6,11 +6,12 @@ use crate::ComplexScalar;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Constant<R> {
     epsilon: R,
+    mu: R,
 }
 
 impl<R> Constant<R> {
-    pub fn new(epsilon: R) -> Self {
-        Self { epsilon }
+    pub fn new(epsilon: R, mu: R) -> Self {
+        Self { epsilon, mu }
     }
 }
 
@@ -34,6 +35,14 @@ where
         C: ComplexScalar<RealField = R>,
     {
         wavenumber.map(|_| C::from_real(self.epsilon))
+    }
+
+    fn relative_permeability<I, C>(&self, wavenumber: I) -> I::Mapped<C>
+    where
+        I: Sampled<Elem = C>,
+        C: ComplexScalar<RealField = R>,
+    {
+        wavenumber.map(|_| C::from_real(self.mu))
     }
 
     fn relative_permittivity_derivative<I, C>(
@@ -198,8 +207,8 @@ where
                 let dedw = wp2 * (two * w - gamma) / w.powi(2) / denom.powi(2);
 
                 match variable {
-                    SpectralVariable::Frequency => dedw,
-                    SpectralVariable::FrequencySquared => dedw / (two * w),
+                    SpectralVariable::VacuumWavenumber => dedw,
+                    SpectralVariable::VacuumWavenumberSquared => dedw / (two * w),
                 }
             }
             DerivativeOrder::Second => {
@@ -207,12 +216,12 @@ where
                     -two * wp2 * (w * w + w * denom + denom.powi(2)) / w.powi(3) / denom.powi(3);
 
                 match variable {
-                    SpectralVariable::Frequency => d2edw2,
-                    SpectralVariable::FrequencySquared => {
+                    SpectralVariable::VacuumWavenumber => d2edw2,
+                    SpectralVariable::VacuumWavenumberSquared => {
                         let dedw = self.epsilon_derivative(
                             w,
                             DerivativeOrder::First,
-                            SpectralVariable::Frequency,
+                            SpectralVariable::VacuumWavenumber,
                         );
 
                         d2edw2 / (four * w.powi(2)) - dedw / (four * w.powi(3))
@@ -273,8 +282,8 @@ where
                 let dedw = strength * wt2 * numerator_term / denom.powi(2);
 
                 match variable {
-                    SpectralVariable::Frequency => dedw,
-                    SpectralVariable::FrequencySquared => dedw / (two * w),
+                    SpectralVariable::VacuumWavenumber => dedw,
+                    SpectralVariable::VacuumWavenumberSquared => dedw / (two * w),
                 }
             }
             DerivativeOrder::Second => {
@@ -282,12 +291,12 @@ where
                     two * strength * wt2 * (denom + numerator_term.powi(2)) / denom.powi(3);
 
                 match variable {
-                    SpectralVariable::Frequency => d2edw2,
-                    SpectralVariable::FrequencySquared => {
+                    SpectralVariable::VacuumWavenumber => d2edw2,
+                    SpectralVariable::VacuumWavenumberSquared => {
                         let dedw = self.epsilon_derivative(
                             w,
                             DerivativeOrder::First,
-                            SpectralVariable::Frequency,
+                            SpectralVariable::VacuumWavenumber,
                         );
 
                         d2edw2 / (four * w.powi(2)) - dedw / (four * w.powi(3))
@@ -310,7 +319,7 @@ mod tests {
 
     #[test]
     fn constant_material_is_not_dispersive() {
-        let material = Constant::new(4.0);
+        let material = Constant::new(4.0, 1.0);
 
         assert!(!material.is_dispersive());
         assert_eq!(material.static_permittivity(), 4.0);
@@ -323,12 +332,12 @@ mod tests {
 
     #[test]
     fn constant_material_derivative_is_zero() {
-        let material = Constant::new(4.0);
+        let material = Constant::new(4.0, 1.0);
 
         let deps: C = material.relative_permittivity_derivative(
             Scalar(C::new(1000.0, 0.0)),
             DerivativeOrder::First,
-            SpectralVariable::Frequency,
+            SpectralVariable::VacuumWavenumber,
         );
 
         assert_relative_eq!(deps.re, 0.0);
@@ -415,7 +424,7 @@ mod ndarray_tests {
 
     #[test]
     fn array2_shape_is_preserved() {
-        let material = Constant::new(3.0);
+        let material = Constant::new(3.0, 1.0);
 
         let values = Array2::from_shape_vec(
             (2, 3),
@@ -441,23 +450,23 @@ mod ndarray_tests {
     }
 
     #[test]
-    fn permeability_defaults_to_one() {
-        let material = Constant::new(4.0);
+    fn permeability_reflects_value() {
+        let material = Constant::new(4.0, 2.0);
 
         let mu: C = material.relative_permeability(Scalar(C::new(1000.0, 0.0)));
 
-        assert_relative_eq!(mu.re, 1.0);
+        assert_relative_eq!(mu.re, 2.0);
         assert_relative_eq!(mu.im, 0.0);
     }
 
     #[test]
     fn permeability_derivative_defaults_to_zero() {
-        let material = Constant::new(4.0);
+        let material = Constant::new(4.0, 1.0);
 
         let dmu: C = material.relative_permeability_derivative(
             Scalar(C::new(1000.0, 0.0)),
             DerivativeOrder::First,
-            SpectralVariable::Frequency,
+            SpectralVariable::VacuumWavenumber,
         );
 
         assert_relative_eq!(dmu.re, 0.0);

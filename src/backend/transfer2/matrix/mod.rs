@@ -1,29 +1,35 @@
-//! Matrix algebra for the 2×2 transfer-matrix backend.
+//! Shape-preserving 2×2 transfer matrices.
 //!
-//! This module defines [`Matrix2`], a shape-preserving 2×2 matrix whose entries
-//! are `ndarray` arrays. Each entry has the same sample shape, so matrix
-//! operations are ordinary 2×2 algebra with elementwise array operations over
-//! the sample grid.
+//! [`Matrix2`] stores four owned `ndarray` arrays with a common sampled shape.
+//! Matrix operations are ordinary 2×2 algebra, evaluated independently at
+//! every point in that sample grid.
 //!
-//! The backend accumulates layer matrices as:
+//! Transfer matrices compose by ordinary matrix multiplication. If a new layer
+//! matrix `L` is encountered in propagation order, the accumulated matrix is
+//! updated as:
 //!
 //! ```text
 //! M_total <- L M_total
 //! ```
 //!
-//! and derivative products as:
-//!
-//! ```text
-//! d(LM)  = dL M + L dM
-//! d²(LM) = d²L M + 2 dL dM + L d²M
-//! ```
+//! This module contains only matrix representation and algebra. Layer-specific
+//! constructors are implemented in the private `layer` module. Plane-wave
+//! amplitudes and outgoing-mode residuals are constructed elsewhere because
+//! they additionally depend on exterior-media conventions.
 
 mod layer;
 
+use std::ops::{Add, Mul, Neg, Sub};
+
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{ComplexScalar, backend::input::IncidentSide};
+use crate::ComplexScalar;
 
+/// Shape-preserving 2×2 transfer matrix.
+///
+/// Every entry has the same sampled dimension `D`. The type does not encode a
+/// physical boundary convention; it represents only the backend's native
+/// transfer matrix.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matrix2<C, D>
 where
@@ -39,94 +45,44 @@ impl<C, D> Matrix2<C, D>
 where
     D: Dimension,
 {
+    /// Construct a 2×2 matrix from four equally shaped sampled entries.
+    ///
+    /// This constructor does not validate that the arrays have matching
+    /// shapes. Internal callers must preserve that invariant.
     pub fn new(
         m11: ArrayBase<OwnedRepr<C>, D>,
         m12: ArrayBase<OwnedRepr<C>, D>,
         m21: ArrayBase<OwnedRepr<C>, D>,
         m22: ArrayBase<OwnedRepr<C>, D>,
     ) -> Self {
+        debug_assert_eq!(m11.raw_dim(), m12.raw_dim());
+        debug_assert_eq!(m11.raw_dim(), m21.raw_dim());
+        debug_assert_eq!(m11.raw_dim(), m22.raw_dim());
+
         Self { m11, m12, m21, m22 }
     }
 
+    /// Return entry `(1, 1)`.
     pub fn m11(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.m11
     }
+
+    /// Return entry `(1, 2)`.
     pub fn m12(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.m12
     }
+
+    /// Return entry `(2, 1)`.
     pub fn m21(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.m21
     }
+
+    /// Return entry `(2, 2)`.
     pub fn m22(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.m22
     }
-    pub fn determinant(&self) -> ArrayBase<OwnedRepr<C>, D>
-    where
-        C: ComplexScalar,
-    {
-        self.m11.clone() * self.m22.view() - self.m12.clone() * self.m21.view()
-    }
 
-    pub fn zeros_like(shape_source: &ArrayBase<OwnedRepr<C>, D>) -> Self
-    where
-        C: ComplexScalar,
-    {
-        let zero = shape_source.mapv(|_| C::zero());
-        Self::new(zero.clone(), zero.clone(), zero.clone(), zero)
-    }
-
-    pub fn identity_like(shape_source: &ArrayBase<OwnedRepr<C>, D>) -> Self
-    where
-        C: ComplexScalar,
-    {
-        let one = shape_source.mapv(|_| C::one());
-        let zero = shape_source.mapv(|_| C::zero());
-        Self::new(one.clone(), zero.clone(), zero, one)
-    }
-
-    /// Multiply every element of a 2x2 matrix by scalar `value`
-    pub fn scale(&self, value: C) -> Self
-    where
-        C: ComplexScalar,
-    {
-        Matrix2::new(
-            self.m11().clone() * value,
-            self.m12().clone() * value,
-            self.m21().clone() * value,
-            self.m22().clone() * value,
-        )
-    }
-
-    /// Multiply every entry of a 2×2 matrix by a sample-shaped array.
-    ///
-    /// This is used for chain-rule transformations where the derivative scaling
-    /// factor varies over the input grid.
-    pub fn scale_by_array(&self, values: &ArrayBase<OwnedRepr<C>, D>) -> Matrix2<C, D>
-    where
-        C: ComplexScalar,
-    {
-        Matrix2::new(
-            self.m11().clone() * values.view(),
-            self.m12().clone() * values.view(),
-            self.m21().clone() * values.view(),
-            self.m22().clone() * values.view(),
-        )
-    }
-
-    pub fn multiply(&self, rhs: &Self) -> Self
-    where
-        C: ComplexScalar,
-    {
-        self * rhs
-    }
-
-    pub fn add(&self, rhs: &Self) -> Self
-    where
-        C: ComplexScalar,
-    {
-        self + rhs
-    }
-
+    /// Consume the matrix and return its four entries in row-major order.
     pub(crate) fn into_parts(
         self,
     ) -> (
@@ -137,65 +93,53 @@ where
     ) {
         (self.m11, self.m12, self.m21, self.m22)
     }
+}
 
-    pub(super) fn amplitudes(
-        self,
-        left_admittance: &ArrayBase<OwnedRepr<C>, D>,
-        right_admittance: &ArrayBase<OwnedRepr<C>, D>,
-        incident_side: IncidentSide,
-    ) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>)
-    where
-        C: ComplexScalar,
-        D: Dimension,
-    {
-        use std::ops::{Add, Div, Mul, Sub};
+impl<C, D> Matrix2<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Construct the zero matrix with the sampled shape of `shape_source`.
+    pub fn zeros_like(shape_source: &ArrayBase<OwnedRepr<C>, D>) -> Self {
+        let zero = shape_source.mapv(|_| C::zero());
 
-        let (a, b, c, d) = self.into_parts();
+        Self::new(zero.clone(), zero.clone(), zero.clone(), zero)
+    }
 
-        let two = a.mapv(|_| C::one() + C::one());
+    /// Construct the identity matrix with the sampled shape of `shape_source`.
+    pub fn identity_like(shape_source: &ArrayBase<OwnedRepr<C>, D>) -> Self {
+        let one = shape_source.mapv(|_| C::one());
+        let zero = shape_source.mapv(|_| C::zero());
 
-        let b_yr = b.clone() * right_admittance;
-        let d_yr = d.clone() * right_admittance;
+        Self::new(one.clone(), zero.clone(), zero, one)
+    }
 
-        let u = a.clone() - &b_yr;
-        let v = c.clone() - &d_yr;
+    /// Compute the determinant at every sampled point.
+    pub fn determinant(&self) -> ArrayBase<OwnedRepr<C>, D> {
+        self.m11.clone() * self.m22.view() - self.m12.clone() * self.m21.view()
+    }
 
-        let denominator = left_admittance.mul(&u).sub(&v);
-
-        match incident_side {
-            IncidentSide::Left => {
-                let reflection = left_admittance.mul(&u).add(&v).div(&denominator);
-
-                let transmission = two.mul(left_admittance).div(&denominator);
-
-                (reflection, transmission)
-            }
-
-            IncidentSide::Right => {
-                let p = a.clone().add(&b_yr);
-                let q = c.clone().add(&d_yr);
-
-                let reflection = q.sub(&left_admittance.mul(&p)).div(&denominator);
-
-                let determinant = a.mul(d).sub(&b.mul(c));
-
-                let transmission = two
-                    .mul(right_admittance)
-                    .mul(&determinant)
-                    .div(&denominator);
-
-                (reflection, transmission)
-            }
-        }
+    /// Multiply every matrix entry by a sampled coefficient array.
+    ///
+    /// `values` must have the same sampled shape as the matrix entries.
+    pub fn scale_by_array(&self, values: &ArrayBase<OwnedRepr<C>, D>) -> Self {
+        Self::new(
+            self.m11.clone() * values.view(),
+            self.m12.clone() * values.view(),
+            self.m21.clone() * values.view(),
+            self.m22.clone() * values.view(),
+        )
     }
 }
 
-impl<C, D> std::ops::Add for &Matrix2<C, D>
+impl<C, D> Add for &Matrix2<C, D>
 where
-    D: Dimension,
     C: ComplexScalar,
+    D: Dimension,
 {
     type Output = Matrix2<C, D>;
+
     fn add(self, rhs: Self) -> Self::Output {
         Matrix2::new(
             self.m11.clone() + rhs.m11.view(),
@@ -206,12 +150,13 @@ where
     }
 }
 
-impl<C, D> std::ops::Sub for &Matrix2<C, D>
+impl<C, D> Sub for &Matrix2<C, D>
 where
-    D: Dimension,
     C: ComplexScalar,
+    D: Dimension,
 {
     type Output = Matrix2<C, D>;
+
     fn sub(self, rhs: Self) -> Self::Output {
         Matrix2::new(
             self.m11.clone() - rhs.m11.view(),
@@ -222,177 +167,300 @@ where
     }
 }
 
-impl<C, D> std::ops::Mul for &Matrix2<C, D>
+impl<C, D> Neg for &Matrix2<C, D>
 where
-    D: Dimension,
     C: ComplexScalar,
+    D: Dimension,
 {
     type Output = Matrix2<C, D>;
+
+    fn neg(self) -> Self::Output {
+        Matrix2::new(
+            -self.m11.clone(),
+            -self.m12.clone(),
+            -self.m21.clone(),
+            -self.m22.clone(),
+        )
+    }
+}
+
+impl<C, D> Mul for &Matrix2<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Output = Matrix2<C, D>;
+
     fn mul(self, rhs: Self) -> Self::Output {
         Matrix2::new(
-            self.m11().clone() * rhs.m11() + self.m12().clone() * rhs.m21(),
-            self.m11().clone() * rhs.m12() + self.m12().clone() * rhs.m22(),
-            self.m21().clone() * rhs.m11() + self.m22().clone() * rhs.m21(),
-            self.m21().clone() * rhs.m12() + self.m22().clone() * rhs.m22(),
+            self.m11.clone() * rhs.m11.view() + self.m12.clone() * rhs.m21.view(),
+            self.m11.clone() * rhs.m12.view() + self.m12.clone() * rhs.m22.view(),
+            self.m21.clone() * rhs.m11.view() + self.m22.clone() * rhs.m21.view(),
+            self.m21.clone() * rhs.m12.view() + self.m22.clone() * rhs.m22.view(),
+        )
+    }
+}
+
+impl<C, D> Mul<C> for &Matrix2<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Output = Matrix2<C, D>;
+
+    fn mul(self, rhs: C) -> Self::Output {
+        Matrix2::new(
+            self.m11.clone() * rhs,
+            self.m12.clone() * rhs,
+            self.m21.clone() * rhs,
+            self.m22.clone() * rhs,
         )
     }
 }
 
 #[cfg(test)]
-mod matrix_math_tests {
+mod tests {
     use approx::assert_relative_eq;
-    use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr, arr0, arr1};
+    use ndarray::{Ix0, arr0, array};
     use num_complex::Complex64;
 
     use super::*;
 
-    const TOL: f64 = 1e-5;
-
     type C = Complex64;
 
-    fn c(x: f64) -> C {
-        C::new(x, 0.0)
+    fn c(value: f64) -> C {
+        C::new(value, 0.0)
     }
 
-    fn assert_array_close<D>(
-        actual: &ArrayBase<OwnedRepr<C>, D>,
-        expected: &ArrayBase<OwnedRepr<C>, D>,
-    ) where
-        D: Dimension,
-    {
-        assert_eq!(actual.shape(), expected.shape());
-
-        for (actual, expected) in actual.iter().zip(expected) {
-            assert_relative_eq!(actual, expected, epsilon = TOL)
-        }
+    fn scalar_matrix(m11: f64, m12: f64, m21: f64, m22: f64) -> Matrix2<C, Ix0> {
+        Matrix2::new(arr0(c(m11)), arr0(c(m12)), arr0(c(m21)), arr0(c(m22)))
     }
 
-    fn assert_matrix_close<D>(actual: &Matrix2<C, D>, expected: &Matrix2<C, D>)
-    where
-        D: Dimension,
-    {
-        assert_array_close(actual.m11(), expected.m11());
-        assert_array_close(actual.m12(), expected.m12());
-        assert_array_close(actual.m21(), expected.m21());
-        assert_array_close(actual.m22(), expected.m22());
-    }
-
-    fn scalar_matrix(a: f64, b: f64, c_: f64, d: f64) -> Matrix2<C, Ix0> {
-        Matrix2::new(arr0(c(a)), arr0(c(b)), arr0(c(c_)), arr0(c(d)))
-    }
-
-    #[test]
-    fn identity_left_multiplication_returns_matrix() {
-        let m = scalar_matrix(1.0, 2.0, 3.0, 4.0);
-        let id = Matrix2::identity_like(m.m11());
-
-        assert_matrix_close(&(&id * &m), &m);
-    }
-
-    #[test]
-    fn identity_right_multiplication_returns_matrix() {
-        let m = scalar_matrix(1.0, 2.0, 3.0, 4.0);
-        let id = Matrix2::identity_like(m.m11());
-
-        assert_matrix_close(&(&m * &id), &m);
-    }
-
-    #[test]
-    fn multiplication_matches_manual_scalar_result() {
-        let a = scalar_matrix(1.0, 2.0, 3.0, 4.0);
-        let b = scalar_matrix(5.0, 6.0, 7.0, 8.0);
-
-        let expected = scalar_matrix(19.0, 22.0, 43.0, 50.0);
-
-        assert_matrix_close(&(&a * &b), &expected);
-    }
-
-    #[test]
-    fn multiplication_preserves_array_shape() {
-        let a = Matrix2::new(
-            arr1(&[c(1.0), c(2.0)]),
-            arr1(&[c(0.0), c(1.0)]),
-            arr1(&[c(1.0), c(0.0)]),
-            arr1(&[c(2.0), c(3.0)]),
+    fn assert_close(actual: C, expected: C) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = 1e-12,
+            max_relative = 1e-12,
         );
-
-        let b = Matrix2::identity_like(a.m11());
-
-        let product = &a * &b;
-
-        assert_eq!(product.m11().shape(), &[2]);
-        assert_matrix_close(&product, &a);
-    }
-
-    #[test]
-    fn determinant_is_m11_m22_minus_m12_m21() {
-        let m = scalar_matrix(1.0, 2.0, 3.0, 4.0);
-
-        assert_relative_eq!(m.determinant()[()], c(-2.0));
-    }
-
-    #[test]
-    fn determinant_is_multiplicative_for_scalar_matrices() {
-        let a = scalar_matrix(1.0, 2.0, 3.0, 4.0);
-        let b = scalar_matrix(5.0, 6.0, 7.0, 8.0);
-
-        let ab = &a * &b;
 
         assert_relative_eq!(
-            ab.determinant()[()],
-            a.determinant()[()] * b.determinant()[()],
-            max_relative = 1e-12
+            actual.im,
+            expected.im,
+            epsilon = 1e-12,
+            max_relative = 1e-12,
         );
     }
 
     #[test]
-    fn first_derivative_product_rule_matches_finite_difference() {
-        let h = 1e-6;
+    fn constructor_and_accessors_preserve_entries() {
+        let matrix = scalar_matrix(1.0, 2.0, 3.0, 4.0);
 
-        let left = |x: f64| scalar_matrix(1.0 + x, 2.0, 3.0, 4.0 - x);
-        let right = |x: f64| scalar_matrix(5.0, 6.0 + x, 7.0 - x, 8.0);
-
-        let l0 = left(0.0);
-        let r0 = right(0.0);
-
-        let dl = scalar_matrix(1.0, 0.0, 0.0, -1.0);
-        let dr = scalar_matrix(0.0, 1.0, -1.0, 0.0);
-
-        let analytical = multiply_first_derivative(&l0, &dl, &r0, &dr);
-
-        let plus = &left(h) * &right(h);
-        let minus = &left(-h) * &right(-h);
-
-        let expected = (&plus.add(&(&minus).scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
-
-        assert_matrix_close(&analytical, &expected);
+        assert_close(matrix.m11()[()], c(1.0));
+        assert_close(matrix.m12()[()], c(2.0));
+        assert_close(matrix.m21()[()], c(3.0));
+        assert_close(matrix.m22()[()], c(4.0));
     }
 
     #[test]
-    fn second_derivative_product_rule_matches_finite_difference() {
-        let h = 1e-4;
+    fn into_parts_preserves_entries() {
+        let matrix = scalar_matrix(1.0, 2.0, 3.0, 4.0);
 
-        let left = |x: f64| scalar_matrix(1.0 + x + x * x, 2.0, 3.0, 4.0 - x + 0.5 * x * x);
+        let (m11, m12, m21, m22) = matrix.into_parts();
 
-        let right = |x: f64| scalar_matrix(5.0, 6.0 + x * x, 7.0 - x, 8.0 + 2.0 * x * x);
+        assert_close(m11[()], c(1.0));
+        assert_close(m12[()], c(2.0));
+        assert_close(m21[()], c(3.0));
+        assert_close(m22[()], c(4.0));
+    }
 
-        let l0 = left(0.0);
-        let r0 = right(0.0);
+    #[test]
+    fn zero_matrix_has_zero_entries() {
+        let source = arr0(c(5.0));
 
-        let dl = scalar_matrix(1.0, 0.0, 0.0, -1.0);
-        let dr = scalar_matrix(0.0, 0.0, -1.0, 0.0);
+        let matrix = Matrix2::zeros_like(&source);
 
-        let ddl = scalar_matrix(2.0, 0.0, 0.0, 1.0);
-        let ddr = scalar_matrix(0.0, 2.0, 0.0, 4.0);
+        assert_close(matrix.m11()[()], c(0.0));
+        assert_close(matrix.m12()[()], c(0.0));
+        assert_close(matrix.m21()[()], c(0.0));
+        assert_close(matrix.m22()[()], c(0.0));
+    }
 
-        let analytical = multiply_second_derivative(&l0, &dl, &ddl, &r0, &dr, &ddr);
+    #[test]
+    fn identity_matrix_has_expected_entries() {
+        let source = arr0(c(5.0));
 
-        let plus = &left(h) * &right(h);
-        let zero = &left(0.0) * &right(0.0);
-        let minus = &left(-h) * &right(-h);
+        let matrix = Matrix2::identity_like(&source);
 
-        let expected = (&plus.add(&(&zero).scale(c(-2.0))).add(&minus)).scale(c(1.0 / (h * h)));
+        assert_close(matrix.m11()[()], c(1.0));
+        assert_close(matrix.m12()[()], c(0.0));
+        assert_close(matrix.m21()[()], c(0.0));
+        assert_close(matrix.m22()[()], c(1.0));
+    }
 
-        assert_matrix_close(&analytical, &expected);
+    #[test]
+    fn determinant_matches_two_by_two_formula() {
+        let matrix = scalar_matrix(1.0, 2.0, 3.0, 4.0);
+
+        assert_close(matrix.determinant()[()], c(1.0 * 4.0 - 2.0 * 3.0));
+    }
+
+    #[test]
+    fn addition_is_entrywise() {
+        let left = scalar_matrix(1.0, 2.0, 3.0, 4.0);
+        let right = scalar_matrix(5.0, 6.0, 7.0, 8.0);
+
+        let result = &left + &right;
+
+        assert_close(result.m11()[()], c(6.0));
+        assert_close(result.m12()[()], c(8.0));
+        assert_close(result.m21()[()], c(10.0));
+        assert_close(result.m22()[()], c(12.0));
+    }
+
+    #[test]
+    fn subtraction_is_entrywise() {
+        let left = scalar_matrix(5.0, 7.0, 11.0, 13.0);
+        let right = scalar_matrix(2.0, 3.0, 5.0, 7.0);
+
+        let result = &left - &right;
+
+        assert_close(result.m11()[()], c(3.0));
+        assert_close(result.m12()[()], c(4.0));
+        assert_close(result.m21()[()], c(6.0));
+        assert_close(result.m22()[()], c(6.0));
+    }
+
+    #[test]
+    fn negation_is_entrywise() {
+        let matrix = scalar_matrix(1.0, -2.0, 3.0, -4.0);
+
+        let result = -&matrix;
+
+        assert_close(result.m11()[()], c(-1.0));
+        assert_close(result.m12()[()], c(2.0));
+        assert_close(result.m21()[()], c(-3.0));
+        assert_close(result.m22()[()], c(4.0));
+    }
+
+    #[test]
+    fn multiplication_is_ordinary_matrix_product() {
+        let left = scalar_matrix(1.0, 2.0, 3.0, 4.0);
+        let right = scalar_matrix(5.0, 6.0, 7.0, 8.0);
+
+        let result = &left * &right;
+
+        assert_close(result.m11()[()], c(1.0 * 5.0 + 2.0 * 7.0));
+        assert_close(result.m12()[()], c(1.0 * 6.0 + 2.0 * 8.0));
+        assert_close(result.m21()[()], c(3.0 * 5.0 + 4.0 * 7.0));
+        assert_close(result.m22()[()], c(3.0 * 6.0 + 4.0 * 8.0));
+    }
+
+    #[test]
+    fn identity_is_left_and_right_multiplicative_identity() {
+        let matrix = scalar_matrix(1.0, 2.0, 3.0, 4.0);
+        let identity = Matrix2::identity_like(matrix.m11());
+
+        assert_eq!(&identity * &matrix, matrix);
+        assert_eq!(&matrix * &identity, matrix);
+    }
+
+    #[test]
+    fn scalar_scale_multiplies_every_entry() {
+        let matrix = scalar_matrix(1.0, 2.0, 3.0, 4.0);
+
+        let result = &matrix * c(3.0);
+
+        assert_close(result.m11()[()], c(3.0));
+        assert_close(result.m12()[()], c(6.0));
+        assert_close(result.m21()[()], c(9.0));
+        assert_close(result.m22()[()], c(12.0));
+    }
+
+    #[test]
+    fn sampled_scale_multiplies_each_sample_independently() {
+        let matrix = Matrix2::new(
+            array![c(1.0), c(2.0)],
+            array![c(3.0), c(4.0)],
+            array![c(5.0), c(6.0)],
+            array![c(7.0), c(8.0)],
+        );
+
+        let coefficients = array![c(2.0), c(3.0)];
+
+        let result = matrix.scale_by_array(&coefficients);
+
+        assert_eq!(result.m11(), &array![c(2.0), c(6.0)],);
+        assert_eq!(result.m12(), &array![c(6.0), c(12.0)],);
+        assert_eq!(result.m21(), &array![c(10.0), c(18.0)],);
+        assert_eq!(result.m22(), &array![c(14.0), c(24.0)],);
+    }
+
+    #[test]
+    fn array1_matrix_multiplication_is_samplewise() {
+        let left = Matrix2::new(
+            array![c(1.0), c(2.0)],
+            array![c(3.0), c(4.0)],
+            array![c(5.0), c(6.0)],
+            array![c(7.0), c(8.0)],
+        );
+
+        let right = Matrix2::new(
+            array![c(2.0), c(3.0)],
+            array![c(5.0), c(7.0)],
+            array![c(11.0), c(13.0)],
+            array![c(17.0), c(19.0)],
+        );
+
+        let result = &left * &right;
+
+        assert_eq!(
+            result.m11(),
+            &array![c(1.0 * 2.0 + 3.0 * 11.0), c(2.0 * 3.0 + 4.0 * 13.0),],
+        );
+
+        assert_eq!(
+            result.m12(),
+            &array![c(1.0 * 5.0 + 3.0 * 17.0), c(2.0 * 7.0 + 4.0 * 19.0),],
+        );
+
+        assert_eq!(
+            result.m21(),
+            &array![c(5.0 * 2.0 + 7.0 * 11.0), c(6.0 * 3.0 + 8.0 * 13.0),],
+        );
+
+        assert_eq!(
+            result.m22(),
+            &array![c(5.0 * 5.0 + 7.0 * 17.0), c(6.0 * 7.0 + 8.0 * 19.0),],
+        );
+    }
+
+    #[test]
+    fn all_operations_preserve_sample_shape() {
+        let matrix = Matrix2::new(
+            array![c(1.0), c(2.0), c(3.0)],
+            array![c(4.0), c(5.0), c(6.0)],
+            array![c(7.0), c(8.0), c(9.0)],
+            array![c(10.0), c(11.0), c(12.0)],
+        );
+
+        let identity = Matrix2::identity_like(matrix.m11());
+        let sum = &matrix + &identity;
+        let product = &matrix * &identity;
+        let determinant = matrix.determinant();
+
+        let expected = matrix.m11().raw_dim();
+
+        assert_eq!(sum.m11().raw_dim(), expected);
+        assert_eq!(sum.m12().raw_dim(), expected);
+        assert_eq!(sum.m21().raw_dim(), expected);
+        assert_eq!(sum.m22().raw_dim(), expected);
+
+        assert_eq!(product.m11().raw_dim(), expected);
+        assert_eq!(product.m12().raw_dim(), expected);
+        assert_eq!(product.m21().raw_dim(), expected);
+        assert_eq!(product.m22().raw_dim(), expected);
+
+        assert_eq!(determinant.raw_dim(), expected);
     }
 }

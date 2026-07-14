@@ -25,11 +25,11 @@ use num_traits::{One, Zero};
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SpectralVariable {
-    /// Differentiate with respect to `ω`.
-    Frequency,
+    /// Differentiate with respect to `k0`.
+    VacuumWavenumber,
 
-    /// Differentiate with respect to `ω²`.
-    FrequencySquared,
+    /// Differentiate with respect to `k0²`.
+    VacuumWavenumberSquared,
 }
 
 /// Highest derivative order requested.

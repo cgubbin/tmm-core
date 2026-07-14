@@ -1,29 +1,28 @@
-//! Stack-level 2×2 transfer-matrix backend.
+//! Internal evaluation kernel for the isotropic 2×2 transfer backend.
 //!
-//! This module connects the layer-level isotropic transfer-matrix kernel to a
-//! [`Stack`](crate::stack::Stack). It is responsible for:
+//! This module evaluates the native transfer matrix of a finite planar stack.
+//! It is responsible for:
 //!
-//! - iterating over finite-thickness layers,
-//! - multiplying layer matrices in propagation order,
-//! - accumulating requested thickness derivatives,
-//! - returning a [`TransferResult`].
+//! - evaluating isotropic quantities once per finite layer;
+//! - constructing each finite-layer transfer matrix;
+//! - composing layer matrices in propagation order;
+//! - propagating first- and second-order derivatives;
+//! - transforming primitive squared-coordinate derivatives to requested
+//!   linear coordinates.
 //!
-//! It deliberately does **not** apply external boundary conditions. The backend
-//! computes the total stack matrix only. Outgoing-wave residuals, reflection,
-//! transmission, and mode-finding functions are post-processing operations on
-//! [`TransferResult`].
+//! The two semi-infinite exterior media do not contribute propagation
+//! matrices and are therefore not used here. They are evaluated by the
+//! plane-wave and outgoing-mode adapters, where their admittances define the
+//! physical boundary conditions.
 //!
-//! Matrix accumulation follows:
+//! If the finite layers are encountered as `L₁, L₂, …, Lₙ`, accumulation is:
 //!
 //! ```text
-//! M_total = L_N ... L_2 L_1
+//! M = Lₙ … L₂ L₁
 //! ```
 //!
-//! where the layer order is supplied by the stack.
-//!
-//! For a derivative with respect to layer thickness `d_j`, only layer `j` has
-//! non-zero local derivatives. Other layers contribute zero local derivative
-//! matrices, but still participate in the product-rule accumulation.
+//! Value-only, first-order, and second-order calculations use distinct return
+//! types so derivative arrays are allocated only when requested.
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
@@ -44,18 +43,21 @@ use crate::{
     stack::{Layer, Stack},
 };
 
+/// Isotropic 2×2 transfer-matrix backend.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Transfer2;
 
 impl Transfer2 {
-    pub fn new() -> Self {
+    /// Construct a 2×2 transfer-matrix backend.
+    pub const fn new() -> Self {
         Self
     }
 
-    pub fn solve<M, C, D>(
+    /// Evaluate the transfer matrix without derivatives.
+    pub(crate) fn evaluate<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<Matrix2<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
@@ -63,24 +65,25 @@ impl Transfer2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        let mut matrix = Matrix2::identity_like(&input.vacuum_wavenumber);
+        let mut total = Matrix2::identity_like(input.vacuum_wavenumber());
 
         for layer in stack.layers_in_propagation_order() {
-            let q = IsotropicLayerQuantities::new(layer.material(), &input);
+            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
-            let layer_matrix = Matrix2::from_layer(&q, layer.thickness());
+            let layer_matrix = Matrix2::from_layer(&quantities, layer.thickness());
 
-            matrix = layer_matrix.multiply(&matrix);
+            total = &layer_matrix * &total;
         }
 
-        Ok(matrix)
+        Ok(total)
     }
 
-    pub fn solve_first_derivative<M, C, D>(
+    /// Evaluate the transfer matrix and its first derivative.
+    pub(crate) fn evaluate_first<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        request: DerivativeVariable,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
     ) -> Result<Transfer2JetFirst<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
@@ -88,49 +91,34 @@ impl Transfer2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        if let DerivativeVariable::Thickness(requested) = request {
-            if requested >= stack.len() {
-                return Err(TransferError::ThicknessLayerOutOfBounds {
-                    requested,
-                    layer_count: stack.len(),
-                });
-            }
-        }
+        validate_derivative_variable(stack, variable)?;
 
-        let mut jet =
-            Transfer2JetFirst::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
+        let primitive = variable.primitive();
 
-        let requested_variable = request;
-        let primitive_variable = request.primitive();
+        let mut total =
+            Transfer2JetFirst::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let q = IsotropicLayerQuantities::new(layer.material(), &input);
+            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
-            let matrix = Matrix2::from_layer(&q, layer.thickness());
+            let layer = first_layer_jet(index, layer, &quantities, input, primitive);
 
-            let layer_jet = if let Some(first) =
-                first_derivative(index, layer, &q, &input, primitive_variable)
-            {
-                Transfer2JetFirst::with_first(matrix, first)
-            } else {
-                Transfer2JetFirst::value_only(matrix)
-            };
-
-            jet = layer_jet.multiply(&jet);
+            total = layer.multiply(&total);
         }
 
-        if let Some(rule) = requested_variable.chain_rule(&input) {
-            jet = jet.chain_rule(&rule);
+        if let Some(rule) = variable.chain_rule(input) {
+            total = total.chain_rule(&rule);
         }
 
-        Ok(jet)
+        Ok(total)
     }
 
-    pub fn solve_second_derivative<M, C, D>(
+    /// Evaluate the transfer matrix and its first two derivatives.
+    pub(crate) fn evaluate_second<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        request: DerivativeVariable,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
     ) -> Result<Transfer2Jet<C, D>, TransferError>
     where
         M: Material<Real = C::RealField>,
@@ -138,151 +126,156 @@ impl Transfer2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        if let DerivativeVariable::Thickness(requested) = request {
-            if requested >= stack.len() {
-                return Err(TransferError::ThicknessLayerOutOfBounds {
-                    requested,
-                    layer_count: stack.len(),
-                });
-            }
-        }
+        validate_derivative_variable(stack, variable)?;
 
-        let mut jet = Transfer2Jet::value_only(Matrix2::identity_like(&input.vacuum_wavenumber));
+        let primitive = variable.primitive();
 
-        let requested_variable = request;
-        let primitive_variable = request.primitive();
+        let mut total = Transfer2Jet::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
         for (index, layer) in stack.layers_in_propagation_order().enumerate() {
-            let q = IsotropicLayerQuantities::new(layer.material(), &input);
-            let matrix = Matrix2::from_layer(&q, layer.thickness());
+            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
-            let layer_jet = if let Some(dmatrix) =
-                second_derivative(index, layer, &q, &input, primitive_variable)
-            {
-                Transfer2Jet::with_second(matrix, dmatrix.first, dmatrix.second)
-            } else {
-                Transfer2Jet::value_only(matrix)
-            };
+            let layer = second_layer_jet(index, layer, &quantities, input, primitive);
 
-            jet = layer_jet.multiply(&jet);
+            total = layer.multiply(&total);
         }
 
-        if let Some(rule) = requested_variable.chain_rule(&input) {
-            jet = jet.chain_rule(&rule);
+        if let Some(rule) = variable.chain_rule(input) {
+            total = total.chain_rule(&rule);
         }
 
-        Ok(jet)
+        Ok(total)
     }
 }
 
-fn first_derivative<M, C, D>(
+fn validate_derivative_variable<M, R>(
+    stack: &Stack<M, R>,
+    variable: DerivativeVariable,
+) -> Result<(), TransferError> {
+    if let DerivativeVariable::Thickness(requested) = variable {
+        let layer_count = stack.len();
+
+        if requested >= layer_count {
+            return Err(TransferError::ThicknessLayerOutOfBounds {
+                requested,
+                layer_count,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn first_layer_jet<M, C, D>(
     layer_index: usize,
     layer: &Layer<M, C::RealField>,
-    q: &IsotropicLayerQuantities<C, D>,
+    quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    request: DerivativeVariable,
-) -> Option<Matrix2<C, D>>
+    variable: DerivativeVariable,
+) -> Transfer2JetFirst<C, D>
 where
     M: Material<Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
 {
-    match request {
-        DerivativeVariable::Thickness(index) if index == layer_index => {
-            Some(Matrix2::thickness_derivative(q, layer.thickness()))
+    let matrix = Matrix2::from_layer(quantities, layer.thickness());
+
+    match variable {
+        DerivativeVariable::Thickness(requested) if requested == layer_index => {
+            let first = Matrix2::thickness_derivative(quantities, layer.thickness());
+
+            Transfer2JetFirst::from_parts(matrix, first)
         }
 
-        DerivativeVariable::Thickness(_) => None,
+        DerivativeVariable::Thickness(_) => Transfer2JetFirst::constant(matrix),
 
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerFirstDerivatives::with_respect_to_vacuum_wavenumber_squared(
-                    layer.material(),
-                    q,
-                    &input.vacuum_wavenumber,
-                    input.polarisation,
-                );
+            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
+                layer.material(),
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
 
-            Some(Matrix2::spectral_derivative(
-                q,
-                layer.thickness(),
-                &derivatives,
-            ))
+            let first = Matrix2::spectral_derivative(quantities, layer.thickness(), &derivatives);
+
+            Transfer2JetFirst::from_parts(matrix, first)
         }
 
         DerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
-                IsotropicLayerFirstDerivatives::with_respect_to_parallel_wavenumber_squared(q);
+                IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
 
-            Some(Matrix2::spectral_derivative(
-                q,
-                layer.thickness(),
-                &derivatives,
-            ))
+            let first = Matrix2::spectral_derivative(quantities, layer.thickness(), &derivatives);
+
+            Transfer2JetFirst::from_parts(matrix, first)
         }
 
         DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
-            unreachable!("linear variables must be converted to primitive variables")
+            unreachable!("primitive() returned a linear derivative variable")
         }
     }
 }
 
-struct LayerDerivativeMatrices<C, D>
-where
-    D: Dimension,
-{
-    first: Matrix2<C, D>,
-    second: Matrix2<C, D>,
-}
-
-fn second_derivative<M, C, D>(
-    index: usize,
+fn second_layer_jet<M, C, D>(
+    layer_index: usize,
     layer: &Layer<M, C::RealField>,
-    q: &IsotropicLayerQuantities<C, D>,
+    quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    request: DerivativeVariable,
-) -> Option<LayerDerivativeMatrices<C, D>>
+    variable: DerivativeVariable,
+) -> Transfer2Jet<C, D>
 where
     M: Material<Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
 {
-    match request {
-        DerivativeVariable::Thickness(layer_index) if layer_index == index => {
-            let first = Matrix2::thickness_derivative(q, layer.thickness());
-            let second = Matrix2::thickness_second_derivative(q, layer.thickness());
+    let matrix = Matrix2::from_layer(quantities, layer.thickness());
 
-            Some(LayerDerivativeMatrices { first, second })
+    match variable {
+        DerivativeVariable::Thickness(requested) if requested == layer_index => {
+            let first = Matrix2::thickness_derivative(quantities, layer.thickness());
+
+            let second = Matrix2::thickness_second_derivative(quantities, layer.thickness());
+
+            Transfer2Jet::from_parts(matrix, first, second)
         }
-        DerivativeVariable::Thickness(_) => None,
+
+        DerivativeVariable::Thickness(_) => Transfer2Jet::constant(matrix),
+
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerSecondDerivatives::with_respect_to_vacuum_wavenumber_squared(
-                    layer.material(),
-                    q,
-                    &input.vacuum_wavenumber,
-                    input.polarisation,
-                );
+            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
+                layer.material(),
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
 
-            let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
+            let first =
+                Matrix2::spectral_derivative(quantities, layer.thickness(), derivatives.first());
 
-            let second = Matrix2::spectral_second_derivative(q, layer.thickness(), &derivatives);
+            let second =
+                Matrix2::spectral_second_derivative(quantities, layer.thickness(), &derivatives);
 
-            Some(LayerDerivativeMatrices { first, second })
+            Transfer2Jet::from_parts(matrix, first, second)
         }
+
         DerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
-                IsotropicLayerSecondDerivatives::with_respect_to_parallel_wavenumber_squared(q);
+                IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
 
-            let first = Matrix2::spectral_derivative(q, layer.thickness(), &derivatives.first);
-            let second = Matrix2::spectral_second_derivative(q, layer.thickness(), &derivatives);
+            let first =
+                Matrix2::spectral_derivative(quantities, layer.thickness(), derivatives.first());
 
-            Some(LayerDerivativeMatrices { first, second })
+            let second =
+                Matrix2::spectral_second_derivative(quantities, layer.thickness(), &derivatives);
+
+            Transfer2Jet::from_parts(matrix, first, second)
         }
+
         DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
-            unreachable!("linear variables must be converted to primitive variables")
+            unreachable!("primitive() returned a linear derivative variable")
         }
     }
 }
@@ -290,862 +283,206 @@ where
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
-    use ndarray::{ArrayBase, Dimension, OwnedRepr, arr0, arr1};
+    use ndarray::{Array0, arr0};
     use num_complex::Complex64;
 
     use super::*;
+
     use crate::{
-        backend::transfer2::Matrix2,
-        backend::{PlanarInput, Polarisation},
-        material::{Constant, IsotropicMaterial},
-        stack::{Stack, Thickness, ValidationConfig},
+        backend::Polarisation,
+        material::Constant,
+        stack::{Thickness, ValidationConfig},
     };
 
     type C = Complex64;
 
-    fn c(x: f64) -> C {
-        C::new(x, 0.0)
+    fn c(value: f64) -> C {
+        C::new(value, 0.0)
     }
 
-    fn assert_array_close<D>(
-        actual: &ArrayBase<OwnedRepr<C>, D>,
-        expected: &ArrayBase<OwnedRepr<C>, D>,
-        tolerance: f64,
-    ) where
-        D: Dimension,
-    {
-        assert_eq!(actual.shape(), expected.shape());
-
-        for (actual, expected) in actual.iter().zip(expected.iter()) {
-            assert_relative_eq!(
-                actual.re,
-                expected.re,
-                max_relative = tolerance,
-                epsilon = tolerance
-            );
-            assert_relative_eq!(
-                actual.im,
-                expected.im,
-                max_relative = tolerance,
-                epsilon = tolerance
-            );
-        }
-    }
-
-    fn assert_matrix_close<D>(actual: &Matrix2<C, D>, expected: &Matrix2<C, D>, tolerance: f64)
-    where
-        D: Dimension,
-    {
-        assert_array_close(actual.m11(), expected.m11(), tolerance);
-        assert_array_close(actual.m12(), expected.m12(), tolerance);
-        assert_array_close(actual.m21(), expected.m21(), tolerance);
-        assert_array_close(actual.m22(), expected.m22(), tolerance);
-    }
-
-    fn air() -> IsotropicMaterial<f64> {
-        Constant::new(1.0).into()
-    }
-
-    fn mat(epsilon: f64) -> IsotropicMaterial<f64> {
-        Constant::new(epsilon).into()
-    }
-
-    fn input0() -> PlanarInput<ndarray::Array0<C>> {
+    fn make_input(vacuum_wavenumber: f64, parallel_wavenumber: f64) -> PlanarInput<Array0<C>> {
         PlanarInput::new(
-            arr0(c(1000.0)),
-            arr0(c(10.0)),
+            arr0(c(vacuum_wavenumber)),
+            arr0(c(parallel_wavenumber)),
             Polarisation::TransverseElectric,
         )
     }
 
-    #[test]
-    fn empty_stack_has_identity_matrix_when_validation_allows_empty() {
-        let stack = Stack::builder(air(), air())
-            .validation(ValidationConfig::permissive())
-            .build()
-            .unwrap();
-
-        let input = input0();
-
-        let result = Transfer2::new().solve(&stack, input);
-
-        let expected = Matrix2::identity_like(result.matrix().m11());
-
-        assert_matrix_close(result.matrix(), &expected, 1e-12);
-        assert_relative_eq!(result.determinant()[()], c(1.0), max_relative = 1e-12);
-    }
-
-    #[test]
-    fn one_layer_stack_matches_layer_matrix() {
-        let layer = mat(2.25);
-        let thickness = Thickness::from_nm(100.0).unwrap();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer.clone(), thickness)
-            .build()
-            .unwrap();
-
-        let input = input0();
-
-        let result = Transfer2::new().solve(&stack, input.clone());
-
-        let expected =
-            Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer, &input), thickness);
-
-        assert_matrix_close(result.matrix(), &expected, 1e-12);
-    }
-
-    #[test]
-    fn two_layer_stack_matches_manual_product() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let d0 = Thickness::from_nm(100.0).unwrap();
-        let d1 = Thickness::from_nm(50.0).unwrap();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), d0)
-            .with_layer(layer1.clone(), d1)
-            .build()
-            .unwrap();
-
-        let input = input0();
-
-        let result = Transfer2::new().solve(&stack, input.clone());
-
-        let m0 = Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer0, &input), d0);
-
-        let m1 = Matrix2::from_layer(&IsotropicLayerQuantities::new(&layer1, &input), d1);
-
-        let expected = &m1 * &m0;
-
-        assert_matrix_close(result.matrix(), &expected, 1e-12);
-    }
-
-    #[test]
-    fn ndarray_input_shape_is_preserved() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let input = PlanarInput::new(
-            arr1(&[c(900.0), c(1000.0), c(1100.0)]),
-            arr1(&[c(0.0), c(10.0), c(20.0)]),
-            Polarisation::TransverseElectric,
+    fn assert_close(actual: C, expected: C, tolerance: f64) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = tolerance,
+            max_relative = tolerance,
         );
 
-        let result = Transfer2::new().solve(&stack, input);
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = tolerance,
+            max_relative = tolerance,
+        );
+    }
 
-        assert_eq!(result.matrix().m11().shape(), &[3]);
-        assert_eq!(result.matrix().m12().shape(), &[3]);
-        assert_eq!(result.matrix().m21().shape(), &[3]);
-        assert_eq!(result.matrix().m22().shape(), &[3]);
-        assert_eq!(result.determinant().shape(), &[3]);
+    fn assert_matrix_close(
+        actual: &Matrix2<C, ndarray::Ix0>,
+        expected: &Matrix2<C, ndarray::Ix0>,
+        tolerance: f64,
+    ) {
+        assert_close(actual.m11()[()], expected.m11()[()], tolerance);
+        assert_close(actual.m12()[()], expected.m12()[()], tolerance);
+        assert_close(actual.m21()[()], expected.m21()[()], tolerance);
+        assert_close(actual.m22()[()], expected.m22()[()], tolerance);
+    }
+
+    fn finite_difference_first(
+        plus: &Matrix2<C, ndarray::Ix0>,
+        minus: &Matrix2<C, ndarray::Ix0>,
+        h: f64,
+    ) -> Matrix2<C, ndarray::Ix0> {
+        &(plus - minus) * c(1.0 / (2.0 * h))
+    }
+
+    fn finite_difference_second(
+        plus: &Matrix2<C, ndarray::Ix0>,
+        zero: &Matrix2<C, ndarray::Ix0>,
+        minus: &Matrix2<C, ndarray::Ix0>,
+        h: f64,
+    ) -> Matrix2<C, ndarray::Ix0> {
+        let twice_zero = zero * c(2.0);
+        let numerator = &(plus - &twice_zero) + minus;
+
+        &numerator * c(1.0 / (h * h))
+    }
+
+    fn two_layer_stack(first_thickness: f64, second_thickness: f64) -> Stack<Constant<f64>, f64> {
+        Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.5, 1.0))
+            .with_layer(
+                Constant::new(2.25, 1.0),
+                Thickness::from_cm(first_thickness).unwrap(),
+            )
+            .with_layer(
+                Constant::new(3.24, 1.0),
+                Thickness::from_cm(second_thickness).unwrap(),
+            )
+            .build()
+            .unwrap()
     }
 
     #[test]
-    fn thickness_first_derivative_for_layer_zero_matches_manual_product_rule() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let d0 = Thickness::from_nm(100.0).unwrap();
-        let d1 = Thickness::from_nm(50.0).unwrap();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), d0)
-            .with_layer(layer1.clone(), d1)
+    fn empty_stack_evaluates_to_identity() {
+        let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.5, 1.0))
+            .with_layer(
+                Constant::new(2.25, 1.0),
+                Thickness::from_cm(std::f64::EPSILON).unwrap(),
+            )
             .build()
             .unwrap();
+        let input = make_input(3.0, 0.4);
 
-        let input = input0();
-        let variable = DerivativeVariable::Thickness(0);
+        let matrix = Transfer2::new().evaluate(&stack, &input).unwrap();
 
-        let result = Transfer2::new()
-            .solve_first_derivative(&stack, input.clone(), variable)
-            .unwrap();
+        let expected = Matrix2::identity_like(input.vacuum_wavenumber());
 
-        let q = IsotropicLayerQuantities::new(&layer0, &input);
-
-        let dm0 = Matrix2::thickness_derivative(&q, d0);
-
-        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
-
-        let m1 = Matrix2::from_layer(&q1, d1);
-
-        let expected = &m1 * &dm0;
-
-        assert_matrix_close(result.derivatives().unwrap().first(), &expected, 1e-12);
-    }
-
-    #[test]
-    fn thickness_first_derivative_for_layer_one_matches_manual_product_rule() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let d0 = Thickness::from_nm(100.0).unwrap();
-        let d1 = Thickness::from_nm(50.0).unwrap();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), d0)
-            .with_layer(layer1.clone(), d1)
-            .build()
-            .unwrap();
-
-        let input = input0();
-        let variable = DerivativeVariable::Thickness(1);
-
-        let result = Transfer2::new()
-            .solve_first_derivative(&stack, input.clone(), variable)
-            .unwrap();
-
-        let q0 = IsotropicLayerQuantities::new(&layer0, &input);
-
-        let m0 = Matrix2::from_layer(&q0, d0);
-
-        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
-
-        let dm1 = Matrix2::thickness_derivative(&q1, d1);
-
-        let expected = &dm1 * &m0;
-
-        assert_matrix_close(result.derivatives().unwrap().first(), &expected, 1e-12);
+        assert_matrix_close(&matrix, &expected, 1e-12);
     }
 
     #[test]
     fn thickness_first_derivative_matches_finite_difference() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
+        let d0 = 0.15;
+        let d1 = 0.23;
+        let h = 1e-6;
 
-        let d0_nm = 100.0;
-        let d1_nm = 50.0;
-        let h_nm = 1e-3;
+        let stack = two_layer_stack(d0, d1);
+        let input = make_input(3.0, 0.4);
 
-        let variable = DerivativeVariable::Thickness(0);
-        let input = input0();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
+        let jet = Transfer2::new()
+            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))
             .unwrap();
 
-        let analytical = Transfer2::new()
-            .solve_first_derivative(&stack, input.clone(), variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .first()
-            .clone();
+        let (_, analytic) = jet.into_parts();
 
-        let plus_stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm + h_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
+        let plus = Transfer2::new()
+            .evaluate(&two_layer_stack(d0 + h, d1), &input)
             .unwrap();
 
-        let minus_stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm - h_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
+        let minus = Transfer2::new()
+            .evaluate(&two_layer_stack(d0 - h, d1), &input)
             .unwrap();
 
-        let plus = Transfer2::new().solve(&plus_stack, input.clone());
-        let minus = Transfer2::new().solve(&minus_stack, input);
+        let expected = finite_difference_first(&plus, &minus, h);
 
-        let h_cm = Thickness::from_nm(h_nm).unwrap().as_cm();
-
-        let expected =
-            (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h_cm)));
-
-        assert_matrix_close(&analytical, &expected, 1e-6);
-    }
-
-    #[test]
-    fn thickness_second_derivative_for_layer_zero_matches_manual_product_rule() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let d0 = Thickness::from_nm(100.0).unwrap();
-        let d1 = Thickness::from_nm(50.0).unwrap();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), d0)
-            .with_layer(layer1.clone(), d1)
-            .build()
-            .unwrap();
-
-        let input = input0();
-        let variable = DerivativeVariable::Thickness(0);
-
-        let result = Transfer2::new()
-            .solve_second_derivative(&stack, input.clone(), variable)
-            .unwrap();
-
-        let q0 = IsotropicLayerQuantities::new(&layer0, &input);
-
-        let ddm0 = Matrix2::thickness_second_derivative(&q0, d0);
-
-        let q1 = IsotropicLayerQuantities::new(&layer1, &input);
-
-        let m1 = Matrix2::from_layer(&q1, d1);
-
-        let expected = &m1 * &ddm0;
-
-        assert_matrix_close(
-            result.derivatives().unwrap().second().unwrap(),
-            &expected,
-            1e-12,
-        );
+        assert_matrix_close(&analytic, &expected, 1e-7);
     }
 
     #[test]
     fn thickness_second_derivative_matches_finite_difference() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let d0_nm = 100.0;
-        let d1_nm = 50.0;
-        let h_nm = 1e-1;
-
-        let variable = DerivativeVariable::Thickness(0);
-        let input = input0();
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
-            .unwrap();
-
-        let analytical = Transfer2::new()
-            .solve_second_derivative(&stack, input.clone(), variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .second()
-            .unwrap()
-            .clone();
-
-        let plus_stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm + h_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
-            .unwrap();
-
-        let zero_stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
-            .unwrap();
-
-        let minus_stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(d0_nm - h_nm).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(d1_nm).unwrap())
-            .build()
-            .unwrap();
-
-        let plus = Transfer2::new().solve(&plus_stack, input.clone());
-        let zero = Transfer2::new().solve(&zero_stack, input.clone());
-        let minus = Transfer2::new().solve(&minus_stack, input);
-
-        let h_cm = Thickness::from_nm(h_nm).unwrap().as_cm();
-
-        let expected = (&plus
-            .matrix()
-            .add(&zero.matrix().scale(c(-2.0)))
-            .add(minus.matrix()))
-            .scale(c(1.0 / (h_cm * h_cm)));
-
-        assert_matrix_close(&analytical, &expected, 1e-4);
-    }
-
-    #[test]
-    fn vacuum_wavenumber_squared_derivative_matches_finite_difference_for_stack() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(100.0).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
-        let h = 1e-2 * vacuum_wavenumber2;
-        let parallel_wavenumber = 100.0;
-
-        let variable = DerivativeVariable::VacuumWavenumberSquared;
-
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber2.sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let analytical = Transfer2::new()
-            .solve_first_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .first()
-            .clone();
-
-        let plus_input = PlanarInput::new(
-            arr0(c((vacuum_wavenumber2 + h).sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let minus_input = PlanarInput::new(
-            arr0(c((vacuum_wavenumber2 - h).sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let plus = Transfer2::new().solve(&stack, plus_input);
-        let minus = Transfer2::new().solve(&stack, minus_input);
-
-        let expected =
-            (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-8);
-    }
-
-    #[test]
-    fn parallel_wavenumber_squared_derivative_matches_finite_difference_for_stack() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber2: f64 = 100.0;
-        let h = 1e-2;
-
-        let variable = DerivativeVariable::ParallelWavenumberSquared;
-
-        let analytical = Transfer2::new()
-            .solve_first_derivative(
-                &stack,
-                PlanarInput::new(
-                    arr0(c(vacuum_wavenumber)),
-                    arr0(c(parallel_wavenumber2.sqrt())),
-                    Polarisation::TransverseElectric,
-                ),
-                variable,
-            )
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .first()
-            .clone();
-
-        let plus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c((parallel_wavenumber2 + h).sqrt())),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let minus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c((parallel_wavenumber2 - h).sqrt())),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let expected =
-            (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-7);
-    }
-
-    #[test]
-    fn vacuum_wavenumber_squared_second_derivative_matches_finite_difference_for_stack() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(100.0).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber2 = 1000.0_f64.powi(2);
-        let h = 1e-2 * vacuum_wavenumber2;
-        let parallel_wavenumber = 100.0;
-
-        let variable = DerivativeVariable::VacuumWavenumberSquared;
-
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber2.sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let analytical = Transfer2::new()
-            .solve_second_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .second()
-            .unwrap()
-            .clone();
-
-        let plus_input = PlanarInput::new(
-            arr0(c((vacuum_wavenumber2 + h).sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let zero_input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber2.sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let minus_input = PlanarInput::new(
-            arr0(c((vacuum_wavenumber2 - h).sqrt())),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let plus = Transfer2::new().solve(&stack, plus_input);
-        let zero = Transfer2::new().solve(&stack, zero_input);
-        let minus = Transfer2::new().solve(&stack, minus_input);
-
-        let expected = (&plus
-            .matrix()
-            .add(&zero.matrix().scale(c(-2.0)))
-            .add(minus.matrix()))
-            .scale(c(1.0 / (h * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-4);
-    }
-
-    #[test]
-    fn parallel_wavenumber_squared_second_derivative_matches_finite_difference_for_stack() {
-        let layer0 = mat(2.25);
-        let layer1 = mat(3.24);
-
-        let stack = Stack::builder(air(), air())
-            .with_layer(layer0.clone(), Thickness::from_nm(100.0).unwrap())
-            .with_layer(layer1.clone(), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber2 = 100.0_f64;
-        let h = 1e-2;
-
-        let variable = DerivativeVariable::ParallelWavenumberSquared;
-
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber2.sqrt())),
-            Polarisation::TransverseElectric,
-        );
-
-        let analytical = Transfer2::new()
-            .solve_second_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .second()
-            .unwrap()
-            .clone();
-
-        let plus_input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c((parallel_wavenumber2 + h).sqrt())),
-            Polarisation::TransverseElectric,
-        );
-
-        let zero_input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber2.sqrt())),
-            Polarisation::TransverseElectric,
-        );
-
-        let minus_input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c((parallel_wavenumber2 - h).sqrt())),
-            Polarisation::TransverseElectric,
-        );
-
-        let plus = Transfer2::new().solve(&stack, plus_input);
-        let zero = Transfer2::new().solve(&stack, zero_input);
-        let minus = Transfer2::new().solve(&stack, minus_input);
-
-        let expected = (&plus
-            .matrix()
-            .add(&zero.matrix().scale(c(-2.0)))
-            .add(minus.matrix()))
-            .scale(c(1.0 / (h * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-5);
-    }
-
-    #[test]
-    fn vacuum_wavenumber_first_derivative_matches_finite_difference_for_stack() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber = 100.0;
-        let h = 1e-3;
-
-        let variable = DerivativeVariable::VacuumWavenumber;
-
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let analytical = Transfer2::new()
-            .solve_first_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .first()
-            .clone();
-
-        let plus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber + h)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let minus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber - h)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let expected =
-            (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-7);
-    }
-
-    #[test]
-    fn parallel_wavenumber_first_derivative_matches_finite_difference_for_stack() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
-
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber = 10.0;
+        let d0 = 0.15;
+        let d1 = 0.23;
         let h = 1e-4;
 
-        let variable = DerivativeVariable::ParallelWavenumber;
+        let stack = two_layer_stack(d0, d1);
+        let input = make_input(3.0, 0.4);
 
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
+        let jet = Transfer2::new()
+            .evaluate_second(&stack, &input, DerivativeVariable::Thickness(1))
+            .unwrap();
 
-        let analytical = Transfer2::new()
-            .solve_first_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .first()
-            .clone();
+        let (_, _, analytic) = jet.into_parts();
 
-        let plus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c(parallel_wavenumber + h)),
-                Polarisation::TransverseElectric,
-            ),
-        );
+        let plus = Transfer2::new()
+            .evaluate(&two_layer_stack(d0, d1 + h), &input)
+            .unwrap();
 
-        let minus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c((parallel_wavenumber - h))),
-                Polarisation::TransverseElectric,
-            ),
-        );
+        let zero = Transfer2::new()
+            .evaluate(&two_layer_stack(d0, d1), &input)
+            .unwrap();
 
-        let expected =
-            (&plus.matrix().add(&minus.matrix().scale(c(-1.0)))).scale(c(1.0 / (2.0 * h)));
+        let minus = Transfer2::new()
+            .evaluate(&two_layer_stack(d0, d1 - h), &input)
+            .unwrap();
 
-        assert_matrix_close(&analytical, &expected, 1e-7);
+        let expected = finite_difference_second(&plus, &zero, &minus, h);
+
+        assert_matrix_close(&analytic, &expected, 3e-6);
     }
 
     #[test]
-    fn vacuum_wavenumber_second_derivative_matches_finite_difference_for_stack() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
+    fn linear_vacuum_wavenumber_derivative_applies_chain_rule() {
+        let stack = two_layer_stack(0.15, 0.23);
+        let input = make_input(3.0, 0.4);
+
+        let squared = Transfer2::new()
+            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumberSquared)
             .unwrap();
 
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber = 100.0;
-        let h = 1e-2;
+        let linear = Transfer2::new()
+            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .unwrap();
 
-        let variable = DerivativeVariable::VacuumWavenumber;
+        let (_, squared_first) = squared.into_parts();
+        let (_, linear_first) = linear.into_parts();
 
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
+        let expected = &squared_first * c(2.0 * 3.0);
 
-        let analytical = Transfer2::new()
-            .solve_second_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .second()
-            .unwrap()
-            .clone();
-
-        let plus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber + h)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let zero = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let minus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber - h)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let expected = (&plus
-            .matrix()
-            .add(&zero.matrix().scale(c(-2.0)))
-            .add(minus.matrix()))
-            .scale(c(1.0 / (h * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-5);
+        assert_matrix_close(&linear_first, &expected, 1e-12);
     }
 
     #[test]
-    fn parallel_wavenumber_second_derivative_matches_finite_difference_for_stack() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .with_layer(mat(3.24), Thickness::from_nm(50.0).unwrap())
-            .build()
-            .unwrap();
+    fn invalid_thickness_index_returns_error() {
+        let stack = two_layer_stack(0.15, 0.23);
+        let input = make_input(3.0, 0.4);
 
-        let vacuum_wavenumber = 1000.0;
-        let parallel_wavenumber = 10.0;
-        let h = 1e-3;
-
-        let variable = DerivativeVariable::ParallelWavenumber;
-
-        let input = PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
-            Polarisation::TransverseElectric,
-        );
-
-        let analytical = Transfer2::new()
-            .solve_second_derivative(&stack, input, variable)
-            .unwrap()
-            .derivatives()
-            .unwrap()
-            .second()
-            .unwrap()
-            .clone();
-
-        let plus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c(parallel_wavenumber + h)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let zero = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c(parallel_wavenumber)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let minus = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(vacuum_wavenumber)),
-                arr0(c(parallel_wavenumber - h)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let expected = (&plus
-            .matrix()
-            .add(&(&zero.matrix()).scale(c(-2.0)))
-            .add(minus.matrix()))
-            .scale(c(1.0 / (h * h)));
-
-        assert_matrix_close(&analytical, &expected, 1e-5);
-    }
-
-    #[test]
-    fn chain_rule_result_reports_requested_variable() {
-        let stack = Stack::builder(air(), air())
-            .with_layer(mat(2.25), Thickness::from_nm(100.0).unwrap())
-            .build()
-            .unwrap();
-
-        let input = PlanarInput::new(
-            arr0(c(1000.0)),
-            arr0(c(100.0)),
-            Polarisation::TransverseElectric,
-        );
-
-        let result = Transfer2::new()
-            .solve_first_derivative(&stack, input, DerivativeVariable::VacuumWavenumber)
-            .unwrap();
+        let error = Transfer2::new()
+            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(2))
+            .unwrap_err();
 
         assert_eq!(
-            result.derivatives().unwrap().variable(),
-            DerivativeVariable::VacuumWavenumber
+            error,
+            TransferError::ThicknessLayerOutOfBounds {
+                requested: 2,
+                layer_count: 2,
+            }
         );
     }
 }

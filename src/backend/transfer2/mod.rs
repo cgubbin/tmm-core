@@ -2,28 +2,24 @@ mod backend;
 mod error;
 mod jet;
 mod matrix;
-mod result;
-mod state;
+mod mode;
+mod plane_wave;
+mod response;
 
 pub use error::TransferError;
 pub use matrix::Matrix2;
-use state::{BoundaryMode, BoundaryModeDerivatives, FieldState};
+
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, MatrixEvaluation, PlanarInput, PlaneWaveBackend, PlaneWaveResponse,
-        RawMatrixBackend,
-        derivative::DerivativeOrder,
-        isotropic::{AdmittanceEvaluation, IsotropicLayerAdmittance, IsotropicLayerQuantities},
-        plane_wave::PlaneWaveAmplitudes,
+        DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend,
         transfer2::backend::Transfer2,
     },
     material::Material,
     stack::Stack,
 };
-
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 impl<C, D, M> RawMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
@@ -40,7 +36,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.solve(stack, input.clone()).map(MatrixEvaluation::new)
+        self.evaluate(stack, input).map(MatrixEvaluation::new)
     }
 
     fn solve_matrix_first_derivative(
@@ -49,8 +45,8 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.solve_first_derivative(stack, input.clone(), variable)
-            .map(|j| MatrixEvaluation::from_jet_first(j, Some(variable), DerivativeOrder::First))
+        self.evaluate_first(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_first_jet(j, variable))
     }
 
     fn solve_matrix_second_derivative(
@@ -59,248 +55,7 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.solve_second_derivative(stack, input.clone(), variable)
-            .map(|j| MatrixEvaluation::from_jet(j, Some(variable), DerivativeOrder::Second))
-    }
-}
-
-impl<C, D, M> PlaneWaveBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: Material<Real = C::RealField>,
-    C::RealField: Copy,
-{
-    type Error = TransferError;
-
-    fn solve_plane_wave(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.planar();
-
-        let matrix = self.solve(stack, planar.clone())?;
-
-        let left_q = IsotropicLayerQuantities::new(stack.left_exterior(), planar);
-        let right_q = IsotropicLayerQuantities::new(stack.right_exterior(), planar);
-        let left_admittance = IsotropicLayerAdmittance::from_quantities(&left_q);
-        let right_admittance = IsotropicLayerAdmittance::from_quantities(&right_q);
-
-        // let left_admittance_jet = AdmittanceEvaluation::value_only(left_a).jets();
-
-        // let right_admittance_jet = AdmittanceEvaluation::value_only(right_a).jets();
-
-        let (reflection, transmission) = matrix.amplitudes(
-            &left_admittance.into_inner(),
-            &right_admittance.into_inner(),
-            input.incident_side(),
-        );
-
-        Ok(PlaneWaveResponse::new(PlaneWaveAmplitudes::new(
-            reflection,
-            transmission,
-        )))
-    }
-
-    fn solve_plane_wave_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
-    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.planar();
-
-        let matrix = self.solve_first_derivative(stack, planar.clone(), variable)?;
-
-        let mut left_admittance_jet =
-            AdmittanceEvaluation::evaluate_first(stack.left_exterior(), &planar, variable)
-                .first_jets();
-        let mut right_admittance_jet =
-            AdmittanceEvaluation::evaluate_first(stack.right_exterior(), &planar, variable)
-                .first_jets();
-
-        if let Some(rule) = variable.chain_rule(planar) {
-            left_admittance_jet = left_admittance_jet.chain_rule(&rule);
-            right_admittance_jet = right_admittance_jet.chain_rule(&rule);
-        }
-
-        let (reflection, transmission) = matrix.amplitude_jets(
-            &left_admittance_jet,
-            &right_admittance_jet,
-            input.incident_side(),
-        );
-
-        Ok(PlaneWaveResponse::from_jets_first(
-            reflection,
-            transmission,
-            Some(variable),
-        ))
-    }
-
-    fn solve_plane_wave_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &super::PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
-    ) -> Result<super::PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.planar();
-
-        let matrix = self.solve_second_derivative(stack, planar.clone(), variable)?;
-
-        let mut left_admittance_jet =
-            AdmittanceEvaluation::evaluate_second(stack.left_exterior(), &planar, variable).jets();
-        let mut right_admittance_jet =
-            AdmittanceEvaluation::evaluate_second(stack.right_exterior(), &planar, variable).jets();
-
-        if let Some(rule) = variable.chain_rule(planar) {
-            left_admittance_jet = left_admittance_jet.chain_rule(&rule);
-            right_admittance_jet = right_admittance_jet.chain_rule(&rule);
-        }
-
-        let (reflection, transmission) = matrix.amplitude_jets(
-            &left_admittance_jet,
-            &right_admittance_jet,
-            input.incident_side(),
-        );
-
-        Ok(PlaneWaveResponse::from_jets(
-            reflection,
-            transmission,
-            Some(variable),
-            true,
-        ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use approx::assert_relative_eq;
-    use ndarray::{arr0, arr1};
-    use num_complex::Complex64;
-
-    use crate::{
-        backend::transfer2::Transfer2,
-        backend::{PlanarInput, Polarisation},
-        material::{Constant, IsotropicMaterial},
-        stack::{Stack, Thickness, ValidationConfig},
-    };
-
-    type C = Complex64;
-
-    fn c(x: f64) -> C {
-        C::new(x, 0.0)
-    }
-
-    #[test]
-    fn empty_stack_has_identity_matrix() {
-        let air = IsotropicMaterial::from(Constant::new(1.0));
-
-        let stack = Stack::builder(air.clone(), air)
-            .validation(ValidationConfig::permissive())
-            .build()
-            .unwrap();
-
-        let input = PlanarInput::new(
-            arr0(c(1000.0)),
-            arr0(c(0.0)),
-            Polarisation::TransverseElectric,
-        );
-
-        let result = Transfer2::new().solve(&stack, input);
-        let m = result.matrix();
-
-        assert_relative_eq!(m.m11()[()], c(1.0));
-        assert_relative_eq!(m.m12()[()], c(0.0));
-        assert_relative_eq!(m.m21()[()], c(0.0));
-        assert_relative_eq!(m.m22()[()], c(1.0));
-
-        assert_relative_eq!(result.determinant()[()], c(1.0));
-    }
-
-    #[test]
-    fn zero_thickness_layer_is_identity() {
-        let air = IsotropicMaterial::from(Constant::new(1.0));
-        let layer = IsotropicMaterial::from(Constant::new(2.25));
-
-        let stack = Stack::builder(air.clone(), air)
-            .with_layer(layer, Thickness::zero())
-            .validation(crate::stack::ValidationConfig::permissive())
-            .build()
-            .unwrap();
-
-        let input = PlanarInput::new(
-            arr0(c(1000.0)),
-            arr0(c(0.0)),
-            Polarisation::TransverseElectric,
-        );
-
-        let result = Transfer2::new().solve(&stack, input);
-        let m = result.matrix();
-
-        assert_relative_eq!(m.m11()[()], c(1.0), max_relative = 1e-12);
-        assert_relative_eq!(m.m12()[()], c(0.0), max_relative = 1e-12);
-        assert_relative_eq!(m.m21()[()], c(0.0), max_relative = 1e-12);
-        assert_relative_eq!(m.m22()[()], c(1.0), max_relative = 1e-12);
-    }
-
-    #[test]
-    fn ndarray_input_shape_is_preserved() {
-        let air = IsotropicMaterial::from(Constant::new(1.0));
-        let layer = IsotropicMaterial::from(Constant::new(2.25));
-
-        let stack = Stack::builder(air.clone(), air)
-            .with_layer(layer, Thickness::from_nm(100.0).unwrap())
-            .build()
-            .unwrap();
-
-        let input = PlanarInput::new(
-            arr1(&[c(1000.0), c(1200.0), c(1400.0)]),
-            arr1(&[c(0.0), c(0.0), c(0.0)]),
-            Polarisation::TransverseElectric,
-        );
-
-        let result = Transfer2::new().solve(&stack, input);
-
-        assert_eq!(result.matrix().m11().shape(), &[3]);
-        assert_eq!(result.matrix().m12().shape(), &[3]);
-        assert_eq!(result.matrix().m21().shape(), &[3]);
-        assert_eq!(result.matrix().m22().shape(), &[3]);
-        assert_eq!(result.determinant().shape(), &[3]);
-    }
-
-    #[test]
-    fn normal_incidence_te_and_tm_have_same_determinant_for_nonmagnetic_isotropic_layer() {
-        let air = IsotropicMaterial::from(Constant::new(1.0));
-        let layer = IsotropicMaterial::from(Constant::new(2.25));
-
-        let stack = Stack::builder(air.clone(), air)
-            .with_layer(layer, Thickness::from_nm(100.0).unwrap())
-            .build()
-            .unwrap();
-
-        let te = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(1000.0)),
-                arr0(c(0.0)),
-                Polarisation::TransverseElectric,
-            ),
-        );
-
-        let tm = Transfer2::new().solve(
-            &stack,
-            PlanarInput::new(
-                arr0(c(1000.0)),
-                arr0(c(0.0)),
-                Polarisation::TransverseMagnetic,
-            ),
-        );
-
-        assert_relative_eq!(
-            te.determinant()[()],
-            tm.determinant()[()],
-            max_relative = 1e-12
-        );
+        self.evaluate_second(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_second_jet(j, variable))
     }
 }
