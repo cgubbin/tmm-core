@@ -149,7 +149,7 @@ where
 
         Self::with_derivatives(
             value,
-            ResidualDerivatives::new(variable, first).from_parts(second),
+            ResidualDerivatives::new(variable, first).with_second(second),
         )
     }
 
@@ -171,6 +171,7 @@ where
     }
 
     /// Consume the residual and return its value and optional derivatives.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (
@@ -212,7 +213,7 @@ where
     }
 
     /// Attach the corresponding second residual derivative.
-    pub fn from_parts(mut self, second: ArrayBase<OwnedRepr<C>, D>) -> Self {
+    pub fn with_second(mut self, second: ArrayBase<OwnedRepr<C>, D>) -> Self {
         self.second = Some(second);
         self
     }
@@ -240,6 +241,7 @@ where
     }
 
     /// Consume the derivative result and return all components.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (
@@ -307,7 +309,7 @@ mod tests {
     #[test]
     fn residual_derivatives_into_parts_preserves_values() {
         let derivatives = ResidualDerivatives::new(DerivativeVariable::Thickness(2), arr0(c(5.0)))
-            .from_parts(arr0(c(7.0)));
+            .with_second(arr0(c(7.0)));
 
         let (variable, first, second) = derivatives.into_parts();
 

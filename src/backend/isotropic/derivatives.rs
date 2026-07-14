@@ -106,6 +106,7 @@ where
     }
 
     /// Consume the derivatives and return their components.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_parts(
         self,
     ) -> (

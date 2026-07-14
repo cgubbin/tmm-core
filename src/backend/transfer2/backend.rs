@@ -288,7 +288,11 @@ mod tests {
 
     use super::*;
 
-    use crate::{backend::Polarisation, material::Constant, stack::Thickness};
+    use crate::{
+        backend::Polarisation,
+        material::Constant,
+        stack::{Thickness, ValidationConfig},
+    };
 
     type C = Complex64;
 
@@ -368,10 +372,7 @@ mod tests {
     #[test]
     fn empty_stack_evaluates_to_identity() {
         let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.5, 1.0))
-            .with_layer(
-                Constant::new(2.25, 1.0),
-                Thickness::from_cm(std::f64::EPSILON).unwrap(),
-            )
+            .validation(ValidationConfig::permissive())
             .build()
             .unwrap();
         let input = make_input(3.0, 0.4);

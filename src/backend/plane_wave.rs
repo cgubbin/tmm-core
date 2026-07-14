@@ -146,7 +146,7 @@ where
 
         Self::with_derivatives(
             amplitudes,
-            PlaneWaveResponseDerivatives::new(variable, first).from_parts(second),
+            PlaneWaveResponseDerivatives::new(variable, first).with_second(second),
         )
     }
 
@@ -279,7 +279,7 @@ where
     }
 
     /// Attach the corresponding second-order amplitude derivatives.
-    pub fn from_parts(mut self, second: PlaneWaveAmplitudes<C, D>) -> Self {
+    pub fn with_second(mut self, second: PlaneWaveAmplitudes<C, D>) -> Self {
         self.second = Some(second);
         self
     }
@@ -392,7 +392,7 @@ mod tests {
             DerivativeVariable::Thickness(2),
             PlaneWaveAmplitudes::new(arr0(c(0.1)), arr0(c(-0.2))),
         )
-        .from_parts(PlaneWaveAmplitudes::new(arr0(c(0.05)), arr0(c(-0.1))));
+        .with_second(PlaneWaveAmplitudes::new(arr0(c(0.05)), arr0(c(-0.1))));
 
         let (variable, first, second) = derivatives.into_parts();
 

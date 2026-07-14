@@ -144,11 +144,11 @@ where
         let mut eps = C::from_real(self.epsilon_infinity);
 
         if let Some(drude) = self.drude {
-            eps = eps + drude.epsilon(w);
+            eps += drude.epsilon(w);
         }
 
         for lorentz in &self.lorentz {
-            eps = eps + lorentz.epsilon(w);
+            eps += lorentz.epsilon(w);
         }
 
         eps
@@ -166,11 +166,11 @@ where
         let mut deps = C::zero();
 
         if let Some(drude) = self.drude {
-            deps = deps + drude.epsilon_derivative(w, order, variable);
+            deps += drude.epsilon_derivative(w, order, variable);
         }
 
         for lorentz in &self.lorentz {
-            deps = deps + lorentz.epsilon_derivative(w, order, variable);
+            deps += lorentz.epsilon_derivative(w, order, variable);
         }
 
         deps

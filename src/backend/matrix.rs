@@ -130,7 +130,7 @@ impl<M> MatrixEvaluation<M> {
 
         Self::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable, first).from_parts(second),
+            MatrixDerivatives::new(variable, first).with_second(second),
         )
     }
 
@@ -182,7 +182,7 @@ impl<M> MatrixDerivatives<M> {
     }
 
     /// Attach the corresponding second derivative.
-    pub fn from_parts(mut self, second: M) -> Self {
+    pub fn with_second(mut self, second: M) -> Self {
         self.second = Some(second);
         self
     }
@@ -264,7 +264,7 @@ mod tests {
     fn into_parts_preserves_matrix_and_derivatives() {
         let evaluation = MatrixEvaluation::with_derivatives(
             3_u32,
-            MatrixDerivatives::new(DerivativeVariable::Thickness(2), 5_u32).from_parts(7_u32),
+            MatrixDerivatives::new(DerivativeVariable::Thickness(2), 5_u32).with_second(7_u32),
         );
 
         let (matrix, derivatives) = evaluation.into_parts();

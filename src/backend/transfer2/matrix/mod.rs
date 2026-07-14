@@ -83,6 +83,7 @@ where
     }
 
     /// Consume the matrix and return its four entries in row-major order.
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_parts(
         self,
     ) -> (
