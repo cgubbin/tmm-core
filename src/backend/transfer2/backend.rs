@@ -35,7 +35,7 @@ use crate::{
             IsotropicLayerSecondDerivatives,
         },
         transfer2::{
-            Matrix2, TransferError,
+            Matrix2, Transfer2Error,
             jet::{Transfer2Jet, Transfer2JetFirst},
         },
     },
@@ -58,7 +58,7 @@ impl Transfer2 {
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Result<Matrix2<C, D>, TransferError>
+    ) -> Result<Matrix2<C, D>, Transfer2Error>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -67,12 +67,12 @@ impl Transfer2 {
     {
         let mut total = Matrix2::identity_like(input.vacuum_wavenumber());
 
-        for layer in stack.layers_in_propagation_order() {
+        for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
             let layer_matrix = Matrix2::from_layer(&quantities, layer.thickness());
 
-            total = &layer_matrix * &total;
+            total = &total * &layer_matrix;
         }
 
         Ok(total)
@@ -84,7 +84,7 @@ impl Transfer2 {
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
-    ) -> Result<Transfer2JetFirst<C, D>, TransferError>
+    ) -> Result<Transfer2JetFirst<C, D>, Transfer2Error>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -98,12 +98,12 @@ impl Transfer2 {
         let mut total =
             Transfer2JetFirst::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
-        for (index, layer) in stack.layers_in_propagation_order().enumerate() {
+        for (index, layer) in stack.iter().enumerate() {
             let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
             let layer = first_layer_jet(index, layer, &quantities, input, primitive);
 
-            total = layer.multiply(&total);
+            total = total.multiply(&layer);
         }
 
         if let Some(rule) = variable.chain_rule(input) {
@@ -119,7 +119,7 @@ impl Transfer2 {
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
-    ) -> Result<Transfer2Jet<C, D>, TransferError>
+    ) -> Result<Transfer2Jet<C, D>, Transfer2Error>
     where
         M: Material<Real = C::RealField>,
         C: ComplexScalar,
@@ -132,12 +132,12 @@ impl Transfer2 {
 
         let mut total = Transfer2Jet::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
-        for (index, layer) in stack.layers_in_propagation_order().enumerate() {
+        for (index, layer) in stack.iter().enumerate() {
             let quantities = IsotropicLayerQuantities::new(layer.material(), input);
 
             let layer = second_layer_jet(index, layer, &quantities, input, primitive);
 
-            total = layer.multiply(&total);
+            total = total.multiply(&layer);
         }
 
         if let Some(rule) = variable.chain_rule(input) {
@@ -151,12 +151,12 @@ impl Transfer2 {
 fn validate_derivative_variable<M, R>(
     stack: &Stack<M, R>,
     variable: DerivativeVariable,
-) -> Result<(), TransferError> {
+) -> Result<(), Transfer2Error> {
     if let DerivativeVariable::Thickness(requested) = variable {
         let layer_count = stack.len();
 
         if requested >= layer_count {
-            return Err(TransferError::ThicknessLayerOutOfBounds {
+            return Err(Transfer2Error::ThicknessLayerOutOfBounds {
                 requested,
                 layer_count,
             });
@@ -476,7 +476,7 @@ mod tests {
 
         assert_eq!(
             error,
-            TransferError::ThicknessLayerOutOfBounds {
+            Transfer2Error::ThicknessLayerOutOfBounds {
                 requested: 2,
                 layer_count: 2,
             }

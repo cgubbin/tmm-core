@@ -82,6 +82,13 @@ pub(crate) trait JetBilinear: JetAdditive {
 }
 
 /// Construct a scalar constant with the same sampled shape.
+pub(crate) trait JetScaleBy: Clone {
+    type Scalar: Copy;
+
+    fn jet_scale_by(&self, value: Self::Scalar) -> Self;
+}
+
+/// Construct a scalar constant with the same sampled shape.
 pub(crate) trait JetConstant: Clone {
     type Scalar: Copy;
 
@@ -202,6 +209,19 @@ where
         let first = I::jet_zeros_like(&value);
 
         Self { value, first }
+    }
+}
+
+impl<I> JetFirst<I>
+where
+    I: JetScaleBy,
+{
+    /// Multiply two first-order jets using the product rule.
+    pub(crate) fn scale_by(&self, value: I::Scalar) -> Self {
+        Self {
+            value: self.value.jet_scale_by(value),
+            first: self.first.jet_scale_by(value),
+        }
     }
 }
 
@@ -352,6 +372,20 @@ where
 
 impl<I> Jet<I>
 where
+    I: JetScaleBy,
+{
+    /// Construct a constant second-order jet with zero derivatives.
+    pub(crate) fn scale_by(&self, value: I::Scalar) -> Self {
+        Self {
+            value: self.value.jet_scale_by(value),
+            first: self.first.jet_scale_by(value),
+            second: self.second.jet_scale_by(value),
+        }
+    }
+}
+
+impl<I> Jet<I>
+where
     I: JetZeroLike,
 {
     /// Construct a second-order jet whose first and second derivatives are zero.
@@ -440,6 +474,18 @@ where
     }
 }
 
+impl<C, D> JetScaleBy for ArrayBase<OwnedRepr<C>, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Scalar = C;
+
+    fn jet_scale_by(&self, value: Self::Scalar) -> Self {
+        self.mapv(|x| x * value)
+    }
+}
+
 impl<C, D> JetConstant for ArrayBase<OwnedRepr<C>, D>
 where
     C: ComplexScalar,
@@ -479,6 +525,37 @@ where
 {
     fn square(&self) -> Self {
         self.mapv(|x| x * x)
+    }
+}
+
+impl<C, D> ArrayJet<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    pub(crate) fn exp(self) -> Self {
+        let exp = self.value().mapv(|value| value.exp());
+
+        let first = exp.clone() * self.first().view();
+
+        let second =
+            exp.clone() * (self.first().mapv(|value| value * value) + self.second().view());
+
+        Self::from_parts(exp, first, second)
+    }
+}
+
+impl<C, D> ArrayJetFirst<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    pub(crate) fn exp(self) -> Self {
+        let exp = self.value().mapv(|value| value.exp());
+
+        let first = exp.clone() * self.first().view();
+
+        Self::from_parts(exp, first)
     }
 }
 

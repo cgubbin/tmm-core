@@ -4,34 +4,44 @@ mod thickness;
 mod units;
 mod validation;
 
-pub(crate) use builder::StackBuilder;
-pub(crate) use layer::Layer;
-pub(crate) use thickness::Thickness;
-pub(crate) use validation::ValidationConfig;
+pub use builder::StackBuilder;
+pub use layer::Layer;
+pub use thickness::Thickness;
+pub use validation::ValidationConfig;
 
 use either::Either;
 use num_traits::Float;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum PropagationDirection {
-    Forward,
-    Reverse,
-}
+use crate::IncidentSide;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stack<M, F> {
     left_exterior: M,
     right_exterior: M,
-    layers: Vec<Layer<M, F>>,
-    direction: PropagationDirection,
+    layers_left_to_right: Vec<Layer<M, F>>,
+}
+
+enum PropagationDirection {
+    LeftToRight,
+    RightToLeft,
+}
+
+impl IncidentSide {
+    pub(crate) fn propagation_direction(self) -> PropagationDirection {
+        match self {
+            Self::Left => PropagationDirection::LeftToRight,
+
+            Self::Right => PropagationDirection::RightToLeft,
+        }
+    }
 }
 
 impl<M, F> Stack<M, F> {
-    pub fn builder(incident: M, substrate: M) -> StackBuilder<M, F>
+    pub fn builder(left_exterior: M, right_exterior: M) -> StackBuilder<M, F>
     where
         F: Float,
     {
-        StackBuilder::new(incident, substrate)
+        StackBuilder::new(left_exterior, right_exterior)
     }
 
     pub fn left_exterior(&self) -> &M {
@@ -42,18 +52,51 @@ impl<M, F> Stack<M, F> {
         &self.right_exterior
     }
 
-    pub fn layers(&self) -> &[Layer<M, F>] {
-        &self.layers
+    pub fn layers_left_to_right(&self) -> &[Layer<M, F>] {
+        &self.layers_left_to_right
     }
 
     pub fn len(&self) -> usize {
-        self.layers.len()
+        self.layers_left_to_right.len()
     }
 
-    pub fn layers_in_propagation_order(&self) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
-        match self.direction {
-            PropagationDirection::Forward => Either::Left(self.layers.iter()),
-            PropagationDirection::Reverse => Either::Right(self.layers.iter().rev()),
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
+        self.layers_left_to_right.iter()
+    }
+
+    /// Finite layers in the requested geometric direction.
+    pub fn layers_in_direction(
+        &self,
+        direction: PropagationDirection,
+    ) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
+        match direction {
+            PropagationDirection::LeftToRight => Either::Left(self.layers_left_to_right.iter()),
+
+            PropagationDirection::RightToLeft => {
+                Either::Right(self.layers_left_to_right.iter().rev())
+            }
+        }
+    }
+
+    /// Exterior encountered first in the requested direction.
+    pub fn entrance_exterior(&self, direction: PropagationDirection) -> &M {
+        match direction {
+            PropagationDirection::LeftToRight => self.left_exterior(),
+
+            PropagationDirection::RightToLeft => self.right_exterior(),
+        }
+    }
+
+    /// Exterior encountered last in the requested direction.
+    pub fn exit_exterior(&self, direction: PropagationDirection) -> &M {
+        match direction {
+            PropagationDirection::LeftToRight => self.right_exterior(),
+
+            PropagationDirection::RightToLeft => self.left_exterior(),
         }
     }
 }

@@ -31,135 +31,10 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        jet::{ArrayJet, ArrayJetFirst},
-        transfer2::Matrix2,
+        algebra::ScalarAlgebra,
+        transfer2::{Matrix2, plane_wave::boundary_slope},
     },
 };
-
-pub(super) type SampleArray<C, D> = ArrayBase<OwnedRepr<C>, D>;
-
-/// Algebra required by the transfer-matrix amplitude expressions.
-///
-/// This is implemented by:
-///
-/// - sampled arrays for value-only evaluation;
-/// - first-order sampled jets;
-/// - second-order sampled jets.
-///
-/// Consequently, the physical reflection and transmission formula is written
-/// only once.
-pub(super) trait ResponseAlgebra<C, D>: Sized
-where
-    D: Dimension,
-{
-    /// Return the underlying sampled value.
-    fn value(&self) -> &SampleArray<C, D>;
-
-    /// Construct a constant with the same sampled shape as `source`.
-    fn constant_like(source: &SampleArray<C, D>, value: C) -> Self;
-
-    /// Add two values.
-    fn add(&self, rhs: &Self) -> Self;
-
-    /// Subtract `rhs` from this value.
-    fn subtract(&self, rhs: &Self) -> Self;
-
-    /// Multiply two values elementwise.
-    fn multiply(&self, rhs: &Self) -> Self;
-
-    /// Divide two values elementwise.
-    fn divide(&self, rhs: &Self) -> Self;
-}
-
-impl<C, D> ResponseAlgebra<C, D> for ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn value(&self) -> &SampleArray<C, D> {
-        self
-    }
-
-    fn constant_like(source: &SampleArray<C, D>, value: C) -> Self {
-        source.mapv(|_| value)
-    }
-
-    fn add(&self, rhs: &Self) -> Self {
-        self.clone() + rhs.view()
-    }
-
-    fn subtract(&self, rhs: &Self) -> Self {
-        self.clone() - rhs.view()
-    }
-
-    fn multiply(&self, rhs: &Self) -> Self {
-        self.clone() * rhs.view()
-    }
-
-    fn divide(&self, rhs: &Self) -> Self {
-        self.clone() / rhs.view()
-    }
-}
-
-impl<C, D> ResponseAlgebra<C, D> for ArrayJetFirst<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        ArrayJetFirst::value(self)
-    }
-
-    fn constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
-        ArrayJetFirst::constant_like(source, value)
-    }
-
-    fn add(&self, rhs: &Self) -> Self {
-        ArrayJetFirst::add(self, rhs)
-    }
-
-    fn subtract(&self, rhs: &Self) -> Self {
-        ArrayJetFirst::subtract(self, rhs)
-    }
-
-    fn multiply(&self, rhs: &Self) -> Self {
-        ArrayJetFirst::multiply(self, rhs)
-    }
-
-    fn divide(&self, rhs: &Self) -> Self {
-        ArrayJetFirst::divide(self, rhs)
-    }
-}
-
-impl<C, D> ResponseAlgebra<C, D> for ArrayJet<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        ArrayJet::value(self)
-    }
-
-    fn constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
-        ArrayJet::constant_like(source, value)
-    }
-
-    fn add(&self, rhs: &Self) -> Self {
-        ArrayJet::add(self, rhs)
-    }
-
-    fn subtract(&self, rhs: &Self) -> Self {
-        ArrayJet::subtract(self, rhs)
-    }
-
-    fn multiply(&self, rhs: &Self) -> Self {
-        ArrayJet::multiply(self, rhs)
-    }
-
-    fn divide(&self, rhs: &Self) -> Self {
-        ArrayJet::divide(self, rhs)
-    }
-}
 
 pub(super) struct Matrix2Entries<A> {
     pub(super) m11: A,
@@ -171,42 +46,39 @@ pub(super) struct Matrix2Entries<A> {
 pub(super) struct TransferBoundaryTerms<A> {
     pub(super) u: A,
     pub(super) v: A,
-    pub(super) b_yr: A,
-    pub(super) d_yr: A,
+    pub(super) b_right: A,
+    pub(super) d_right: A,
     pub(super) denominator: A,
 }
 
 impl<A> Matrix2Entries<A> {
     pub(super) fn boundary_terms<C, D>(
         &self,
-        left_admittance: &A,
-        right_admittance: &A,
+        left_slope: &A,
+        right_slope: &A,
     ) -> TransferBoundaryTerms<A>
     where
         C: ComplexScalar,
         D: Dimension,
-        A: ResponseAlgebra<C, D>,
+        A: ScalarAlgebra<C, D>,
     {
-        let Matrix2Entries {
-            m11: a,
-            m12: b,
-            m21: c,
-            m22: d,
-        } = self;
+        let Matrix2Entries { m11, m12, m21, m22 } = self;
 
-        let b_yr = b.multiply(right_admittance);
-        let d_yr = d.multiply(right_admittance);
+        let b_right = m12.multiply(right_slope);
 
-        let u = a.subtract(&b_yr);
-        let v = c.subtract(&d_yr);
+        let d_right = m22.multiply(right_slope);
 
-        let denominator = left_admittance.multiply(&u).subtract(&v);
+        let u = m11.subtract(&b_right);
+
+        let v = m21.subtract(&d_right);
+
+        let denominator = left_slope.multiply(&u).subtract(&v);
 
         TransferBoundaryTerms {
+            b_right,
+            d_right,
             u,
             v,
-            b_yr,
-            d_yr,
             denominator,
         }
     }
@@ -220,11 +92,13 @@ pub(super) fn outgoing_residual<C, D, A>(
 where
     C: ComplexScalar,
     D: Dimension,
-    A: ResponseAlgebra<C, D>,
+    A: ScalarAlgebra<C, D>,
 {
-    matrix
-        .boundary_terms::<C, D>(left_admittance, right_admittance)
-        .denominator
+    let left_slope = boundary_slope::<C, D, A>(left_admittance);
+
+    let right_slope = boundary_slope::<C, D, A>(right_admittance);
+
+    matrix.boundary_terms(&left_slope, &right_slope).denominator
 }
 
 impl<C, D> Matrix2<C, D>
@@ -232,7 +106,7 @@ where
     D: Dimension,
 {
     /// Consume the matrix and move its entries into the response algebra.
-    pub(super) fn into_entries(self) -> Matrix2Entries<SampleArray<C, D>> {
+    pub(super) fn into_entries(self) -> Matrix2Entries<ArrayBase<OwnedRepr<C>, D>> {
         let (m11, m12, m21, m22) = self.into_parts();
 
         Matrix2Entries { m11, m12, m21, m22 }

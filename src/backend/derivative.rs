@@ -44,8 +44,8 @@ pub enum DerivativeVariable {
 
     /// Physical thickness of a finite layer.
     ///
-    /// The index refers to finite layers in propagation order and excludes the
-    /// two semi-infinite exterior media.
+    /// The index refers to the finite layers in geometric left-to-right order and
+    /// excludes the two semi-infinite exterior media.
     Thickness(usize),
 }
 

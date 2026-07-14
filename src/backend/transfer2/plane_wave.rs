@@ -5,19 +5,20 @@ use crate::{
     backend::{
         DerivativeVariable, PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveInput,
         PlaneWaveResponse,
+        algebra::ScalarAlgebra,
         input::IncidentSide,
         isotropic::IsotropicLayerAdmittance,
         jet::{ArrayJet, ArrayJetFirst},
         transfer2::jet::{Transfer2Jet, Transfer2JetFirst},
-        transfer2::response::{Matrix2Entries, ResponseAlgebra, SampleArray},
+        transfer2::response::Matrix2Entries,
     },
     material::Material,
     stack::Stack,
 };
 
-use super::{Matrix2, Transfer2, TransferError};
+use super::{Matrix2, Transfer2, Transfer2Error};
 
-fn amplitudes<C, D, A>(
+pub(super) fn amplitudes<C, D, A>(
     matrix: Matrix2Entries<A>,
     left_admittance: &A,
     right_admittance: &A,
@@ -26,31 +27,35 @@ fn amplitudes<C, D, A>(
 where
     C: ComplexScalar,
     D: Dimension,
-    A: ResponseAlgebra<C, D>,
+    A: ScalarAlgebra<C, D>,
 {
-    let terms = matrix.boundary_terms::<C, D>(left_admittance, right_admittance);
+    let left_slope = boundary_slope::<C, D, A>(left_admittance);
+
+    let right_slope = boundary_slope::<C, D, A>(right_admittance);
+
+    let terms = matrix.boundary_terms(&left_slope, &right_slope);
 
     let two = A::constant_like(matrix.m11.value(), C::one() + C::one());
 
     match incident_side {
         IncidentSide::Left => {
-            let reflection = left_admittance
+            let reflection = left_slope
                 .multiply(&terms.u)
                 .add(&terms.v)
                 .divide(&terms.denominator);
 
-            let transmission = two.multiply(left_admittance).divide(&terms.denominator);
+            let transmission = two.multiply(&left_slope).divide(&terms.denominator);
 
             (reflection, transmission)
         }
 
         IncidentSide::Right => {
-            let p = matrix.m11.add(&terms.b_yr);
+            let p = matrix.m11.add(&terms.b_right);
 
-            let q = matrix.m21.add(&terms.d_yr);
+            let q = matrix.m21.add(&terms.d_right);
 
             let reflection = q
-                .subtract(&left_admittance.multiply(&p))
+                .subtract(&left_slope.multiply(&p))
                 .divide(&terms.denominator);
 
             let determinant = matrix
@@ -59,7 +64,7 @@ where
                 .subtract(&matrix.m12.multiply(&matrix.m21));
 
             let transmission = two
-                .multiply(right_admittance)
+                .multiply(&right_slope)
                 .multiply(&determinant)
                 .divide(&terms.denominator);
 
@@ -75,10 +80,10 @@ where
 {
     pub(super) fn amplitudes(
         self,
-        left_admittance: &SampleArray<C, D>,
-        right_admittance: &SampleArray<C, D>,
+        left_admittance: &ArrayBase<OwnedRepr<C>, D>,
+        right_admittance: &ArrayBase<OwnedRepr<C>, D>,
         incident_side: IncidentSide,
-    ) -> (SampleArray<C, D>, SampleArray<C, D>) {
+    ) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
         let (m11, m12, m21, m22) = self.into_parts();
 
         amplitudes(
@@ -166,7 +171,7 @@ where
     D: Dimension,
     M: Material<Real = C::RealField>,
 {
-    type Error = TransferError;
+    type Error = Transfer2Error;
 
     fn solve_plane_wave(
         &self,
@@ -245,6 +250,29 @@ where
     }
 }
 
+/// Convert a physical characteristic admittance into the field-state slope
+/// used by the transfer matrix.
+///
+/// For the matrix convention
+///
+/// ```text
+/// M = [ cos(κd)    -sin(κd)/Y ]
+///     [ Y sin(κd)   cos(κd)   ],
+/// ```
+///
+/// travelling-wave states have derivative components `±iY`.
+pub(super) fn boundary_slope<C, D, A>(admittance: &A) -> A
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: ScalarAlgebra<C, D>,
+{
+    // TODO: Should be minus for outgoing
+    let imaginary_unit = A::constant_like(admittance.value(), -C::i());
+
+    imaginary_unit.multiply(admittance)
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -312,7 +340,7 @@ mod tests {
         let left = array![c(1.0), c(2.0), c(3.0)];
         let right = array![c(4.0), c(5.0), c(6.0)];
 
-        let result = <_ as ResponseAlgebra<C, ndarray::Ix1>>::add(&left, &right);
+        let result = <_ as ScalarAlgebra<C, ndarray::Ix1>>::add(&left, &right);
 
         assert_eq!(result, array![c(5.0), c(7.0), c(9.0)],);
     }
@@ -322,7 +350,7 @@ mod tests {
         let left = array![c(5.0), c(7.0), c(9.0)];
         let right = array![c(1.0), c(2.0), c(3.0)];
 
-        let result = <_ as ResponseAlgebra<C, ndarray::Ix1>>::subtract(&left, &right);
+        let result = <_ as ScalarAlgebra<C, ndarray::Ix1>>::subtract(&left, &right);
 
         assert_eq!(result, array![c(4.0), c(5.0), c(6.0)],);
     }
@@ -332,7 +360,7 @@ mod tests {
         let left = array![c(2.0), c(3.0), c(4.0)];
         let right = array![c(5.0), c(7.0), c(11.0)];
 
-        let result = <_ as ResponseAlgebra<C, ndarray::Ix1>>::multiply(&left, &right);
+        let result = <_ as ScalarAlgebra<C, ndarray::Ix1>>::multiply(&left, &right);
 
         assert_eq!(result, array![c(10.0), c(21.0), c(44.0)],);
     }
@@ -342,7 +370,7 @@ mod tests {
         let numerator = array![c(10.0), c(21.0), c(44.0)];
         let denominator = array![c(5.0), c(7.0), c(11.0)];
 
-        let result = <_ as ResponseAlgebra<C, ndarray::Ix1>>::divide(&numerator, &denominator);
+        let result = <_ as ScalarAlgebra<C, ndarray::Ix1>>::divide(&numerator, &denominator);
 
         assert_eq!(result, array![c(2.0), c(3.0), c(4.0)],);
     }
@@ -352,7 +380,7 @@ mod tests {
         let source = array![c(1.0), c(2.0), c(3.0)];
 
         let result: ArrayBase<OwnedRepr<C>, ndarray::Ix1> =
-            <_ as ResponseAlgebra<C, ndarray::Ix1>>::constant_like(&source, c(7.0));
+            <_ as ScalarAlgebra<C, ndarray::Ix1>>::constant_like(&source, c(7.0));
 
         assert_eq!(result, array![c(7.0), c(7.0), c(7.0)]);
         assert_eq!(result.raw_dim(), source.raw_dim());
@@ -399,25 +427,33 @@ mod tests {
     fn nontrivial_left_incidence_matches_direct_formula() {
         let a = 1.2;
         let b = 0.3;
-        let c_ = -0.4;
+        let c_entry = -0.4;
         let d = 0.8;
-        let yl = 1.7;
-        let yr = 2.1;
 
-        let (reflection, transmission) =
-            value_amplitudes(scalar_matrix(a, b, c_, d), yl, yr, IncidentSide::Left);
+        let left_admittance = 1.7;
+        let right_admittance = 2.1;
+        let left_slope = -C::i() * left_admittance;
+        let right_slope = -C::i() * right_admittance;
 
-        let u = a - b * yr;
-        let v = c_ - d * yr;
-        let denominator = yl * u - v;
+        let u = a - b * right_slope;
+        let v = c_entry - d * right_slope;
 
-        let expected_reflection = (yl * u + v) / denominator;
+        let denominator = left_slope * u - v;
 
-        let expected_transmission = 2.0 * yl / denominator;
+        let expected_reflection = (left_slope * u + v) / denominator;
 
-        assert_complex_close(reflection, c(expected_reflection), 1e-12);
+        let expected_transmission = c(2.0) * left_slope / denominator;
 
-        assert_complex_close(transmission, c(expected_transmission), 1e-12);
+        let (reflection, transmission) = value_amplitudes(
+            scalar_matrix(a, b, c_entry, d),
+            left_admittance,
+            right_admittance,
+            IncidentSide::Left,
+        );
+
+        assert_complex_close(reflection, expected_reflection, 1e-12);
+
+        assert_complex_close(transmission, expected_transmission, 1e-12);
     }
 
     #[test]
@@ -426,27 +462,37 @@ mod tests {
         let b = 0.3;
         let c_ = -0.4;
         let d = 0.8;
-        let yl = 1.7;
-        let yr = 2.1;
 
-        let (reflection, transmission) =
-            value_amplitudes(scalar_matrix(a, b, c_, d), yl, yr, IncidentSide::Right);
+        let left_admittance = 1.7;
+        let right_admittance = 2.1;
 
-        let u = a - b * yr;
-        let v = c_ - d * yr;
-        let denominator = yl * u - v;
+        let left_slope = -C::i() * left_admittance;
+        let right_slope = -C::i() * right_admittance;
 
-        let p = a + b * yr;
-        let q = c_ + d * yr;
+        let (reflection, transmission) = value_amplitudes(
+            scalar_matrix(a, b, c_, d),
+            left_admittance,
+            right_admittance,
+            IncidentSide::Right,
+        );
+
+        let u = a - b * right_slope;
+        let v = c_ - d * right_slope;
+
+        let p = a + b * right_slope;
+        let q = c_ + d * right_slope;
+
+        let denominator = left_slope * u - v;
+
+        let expected_reflection = (q - left_slope * p) / denominator;
+
         let determinant = a * d - b * c_;
 
-        let expected_reflection = (q - yl * p) / denominator;
+        let expected_transmission = c(2.0) * right_slope * determinant / denominator;
 
-        let expected_transmission = 2.0 * yr * determinant / denominator;
+        assert_complex_close(reflection, expected_reflection, 1e-12);
 
-        assert_complex_close(reflection, c(expected_reflection), 1e-12);
-
-        assert_complex_close(transmission, c(expected_transmission), 1e-12);
+        assert_complex_close(transmission, expected_transmission, 1e-12);
     }
 
     #[test]
@@ -841,7 +887,7 @@ mod transfer2_pw_tests {
     use super::*;
 
     use crate::{
-        backend::transfer2::{Transfer2, TransferError},
+        backend::transfer2::{Transfer2, Transfer2Error},
         backend::{
             DerivativeVariable, PlanarInput, PlaneWaveBackend, PlaneWaveInput, Polarisation,
         },
@@ -1318,7 +1364,7 @@ mod transfer2_pw_tests {
 
         assert_eq!(
             error,
-            TransferError::ThicknessLayerOutOfBounds {
+            Transfer2Error::ThicknessLayerOutOfBounds {
                 requested: 1,
                 layer_count: 1,
             },

@@ -110,7 +110,7 @@ impl<M> MatrixEvaluation<M> {
     }
 
     /// Construct a matrix evaluation containing derivatives.
-    fn with_derivatives(matrix: M, derivatives: MatrixDerivatives<M>) -> Self {
+    pub(crate) fn with_derivatives(matrix: M, derivatives: MatrixDerivatives<M>) -> Self {
         Self {
             matrix,
             derivatives: Some(derivatives),
@@ -154,6 +154,14 @@ impl<M> MatrixEvaluation<M> {
     /// Consume the evaluation and return the matrix and optional derivatives.
     pub fn into_parts(self) -> (M, Option<MatrixDerivatives<M>>) {
         (self.matrix, self.derivatives)
+    }
+
+    pub fn first_derivative(&self) -> Option<&M> {
+        self.derivatives.as_ref().map(|d| d.first())
+    }
+
+    pub fn second_derivative(&self) -> Option<&M> {
+        self.derivatives.as_ref().and_then(|d| d.second())
     }
 }
 

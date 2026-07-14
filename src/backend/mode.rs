@@ -15,6 +15,8 @@
 //! This module does not locate or refine modes. Argument-principle integration,
 //! contour subdivision, continuation, and root refinement belong in downstream
 //! crates.
+//!
+//!
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
@@ -52,6 +54,15 @@ use crate::{
 ///
 /// This trait constructs the residual only. It does not count, locate, or
 /// refine its zeros.
+///
+/// Implementations must use a stable residual normalisation across value,
+/// first-derivative, and second-derivative evaluations. The returned derivative
+/// arrays must differentiate exactly the returned residual, including all
+/// boundary and normalisation factors.
+///
+/// The residual must not be rescaled independently at each sampled point for
+/// numerical convenience. Such rescaling generally destroys the analytic
+/// function required by contour-based mode solvers.
 pub trait OutgoingModeBackend<C, D, S>
 where
     C: ComplexScalar,
@@ -90,20 +101,55 @@ where
 ///
 /// A mode occurs at a zero of [`value`](Self::value).
 ///
-/// The precise algebra used to construct the residual is backend-specific. A
-/// transfer-matrix implementation may evaluate a boundary-conditioned field
-/// residual, while another backend may use a characteristic denominator or
-/// determinant.
+/// # Analyticity
 ///
-/// Downstream mode-solving crates may use:
+/// The returned residual is locally analytic only on domains where all
+/// material models, normal-wavenumber branches, and backend algebra are
+/// analytic. Callers performing contour integration must choose contours that
+/// remain inside such a domain.
+///
+/// # Normalisation
+///
+/// An outgoing-mode residual is not unique. If `f(z)` is a valid residual,
 ///
 /// ```text
-/// f
-/// f′ / f
-/// f″ / f - (f′ / f)²
+/// g(z) = a(z) f(z)
 /// ```
 ///
-/// without inspecting the backend matrix.
+/// has the same mode zeros whenever `a(z)` is analytic and nonzero on the
+/// domain of interest.
+///
+/// This transformation does not leave every derived quantity unchanged:
+///
+/// ```text
+/// g′/g = f′/f + a′/a.
+/// ```
+///
+/// Therefore, an arbitrary analytic prefactor may contribute winding to an
+/// argument-principle integral unless it is known to have no zeros, poles, or
+/// net winding inside the contour.
+///
+/// Backend implementations must consequently use a documented, stable
+/// normalisation. They must not rescale the residual opportunistically from
+/// one evaluation point to another.
+///
+/// For the isotropic 2×2 transfer backend, the residual is the plane-wave
+/// denominator:
+///
+/// ```text
+/// f = Y_L (A - B Y_R) - (C - D Y_R),
+/// ```
+///
+/// where `A`, `B`, `C`, and `D` are transfer-matrix entries and `Y_L`, `Y_R`
+/// are the exterior characteristic admittances.
+///
+/// This residual is the negative of the earlier field-state convention
+///
+/// ```text
+/// (C - D Y_R) - Y_L (A - B Y_R),
+/// ```
+///
+/// and therefore has identical zeros and logarithmic derivatives.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnalyticResidual<C, D>
 where
@@ -134,6 +180,35 @@ where
             value,
             derivatives: Some(derivatives),
         }
+    }
+
+    /// Return the logarithmic derivative `f′ / f`.
+    ///
+    /// Returns `None` when the residual was evaluated without derivatives.
+    pub fn logarithmic_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>>
+    where
+        C: ComplexScalar,
+    {
+        Some(self.derivatives()?.first().clone() / self.value.view())
+    }
+
+    /// Return the derivative of the logarithmic derivative:
+    ///
+    /// ```text
+    /// d(f′/f)/dx = f″/f - (f′/f)².
+    /// ```
+    ///
+    /// Returns `None` unless second derivatives are available.
+    pub fn logarithmic_second_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>>
+    where
+        C: ComplexScalar,
+    {
+        let first = self.derivatives()?.first();
+        let second = self.derivatives()?.second()?;
+
+        let logarithmic_first = first.clone() / self.value.view();
+
+        Some(second.clone() / self.value.view() - logarithmic_first.mapv(|value| value * value))
     }
 
     /// Construct a residual by consuming a first-order array jet.
@@ -179,6 +254,14 @@ where
         Option<ResidualDerivatives<C, D>>,
     ) {
         (self.value, self.derivatives)
+    }
+
+    pub fn first_derivative(&self) -> Option<&ArrayBase<OwnedRepr<C>, D>> {
+        self.derivatives.as_ref().map(|d| d.first())
+    }
+
+    pub fn second_derivative(&self) -> Option<&ArrayBase<OwnedRepr<C>, D>> {
+        self.derivatives.as_ref().and_then(|d| d.second())
     }
 }
 

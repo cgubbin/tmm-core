@@ -15,7 +15,7 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, IncidentSide,
     backend::{
         DerivativeVariable, PlaneWaveInput,
         jet::{ArrayJet, ArrayJetFirst},
@@ -78,14 +78,17 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveResponse<C, D>
 where
+    C: ComplexScalar,
     D: Dimension,
 {
     amplitudes: PlaneWaveAmplitudes<C, D>,
     derivatives: Option<PlaneWaveResponseDerivatives<C, D>>,
+    ports: IsotropicPlaneWavePorts<C::RealField, D>,
 }
 
 impl<C, D> PlaneWaveResponse<C, D>
 where
+    C: ComplexScalar,
     D: Dimension,
 {
     /// Construct a response without derivatives.
@@ -165,6 +168,25 @@ where
         self.amplitudes.transmission()
     }
 
+    pub fn reflectance(&self) -> ArrayBase<OwnedRepr<C::RealField>, D>
+    where
+        C: ComplexScalar,
+    {
+        self.reflection().mapv(|r| r.modulus_squared())
+    }
+
+    pub fn transmittance(&self, side: IncidentSide) -> ArrayBase<OwnedRepr<C::RealField>, D>
+    where
+        C: ComplexScalar,
+    {
+        let incident = self.ports.incident_admittance(side);
+
+        let transmitted = self.ports.transmitted_admittance(side);
+
+        self.transmission().mapv(|t| t.modulus_squared()) * transmitted.mapv(|y| y.real())
+            / incident.mapv(|y| y.real())
+    }
+
     /// Return amplitude derivatives, when available.
     pub fn derivatives(&self) -> Option<&PlaneWaveResponseDerivatives<C, D>> {
         self.derivatives.as_ref()
@@ -175,6 +197,20 @@ where
     /// Any stored derivatives are discarded.
     pub fn into_amplitudes(self) -> PlaneWaveAmplitudes<C, D> {
         self.amplitudes
+    }
+
+    /// Return first derivatives.
+    ///
+    /// Returns `None` only for a value-only response.
+    pub fn first_derivatives(&self) -> Option<&PlaneWaveAmplitudes<C, D>> {
+        self.derivatives.as_ref().map(|d| d.first())
+    }
+
+    /// Return second derivatives.
+    ///
+    /// Returns `None` for value-only and first-order responses.
+    pub fn second_derivatives(&self) -> Option<&PlaneWaveAmplitudes<C, D>> {
+        self.derivatives.as_ref().and_then(|d| d.second())
     }
 
     /// Consume the response and return its amplitudes and optional
@@ -310,6 +346,34 @@ where
         Option<PlaneWaveAmplitudes<C, D>>,
     ) {
         (self.variable, self.first, self.second)
+    }
+}
+
+pub struct IsotropicPlaneWavePorts<C, D>
+where
+    D: Dimension,
+{
+    left_admittance: ArrayBase<OwnedRepr<C>, D>,
+
+    right_admittance: ArrayBase<OwnedRepr<C>, D>,
+}
+
+impl<R, D> IsotropicPlaneWavePorts<R, D>
+where
+    D: Dimension,
+{
+    pub fn incident_admittance(&self, side: IncidentSide) -> &ArrayBase<OwnedRepr<R>, D> {
+        match side {
+            IncidentSide::Left => &self.left_admittance,
+            IncidentSide::Right => &self.right_admittance,
+        }
+    }
+
+    pub fn transmitted_admittance(&self, side: IncidentSide) -> &ArrayBase<OwnedRepr<R>, D> {
+        match side {
+            IncidentSide::Left => &self.right_admittance,
+            IncidentSide::Right => &self.left_admittance,
+        }
     }
 }
 

@@ -30,6 +30,29 @@
 //!
 //! This is also the common denominator of the transfer-backend plane-wave
 //! reflection and transmission amplitudes.
+//!
+//! # Residual normalisation
+//!
+//! For physical characteristic admittances
+//!
+//! ```text
+//! Y_j = κ_j / factor_j,
+//! ```
+//!
+//! define the transfer-state slopes
+//!
+//! ```text
+//! ξ_j = i Y_j.
+//! ```
+//!
+//! The outgoing-mode residual is
+//!
+//! ```text
+//! Δ = ξ_L (A - B ξ_R) - (C - D ξ_R).
+//! ```
+//!
+//! This is exactly the common denominator used by the transfer backend's
+//! reflection and transmission amplitudes.
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
@@ -43,7 +66,7 @@ use crate::{
     stack::Stack,
 };
 
-use super::{Transfer2, TransferError, response::outgoing_residual};
+use super::{Transfer2, Transfer2Error, response::outgoing_residual};
 
 impl<C, D, M> OutgoingModeBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
@@ -52,7 +75,7 @@ where
     D: Dimension,
     M: Material<Real = C::RealField>,
 {
-    type Error = TransferError;
+    type Error = Transfer2Error;
 
     fn outgoing_mode_residual(
         &self,
@@ -190,12 +213,9 @@ mod tests {
 
         let expected_left_admittance = 3.0;
         let expected_right_admittance = 4.5;
+        let expected = -C::i() * (expected_right_admittance + expected_left_admittance);
 
-        assert_close(
-            residual.value()[()],
-            c(expected_left_admittance + expected_right_admittance),
-            1e-12,
-        );
+        assert_close(residual.value()[()], expected, 1e-12);
     }
 
     #[test]
@@ -209,10 +229,12 @@ mod tests {
 
         let matrix = Transfer2::new().evaluate(&stack, &planar).unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner();
+        let left = -IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner()
+            * C::i();
 
-        let right =
-            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar).into_inner();
+        let right = -IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar)
+            .into_inner()
+            * C::i();
 
         let (a, b, c_, d) = matrix.into_parts();
 
