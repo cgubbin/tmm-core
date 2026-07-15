@@ -18,6 +18,7 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend,
+        field::InternalFieldRequest,
         jet::{ArrayJet, ArrayJetFirst},
         matrix::MatrixDerivatives,
         scatter2::{Scatter2, Scatter2Error, ScatterMatrix2, entries::ScatterEntries},
@@ -104,7 +105,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let matrix = self.evaluate(stack, input)?;
+        let matrix = self.evaluate(stack, input, InternalFieldRequest::None)?;
 
         Ok(MatrixEvaluation::new(matrix))
     }
@@ -115,7 +116,7 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries = self.evaluate_first(stack, input, variable)?;
+        let entries = self.evaluate_first(stack, input, variable, InternalFieldRequest::None)?;
 
         let (matrix, first) = entries.into_matrix_parts();
 
@@ -131,7 +132,7 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries = self.evaluate_second(stack, input, variable)?;
+        let entries = self.evaluate_second(stack, input, variable, InternalFieldRequest::None)?;
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
@@ -285,7 +286,11 @@ mod tests {
 
 #[cfg(test)]
 mod raw_matrix_backend_tests {
-    use crate::{Polarisation, Thickness, ValidationConfig, material::Constant};
+    use crate::{
+        Polarisation, Thickness, ValidationConfig,
+        backend::field::InternalFieldRequest,
+        material::{Constant, enums::IsotropicMaterial},
+    };
 
     use ndarray::{Array0, arr0};
     use num_complex::Complex64;
@@ -310,7 +315,7 @@ mod raw_matrix_backend_tests {
         )
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -375,7 +380,7 @@ mod raw_matrix_backend_tests {
         let variable = DerivativeVariable::ParallelWavenumberSquared;
 
         let internal = Scatter2::new()
-            .evaluate_first(&stack, &input, variable)
+            .evaluate_first(&stack, &input, variable, InternalFieldRequest::None)
             .unwrap();
 
         let (expected_value, expected_first) = internal.into_matrix_parts();

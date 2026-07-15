@@ -5,6 +5,7 @@ use crate::{
     ComplexScalar, IncidentSide, PlanarInput,
     backend::{
         DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        field::InternalFieldRequest,
         isotropic::IsotropicLayerAdmittance,
         scatter2::{Scatter2, Scatter2Error},
     },
@@ -29,7 +30,7 @@ where
         let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
             input.planar().map(|values| values.mapv(C::from_real));
 
-        let matrix = self.evaluate(stack, &planar)?;
+        let matrix = self.evaluate(stack, &planar, InternalFieldRequest::None)?;
 
         let entries = matrix.into_entries();
 
@@ -65,7 +66,7 @@ where
         let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
             input.planar().map(|values| values.mapv(C::from_real));
 
-        let entries = self.evaluate_first(stack, &planar, variable)?;
+        let entries = self.evaluate_first(stack, &planar, variable, InternalFieldRequest::None)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
@@ -98,7 +99,7 @@ where
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
         let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
             input.planar().map(|values| values.mapv(C::from_real));
-        let entries = self.evaluate_second(stack, &planar, variable)?;
+        let entries = self.evaluate_second(stack, &planar, variable, InternalFieldRequest::None)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
@@ -140,7 +141,7 @@ mod plane_wave_backend_tests {
             scatter2::ScatterMatrix2,
             transfer2::{Matrix2, Transfer2},
         },
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
     };
 
     fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
@@ -189,7 +190,7 @@ mod plane_wave_backend_tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -199,7 +200,7 @@ mod plane_wave_backend_tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -213,7 +214,7 @@ mod plane_wave_backend_tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<Constant<f64>, f64> {
+    ) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -292,7 +293,9 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate(&stack, &input, InternalFieldRequest::None)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -316,7 +319,9 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate(&stack, &input, InternalFieldRequest::None)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -334,7 +339,9 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate(&stack, &input, InternalFieldRequest::None)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -353,7 +360,9 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate(&stack, &input, InternalFieldRequest::None)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 pub mod backend;
-mod material;
+pub mod material;
 mod scalar;
-mod stack;
+pub mod stack;
 mod tensor;
 
 pub use backend::{

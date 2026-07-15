@@ -86,7 +86,7 @@ mod interface_consistency_tests {
             jet::{Jet, JetFirst},
             transfer2::{Matrix2, Transfer2, response::outgoing_residual},
         },
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
         stack::{Stack, Thickness, ValidationConfig},
     };
 
@@ -149,7 +149,7 @@ mod interface_consistency_tests {
         Constant::new(epsilon, mu)
     }
 
-    fn stack() -> Stack<Constant<f64>, f64> {
+    fn stack() -> Stack<IsotropicMaterial<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.15).unwrap())
@@ -158,7 +158,7 @@ mod interface_consistency_tests {
             .unwrap()
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(material(left_epsilon, 1.0), material(right_epsilon, 1.0))
             .validation(ValidationConfig::permissive())
@@ -167,7 +167,7 @@ mod interface_consistency_tests {
     }
 
     fn exterior_admittances(
-        stack: &Stack<Constant<f64>, f64>,
+        stack: &Stack<IsotropicMaterial<f64>, f64>,
         planar: &PlanarInput<ScalarArray>,
     ) -> (ScalarArray, ScalarArray) {
         let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), planar).into_inner();

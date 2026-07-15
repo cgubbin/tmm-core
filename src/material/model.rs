@@ -13,6 +13,24 @@ impl<R> Constant<R> {
     pub fn new(epsilon: R, mu: R) -> Self {
         Self { epsilon, mu }
     }
+
+    pub fn dielectric(epsilon: R) -> Self
+    where
+        R: Float,
+    {
+        Self::new(epsilon, R::one())
+    }
+
+    pub fn magnetodielectric(epsilon: R, mu: R) -> Self {
+        Self::new(epsilon, mu)
+    }
+
+    pub fn vacuum() -> Self
+    where
+        R: Float,
+    {
+        Self::dielectric(R::one())
+    }
 }
 
 impl<R> Material for Constant<R>

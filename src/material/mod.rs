@@ -11,6 +11,7 @@ pub mod sample;
 pub mod tensor;
 
 pub use builder::DrudeLorentzBuilder;
+pub use enums::IsotropicMaterial;
 pub use model::{Constant, DrudeLorentz};
 pub use sample::Scalar;
 

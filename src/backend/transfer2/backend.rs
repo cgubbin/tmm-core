@@ -290,7 +290,7 @@ mod tests {
 
     use crate::{
         backend::Polarisation,
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
         stack::{Thickness, ValidationConfig},
     };
 
@@ -355,7 +355,10 @@ mod tests {
         &numerator * c(1.0 / (h * h))
     }
 
-    fn two_layer_stack(first_thickness: f64, second_thickness: f64) -> Stack<Constant<f64>, f64> {
+    fn two_layer_stack(
+        first_thickness: f64,
+        second_thickness: f64,
+    ) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.5, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),

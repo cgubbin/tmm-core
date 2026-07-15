@@ -17,7 +17,7 @@ mod tests {
         DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse,
         Polarisation, Stack, Thickness, Transfer2, ValidationConfig,
         backend::{OutgoingModeBackend, PlaneWaveBackend, scatter2::Scatter2},
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
     };
 
     use approx::assert_relative_eq;
@@ -42,7 +42,7 @@ mod tests {
         )
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -56,7 +56,7 @@ mod tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<Constant<f64>, f64> {
+    ) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -361,7 +361,12 @@ mod tests {
         let input = PlanarInput::new(arr0(c(1.0)), arr0(c(2.0)), Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))
+            .evaluate_first(
+                &stack,
+                &input,
+                DerivativeVariable::Thickness(0),
+                crate::backend::field::InternalFieldRequest::None,
+            )
             .unwrap_err();
 
         assert_eq!(

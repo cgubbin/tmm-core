@@ -31,16 +31,14 @@ use crate::{
     backend::{
         AnalyticResidual, DerivativeVariable, OutgoingModeBackend, PlanarInput,
         algebra::ScalarAlgebra,
+        field::InternalFieldRequest,
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
         jet::{ArrayJet, ArrayJetFirst},
         mode::ResidualDerivatives,
-        scatter2::{
-            Scatter2, Scatter2Error,
-            entries::ScatterEntries,
-        },
+        scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
     },
     material::Material,
     stack::Stack,
@@ -60,7 +58,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix = self.evaluate(stack, input)?;
+        let matrix = self.evaluate(stack, input, InternalFieldRequest::None)?;
 
         let entries = matrix.into_entries();
 
@@ -85,7 +83,12 @@ where
          *
          * The exterior admittance must undergo the same transformation.
          */
-        let entries = self.evaluate_first(stack, input, variable)?;
+        let entries = self.evaluate_first(
+            stack,
+            input,
+            variable,
+            crate::backend::field::InternalFieldRequest::None,
+        )?;
 
         let primitive = variable.primitive();
 
@@ -111,7 +114,12 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let entries = self.evaluate_second(stack, input, variable)?;
+        let entries = self.evaluate_second(
+            stack,
+            input,
+            variable,
+            crate::backend::field::InternalFieldRequest::None,
+        )?;
 
         let primitive = variable.primitive();
 
@@ -269,7 +277,7 @@ mod tests {
     use crate::{
         Thickness, ValidationConfig,
         backend::{Polarisation, transfer2::Transfer2},
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
     };
 
     fn assert_complex_close(actual: Complex64, expected: Complex64, tolerance: f64) {
@@ -306,7 +314,7 @@ mod tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -316,7 +324,7 @@ mod tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),
@@ -330,7 +338,7 @@ mod tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<Constant<f64>, f64> {
+    ) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),

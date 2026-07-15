@@ -1,4 +1,4 @@
-use crate::stack::ValidationConfig;
+use crate::{material::enums::IsotropicMaterial, stack::ValidationConfig};
 
 use super::{
     Layer, Stack, Thickness,
@@ -14,19 +14,26 @@ pub struct StackBuilder<M, F> {
     validation: ValidationConfig<F>,
 }
 
-impl<M, F: Float> StackBuilder<M, F> {
-    pub fn new(left_exterior: M, right_exterior: M) -> Self {
+impl<F: Float> StackBuilder<IsotropicMaterial<F>, F> {
+    pub fn new<ML: Into<IsotropicMaterial<F>>, MR: Into<IsotropicMaterial<F>>>(
+        left_exterior: ML,
+        right_exterior: MR,
+    ) -> Self {
         Self {
-            left_exterior,
-            right_exterior,
+            left_exterior: left_exterior.into(),
+            right_exterior: right_exterior.into(),
             layers_left_to_right: Vec::new(),
             validation: ValidationConfig::default(),
         }
     }
 
-    pub fn with_layer(mut self, material: M, thickness: Thickness<F>) -> Self {
+    pub fn with_layer<M: Into<IsotropicMaterial<F>>>(
+        mut self,
+        material: M,
+        thickness: Thickness<F>,
+    ) -> Self {
         self.layers_left_to_right
-            .push(Layer::new(material, thickness));
+            .push(Layer::new(material.into(), thickness));
         self
     }
 

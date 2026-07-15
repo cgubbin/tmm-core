@@ -1,5 +1,6 @@
 mod algebra;
 mod derivative;
+mod field;
 mod input;
 mod isotropic;
 mod jet;
@@ -7,7 +8,7 @@ mod matrix;
 mod mode;
 mod plane_wave;
 
-mod scatter2;
+pub mod scatter2;
 pub mod transfer2;
 
 pub use derivative::DerivativeVariable;

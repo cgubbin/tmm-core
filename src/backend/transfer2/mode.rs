@@ -147,7 +147,7 @@ mod tests {
 
     use crate::{
         backend::Polarisation,
-        material::Constant,
+        material::{Constant, enums::IsotropicMaterial},
         stack::{Thickness, ValidationConfig},
     };
 
@@ -182,7 +182,7 @@ mod tests {
     }
 
     // Adapt these constructors to the actual Stack API.
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -192,7 +192,7 @@ mod tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness: f64) -> Stack<Constant<f64>, f64> {
+    fn one_layer_stack(thickness: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
             .with_layer(
                 Constant::new(2.25, 1.0),

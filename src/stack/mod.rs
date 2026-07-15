@@ -14,7 +14,7 @@ use num_traits::Float;
 
 use crate::{
     ComplexScalar, IncidentSide,
-    material::{Material, sample::Sampled},
+    material::{Material, enums::IsotropicMaterial, sample::Sampled},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,14 +39,19 @@ impl IncidentSide {
     }
 }
 
-impl<M, F> Stack<M, F> {
-    pub fn builder(left_exterior: M, right_exterior: M) -> StackBuilder<M, F>
+impl<F> Stack<IsotropicMaterial<F>, F> {
+    pub fn builder<ML: Into<IsotropicMaterial<F>>, MR: Into<IsotropicMaterial<F>>>(
+        left_exterior: ML,
+        right_exterior: MR,
+    ) -> StackBuilder<IsotropicMaterial<F>, F>
     where
         F: Float,
     {
         StackBuilder::new(left_exterior, right_exterior)
     }
+}
 
+impl<M, F> Stack<M, F> {
     pub fn left_exterior(&self) -> &M {
         &self.left_exterior
     }
