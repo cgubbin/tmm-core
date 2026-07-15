@@ -1,10 +1,11 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::Float;
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, IncidentSide, PlanarInput,
     backend::{
-        DerivativeVariable, PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveInput,
-        PlaneWaveResponse,
+        DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        isotropic::IsotropicLayerAdmittance,
         scatter2::{Scatter2, Scatter2Error},
     },
     material::Material,
@@ -14,7 +15,7 @@ use crate::{
 impl<C, D, M> PlaneWaveBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
-    C::RealField: Copy,
+    C::RealField: Copy + Float,
     D: Dimension,
     M: Material<Real = C::RealField>,
 {
@@ -23,33 +24,68 @@ where
     fn solve_plane_wave(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let matrix = self.evaluate(stack, input.planar())?;
+        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
+            input.planar().map(|values| values.mapv(C::from_real));
+
+        let matrix = self.evaluate(stack, &planar)?;
 
         let entries = matrix.into_entries();
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        Ok(PlaneWaveResponse::new(PlaneWaveAmplitudes::new(
+        // Construct complex exterior admittances using the lifted input.
+        let left_admittance =
+            IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner();
+
+        let right_admittance =
+            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar).into_inner();
+
+        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
+            IncidentSide::Left => (left_admittance, right_admittance),
+
+            IncidentSide::Right => (right_admittance, left_admittance),
+        };
+
+        Ok(PlaneWaveResponse::from_values(
             reflection,
             transmission,
-        )))
+            incident_normalisation,
+            transmitted_normalisation,
+        ))
     }
 
     fn solve_plane_wave_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let entries = self.evaluate_first(stack, input.planar(), variable)?;
+        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
+            input.planar().map(|values| values.mapv(C::from_real));
+
+        let entries = self.evaluate_first(stack, &planar, variable)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let left_admittance =
+            IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), &planar, variable);
+
+        let right_admittance =
+            IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), &planar, variable);
+
+        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
+            IncidentSide::Left => (left_admittance, right_admittance),
+
+            IncidentSide::Right => (right_admittance, left_admittance),
+        };
 
         Ok(PlaneWaveResponse::from_first_jets(
             reflection,
             transmission,
+            incident_normalisation,
+            transmitted_normalisation,
             variable,
         ))
     }
@@ -57,16 +93,32 @@ where
     fn solve_plane_wave_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let entries = self.evaluate_second(stack, input.planar(), variable)?;
+        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
+            input.planar().map(|values| values.mapv(C::from_real));
+        let entries = self.evaluate_second(stack, &planar, variable)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let left_admittance =
+            IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), &planar, variable);
+
+        let right_admittance =
+            IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), &planar, variable);
+
+        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
+            IncidentSide::Left => (left_admittance, right_admittance),
+
+            IncidentSide::Right => (right_admittance, left_admittance),
+        };
 
         Ok(PlaneWaveResponse::from_second_jets(
             reflection,
             transmission,
+            incident_normalisation,
+            transmitted_normalisation,
             variable,
         ))
     }
@@ -114,6 +166,18 @@ mod plane_wave_backend_tests {
     }
 
     fn planar(
+        vacuum_wavenumber: f64,
+        parallel_wavenumber: f64,
+        polarisation: Polarisation,
+    ) -> PlanarInput<Array0<f64>> {
+        PlanarInput::new(
+            arr0(vacuum_wavenumber),
+            arr0(parallel_wavenumber),
+            polarisation,
+        )
+    }
+
+    fn c_planar(
         vacuum_wavenumber: f64,
         parallel_wavenumber: f64,
         polarisation: Polarisation,
@@ -218,7 +282,7 @@ mod plane_wave_backend_tests {
     fn empty_stack_scatter_matches_transfer_conversion() {
         let stack = empty_stack(1.0, 2.25);
 
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+        let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
 
@@ -242,7 +306,7 @@ mod plane_wave_backend_tests {
             .build()
             .unwrap();
 
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+        let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
 
@@ -260,7 +324,7 @@ mod plane_wave_backend_tests {
     #[test]
     fn nonuniform_one_layer_scatter_matches_transfer_conversion() {
         let stack = one_layer_stack(0.2);
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+        let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
 
@@ -279,7 +343,7 @@ mod plane_wave_backend_tests {
     fn scatter_matrix_matches_transfer_matrix_conversion() {
         let stack = two_layer_stack(0.17, 0.29);
 
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+        let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
 
@@ -300,12 +364,14 @@ mod plane_wave_backend_tests {
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
             let planar = planar(3.0, 0.4, Polarisation::TransverseElectric);
+            let c_planar = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
             let input = PlaneWaveInput::new(planar.clone(), side);
 
-            let matrix = Scatter2::new().solve_matrix(&stack, &planar).unwrap();
+            let matrix = Scatter2::new().solve_matrix(&stack, &c_planar).unwrap();
 
-            let response = Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
+            let response: PlaneWaveResponse<C, ndarray::Ix0> =
+                Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
 
             let (expected_r, expected_t) = match side {
                 IncidentSide::Left => (matrix.matrix().s11(), matrix.matrix().s21()),
@@ -462,7 +528,7 @@ mod plane_wave_backend_tests {
 
         let variable = DerivativeVariable::Thickness(0);
 
-        let response = Scatter2::new()
+        let response: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
             .solve_plane_wave_first_derivative(&stack, &input, variable)
             .unwrap();
 
@@ -482,7 +548,7 @@ mod plane_wave_backend_tests {
             IncidentSide::Right,
         );
 
-        let response = Scatter2::new()
+        let response: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
             .solve_plane_wave_second_derivative(
                 &stack,
                 &input,
@@ -512,17 +578,18 @@ mod plane_wave_backend_tests {
         let stack = two_layer_stack(0.17, 0.29);
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
+            let c_planar = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
             let planar = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
             let input = PlaneWaveInput::new(planar.clone(), side);
 
-            let transfer_matrix = Transfer2::new().evaluate(&stack, &planar).unwrap();
+            let transfer_matrix = Transfer2::new().evaluate(&stack, &c_planar).unwrap();
 
             let left_admittance =
-                IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner();
+                IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar).into_inner();
 
             let right_admittance =
-                IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar).into_inner();
+                IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar).into_inner();
 
             let equivalent_scatter =
                 transfer_to_scatter(transfer_matrix, &left_admittance, &right_admittance);
@@ -538,5 +605,117 @@ mod plane_wave_backend_tests {
 
             assert_array_close(response.transmission(), expected_t, 1e-12);
         }
+    }
+
+    fn assert_real_close(actual: f64, expected: f64, tolerance: f64) {
+        assert_relative_eq!(
+            actual,
+            expected,
+            epsilon = tolerance,
+            max_relative = tolerance,
+        );
+    }
+
+    #[test]
+    fn assert_lossless_power_balance_scatter2() {
+        let stack = two_layer_stack(1.0, 2.0);
+
+        for polarisation in [
+            Polarisation::TransverseElectric,
+            Polarisation::TransverseMagnetic,
+        ] {
+            for incident_side in [IncidentSide::Left, IncidentSide::Right] {
+                let input = PlaneWaveInput::new(
+                    PlanarInput::new(arr0(3.0), arr0(0.4), polarisation),
+                    incident_side,
+                );
+
+                let response: PlaneWaveResponse<C, ndarray::Ix0> =
+                    Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
+
+                assert_real_close(
+                    response.power().reflectance()[()] + response.power().transmittance()[()],
+                    1.0,
+                    1e-10,
+                );
+
+                assert_real_close(response.power().absorptance()[()], 0.0, 1e-10);
+            }
+        }
+    }
+
+    #[test]
+    fn reflectance_and_transmittance_derivatives_match_finite_difference() {
+        let stack = two_layer_stack(1.0, 2.0);
+        let backend = Scatter2::new();
+
+        let k0 = 3.0;
+        let h = 1e-4;
+
+        let input = |k0| {
+            PlaneWaveInput::new(
+                PlanarInput::new(arr0(k0), arr0(0.4), Polarisation::TransverseElectric),
+                IncidentSide::Left,
+            )
+        };
+
+        let analytic: PlaneWaveResponse<C, ndarray::Ix0> = backend
+            .solve_plane_wave_second_derivative(
+                &stack,
+                &input(k0),
+                DerivativeVariable::VacuumWavenumber,
+            )
+            .unwrap();
+
+        let plus: PlaneWaveResponse<C, ndarray::Ix0> =
+            backend.solve_plane_wave(&stack, &input(k0 + h)).unwrap();
+
+        let zero: PlaneWaveResponse<C, ndarray::Ix0> =
+            backend.solve_plane_wave(&stack, &input(k0)).unwrap();
+
+        let minus: PlaneWaveResponse<C, ndarray::Ix0> =
+            backend.solve_plane_wave(&stack, &input(k0 - h)).unwrap();
+
+        let expected_reflectance_first =
+            (plus.power().reflectance()[()] - minus.power().reflectance()[()]) / (2.0 * h);
+
+        let expected_transmittance_first =
+            (plus.power().transmittance()[()] - minus.power().transmittance()[()]) / (2.0 * h);
+
+        let expected_reflectance_second = (plus.power().reflectance()[()]
+            - 2.0 * zero.power().reflectance()[()]
+            + minus.power().reflectance()[()])
+            / (h * h);
+
+        let expected_transmittance_second = (plus.power().transmittance()[()]
+            - 2.0 * zero.power().transmittance()[()]
+            + minus.power().transmittance()[()])
+            / (h * h);
+
+        let derivatives = analytic.derivatives().unwrap();
+
+        assert_real_close(
+            derivatives.first().power().reflectance()[()],
+            expected_reflectance_first,
+            1e-6,
+        );
+
+        assert_real_close(
+            derivatives.first().power().transmittance()[()],
+            expected_transmittance_first,
+            1e-6,
+        );
+
+        assert_real_close(
+            derivatives.second().unwrap().power().reflectance()[()],
+            expected_reflectance_second,
+            1e-4,
+        );
+
+        assert_real_close(
+            derivatives.second().unwrap().power().transmittance()[()],
+            expected_transmittance_second,
+            1e-4,
+        );
     }
 }

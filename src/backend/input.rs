@@ -108,6 +108,16 @@ impl<I> PlanarInput<I> {
     }
 }
 
+impl<R> PlanarInput<R> {
+    pub fn map<J>(&self, mut map: impl FnMut(&R) -> J) -> PlanarInput<J> {
+        PlanarInput::new(
+            map(self.vacuum_wavenumber()),
+            map(self.parallel_wavenumber()),
+            self.polarisation(),
+        )
+    }
+}
+
 /// Side from which a plane wave is incident on a planar stack.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IncidentSide {

@@ -14,7 +14,7 @@ pub use builder::DrudeLorentzBuilder;
 pub use model::{Constant, DrudeLorentz};
 pub use sample::Scalar;
 
-use sample::{Sampled, TensorSampled};
+pub use sample::{Sampled, TensorSampled};
 use tensor::{DiagonalTensorMaterial, TensorMaterial};
 
 use crate::ComplexScalar;
@@ -51,6 +51,11 @@ pub trait Material {
     fn is_dispersive(&self) -> bool;
 
     fn static_permittivity(&self) -> Self::Real;
+
+    fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>;
 
     fn relative_permittivity<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where

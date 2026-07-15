@@ -12,7 +12,10 @@ pub use validation::ValidationConfig;
 use either::Either;
 use num_traits::Float;
 
-use crate::IncidentSide;
+use crate::{
+    ComplexScalar, IncidentSide,
+    material::{Material, sample::Sampled},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stack<M, F> {
@@ -98,5 +101,27 @@ impl<M, F> Stack<M, F> {
 
             PropagationDirection::RightToLeft => self.left_exterior(),
         }
+    }
+
+    fn incident_index<I, C>(&self, vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = M::Real> + Copy,
+        I: Sampled<Elem = C>,
+        M: Material,
+    {
+        let direction = side.propagation_direction();
+        let material = self.entrance_exterior(direction);
+
+        material.refractive_index(vacuum_wavenumber)
+    }
+
+    fn incident_is_dispersive(&self, side: IncidentSide) -> bool
+    where
+        M: Material,
+    {
+        let direction = side.propagation_direction();
+        let material = self.entrance_exterior(direction);
+
+        material.is_dispersive()
     }
 }

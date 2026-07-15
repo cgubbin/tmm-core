@@ -77,6 +77,7 @@ mod interface_consistency_tests {
     use num_complex::Complex64;
 
     use crate::{
+        PlaneWaveResponse,
         backend::{
             DerivativeVariable, OutgoingModeBackend, PlanarInput, PlaneWaveBackend, PlaneWaveInput,
             Polarisation, RawMatrixBackend,
@@ -91,6 +92,7 @@ mod interface_consistency_tests {
 
     type C = Complex64;
     type ScalarArray = Array0<C>;
+    type RealScalarArray = Array0<f64>;
     type ScalarMatrix = Matrix2<C, ndarray::Ix0>;
 
     fn c(value: f64) -> C {
@@ -133,6 +135,14 @@ mod interface_consistency_tests {
 
     fn plane_wave_input(side: IncidentSide) -> PlaneWaveInput<ScalarArray> {
         PlaneWaveInput::new(planar_input(), side)
+    }
+
+    fn planar_input_re() -> PlanarInput<RealScalarArray> {
+        PlanarInput::new(arr0(3.0), arr0(0.4), Polarisation::TransverseElectric)
+    }
+
+    fn plane_wave_input_re(side: IncidentSide) -> PlaneWaveInput<RealScalarArray> {
+        PlaneWaveInput::new(planar_input_re(), side)
     }
 
     fn material(epsilon: f64, mu: f64) -> Constant<f64> {
@@ -201,6 +211,7 @@ mod interface_consistency_tests {
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
             let input = plane_wave_input(side);
+            let input_re = plane_wave_input_re(side);
             let planar = input.planar();
 
             let raw = backend.solve_matrix(&stack, planar).unwrap().into_matrix();
@@ -209,7 +220,7 @@ mod interface_consistency_tests {
 
             let (expected_r, expected_t) = raw.amplitudes(&left, &right, side);
 
-            let response = backend.solve_plane_wave(&stack, &input).unwrap();
+            let response = backend.solve_plane_wave(&stack, &input_re).unwrap();
 
             assert_array_close(response.reflection(), &expected_r, 1e-12);
 
@@ -223,6 +234,8 @@ mod interface_consistency_tests {
         let stack = stack();
         let input = plane_wave_input(IncidentSide::Right);
         let planar = input.planar();
+
+        let input_re = plane_wave_input_re(IncidentSide::Right);
 
         let variable = DerivativeVariable::VacuumWavenumber;
 
@@ -245,7 +258,7 @@ mod interface_consistency_tests {
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
 
         let response = backend
-            .solve_plane_wave_first_derivative(&stack, &input, variable)
+            .solve_plane_wave_first_derivative(&stack, &input_re, variable)
             .unwrap();
 
         assert_array_close(response.reflection(), expected_r.value(), 1e-12);
@@ -265,6 +278,8 @@ mod interface_consistency_tests {
         let stack = stack();
         let input = plane_wave_input(IncidentSide::Left);
         let planar = input.planar();
+
+        let input_re = plane_wave_input_re(IncidentSide::Left);
 
         let variable = DerivativeVariable::ParallelWavenumberSquared;
 
@@ -289,7 +304,7 @@ mod interface_consistency_tests {
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
 
         let response = backend
-            .solve_plane_wave_second_derivative(&stack, &input, variable)
+            .solve_plane_wave_second_derivative(&stack, &input_re, variable)
             .unwrap();
 
         assert_array_close(response.reflection(), expected_r.value(), 1e-12);
@@ -406,19 +421,19 @@ mod interface_consistency_tests {
             Polarisation::TransverseMagnetic,
         ] {
             for side in [IncidentSide::Left, IncidentSide::Right] {
-                let planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.8)), polarisation);
+                let planar = PlanarInput::new(arr0(3.0), arr0(0.8), polarisation);
+                let c_planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.8)), polarisation);
 
                 let input = PlaneWaveInput::new(planar, side);
 
-                let response = backend.solve_plane_wave(&stack, &input).unwrap();
+                let response: PlaneWaveResponse<C, ndarray::Ix0> =
+                    backend.solve_plane_wave(&stack, &input).unwrap();
 
-                let left =
-                    IsotropicLayerAdmittance::evaluate(stack.left_exterior(), input.planar())
-                        .into_inner();
+                let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar)
+                    .into_inner();
 
-                let right =
-                    IsotropicLayerAdmittance::evaluate(stack.right_exterior(), input.planar())
-                        .into_inner();
+                let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar)
+                    .into_inner();
 
                 let yl = left[()];
                 let yr = right[()];
@@ -452,6 +467,7 @@ mod interface_consistency_tests {
             .unwrap();
 
         let planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), Polarisation::TransverseMagnetic);
+        let re_planar = PlanarInput::new(arr0(3.0), arr0(0.4), Polarisation::TransverseMagnetic);
 
         let matrix_without = backend.solve_matrix(&without_layer, &planar).unwrap();
 
@@ -460,7 +476,7 @@ mod interface_consistency_tests {
         assert_matrix_close(matrix_with.matrix(), matrix_without.matrix(), 1e-12);
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let input = PlaneWaveInput::new(planar.clone(), side);
+            let input = PlaneWaveInput::new(re_planar.clone(), side);
 
             let response_without = backend.solve_plane_wave(&without_layer, &input).unwrap();
 
@@ -497,10 +513,8 @@ mod interface_consistency_tests {
         ] {
             for side in [IncidentSide::Left, IncidentSide::Right] {
                 dbg!(&polarisation, &side);
-                let input = PlaneWaveInput::new(
-                    PlanarInput::new(arr0(c(3.0)), arr0(c(0.6)), polarisation),
-                    side,
-                );
+                let input =
+                    PlaneWaveInput::new(PlanarInput::new(arr0(3.0), arr0(0.6), polarisation), side);
 
                 let response = backend.solve_plane_wave(&stack, &input).unwrap();
 
@@ -532,15 +546,17 @@ mod interface_consistency_tests {
             Polarisation::TransverseElectric,
             Polarisation::TransverseMagnetic,
         ] {
-            let planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), polarisation);
+            let planar = PlanarInput::new(arr0(3.0), arr0(0.4), polarisation);
+            let c_planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), polarisation);
 
             let input = PlaneWaveInput::new(planar, IncidentSide::Left);
 
-            let response = backend.solve_plane_wave(&stack, &input).unwrap();
+            let response: PlaneWaveResponse<C, ndarray::Ix0> =
+                backend.solve_plane_wave(&stack, &input).unwrap();
 
-            let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), input.planar());
+            let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar);
 
-            let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), input.planar());
+            let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar);
 
             let reflection = response.reflection()[()].modulus_squared();
 
@@ -561,25 +577,28 @@ mod interface_consistency_tests {
         let stack = stack();
         let backend = Transfer2::new();
 
-        let planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), Polarisation::TransverseElectric);
+        let planar = PlanarInput::new(arr0(3.0), arr0(0.4), Polarisation::TransverseElectric);
+        let c_planar =
+            PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), Polarisation::TransverseElectric);
 
-        let left_response = backend
+        let left_response: PlaneWaveResponse<C, ndarray::Ix0> = backend
             .solve_plane_wave(
                 &stack,
                 &PlaneWaveInput::new(planar.clone(), IncidentSide::Left),
             )
             .unwrap();
 
-        let right_response = backend
+        let right_response: PlaneWaveResponse<C, ndarray::Ix0> = backend
             .solve_plane_wave(
                 &stack,
                 &PlaneWaveInput::new(planar.clone(), IncidentSide::Right),
             )
             .unwrap();
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar);
+        let left_admittance = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar);
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar);
+        let right_admittance =
+            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar);
 
         let left_to_right = right_admittance.value()[()].real()
             / left_admittance.value()[()].real()

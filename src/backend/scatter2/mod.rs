@@ -14,8 +14,8 @@ pub use matrix::ScatterMatrix2;
 #[cfg(test)]
 mod tests {
     use crate::{
-        DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation, Stack,
-        Thickness, Transfer2, ValidationConfig,
+        DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse,
+        Polarisation, Stack, Thickness, Transfer2, ValidationConfig,
         backend::{OutgoingModeBackend, PlaneWaveBackend, scatter2::Scatter2},
         material::Constant,
     };
@@ -34,10 +34,10 @@ mod tests {
         vacuum_wavenumber: f64,
         parallel_wavenumber: f64,
         polarisation: Polarisation,
-    ) -> PlanarInput<Array0<C>> {
+    ) -> PlanarInput<Array0<f64>> {
         PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
+            arr0(vacuum_wavenumber),
+            arr0(parallel_wavenumber),
             polarisation,
         )
     }
@@ -108,11 +108,12 @@ mod tests {
             .unwrap();
 
         let input = PlaneWaveInput::new(
-            PlanarInput::new(arr0(c(1.0)), arr0(c(2.0)), Polarisation::TransverseElectric),
+            PlanarInput::new(arr0(1.0), arr0(2.0), Polarisation::TransverseElectric),
             IncidentSide::Left,
         );
 
-        let response = Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
+        let response: PlaneWaveResponse<C, ndarray::Ix0> =
+            Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
 
         for value in [response.reflection()[()], response.transmission()[()]] {
             assert!(value.re.is_finite());
@@ -144,11 +145,11 @@ mod tests {
                     DerivativeVariable::Thickness(0),
                     DerivativeVariable::Thickness(1),
                 ] {
-                    let scatter = Scatter2::new()
+                    let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
                         .solve_plane_wave_first_derivative(&stack, &input, variable)
                         .unwrap();
 
-                    let transfer = Transfer2::new()
+                    let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
                         .solve_plane_wave_first_derivative(&stack, &input, variable)
                         .unwrap();
 
@@ -195,11 +196,11 @@ mod tests {
                     DerivativeVariable::Thickness(0),
                     DerivativeVariable::Thickness(1),
                 ] {
-                    let scatter = Scatter2::new()
+                    let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
                         .solve_plane_wave_second_derivative(&stack, &input, variable)
                         .unwrap();
 
-                    let transfer = Transfer2::new()
+                    let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
                         .solve_plane_wave_second_derivative(&stack, &input, variable)
                         .unwrap();
 
@@ -239,9 +240,9 @@ mod tests {
     fn sampled_second_order_plane_wave_response_preserves_shape() {
         let stack = two_layer_stack(0.17, 0.29);
 
-        let vacuum_wavenumber = array![c(2.5), c(3.0), c(3.5),];
+        let vacuum_wavenumber = array![2.5, 3.0, 3.5,];
 
-        let parallel_wavenumber = array![c(0.2), c(0.3), c(0.4),];
+        let parallel_wavenumber = array![0.2, 0.3, 0.4,];
 
         let input = PlaneWaveInput::new(
             PlanarInput::new(
@@ -252,7 +253,7 @@ mod tests {
             IncidentSide::Right,
         );
 
-        let response = Scatter2::new()
+        let response: PlaneWaveResponse<C, ndarray::Ix1> = Scatter2::new()
             .solve_plane_wave_second_derivative(
                 &stack,
                 &input,
@@ -279,16 +280,17 @@ mod tests {
     fn array2_plane_wave_response_preserves_shape() {
         let stack = one_layer_stack(0.2);
 
-        let k0 = array![[c(2.0), c(2.5)], [c(3.0), c(3.5)],];
+        let k0 = array![[2.0, 2.5], [3.0, 3.5],];
 
-        let kp = array![[c(0.1), c(0.2)], [c(0.3), c(0.4)],];
+        let kp = array![[0.1, 0.2], [0.3, 0.4],];
 
         let input = PlaneWaveInput::new(
             PlanarInput::new(k0.clone(), kp, Polarisation::TransverseElectric),
             IncidentSide::Left,
         );
 
-        let response = Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
+        let response: PlaneWaveResponse<C, ndarray::Ix2> =
+            Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
 
         assert_eq!(response.reflection().raw_dim(), k0.raw_dim(),);
 
@@ -313,11 +315,11 @@ mod tests {
             DerivativeVariable::ParallelWavenumber,
             DerivativeVariable::ParallelWavenumberSquared,
         ] {
-            let scatter = Scatter2::new()
+            let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
                 .solve_plane_wave_second_derivative(&stack, &input, variable)
                 .unwrap();
 
-            let transfer = Transfer2::new()
+            let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
                 .solve_plane_wave_second_derivative(&stack, &input, variable)
                 .unwrap();
 
@@ -356,7 +358,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+        let input = PlanarInput::new(arr0(c(1.0)), arr0(c(2.0)), Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
             .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))

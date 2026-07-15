@@ -49,6 +49,17 @@ where
         }
     }
 
+    fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
+    where
+        I: Sampled<Elem = C>,
+        C: ComplexScalar<RealField = Self::Real>,
+    {
+        match self {
+            Self::Constant(material) => material.refractive_index(wavenumber),
+            Self::DrudeLorentz(material) => material.refractive_index(wavenumber),
+        }
+    }
+
     fn relative_permittivity<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
         I: Sampled<Elem = C>,

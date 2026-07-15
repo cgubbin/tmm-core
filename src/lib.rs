@@ -8,10 +8,12 @@ mod tensor;
 
 pub use backend::{
     DerivativeVariable, IncidentSide, OutgoingModeBackend, PlanarInput, PlaneWaveBackend,
-    PlaneWaveInput, PlaneWaveResponse, Polarisation,
+    PlaneWaveInput, PlaneWaveResponse, PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential,
+    Polarisation,
 };
 
 pub use backend::transfer2::Transfer2;
+pub use material::{Material, Sampled};
 pub use scalar::ComplexScalar;
 // pub use backend::scatter2::Scatter2;
 
