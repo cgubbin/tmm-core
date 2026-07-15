@@ -171,6 +171,7 @@ where
     }
 
     /// Consume the response and return all components.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (

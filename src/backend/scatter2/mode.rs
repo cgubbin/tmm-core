@@ -39,7 +39,7 @@ use crate::{
         mode::ResidualDerivatives,
         scatter2::{
             Scatter2, Scatter2Error,
-            entries::{Scatter2Jet, Scatter2JetFirst, ScatterEntries},
+            entries::ScatterEntries,
         },
     },
     material::Material,

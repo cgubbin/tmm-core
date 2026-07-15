@@ -24,13 +24,13 @@ pub struct Stack<M, F> {
     layers_left_to_right: Vec<Layer<M, F>>,
 }
 
-enum PropagationDirection {
+pub(crate) enum PropagationDirection {
     LeftToRight,
     RightToLeft,
 }
 
 impl IncidentSide {
-    pub(crate) fn propagation_direction(self) -> PropagationDirection {
+    fn propagation_direction(self) -> PropagationDirection {
         match self {
             Self::Left => PropagationDirection::LeftToRight,
 
@@ -72,7 +72,7 @@ impl<M, F> Stack<M, F> {
     }
 
     /// Finite layers in the requested geometric direction.
-    pub fn layers_in_direction(
+    pub(crate) fn layers_in_direction(
         &self,
         direction: PropagationDirection,
     ) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
@@ -86,7 +86,7 @@ impl<M, F> Stack<M, F> {
     }
 
     /// Exterior encountered first in the requested direction.
-    pub fn entrance_exterior(&self, direction: PropagationDirection) -> &M {
+    pub(crate) fn entrance_exterior(&self, direction: PropagationDirection) -> &M {
         match direction {
             PropagationDirection::LeftToRight => self.left_exterior(),
 
@@ -95,7 +95,7 @@ impl<M, F> Stack<M, F> {
     }
 
     /// Exterior encountered last in the requested direction.
-    pub fn exit_exterior(&self, direction: PropagationDirection) -> &M {
+    pub(crate) fn exit_exterior(&self, direction: PropagationDirection) -> &M {
         match direction {
             PropagationDirection::LeftToRight => self.right_exterior(),
 
@@ -103,7 +103,7 @@ impl<M, F> Stack<M, F> {
         }
     }
 
-    fn incident_index<I, C>(&self, vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
+    pub fn incident_index<I, C>(&self, vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = M::Real> + Copy,
         I: Sampled<Elem = C>,
@@ -115,7 +115,7 @@ impl<M, F> Stack<M, F> {
         material.refractive_index(vacuum_wavenumber)
     }
 
-    fn incident_is_dispersive(&self, side: IncidentSide) -> bool
+    pub fn incident_is_dispersive(&self, side: IncidentSide) -> bool
     where
         M: Material,
     {
