@@ -117,6 +117,7 @@ impl<M, F> Stack<M, F> {
         let direction = side.propagation_direction();
         let material = self.entrance_exterior(direction);
 
-        material.refractive_index(vacuum_wavenumber)
+        // material.relative_permittivity(vacuum_wavenumber);
+        todo!()
     }
 }

@@ -31,6 +31,8 @@ use crate::{
     backend::{
         AnalyticResidual, DerivativeVariable, OutgoingModeBackend, PlanarInput,
         algebra::ScalarAlgebra,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::ComplexPlane,
         field::InternalFieldRequest,
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
@@ -58,7 +60,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix = self.evaluate_meromorphic(stack, input)?;
+        let matrix = self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)?;
 
         let entries = matrix.into_entries();
 
@@ -68,20 +70,12 @@ where
 
         Ok(AnalyticResidual::new(residual))
     }
-}
 
-impl<C, D, M> DifferentiableOutgoingModeBackend<C, D, Stack<M, C::RealField>> for Scatter2
-where
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
-{
-    fn outgoing_mode_residual_first_derivative(
+    fn outgoing_mode_residual_first_structural_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
         /*
          * evaluate_first already:
@@ -91,11 +85,12 @@ where
          *
          * The exterior admittance must undergo the same transformation.
          */
-        let entries = self.evaluate_first_meromorphic(stack, input, variable)?;
+        let entries =
+            self.evaluate_structural_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let primitive = variable.primitive();
 
-        let mut admittance = left_admittance_first(stack, input, primitive);
+        let mut admittance = left_admittance_first_structural(stack, input, primitive);
 
         if let Some(rule) = variable.chain_rule(input) {
             admittance = admittance.chain_rule(&rule);
@@ -107,21 +102,22 @@ where
 
         Ok(AnalyticResidual::with_derivatives(
             value,
-            ResidualDerivatives::new(variable, first),
+            ResidualDerivatives::new(variable.into(), first),
         ))
     }
 
-    fn outgoing_mode_residual_second_derivative(
+    fn outgoing_mode_residual_second_structural_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let entries = self.evaluate_second_meromorphic(stack, input, variable)?;
+        let entries =
+            self.evaluate_structural_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let primitive = variable.primitive();
 
-        let mut admittance = left_admittance_second(stack, input, primitive);
+        let mut admittance = left_admittance_second_structural(stack, input, primitive);
 
         if let Some(rule) = variable.chain_rule(input) {
             admittance = admittance.chain_rule(&rule);
@@ -133,7 +129,77 @@ where
 
         Ok(AnalyticResidual::with_derivatives(
             value,
-            ResidualDerivatives::new(variable, first).with_second(second),
+            ResidualDerivatives::new(variable.into(), first).with_second(second),
+        ))
+    }
+}
+
+impl<C, D, M> DifferentiableOutgoingModeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+{
+    fn outgoing_mode_residual_first_spectral_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error> {
+        /*
+         * evaluate_first already:
+         *
+         * - evaluates the primitive derivative;
+         * - applies the requested linear-coordinate chain rule.
+         *
+         * The exterior admittance must undergo the same transformation.
+         */
+        let entries =
+            self.evaluate_spectral_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+
+        let primitive = variable.primitive();
+
+        let mut admittance = left_admittance_first_spectral(stack, input, primitive);
+
+        if let Some(rule) = variable.chain_rule(input) {
+            admittance = admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(entries, &admittance);
+
+        let (value, first) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first),
+        ))
+    }
+
+    fn outgoing_mode_residual_second_spectral_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error> {
+        let entries =
+            self.evaluate_spectral_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+
+        let primitive = variable.primitive();
+
+        let mut admittance = left_admittance_second_spectral(stack, input, primitive);
+
+        if let Some(rule) = variable.chain_rule(input) {
+            admittance = admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(entries, &admittance);
+
+        let (value, first, second) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first).with_second(second),
         ))
     }
 }
@@ -177,88 +243,130 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input)
+    IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input)
         .admittance()
         .into_inner()
 }
 
-fn left_admittance_first<M, C, D>(
+fn left_admittance_first_structural<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
 ) -> ArrayJetFirst<C, D>
 where
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: MeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
-    let quantities = IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+    let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
 
     match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
-                stack.left_exterior(),
-                &quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            IsotropicLayerAdmittance::first_jet_from_quantities(&quantities, &derivatives)
-        }
-
-        DerivativeVariable::ParallelWavenumberSquared => {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&quantities);
 
             IsotropicLayerAdmittance::first_jet_from_quantities(&quantities, &derivatives)
         }
 
-        DerivativeVariable::Thickness(_) => {
+        StructuralDerivativeVariable::Thickness(_) => {
             ArrayJetFirst::constant(quantities.admittance().into_inner())
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
             unreachable!("left_admittance_first requires a primitive variable")
         }
     }
 }
 
-fn left_admittance_second<M, C, D>(
+fn left_admittance_first_spectral<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
-) -> ArrayJet<C, D>
+    variable: SpectralDerivativeVariable,
+) -> ArrayJetFirst<C, D>
 where
     M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
-    let quantities = IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+    let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
 
     match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
-                stack.left_exterior(),
-                &quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives =
+                IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_complex_plane(
+                    stack.left_exterior(),
+                    &quantities,
+                    input.vacuum_wavenumber(),
+                    input.polarisation(),
+                );
 
-            IsotropicLayerAdmittance::second_jet_from_quantities(&quantities, &derivatives)
+            IsotropicLayerAdmittance::first_jet_from_quantities(&quantities, &derivatives)
         }
 
-        DerivativeVariable::ParallelWavenumberSquared => {
+        SpectralDerivativeVariable::VacuumWavenumber => {
+            unreachable!("left_admittance_first requires a primitive variable")
+        }
+    }
+}
+
+fn left_admittance_second_structural<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    variable: StructuralDerivativeVariable,
+) -> ArrayJet<C, D>
+where
+    M: MeromorphicMaterial<Real = C::RealField>,
+    C: ComplexScalar,
+    D: Dimension,
+{
+    let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
+
+    match variable {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&quantities);
 
             IsotropicLayerAdmittance::second_jet_from_quantities(&quantities, &derivatives)
         }
 
-        DerivativeVariable::Thickness(_) => {
+        StructuralDerivativeVariable::Thickness(_) => {
             ArrayJet::constant(quantities.admittance().into_inner())
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
+            unreachable!("left_admittance_second requires a primitive variable")
+        }
+    }
+}
+
+fn left_admittance_second_spectral<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    variable: SpectralDerivativeVariable,
+) -> ArrayJet<C, D>
+where
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
+
+    match variable {
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives =
+                IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_complex_plane(
+                    stack.left_exterior(),
+                    &quantities,
+                    input.vacuum_wavenumber(),
+                    input.polarisation(),
+                );
+
+            IsotropicLayerAdmittance::second_jet_from_quantities(&quantities, &derivatives)
+        }
+
+        SpectralDerivativeVariable::VacuumWavenumber => {
             unreachable!("left_admittance_second requires a primitive variable")
         }
     }

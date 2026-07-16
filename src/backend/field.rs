@@ -107,7 +107,10 @@
 use crate::{
     ComplexScalar, DerivativeVariable, IncidentSide, PlaneWaveBackend, PlaneWaveInput,
     PlaneWaveResponse,
-    backend::jet::{ArrayJet, ArrayJetFirst},
+    backend::{
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        jet::{ArrayJet, ArrayJetFirst},
+    },
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
@@ -145,6 +148,20 @@ where
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
+
+    fn solve_plane_wave_internal_fields_first_structural_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
+
+    fn solve_plane_wave_internal_fields_second_structural_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 }
 
 pub trait DifferentiablePlaneWaveFieldBackend<C, D, S>: PlaneWaveBackend<C, D, S>
@@ -152,18 +169,18 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn solve_plane_wave_internal_fields_first_derivative(
+    fn solve_plane_wave_internal_fields_first_spectral_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 
-    fn solve_plane_wave_internal_fields_second_derivative(
+    fn solve_plane_wave_internal_fields_second_spectral_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 }
 

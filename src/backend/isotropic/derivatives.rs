@@ -34,7 +34,12 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
-    backend::{IsotropicLayerQuantities, Polarisation},
+    backend::{
+        IsotropicLayerQuantities, Polarisation,
+        evaluator::{
+            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
+        },
+    },
     material::{
         DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
         Scalar, SpectralVariable,
@@ -126,69 +131,40 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Evaluate derivatives with respect to squared vacuum wavenumber `k₀²`.
-    ///
-    /// For
-    ///
-    /// ```text
-    /// Q = ε μ k₀² - k∥²
-    /// κ = sqrt(Q)
-    /// ```
-    ///
-    /// the derivative is:
-    ///
-    /// ```text
-    /// dQ/d(k₀²)
-    ///     = (ε′ μ + ε μ′) k₀² + ε μ
-    ///
-    /// dκ/d(k₀²)
-    ///     = Q′ / (2κ)
-    /// ```
-    pub(crate) fn real_vacuum_wavenumber_squared<M>(
+    pub(crate) fn vacuum_wavenumber_squared_real_axis<M>(
         material: &M,
         quantities: &IsotropicLayerQuantities<C, D>,
-        vacuum_wavenumber: &ArrayBase<OwnedRepr<C::RealField>, D>,
+        vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
         polarisation: Polarisation,
     ) -> Self
     where
         M: DifferentiableMaterial<Real = C::RealField>,
         C::RealField: Copy,
     {
-        let epsilon = quantities.epsilon();
-        let mu = quantities.mu();
-        let kappa = quantities.kappa();
+        Self::vacuum_wavenumber_squared::<RealAxis, M>(
+            material,
+            quantities,
+            vacuum_wavenumber,
+            polarisation,
+        )
+    }
 
-        let deps = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        let dmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        let k0_squared = vacuum_wavenumber.mapv(|k0| C::from_real(k0 * k0));
-
-        let dq = (deps.clone() * mu.view() + epsilon.clone() * dmu.view()) * k0_squared
-            + epsilon.clone() * mu.view();
-
-        let two = C::one() + C::one();
-
-        let dkappa = dq / kappa.mapv(|value| two * value);
-
-        let dfactor = match polarisation {
-            Polarisation::TransverseElectric => dmu,
-            Polarisation::TransverseMagnetic => deps,
-        };
-
-        Self { dkappa, dfactor }
+    pub(crate) fn vacuum_wavenumber_squared_complex_plane<M>(
+        material: &M,
+        quantities: &IsotropicLayerQuantities<C, D>,
+        vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+        polarisation: Polarisation,
+    ) -> Self
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::vacuum_wavenumber_squared::<ComplexPlane, M>(
+            material,
+            quantities,
+            vacuum_wavenumber,
+            polarisation,
+        )
     }
 
     /// Evaluate derivatives with respect to squared vacuum wavenumber `k₀²`.
@@ -209,34 +185,33 @@ where
     /// dκ/d(k₀²)
     ///     = Q′ / (2κ)
     /// ```
-    pub(crate) fn complex_vacuum_wavenumber_squared<M>(
+    pub(crate) fn vacuum_wavenumber_squared<E, M>(
         material: &M,
         quantities: &IsotropicLayerQuantities<C, D>,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
         polarisation: Polarisation,
     ) -> Self
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C::RealField: Copy,
     {
         let epsilon = quantities.epsilon();
         let mu = quantities.mu();
         let kappa = quantities.kappa();
 
-        let deps = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let deps = E::relative_permittivity_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::First,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
-        let dmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let dmu = E::relative_permeability_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::First,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
         let k0_squared = vacuum_wavenumber.mapv(|k0| k0 * k0);
 
@@ -284,99 +259,25 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Evaluate first and second derivatives with respect to squared vacuum
-    /// wavenumber `k₀²`.
-    pub(crate) fn real_vacuum_wavenumber_squared<M>(
+    pub(crate) fn vacuum_wavenumber_squared_real_axis<M>(
         material: &M,
         quantities: &IsotropicLayerQuantities<C, D>,
-        vacuum_wavenumber: &ArrayBase<OwnedRepr<C::RealField>, D>,
+        vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
         polarisation: Polarisation,
     ) -> Self
     where
         M: DifferentiableMaterial<Real = C::RealField>,
         C::RealField: Copy,
     {
-        let epsilon = quantities.epsilon();
-        let mu = quantities.mu();
-        let kappa = quantities.kappa();
-
-        let k0_squared = vacuum_wavenumber.mapv(|k0| C::from_real(k0 * k0));
-
-        let deps: ArrayBase<OwnedRepr<C>, D> = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_derivative::<_, C>(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        let ddeps = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_derivative(
-                Scalar(k0),
-                DerivativeOrder::Second,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        let dmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        let ddmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_derivative(
-                Scalar(k0),
-                DerivativeOrder::Second,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
-
-        // A = d(εμ)/d(k₀²)
-        let a = deps.clone() * mu.view() + epsilon.clone() * dmu.view();
-
-        // A′ = d²(εμ)/d(k₀²)²
-        let da = ddeps.clone() * mu.view()
-            + (deps.clone() * dmu.view()).mapv(|value| value + value)
-            + epsilon.clone() * ddmu.view();
-
-        // Q = ε μ k₀² - k∥²
-        //
-        // Q′  = A k₀² + ε μ
-        // Q″  = A′ k₀² + 2A
-        let dq = a.clone() * k0_squared.view() + epsilon.clone() * mu.view();
-
-        let ddq = da * k0_squared + a.mapv(|value| value + value);
-
-        let two = C::one() + C::one();
-        let four = two + two;
-
-        let dkappa = dq.clone() / kappa.mapv(|value| two * value);
-
-        // κ = sqrt(Q)
-        //
-        // κ′  = Q′/(2κ)
-        // κ″  = Q″/(2κ) - (Q′)²/(4κ³)
-        let ddkappa = ddq / kappa.mapv(|value| two * value)
-            - dq.mapv(|value| value * value) / kappa.mapv(|value| four * value * value * value);
-
-        let (dfactor, ddfactor) = match polarisation {
-            Polarisation::TransverseElectric => (dmu, ddmu),
-            Polarisation::TransverseMagnetic => (deps, ddeps),
-        };
-
-        Self {
-            first: IsotropicLayerFirstDerivatives { dkappa, dfactor },
-            ddkappa,
-            ddfactor,
-        }
+        Self::vacuum_wavenumber_squared::<RealAxis, M>(
+            material,
+            quantities,
+            vacuum_wavenumber,
+            polarisation,
+        )
     }
 
-    /// Evaluate first and second derivatives with respect to squared vacuum
-    /// wavenumber `k₀²`.
-    pub(crate) fn complex_vacuum_wavenumber_squared<M>(
+    pub(crate) fn vacuum_wavenumber_squared_complex_plane<M>(
         material: &M,
         quantities: &IsotropicLayerQuantities<C, D>,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
@@ -384,6 +285,26 @@ where
     ) -> Self
     where
         M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::vacuum_wavenumber_squared::<ComplexPlane, M>(
+            material,
+            quantities,
+            vacuum_wavenumber,
+            polarisation,
+        )
+    }
+
+    /// Evaluate first and second derivatives with respect to squared vacuum
+    /// wavenumber `k₀²`.
+    pub(crate) fn vacuum_wavenumber_squared<E, M>(
+        material: &M,
+        quantities: &IsotropicLayerQuantities<C, D>,
+        vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+        polarisation: Polarisation,
+    ) -> Self
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
     {
         let epsilon = quantities.epsilon();
         let mu = quantities.mu();
@@ -391,37 +312,33 @@ where
 
         let k0_squared = vacuum_wavenumber.mapv(|k0| k0 * k0);
 
-        let deps = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let deps: ArrayBase<OwnedRepr<C>, D> = E::relative_permittivity_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::First,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
-        let ddeps = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permittivity_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::Second,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let ddeps = E::relative_permittivity_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::Second,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
-        let dmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::First,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let dmu = E::relative_permeability_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::First,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
-        let ddmu = vacuum_wavenumber.mapv(|k0| {
-            material.relative_permeability_complex_derivative(
-                Scalar(k0),
-                DerivativeOrder::Second,
-                SpectralVariable::VacuumWavenumberSquared,
-            )
-        });
+        let ddmu = E::relative_permeability_derivative(
+            material,
+            vacuum_wavenumber,
+            DerivativeOrder::Second,
+            SpectralVariable::VacuumWavenumberSquared,
+        );
 
         // A = d(εμ)/d(k₀²)
         let a = deps.clone() * mu.view() + epsilon.clone() * dmu.view();

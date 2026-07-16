@@ -42,14 +42,6 @@ where
 {
     type Real = R;
 
-    fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
-    where
-        I: Sampled<Elem = Self::Real>,
-        C: ComplexScalar<RealField = R>,
-    {
-        wavenumber.map(|_| C::from_real(self.epsilon.sqrt()))
-    }
-
     fn relative_permittivity<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
         I: Sampled<Elem = Self::Real>,
@@ -174,14 +166,6 @@ where
         C: ComplexScalar<RealField = R> + Copy,
     {
         wavenumber.map(|w| self.relative_permittivity_at(C::from_real(w)))
-    }
-
-    fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
-    where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
-        I: Sampled<Elem = C::RealField>,
-    {
-        wavenumber.map(|w| self.relative_permittivity_at(C::from_real(w)).sqrt())
     }
 }
 

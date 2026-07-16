@@ -22,6 +22,184 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{ComplexScalar, backend::PlanarInput};
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum StructuralDerivativeVariable {
+    ParallelWavenumber,
+    ParallelWavenumberSquared,
+    Thickness(usize),
+}
+
+impl Into<DerivativeVariable> for StructuralDerivativeVariable {
+    fn into(self) -> DerivativeVariable {
+        match self {
+            Self::ParallelWavenumber => DerivativeVariable::ParallelWavenumber,
+            Self::ParallelWavenumberSquared => DerivativeVariable::ParallelWavenumberSquared,
+            Self::Thickness(i) => DerivativeVariable::Thickness(i),
+        }
+    }
+}
+
+impl StructuralDerivativeVariable {
+    /// Return the primitive variable evaluated directly by the isotropic
+    /// derivative kernel.
+    ///
+    /// Linear spectral variables map to their squared counterparts. Thickness
+    /// is already a primitive coordinate.
+    pub fn primitive(self) -> Self {
+        match self {
+            Self::ParallelWavenumber => Self::ParallelWavenumberSquared,
+            variable => variable,
+        }
+    }
+
+    /// Return whether this variable can be evaluated directly by the primitive
+    /// isotropic derivative kernel.
+    pub fn is_primitive(self) -> bool {
+        self == self.primitive()
+    }
+
+    /// Construct the chain-rule coefficients needed to transform derivatives
+    /// from the primitive coordinate to this requested coordinate.
+    ///
+    /// For a linear coordinate `y` whose primitive coordinate is `x = y²`,
+    ///
+    /// ```text
+    /// dx/dy   = 2y
+    /// d²x/dy² = 2
+    /// ```
+    ///
+    /// Returns `None` when no transformation is required.
+    pub(crate) fn chain_rule<C, D>(
+        self,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Option<ChainRule<ArrayBase<OwnedRepr<C>, D>>>
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let two = C::one() + C::one();
+
+        match self {
+            Self::ParallelWavenumber => Some(ChainRule::new(
+                planar.parallel_wavenumber().mapv(|parallel| two * parallel),
+                planar.parallel_wavenumber().mapv(|_| two),
+            )),
+
+            Self::ParallelWavenumberSquared | Self::Thickness(_) => None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum SpectralDerivativeVariable {
+    VacuumWavenumber,
+    VacuumWavenumberSquared,
+}
+
+impl Into<DerivativeVariable> for SpectralDerivativeVariable {
+    fn into(self) -> DerivativeVariable {
+        match self {
+            Self::VacuumWavenumber => DerivativeVariable::VacuumWavenumber,
+            Self::VacuumWavenumberSquared => DerivativeVariable::VacuumWavenumberSquared,
+        }
+    }
+}
+
+impl SpectralDerivativeVariable {
+    /// Return the primitive variable evaluated directly by the isotropic
+    /// derivative kernel.
+    ///
+    /// Linear spectral variables map to their squared counterparts. Thickness
+    /// is already a primitive coordinate.
+    pub fn primitive(self) -> Self {
+        match self {
+            Self::VacuumWavenumber => Self::VacuumWavenumberSquared,
+            variable => variable,
+        }
+    }
+
+    /// Return whether this variable can be evaluated directly by the primitive
+    /// isotropic derivative kernel.
+    pub fn is_primitive(self) -> bool {
+        self == self.primitive()
+    }
+
+    /// Construct the chain-rule coefficients needed to transform derivatives
+    /// from the primitive coordinate to this requested coordinate.
+    ///
+    /// For a linear coordinate `y` whose primitive coordinate is `x = y²`,
+    ///
+    /// ```text
+    /// dx/dy   = 2y
+    /// d²x/dy² = 2
+    /// ```
+    ///
+    /// Returns `None` when no transformation is required.
+    pub(crate) fn chain_rule<C, D>(
+        self,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Option<ChainRule<ArrayBase<OwnedRepr<C>, D>>>
+    where
+        C: ComplexScalar,
+        D: Dimension,
+    {
+        let two = C::one() + C::one();
+
+        match self {
+            Self::VacuumWavenumber => Some(ChainRule::new(
+                planar.vacuum_wavenumber().mapv(|k0| two * k0),
+                planar.vacuum_wavenumber().mapv(|_| two),
+            )),
+
+            Self::VacuumWavenumberSquared => None,
+        }
+    }
+}
+
+impl std::convert::TryFrom<DerivativeVariable> for StructuralDerivativeVariable {
+    type Error = &'static str;
+
+    fn try_from(value: DerivativeVariable) -> Result<Self, Self::Error> {
+        match value {
+            DerivativeVariable::ParallelWavenumber => {
+                Ok(StructuralDerivativeVariable::ParallelWavenumber)
+            }
+            DerivativeVariable::ParallelWavenumberSquared => {
+                Ok(StructuralDerivativeVariable::ParallelWavenumberSquared)
+            }
+            DerivativeVariable::Thickness(i) => Ok(StructuralDerivativeVariable::Thickness(i)),
+            DerivativeVariable::VacuumWavenumber => {
+                Err("VacuumWavenumber is not a structural derivative")
+            }
+            DerivativeVariable::VacuumWavenumberSquared => {
+                Err("VacuumWavenumberSquared is not a structural derivative")
+            }
+        }
+    }
+}
+
+impl std::convert::TryFrom<DerivativeVariable> for SpectralDerivativeVariable {
+    type Error = &'static str;
+
+    fn try_from(value: DerivativeVariable) -> Result<Self, Self::Error> {
+        match value {
+            DerivativeVariable::ParallelWavenumber => {
+                Err("ParallelWavenumber is not a spectral derivative")
+            }
+            DerivativeVariable::ParallelWavenumberSquared => {
+                Err("ParallelWavenumberSquared is not a spectral derivative")
+            }
+            DerivativeVariable::Thickness(_) => Err("Thickness is not a spectral derivative"),
+            DerivativeVariable::VacuumWavenumber => {
+                Ok(SpectralDerivativeVariable::VacuumWavenumber)
+            }
+            DerivativeVariable::VacuumWavenumberSquared => {
+                Ok(SpectralDerivativeVariable::VacuumWavenumberSquared)
+            }
+        }
+    }
+}
+
 /// Independent variable with respect to which derivatives are evaluated.
 ///
 /// The current isotropic derivative kernels use squared vacuum and parallel

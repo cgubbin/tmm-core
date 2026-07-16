@@ -23,6 +23,7 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlaneWaveInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         jet::{ArrayJet, ArrayJetFirst},
     },
 };
@@ -53,6 +54,24 @@ where
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+
+    /// Solve for the response and its first derivative with respect to
+    /// `variable`.
+    fn solve_plane_wave_structural_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+
+    /// Solve for the response and its first and second derivatives with
+    /// respect to `variable`.
+    fn solve_plane_wave_structural_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 }
 
 pub trait DifferentiablePlaneWaveBackend<C, D, S>: PlaneWaveBackend<C, D, S>
@@ -62,20 +81,20 @@ where
 {
     /// Solve for the response and its first derivative with respect to
     /// `variable`.
-    fn solve_plane_wave_first_derivative(
+    fn solve_plane_wave_spectral_first_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 
     /// Solve for the response and its first and second derivatives with
     /// respect to `variable`.
-    fn solve_plane_wave_second_derivative(
+    fn solve_plane_wave_spectral_second_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 }
 

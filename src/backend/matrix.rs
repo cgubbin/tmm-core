@@ -31,6 +31,7 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlanarInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         jet::{Jet, JetFirst},
     },
 };
@@ -62,33 +63,62 @@ where
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
-pub trait DifferentiableRawMatrixBackend<C, D, S>: RawMatrixBackend<C, D, S>
+/// Real-axis raw-matrix derivatives that do not differentiate the
+/// constitutive material response.
+///
+/// This capability supports derivatives with respect to:
+///
+/// - finite-layer thickness;
+/// - parallel wavenumber;
+/// - squared parallel wavenumber.
+///
+/// It requires only ordinary real-axis material evaluation.
+pub trait RawMatrixStructuralDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Evaluate the native matrix and its first derivative with respect to
-    /// `variable`.
-    ///
-    /// The returned evaluation contains both the matrix value and its first
-    /// derivative.
-    fn solve_matrix_first_derivative(
+    /// Evaluate the matrix and its first structural derivative.
+    fn solve_matrix_structural_first_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
-    /// Evaluate the native matrix and its first two derivatives with respect
-    /// to `variable`.
-    ///
-    /// The returned evaluation contains the matrix value, first derivative,
-    /// and second derivative.
-    fn solve_matrix_second_derivative(
+    /// Evaluate the matrix and its first and second structural derivatives.
+    fn solve_matrix_structural_second_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
+
+/// Real-axis raw-matrix derivatives with respect to the spectral coordinate.
+///
+/// This capability differentiates the constitutive response and therefore
+/// requires material derivatives along the real spectral axis.
+pub trait RawMatrixSpectralDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Evaluate the matrix and its first real-axis spectral derivative.
+    fn solve_matrix_spectral_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    /// Evaluate the matrix and its first and second real-axis spectral
+    /// derivatives.
+    fn solve_matrix_spectral_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
@@ -227,6 +257,78 @@ impl<M> MatrixDerivatives<M> {
     pub fn into_parts(self) -> (DerivativeVariable, M, Option<M>) {
         (self.variable, self.first, self.second)
     }
+}
+
+/// Backend exposing its native matrix representation in the complex spectral
+/// plane.
+///
+/// This interface evaluates the meromorphic continuation supplied by the
+/// stack's materials. It is intended for:
+///
+/// - outgoing-mode construction;
+/// - complex-frequency root finding;
+/// - contour integration;
+/// - argument-principle methods;
+/// - analytic matrix diagnostics.
+///
+/// The returned matrix remains backend-specific.
+pub trait ComplexMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Native analytic matrix representation.
+    type Matrix;
+
+    /// Error produced during analytic matrix evaluation.
+    type Error;
+
+    /// Evaluate the native matrix at complex planar coordinates.
+    fn solve_analytic_matrix(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
+
+pub trait ComplexMatrixStructuralDerivativeBackend<C, D, S>: ComplexMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn solve_complex_matrix_structural_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    fn solve_complex_matrix_structural_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
+
+pub trait ComplexMatrixSpectralDerivativeBackend<C, D, S>: ComplexMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn solve_complex_matrix_spectral_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    fn solve_complex_matrix_spectral_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
 #[cfg(test)]

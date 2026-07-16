@@ -71,7 +71,10 @@ pub(crate) use derivatives::{IsotropicLayerFirstDerivatives, IsotropicLayerSecon
 
 use crate::{
     ComplexScalar,
-    backend::{PlanarInput, Polarisation},
+    backend::{
+        PlanarInput, Polarisation,
+        evaluator::{ComplexPlane, ConstitutiveEvaluator, RealAxis},
+    },
     material::{Material, MeromorphicMaterial, Scalar},
 };
 
@@ -95,55 +98,25 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Evaluate material and propagation quantities for one isotropic medium.
-    ///
-    /// The normal wavenumber is computed using the principal complex square root:
-    ///
-    /// ```text
-    /// κ = sqrt(ε μ k₀² - k∥²).
-    /// ```
-    ///
-    /// This operation selects a locally analytic branch away from the principal
-    /// square-root cut and branch point. The backend performs no sample-by-sample
-    /// sign correction.
-    pub(crate) fn new<M>(
+    pub(crate) fn real_axis<M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
         M: Material<Real = C::RealField>,
         C::RealField: Copy,
     {
-        let epsilon = planar
-            .vacuum_wavenumber()
-            .mapv(|k0| material.relative_permittivity(Scalar(k0)));
+        Self::new::<RealAxis, M>(material, planar)
+    }
 
-        let mu = planar
-            .vacuum_wavenumber()
-            .mapv(|k0| material.relative_permeability(Scalar(k0)));
-
-        let vacuum_wavenumber_squared = planar.vacuum_wavenumber().mapv(|k0| C::from_real(k0 * k0));
-
-        let parallel_wavenumber_squared = planar
-            .parallel_wavenumber()
-            .mapv(|k_parallel| C::from_real(k_parallel * k_parallel));
-
-        let kappa_squared =
-            epsilon.clone() * mu.clone() * vacuum_wavenumber_squared - parallel_wavenumber_squared;
-
-        let kappa = kappa_squared.mapv(principal_normal_wavenumber);
-
-        let factor = match planar.polarisation() {
-            Polarisation::TransverseElectric => mu.clone(),
-            Polarisation::TransverseMagnetic => epsilon.clone(),
-        };
-
-        Self {
-            epsilon,
-            mu,
-            kappa,
-            factor,
-        }
+    pub(crate) fn complex_plane<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self
+    where
+        M: MeromorphicMaterial<Real = C::RealField>,
+    {
+        Self::new::<ComplexPlane, M>(material, planar)
     }
 
     /// Evaluate material and propagation quantities for one isotropic medium.
@@ -157,20 +130,12 @@ where
     /// This operation selects a locally analytic branch away from the principal
     /// square-root cut and branch point. The backend performs no sample-by-sample
     /// sign correction.
-    pub(crate) fn new_meromorphic<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self
+    pub(crate) fn new<E, M>(material: &M, planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
     {
-        let epsilon = planar
-            .vacuum_wavenumber()
-            .mapv(|k0| material.relative_permeability_complex(Scalar(k0)));
-
-        let mu = planar
-            .vacuum_wavenumber()
-            .mapv(|k0| material.relative_permeability_complex(Scalar(k0)));
+        let epsilon = E::relative_permittivity(material, planar.vacuum_wavenumber());
+        let mu = E::relative_permeability(material, planar.vacuum_wavenumber());
 
         let vacuum_wavenumber_squared = planar.vacuum_wavenumber().mapv(|k0| k0 * k0);
 

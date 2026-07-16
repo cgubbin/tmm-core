@@ -213,20 +213,7 @@ pub enum DerivativeOrder {
 /// evaluated on the real spectral axis.
 pub trait Material {
     /// Real scalar type used by the material.
-    type Real: One + Zero + Copy;
-
-    /// Return the complex refractive index.
-    ///
-    /// The returned branch must be consistent with the passive-wave convention
-    /// used throughout the transfer-matrix library.
-    fn refractive_index<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
-    where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
-        I: Sampled<Elem = C::RealField>,
-    {
-        self.relative_permittivity(vacuum_wavenumber)
-            .map(|x| x.sqrt())
-    }
+    type Real: One + Zero;
 
     /// Return the relative permittivity.
     fn relative_permittivity<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>

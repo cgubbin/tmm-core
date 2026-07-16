@@ -53,6 +53,10 @@ use crate::{
     backend::{
         PlanarInput,
         algebra::ScalarAlgebra,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::{
+            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
+        },
         field::{
             BidirectionalWaveDifferential, BidirectionalWaves, BidirectionalWavesGeneric,
             ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves, InternalFieldRequest,
@@ -87,7 +91,22 @@ impl Scatter2 {
         Self
     }
 
-    pub(crate) fn evaluate_meromorphic<M, C, D>(
+    pub(crate) fn evaluate_real_axis<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    where
+        M: Material<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = input.clone().to_complex();
+        self.evaluate_with::<RealAxis, _, _, _>(stack, &input)
+    }
+
+    pub(crate) fn evaluate_complex_plane<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -98,15 +117,45 @@ impl Scatter2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        let workspace = self.accumulate_meromorphic(stack, input, InternalFieldRequest::None)?;
+        self.evaluate_with::<ComplexPlane, _, _, _>(stack, &input)
+    }
+
+    pub(crate) fn evaluate_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace =
+            self.accumulate_with::<E, _, _, _>(stack, input, InternalFieldRequest::None)?;
 
         let total = workspace.into_total();
 
         Ok(ScatterMatrix2::from_entries(total))
     }
 
-    /// Evaluate the native scattering matrix without derivatives.
-    pub(crate) fn accumulate_meromorphic<M, C, D>(
+    pub(crate) fn accumulate_real_axis<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    where
+        M: Material<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = input.clone().to_complex();
+        self.accumulate_with::<RealAxis, _, _, _>(stack, &input, request)
+    }
+
+    pub(crate) fn accumulate_complex_plane<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -114,6 +163,22 @@ impl Scatter2 {
     ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
     where
         M: MeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        self.accumulate_with::<ComplexPlane, _, _, _>(stack, input, request)
+    }
+
+    /// Evaluate the native scattering matrix without derivatives.
+    pub(crate) fn accumulate_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    where
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -126,13 +191,12 @@ impl Scatter2 {
         // let mut total: ScatterEntries<Samples<C, D>> =
         //     ScatterEntries::identity_like(input.vacuum_wavenumber());
 
-        let left_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
 
         let mut current_admittance = left_quantities.admittance().into_inner();
 
         for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let layer_admittance = quantities.admittance().into_inner();
 
@@ -149,8 +213,7 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
 
         let right_admittance = right_quantities.admittance().into_inner();
 
@@ -161,20 +224,48 @@ impl Scatter2 {
         Ok(workspace)
     }
 
-    pub(crate) fn evaluate_first_meromorphic<M, C, D>(
+    pub(crate) fn evaluate_structural_first_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let workspace =
-            self.accumulate_first_meromorphic(stack, input, variable, InternalFieldRequest::None)?;
+        let workspace = self.accumulate_structural_first_with::<E, _, _, _>(
+            stack,
+            input,
+            variable,
+            InternalFieldRequest::None,
+        )?;
+
+        let total = workspace.into_total();
+
+        Ok(total)
+    }
+
+    pub(crate) fn evaluate_spectral_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace = self.accumulate_spectral_first_with::<E, _, _, _>(
+            stack,
+            input,
+            variable,
+            InternalFieldRequest::None,
+        )?;
 
         let total = workspace.into_total();
 
@@ -182,15 +273,15 @@ impl Scatter2 {
     }
 
     /// Evaluate the scattering matrix and its first derivative.
-    pub(crate) fn accumulate_first_meromorphic<M, C, D>(
+    pub(crate) fn accumulate_structural_first_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
         request: InternalFieldRequest,
     ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -201,21 +292,14 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
 
-        let (_, mut current_admittance) = medium_first_jets_meromorphic(
-            stack.left_exterior(),
-            &left_quantities,
-            input,
-            primitive,
-        );
+        let (_, mut current_admittance) = medium_first_jets_structural(&left_quantities, primitive);
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-            let (kappa, layer_admittance) =
-                medium_first_jets_meromorphic(layer.material(), &quantities, input, primitive);
+            let (kappa, layer_admittance) = medium_first_jets_structural(&quantities, primitive);
 
             let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
@@ -234,10 +318,76 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
 
-        let (_, right_admittance) = medium_first_jets_meromorphic(
+        let (_, right_admittance) = medium_first_jets_structural(&right_quantities, primitive);
+
+        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
+
+        workspace.append(final_interface);
+
+        if let Some(rule) = variable.chain_rule(input) {
+            workspace = workspace.chain_rule(&rule);
+        }
+
+        Ok(workspace)
+    }
+
+    /// Evaluate the scattering matrix and its first derivative.
+    pub(crate) fn accumulate_spectral_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let primitive = variable.primitive();
+
+        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+
+        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
+
+        let (_, mut current_admittance) = medium_first_jets_spectral::<E, _, _, _>(
+            stack.left_exterior(),
+            &left_quantities,
+            input,
+            primitive,
+        );
+
+        for (index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
+
+            let (kappa, layer_admittance) = medium_first_jets_spectral::<E, _, _, _>(
+                layer.material(),
+                &quantities,
+                input,
+                primitive,
+            );
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
+
+            let distance = C::from_real(layer.thickness().as_cm());
+
+            let coefficient = C::i() * distance;
+
+            let exponent = kappa.scale(coefficient);
+
+            let propagation = propagation_from_exponent::<C, D, _>(exponent);
+
+            workspace.append_layer::<C, D>(interface, propagation);
+
+            current_admittance = layer_admittance;
+        }
+
+        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
+
+        let (_, right_admittance) = medium_first_jets_spectral::<E, _, _, _>(
             stack.right_exterior(),
             &right_quantities,
             input,
@@ -256,34 +406,61 @@ impl Scatter2 {
     }
 
     /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn evaluate_second_meromorphic<M, C, D>(
+    pub(crate) fn evaluate_structural_second_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let workspace =
-            self.accumulate_second_meromorphic(stack, input, variable, InternalFieldRequest::None)?;
+        let workspace = self.accumulate_structural_second_with::<E, _, _, _>(
+            stack,
+            input,
+            variable,
+            InternalFieldRequest::None,
+        )?;
 
         Ok(workspace.into_total())
     }
 
     /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn accumulate_second_meromorphic<M, C, D>(
+    pub(crate) fn evaluate_spectral_second_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace = self.accumulate_spectral_second_with::<E, _, _, _>(
+            stack,
+            input,
+            variable,
+            InternalFieldRequest::None,
+        )?;
+
+        Ok(workspace.into_total())
+    }
+
+    /// Evaluate the scattering matrix and its first two derivatives.
+    pub(crate) fn accumulate_structural_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
         request: InternalFieldRequest,
     ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -294,21 +471,15 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
 
-        let (_, mut current_admittance) = medium_second_jets_meromorphic(
-            stack.left_exterior(),
-            &left_quantities,
-            input,
-            primitive,
-        );
+        let (_, mut current_admittance) =
+            medium_second_jets_structural(&left_quantities, primitive);
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-            let (kappa, layer_admittance) =
-                medium_second_jets_meromorphic(layer.material(), &quantities, input, primitive);
+            let (kappa, layer_admittance) = medium_second_jets_structural(&quantities, primitive);
 
             let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
@@ -327,15 +498,9 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities =
-            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
 
-        let (_, right_admittance) = medium_second_jets_meromorphic(
-            stack.right_exterior(),
-            &right_quantities,
-            input,
-            primitive,
-        );
+        let (_, right_admittance) = medium_second_jets_structural(&right_quantities, primitive);
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -347,148 +512,49 @@ impl Scatter2 {
 
         Ok(workspace)
     }
-}
 
-impl Scatter2 {
-    pub(crate) fn evaluate<M, C, D>(
+    /// Evaluate the scattering matrix and its first two derivatives.
+    pub(crate) fn accumulate_spectral_second_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
-    where
-        M: Material<Real = C::RealField>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace = self.accumulate(stack, input, InternalFieldRequest::None)?;
-
-        let total = workspace.into_total();
-
-        Ok(ScatterMatrix2::from_entries(total))
-    }
-
-    /// Evaluate the native scattering matrix without derivatives.
-    pub(crate) fn accumulate<M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
         request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        type Samples<C, D> = ArrayBase<OwnedRepr<C>, D>;
+        let primitive = variable.primitive();
 
-        let source = input.vacuum_wavenumber().mapv(|x| C::from_real(x));
+        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let mut workspace: ScatterWorkspace<Samples<C, D>> =
-            ScatterWorkspace::new(&source, request, stack.len());
+        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
 
-        // let mut total: ScatterEntries<Samples<C, D>> =
-        //     ScatterEntries::identity_like(input.vacuum_wavenumber());
+        let (_, mut current_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+            stack.left_exterior(),
+            &left_quantities,
+            input,
+            primitive,
+        );
 
-        let left_quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
+        for (index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-        let mut current_admittance = left_quantities.admittance().into_inner();
-
-        for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
-
-            let layer_admittance = quantities.admittance().into_inner();
+            let (kappa, layer_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+                layer.material(),
+                &quantities,
+                input,
+                primitive,
+            );
 
             let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
             let distance = C::from_real(layer.thickness().as_cm());
-
-            let exponent = quantities.kappa().scale(C::i() * distance);
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_quantities = IsotropicLayerQuantities::new(stack.right_exterior(), input);
-
-        let right_admittance = right_quantities.admittance().into_inner();
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        Ok(workspace)
-    }
-
-    pub(crate) fn evaluate_first<M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
-    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
-    where
-        M: DifferentiableMaterial<Real = C::RealField>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace =
-            self.accumulate_first(stack, input, variable, InternalFieldRequest::None)?;
-
-        let total = workspace.into_total();
-
-        Ok(total)
-    }
-
-    /// Evaluate the scattering matrix and its first derivative.
-    pub(crate) fn accumulate_first<M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
-    where
-        M: DifferentiableMaterial<Real = C::RealField>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        validate_derivative_variable(stack, variable)?;
-
-        let primitive = variable.primitive();
-
-        let source: ArrayBase<OwnedRepr<C>, D> =
-            input.vacuum_wavenumber().mapv(|x| C::from_real(x));
-
-        let mut workspace: ScatterWorkspace<ArrayJetFirst<C, D>> =
-            ScatterWorkspace::new(&source, request, stack.len());
-
-        let left_quantities: IsotropicLayerQuantities<C, _> =
-            IsotropicLayerQuantities::new(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) =
-            medium_first_jets(stack.left_exterior(), &left_quantities, input, primitive);
-
-        for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
-
-            let (kappa, layer_admittance) =
-                medium_first_jets(layer.material(), &quantities, input, primitive);
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let exponent = first_propagation_exponent(
-                &quantities,
-                &kappa,
-                layer.thickness().as_cm(),
-                primitive,
-                index,
-            );
+            let coefficient = C::i() * distance;
+            let exponent = kappa.scale(coefficient);
 
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
@@ -497,104 +563,20 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new(stack.right_exterior(), input);
+        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
 
-        let (_, right_admittance) =
-            medium_first_jets(stack.right_exterior(), &right_quantities, input, primitive);
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        let cmp_input = input.map(|values| values.mapv(C::from_real));
-
-        if let Some(rule) = variable.chain_rule(&cmp_input) {
-            workspace = workspace.chain_rule(&rule);
-        }
-
-        Ok(workspace)
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn evaluate_second<M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
-    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
-    where
-        M: DifferentiableMaterial<Real = C::RealField>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace =
-            self.accumulate_second(stack, input, variable, InternalFieldRequest::None)?;
-
-        Ok(workspace.into_total())
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn accumulate_second<M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
-    where
-        M: DifferentiableMaterial<Real = C::RealField>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        validate_derivative_variable(stack, variable)?;
-
-        let primitive = variable.primitive();
-
-        let source: ArrayBase<OwnedRepr<C>, D> =
-            input.vacuum_wavenumber().mapv(|x| C::from_real(x));
-        let mut workspace = ScatterWorkspace::new(&source, request, stack.len());
-
-        let left_quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) =
-            medium_second_jets(stack.left_exterior(), &left_quantities, input, primitive);
-
-        for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
-
-            let (kappa, layer_admittance) =
-                medium_second_jets(layer.material(), &quantities, input, primitive);
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let exponent = second_propagation_exponent(
-                &quantities,
-                &kappa,
-                layer.thickness().as_cm(),
-                primitive,
-                index,
-            );
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_quantities = IsotropicLayerQuantities::new(stack.right_exterior(), input);
-
-        let (_, right_admittance) =
-            medium_second_jets(stack.right_exterior(), &right_quantities, input, primitive);
+        let (_, right_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+            stack.right_exterior(),
+            &right_quantities,
+            input,
+            primitive,
+        );
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
         workspace.append(final_interface);
 
-        let cmp_input = input.map(|values| values.mapv(C::from_real));
-        if let Some(rule) = variable.chain_rule(&cmp_input) {
+        if let Some(rule) = variable.chain_rule(input) {
             workspace = workspace.chain_rule(&rule);
         }
 
@@ -604,9 +586,9 @@ impl Scatter2 {
 
 fn validate_derivative_variable<M, R>(
     stack: &Stack<M, R>,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
 ) -> Result<(), Scatter2Error> {
-    if let DerivativeVariable::Thickness(requested) = variable {
+    if let StructuralDerivativeVariable::Thickness(requested) = variable {
         let layer_count = stack.len();
 
         if requested >= layer_count {
@@ -624,7 +606,7 @@ fn first_propagation_exponent<C, D>(
     quantities: &IsotropicLayerQuantities<C, D>,
     kappa: &ArrayJetFirst<C, D>,
     thickness_cm: C::RealField,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
     layer_index: usize,
 ) -> ArrayJetFirst<C, D>
 where
@@ -638,7 +620,7 @@ where
 
     if matches!(
         variable,
-        DerivativeVariable::Thickness(requested)
+        StructuralDerivativeVariable::Thickness(requested)
             if requested == layer_index
     ) {
         ArrayJetFirst::from_parts(
@@ -654,7 +636,7 @@ fn second_propagation_exponent<C, D>(
     quantities: &IsotropicLayerQuantities<C, D>,
     kappa: &ArrayJet<C, D>,
     thickness_cm: C::RealField,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
     layer_index: usize,
 ) -> ArrayJet<C, D>
 where
@@ -668,7 +650,7 @@ where
 
     if matches!(
         variable,
-        DerivativeVariable::Thickness(requested)
+        StructuralDerivativeVariable::Thickness(requested)
             if requested == layer_index
     ) {
         ArrayJet::from_parts(
@@ -686,36 +668,17 @@ where
 /// `variable` must already be primitive. Thickness derivatives return constant
 /// medium jets because material and admittance values have no explicit
 /// thickness dependence.
-fn medium_first_jets_meromorphic<M, C, D>(
-    material: &M,
+fn medium_first_jets_structural<C, D>(
     quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
 ) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
 where
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
     match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
-                material,
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let kappa =
-                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
-
-            let admittance =
-                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::ParallelWavenumberSquared => {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
 
@@ -728,7 +691,7 @@ where
             (kappa, admittance)
         }
 
-        DerivativeVariable::Thickness(_) => {
+        StructuralDerivativeVariable::Thickness(_) => {
             let kappa = ArrayJetFirst::constant(quantities.kappa().clone());
 
             let admittance = ArrayJetFirst::constant(quantities.admittance().into_inner());
@@ -736,7 +699,7 @@ where
             (kappa, admittance)
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
             unreachable!("primitive() returned a linear derivative variable")
         }
     }
@@ -747,123 +710,37 @@ where
 /// `variable` must already be primitive. Thickness derivatives return constant
 /// medium jets because material and admittance values have no explicit
 /// thickness dependence.
-fn medium_first_jets<M, C, D>(
-    material: &M,
-    quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: DerivativeVariable,
-) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
-where
-    M: DifferentiableMaterial<Real = C::RealField>,
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::real_vacuum_wavenumber_squared(
-                material,
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let kappa =
-                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
-
-            let admittance =
-                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
-
-            let kappa =
-                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
-
-            let admittance =
-                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::Thickness(_) => {
-            let kappa = ArrayJetFirst::constant(quantities.kappa().clone());
-
-            let admittance = ArrayJetFirst::constant(quantities.admittance().into_inner());
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
-            unreachable!("primitive() returned a linear derivative variable")
-        }
-    }
-}
-
-/// Construct second-order normal-wavenumber and admittance jets for one medium.
-///
-/// `variable` must already be primitive.
-fn medium_second_jets_meromorphic<M, C, D>(
+fn medium_first_jets_spectral<E, M, C, D>(
     material: &M,
     quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
-) -> (ArrayJet<C, D>, ArrayJet<C, D>)
+    variable: SpectralDerivativeVariable,
+) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
 where
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    E: ConstitutiveDerivativeEvaluator<C, D, M>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
     match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared::<E, _>(
                 material,
                 quantities,
                 input.vacuum_wavenumber(),
                 input.polarisation(),
             );
 
-            let kappa = ArrayJet::from_parts(
-                quantities.kappa().clone(),
-                derivatives.first().dkappa().clone(),
-                derivatives.ddkappa().clone(),
-            );
+            let kappa =
+                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
 
             let admittance =
-                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
+                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
 
             (kappa, admittance)
         }
 
-        DerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
-
-            let kappa = ArrayJet::from_parts(
-                quantities.kappa().clone(),
-                derivatives.first().dkappa().clone(),
-                derivatives.ddkappa().clone(),
-            );
-
-            let admittance =
-                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::Thickness(_) => {
-            let kappa = ArrayJet::constant(quantities.kappa().clone());
-
-            let admittance = ArrayJet::constant(quantities.admittance().into_inner());
-
-            (kappa, admittance)
-        }
-
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        SpectralDerivativeVariable::VacuumWavenumber => {
             unreachable!("primitive() returned a linear derivative variable")
         }
     }
@@ -872,21 +749,20 @@ where
 /// Construct second-order normal-wavenumber and admittance jets for one medium.
 ///
 /// `variable` must already be primitive.
-fn medium_second_jets<M, C, D>(
+fn medium_second_jets_spectral<E, M, C, D>(
     material: &M,
     quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: DerivativeVariable,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    variable: SpectralDerivativeVariable,
 ) -> (ArrayJet<C, D>, ArrayJet<C, D>)
 where
-    M: DifferentiableMaterial<Real = C::RealField>,
+    E: ConstitutiveDerivativeEvaluator<C, D, M>,
     C: ComplexScalar,
-    C::RealField: Copy,
     D: Dimension,
 {
     match variable {
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::real_vacuum_wavenumber_squared(
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared::<E, _>(
                 material,
                 quantities,
                 input.vacuum_wavenumber(),
@@ -905,7 +781,25 @@ where
             (kappa, admittance)
         }
 
-        DerivativeVariable::ParallelWavenumberSquared => {
+        SpectralDerivativeVariable::VacuumWavenumber => {
+            unreachable!("primitive() returned a linear derivative variable")
+        }
+    }
+}
+
+/// Construct second-order normal-wavenumber and admittance jets for one medium.
+///
+/// `variable` must already be primitive.
+fn medium_second_jets_structural<C, D>(
+    quantities: &IsotropicLayerQuantities<C, D>,
+    variable: StructuralDerivativeVariable,
+) -> (ArrayJet<C, D>, ArrayJet<C, D>)
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    match variable {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
 
@@ -921,7 +815,7 @@ where
             (kappa, admittance)
         }
 
-        DerivativeVariable::Thickness(_) => {
+        StructuralDerivativeVariable::Thickness(_) => {
             let kappa = ArrayJet::constant(quantities.kappa().clone());
 
             let admittance = ArrayJet::constant(quantities.admittance().into_inner());
@@ -929,7 +823,7 @@ where
             (kappa, admittance)
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
             unreachable!("primitive() returned a linear derivative variable")
         }
     }

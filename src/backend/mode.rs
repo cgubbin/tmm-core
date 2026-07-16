@@ -24,6 +24,7 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlanarInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         jet::{ArrayJet, ArrayJetFirst},
     },
 };
@@ -77,6 +78,24 @@ where
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+
+    /// Evaluate the residual and its first derivative with respect to
+    /// `variable`.
+    fn outgoing_mode_residual_first_structural_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+
+    /// Evaluate the residual and its first and second derivatives with respect
+    /// to `variable`.
+    fn outgoing_mode_residual_second_structural_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 }
 
 pub trait DifferentiableOutgoingModeBackend<C, D, S>: OutgoingModeBackend<C, D, S>
@@ -86,20 +105,20 @@ where
 {
     /// Evaluate the residual and its first derivative with respect to
     /// `variable`.
-    fn outgoing_mode_residual_first_derivative(
+    fn outgoing_mode_residual_first_spectral_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 
     /// Evaluate the residual and its first and second derivatives with respect
     /// to `variable`.
-    fn outgoing_mode_residual_second_derivative(
+    fn outgoing_mode_residual_second_spectral_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 }
 

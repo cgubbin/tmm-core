@@ -1,5 +1,6 @@
 mod algebra;
 mod derivative;
+mod evaluator;
 mod field;
 mod input;
 mod isotropic;

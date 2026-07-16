@@ -30,13 +30,19 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlanarInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::{
+            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
+        },
         isotropic::{
             IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
         jet::{ArrayJet, ArrayJetFirst},
     },
-    material::{DifferentiableMaterial, Material, MeromorphicMaterial},
+    material::{
+        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+    },
 };
 
 /// Characteristic admittance of one isotropic medium.
@@ -72,15 +78,15 @@ where
     ///
     /// Prefer [`Self::from_quantities`] when the isotropic quantities have
     /// already been evaluated.
-    pub(crate) fn evaluate<M>(
+    pub(crate) fn evaluate_real_axis<M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
         M: Material<Real = C::RealField>,
         C::RealField: Copy,
     {
-        let quantities = IsotropicLayerQuantities::new(material, planar);
+        let quantities = IsotropicLayerQuantities::real_axis(material, planar);
 
         Self::from_quantities(&quantities)
     }
@@ -89,14 +95,14 @@ where
     ///
     /// Prefer [`Self::from_quantities`] when the isotropic quantities have
     /// already been evaluated.
-    pub(crate) fn evaluate_meromorphic<M>(
+    pub(crate) fn evaluate_complex_plane<M>(
         material: &M,
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
         M: MeromorphicMaterial<Real = C::RealField>,
     {
-        let quantities = IsotropicLayerQuantities::new_meromorphic(material, planar);
+        let quantities = IsotropicLayerQuantities::complex_plane(material, planar);
 
         Self::from_quantities(&quantities)
     }
@@ -182,54 +188,114 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
+    pub(crate) fn evaluate_first_structural_real_axis<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> ArrayJetFirst<C, D>
+    where
+        M: Material<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_first_structural::<RealAxis, _>(material, planar, variable)
+    }
+
+    pub(crate) fn evaluate_first_structural_complex_plane<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> ArrayJetFirst<C, D>
+    where
+        M: MeromorphicMaterial<Real = C::RealField>,
+    {
+        Self::evaluate_first_structural::<ComplexPlane, _>(material, planar, variable)
+    }
+
     /// Evaluate the admittance and its first derivative.
     ///
     /// Primitive squared-coordinate derivatives are transformed to the
     /// requested linear coordinate when necessary.
-    pub(crate) fn evaluate_first<M>(
+    fn evaluate_first_structural<E, M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
-        C::RealField: Copy,
+        E: ConstitutiveEvaluator<C, D, M>,
     {
-        let quantities = IsotropicLayerQuantities::new(material, planar);
+        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
 
         let value = Self::from_quantities(&quantities).into_inner();
 
-        let primitive = variable.primitive();
-
-        let first = match primitive {
-            DerivativeVariable::VacuumWavenumberSquared => {
-                let derivatives = IsotropicLayerFirstDerivatives::real_vacuum_wavenumber_squared(
-                    material,
-                    &quantities,
-                    planar.vacuum_wavenumber(),
-                    planar.polarisation(),
-                );
-
-                first_derivative(&quantities, &derivatives)
-            }
-
-            DerivativeVariable::ParallelWavenumberSquared => {
+        let first = match variable {
+            StructuralDerivativeVariable::ParallelWavenumberSquared
+            | StructuralDerivativeVariable::ParallelWavenumber => {
                 let derivatives =
                     IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&quantities);
 
                 first_derivative(&quantities, &derivatives)
             }
 
-            DerivativeVariable::Thickness(_) => value.mapv(|_| C::zero()),
-
-            DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
-                unreachable!("primitive() returned a linear variable")
-            }
+            StructuralDerivativeVariable::Thickness(_) => value.mapv(|_| C::zero()),
         };
 
         let jet = ArrayJetFirst::from_parts(value, first);
 
-        match variable.chain_rule(&planar.map(|values| values.mapv(C::from_real))) {
+        match variable.chain_rule(&planar) {
+            Some(rule) => jet.chain_rule(&rule),
+            None => jet,
+        }
+    }
+
+    pub(crate) fn evaluate_first_spectral_real_axis<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJetFirst<C, D>
+    where
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_first_spectral::<RealAxis, _>(material, planar, variable)
+    }
+
+    pub(crate) fn evaluate_first_spectral_complex_plane<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJetFirst<C, D>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_first_spectral::<ComplexPlane, _>(material, planar, variable)
+    }
+
+    fn evaluate_first_spectral<E, M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJetFirst<C, D>
+    where
+        E: ConstitutiveEvaluator<C, D, M> + ConstitutiveDerivativeEvaluator<C, D, M>,
+        C::RealField: Copy,
+    {
+        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
+
+        let value = Self::from_quantities(&quantities).into_inner();
+
+        let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared::<E, _>(
+            material,
+            &quantities,
+            planar.vacuum_wavenumber(),
+            planar.polarisation(),
+        );
+
+        let first = first_derivative(&quantities, &derivatives);
+
+        let jet = ArrayJetFirst::from_parts(value, first);
+
+        match variable.chain_rule(&planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }
@@ -241,41 +307,52 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
+    pub(crate) fn evaluate_second_structural_real_axis<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> ArrayJet<C, D>
+    where
+        M: Material<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_second_structural::<RealAxis, _>(material, planar, variable)
+    }
+
+    pub(crate) fn evaluate_second_structural_complex_plane<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> ArrayJet<C, D>
+    where
+        M: MeromorphicMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_second_structural::<ComplexPlane, _>(material, planar, variable)
+    }
+
     /// Evaluate the admittance and its first two derivatives.
     ///
     /// Primitive squared-coordinate derivatives are transformed to the
     /// requested linear coordinate when necessary.
-    pub(crate) fn evaluate_second<M>(
+    pub(crate) fn evaluate_second_structural<E, M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: StructuralDerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C::RealField: Copy,
     {
-        let quantities = IsotropicLayerQuantities::new(material, planar);
+        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
 
         let value = Self::from_quantities(&quantities).into_inner();
 
         let primitive = variable.primitive();
 
         let (first, second) = match primitive {
-            DerivativeVariable::VacuumWavenumberSquared => {
-                let derivatives = IsotropicLayerSecondDerivatives::real_vacuum_wavenumber_squared(
-                    material,
-                    &quantities,
-                    planar.vacuum_wavenumber(),
-                    planar.polarisation(),
-                );
-
-                (
-                    first_derivative(&quantities, derivatives.first()),
-                    second_derivative(&quantities, &derivatives),
-                )
-            }
-
-            DerivativeVariable::ParallelWavenumberSquared => {
+            StructuralDerivativeVariable::ParallelWavenumberSquared
+            | StructuralDerivativeVariable::ParallelWavenumber => {
                 let derivatives =
                     IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&quantities);
 
@@ -284,21 +361,77 @@ where
                     second_derivative(&quantities, &derivatives),
                 )
             }
-
-            DerivativeVariable::Thickness(_) => {
+            StructuralDerivativeVariable::Thickness(_) => {
                 let zero = value.mapv(|_| C::zero());
 
                 (zero.clone(), zero)
-            }
-
-            DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
-                unreachable!("primitive() returned a linear variable")
             }
         };
 
         let jet = ArrayJet::from_parts(value, first, second);
 
-        match variable.chain_rule(&planar.map(|values| values.mapv(C::from_real))) {
+        match variable.chain_rule(&planar) {
+            Some(rule) => jet.chain_rule(&rule),
+            None => jet,
+        }
+    }
+
+    pub(crate) fn evaluate_second_spectral_real_axis<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJet<C, D>
+    where
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_second_spectral::<RealAxis, _>(material, planar, variable)
+    }
+
+    pub(crate) fn evaluate_second_spectral_complex_plane<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJet<C, D>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C::RealField: Copy,
+    {
+        Self::evaluate_second_spectral::<ComplexPlane, _>(material, planar, variable)
+    }
+
+    /// Evaluate the admittance and its first two derivatives.
+    ///
+    /// Primitive squared-coordinate derivatives are transformed to the
+    /// requested linear coordinate when necessary.
+    pub(crate) fn evaluate_second_spectral<E, M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> ArrayJet<C, D>
+    where
+        E: ConstitutiveEvaluator<C, D, M> + ConstitutiveDerivativeEvaluator<C, D, M>,
+        C::RealField: Copy,
+    {
+        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
+
+        let value = Self::from_quantities(&quantities).into_inner();
+
+        let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared::<E, _>(
+            material,
+            &quantities,
+            planar.vacuum_wavenumber(),
+            planar.polarisation(),
+        );
+
+        let (first, second) = (
+            first_derivative(&quantities, derivatives.first()),
+            second_derivative(&quantities, &derivatives),
+        );
+
+        let jet = ArrayJet::from_parts(value, first, second);
+
+        match variable.chain_rule(&planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }

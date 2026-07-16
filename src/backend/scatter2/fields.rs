@@ -22,6 +22,8 @@
 use crate::{
     ComplexScalar, DerivativeVariable, IncidentSide, Material, PlanarInput, PlaneWaveInput, Stack,
     backend::{
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::RealAxis,
         field::{
             BidirectionalWaveDifferential, BidirectionalWaves, DifferentiablePlaneWaveFieldBackend,
             ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves, InternalFieldRequest,
@@ -33,8 +35,10 @@ use crate::{
         scatter2::{
             Scatter2,
             plane_wave::{
-                plane_wave_from_amplitudes, plane_wave_from_first_jet_amplitudes,
-                plane_wave_from_second_jet_amplitudes,
+                plane_wave_from_amplitudes, plane_wave_from_first_jet_amplitudes_spectral,
+                plane_wave_from_first_jet_amplitudes_structural,
+                plane_wave_from_second_jet_amplitudes_spectral,
+                plane_wave_from_second_jet_amplitudes_structural,
             },
         },
     },
@@ -56,11 +60,14 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error> {
-        let workspace =
-            self.accumulate(stack, input.planar(), InternalFieldRequest::LayerBoundaries)?;
+        let planar = input.complex_planar_input::<C>();
+        let workspace = self.accumulate_with::<RealAxis, _, _, _>(
+            stack,
+            &planar,
+            InternalFieldRequest::LayerBoundaries,
+        )?;
 
-        let generic_fields =
-            retained_boundary_waves(&workspace, input.incident_side(), input.planar());
+        let generic_fields = retained_boundary_waves(&workspace, input.incident_side(), &planar);
 
         let layers = value_fields_from_generic(generic_fields);
 
@@ -77,12 +84,101 @@ where
         let response = plane_wave_from_amplitudes(
             reflection,
             transmission,
-            input.planar(),
+            &planar,
             stack,
             input.incident_side(),
         );
 
         let boundary_waves = PlaneWaveBoundaryWaves::new(exterior, layers);
+
+        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+    }
+
+    fn solve_plane_wave_internal_fields_first_structural_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input::<C>();
+        let workspace = self.accumulate_structural_first_with::<RealAxis, _, _, _>(
+            stack,
+            &planar,
+            variable,
+            InternalFieldRequest::LayerBoundaries,
+        )?;
+
+        let generic_fields = retained_boundary_waves(&workspace, input.incident_side(), &planar);
+
+        let (layers, first_layers) = first_order_fields_from_generic(generic_fields);
+
+        let total = workspace.into_total();
+
+        let (reflection, transmission) = total.amplitudes(input.incident_side());
+
+        let (exterior, exterior_first, reflection, transmission) =
+            exterior_waves_from_first_jets(reflection, transmission, input.incident_side());
+
+        let response = plane_wave_from_first_jet_amplitudes_structural(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            variable,
+        );
+
+        let derivatives =
+            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
+
+        let boundary_waves =
+            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
+
+        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+    }
+
+    fn solve_plane_wave_internal_fields_second_structural_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
+    ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input::<C>();
+
+        let workspace = self.accumulate_structural_second_with::<RealAxis, _, _, _>(
+            stack,
+            &planar,
+            variable,
+            InternalFieldRequest::LayerBoundaries,
+        )?;
+
+        let generic_fields = retained_boundary_waves(&workspace, input.incident_side(), &planar);
+
+        let (layers, first_layers, second_layers) =
+            second_order_fields_from_generic(generic_fields);
+
+        let total = workspace.into_total();
+
+        let (reflection, transmission) = total.amplitudes(input.incident_side());
+
+        let (exterior, exterior_first, exterior_second, reflection, transmission) =
+            exterior_waves_from_second_jets(reflection, transmission, input.incident_side());
+
+        let response = plane_wave_from_second_jet_amplitudes_structural(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            variable,
+        );
+
+        let derivatives =
+            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
+                .with_second(exterior_second, second_layers);
+
+        let boundary_waves =
+            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
 
         Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
     }
@@ -95,21 +191,22 @@ where
     D: Dimension,
     M: DifferentiableMaterial<Real = C::RealField>,
 {
-    fn solve_plane_wave_internal_fields_first_derivative(
+    fn solve_plane_wave_internal_fields_first_spectral_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error> {
-        let workspace = self.accumulate_first(
+        let planar = input.complex_planar_input::<C>();
+
+        let workspace = self.accumulate_spectral_first_with::<RealAxis, _, _, _>(
             stack,
-            input.planar(),
+            &planar,
             variable,
             InternalFieldRequest::LayerBoundaries,
         )?;
 
-        let generic_fields =
-            retained_boundary_waves(&workspace, input.incident_side(), input.planar());
+        let generic_fields = retained_boundary_waves(&workspace, input.incident_side(), &planar);
 
         let (layers, first_layers) = first_order_fields_from_generic(generic_fields);
 
@@ -120,17 +217,17 @@ where
         let (exterior, exterior_first, reflection, transmission) =
             exterior_waves_from_first_jets(reflection, transmission, input.incident_side());
 
-        let response = plane_wave_from_first_jet_amplitudes(
+        let response = plane_wave_from_first_jet_amplitudes_spectral(
             reflection,
             transmission,
-            input.planar(),
+            &planar,
             stack,
             input.incident_side(),
             variable,
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable, exterior_first, first_layers);
+            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
 
         let boundary_waves =
             PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
@@ -138,21 +235,21 @@ where
         Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
     }
 
-    fn solve_plane_wave_internal_fields_second_derivative(
+    fn solve_plane_wave_internal_fields_second_spectral_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error> {
-        let workspace = self.accumulate_second(
+        let planar = input.complex_planar_input::<C>();
+        let workspace = self.accumulate_spectral_second_with::<RealAxis, _, _, _>(
             stack,
-            input.planar(),
+            &planar,
             variable,
             InternalFieldRequest::LayerBoundaries,
         )?;
 
-        let generic_fields =
-            retained_boundary_waves(&workspace, input.incident_side(), input.planar());
+        let generic_fields = retained_boundary_waves(&workspace, input.incident_side(), &planar);
 
         let (layers, first_layers, second_layers) =
             second_order_fields_from_generic(generic_fields);
@@ -173,17 +270,17 @@ where
         let (exterior, exterior_first, exterior_second, reflection, transmission) =
             exterior_waves_from_second_jets(reflection, transmission, input.incident_side());
 
-        let response = plane_wave_from_second_jet_amplitudes(
+        let response = plane_wave_from_second_jet_amplitudes_spectral(
             reflection,
             transmission,
-            input.planar(),
+            &planar,
             stack,
             input.incident_side(),
             variable,
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable, exterior_first, first_layers)
+            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
                 .with_second(exterior_second, second_layers);
 
         let boundary_waves =
@@ -196,7 +293,7 @@ where
 fn retained_boundary_waves<C, D, A>(
     workspace: &crate::backend::scatter2::workspace::ScatterWorkspace<A>,
     incident_side: IncidentSide,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
 ) -> Vec<crate::backend::field::LayerBoundaryWavesGeneric<A>>
 where
     C: ComplexScalar,
@@ -204,10 +301,7 @@ where
     A: crate::backend::algebra::ScalarAlgebra<C, D> + Clone,
 {
     workspace
-        .reconstruct_layer_boundary_waves(
-            incident_side,
-            &planar.vacuum_wavenumber().mapv(|x| C::from_real(x)),
-        )
+        .reconstruct_layer_boundary_waves(incident_side, planar.vacuum_wavenumber())
         .expect("LayerBoundaries was requested, so retained boundary waves must exist")
 }
 
