@@ -111,22 +111,12 @@ impl<M, F> Stack<M, F> {
     pub fn incident_index<I, C>(&self, vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = M::Real> + Copy,
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = M::Real>,
         M: Material,
     {
         let direction = side.propagation_direction();
         let material = self.entrance_exterior(direction);
 
         material.refractive_index(vacuum_wavenumber)
-    }
-
-    pub fn incident_is_dispersive(&self, side: IncidentSide) -> bool
-    where
-        M: Material,
-    {
-        let direction = side.propagation_direction();
-        let material = self.entrance_exterior(direction);
-
-        material.is_dispersive()
     }
 }

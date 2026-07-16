@@ -58,9 +58,15 @@ where
     fn solve_matrix(
         &self,
         stack: &S,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
 
+pub trait DifferentiableRawMatrixBackend<C, D, S>: RawMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
     /// Evaluate the native matrix and its first derivative with respect to
     /// `variable`.
     ///
@@ -69,7 +75,7 @@ where
     fn solve_matrix_first_derivative(
         &self,
         stack: &S,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
@@ -81,7 +87,7 @@ where
     fn solve_matrix_second_derivative(
         &self,
         stack: &S,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }

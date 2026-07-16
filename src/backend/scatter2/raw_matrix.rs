@@ -20,10 +20,10 @@ use crate::{
         DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend,
         field::InternalFieldRequest,
         jet::{ArrayJet, ArrayJetFirst},
-        matrix::MatrixDerivatives,
+        matrix::{DifferentiableRawMatrixBackend, MatrixDerivatives},
         scatter2::{Scatter2, Scatter2Error, ScatterMatrix2, entries::ScatterEntries},
     },
-    material::Material,
+    material::{DifferentiableMaterial, Material},
     stack::Stack,
 };
 
@@ -103,20 +103,28 @@ where
     fn solve_matrix(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let matrix = self.evaluate(stack, input, InternalFieldRequest::None)?;
+        let matrix = self.evaluate(stack, input)?;
 
         Ok(MatrixEvaluation::new(matrix))
     }
+}
 
+impl<C, D, M> DifferentiableRawMatrixBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+{
     fn solve_matrix_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries = self.evaluate_first(stack, input, variable, InternalFieldRequest::None)?;
+        let entries = self.evaluate_first(stack, input, variable)?;
 
         let (matrix, first) = entries.into_matrix_parts();
 
@@ -129,10 +137,10 @@ where
     fn solve_matrix_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries = self.evaluate_second(stack, input, variable, InternalFieldRequest::None)?;
+        let entries = self.evaluate_second(stack, input, variable)?;
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
@@ -380,7 +388,7 @@ mod raw_matrix_backend_tests {
         let variable = DerivativeVariable::ParallelWavenumberSquared;
 
         let internal = Scatter2::new()
-            .evaluate_first(&stack, &input, variable, InternalFieldRequest::None)
+            .evaluate_first(&stack, &input, variable)
             .unwrap();
 
         let (expected_value, expected_first) = internal.into_matrix_parts();

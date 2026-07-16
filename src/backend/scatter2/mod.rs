@@ -2,10 +2,12 @@ mod backend;
 mod component;
 mod entries;
 mod error;
+mod fields;
 mod matrix;
 mod mode;
 mod plane_wave;
 mod raw_matrix;
+mod workspace;
 
 pub use backend::Scatter2;
 pub use error::Scatter2Error;
@@ -361,12 +363,7 @@ mod tests {
         let input = PlanarInput::new(arr0(c(1.0)), arr0(c(2.0)), Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
-            .evaluate_first(
-                &stack,
-                &input,
-                DerivativeVariable::Thickness(0),
-                crate::backend::field::InternalFieldRequest::None,
-            )
+            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))
             .unwrap_err();
 
         assert_eq!(

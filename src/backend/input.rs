@@ -12,6 +12,9 @@
 //! the same inverse-length unit. The backend does not perform unit conversion
 //! or implicit broadcasting.
 
+use crate::ComplexScalar;
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
+
 /// Polarisation supported by isotropic planar backends.
 ///
 /// In an isotropic stratified system, transverse-electric and
@@ -167,6 +170,17 @@ impl<I> PlaneWaveInput<I> {
     /// Consume the input and return its planar coordinates and incident side.
     pub fn into_parts(self) -> (PlanarInput<I>, IncidentSide) {
         (self.planar, self.incident_side)
+    }
+}
+
+impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
+    pub(crate) fn complex_planar_input<C>(&self) -> PlanarInput<ArrayBase<OwnedRepr<C>, D>>
+    where
+        C: ComplexScalar<RealField = R>,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        self.planar().map(|values| values.mapv(C::from_real))
     }
 }
 

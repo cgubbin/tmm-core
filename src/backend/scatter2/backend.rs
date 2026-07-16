@@ -54,8 +54,9 @@ use crate::{
         PlanarInput,
         algebra::ScalarAlgebra,
         field::{
-            BidirectionalWavesGeneric, InternalFieldRequest, LayerBoundaryWavesGeneric,
-            PlaneWaveFieldResponse, PlaneWaveInternalFields,
+            BidirectionalWaveDifferential, BidirectionalWaves, BidirectionalWavesGeneric,
+            ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves, InternalFieldRequest,
+            LayerBoundaryWavesGeneric,
         },
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
@@ -67,9 +68,12 @@ use crate::{
             component::{interface, propagation_from_exponent},
             entries::{Scatter2Jet, Scatter2JetFirst, ScatterEntries, cascade},
             error::Scatter2Error,
+            workspace::ScatterWorkspace,
         },
     },
-    material::Material,
+    material::{
+        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+    },
     stack::Stack,
 };
 
@@ -83,15 +87,33 @@ impl Scatter2 {
         Self
     }
 
+    pub(crate) fn evaluate_meromorphic<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    where
+        M: MeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace = self.accumulate_meromorphic(stack, input, InternalFieldRequest::None)?;
+
+        let total = workspace.into_total();
+
+        Ok(ScatterMatrix2::from_entries(total))
+    }
+
     /// Evaluate the native scattering matrix without derivatives.
-    pub(crate) fn evaluate<M, C, D>(
+    pub(crate) fn accumulate_meromorphic<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         request: InternalFieldRequest,
-    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        M: MeromorphicMaterial<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -100,6 +122,271 @@ impl Scatter2 {
 
         let mut workspace: ScatterWorkspace<Samples<C, D>> =
             ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+
+        // let mut total: ScatterEntries<Samples<C, D>> =
+        //     ScatterEntries::identity_like(input.vacuum_wavenumber());
+
+        let left_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+
+        let mut current_admittance = left_quantities.admittance().into_inner();
+
+        for layer in stack.iter() {
+            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+
+            let layer_admittance = quantities.admittance().into_inner();
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
+
+            let distance = C::from_real(layer.thickness().as_cm());
+
+            let exponent = quantities.kappa().scale(C::i() * distance);
+
+            let propagation = propagation_from_exponent::<C, D, _>(exponent);
+
+            workspace.append_layer::<C, D>(interface, propagation);
+
+            current_admittance = layer_admittance;
+        }
+
+        let right_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+
+        let right_admittance = right_quantities.admittance().into_inner();
+
+        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
+
+        workspace.append(final_interface);
+
+        Ok(workspace)
+    }
+
+    pub(crate) fn evaluate_first_meromorphic<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace =
+            self.accumulate_first_meromorphic(stack, input, variable, InternalFieldRequest::None)?;
+
+        let total = workspace.into_total();
+
+        Ok(total)
+    }
+
+    /// Evaluate the scattering matrix and its first derivative.
+    pub(crate) fn accumulate_first_meromorphic<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        validate_derivative_variable(stack, variable)?;
+
+        let primitive = variable.primitive();
+
+        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+
+        let left_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+
+        let (_, mut current_admittance) = medium_first_jets_meromorphic(
+            stack.left_exterior(),
+            &left_quantities,
+            input,
+            primitive,
+        );
+
+        for (index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+
+            let (kappa, layer_admittance) =
+                medium_first_jets_meromorphic(layer.material(), &quantities, input, primitive);
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
+
+            let exponent = first_propagation_exponent(
+                &quantities,
+                &kappa,
+                layer.thickness().as_cm(),
+                primitive,
+                index,
+            );
+
+            let propagation = propagation_from_exponent::<C, D, _>(exponent);
+
+            workspace.append_layer::<C, D>(interface, propagation);
+
+            current_admittance = layer_admittance;
+        }
+
+        let right_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+
+        let (_, right_admittance) = medium_first_jets_meromorphic(
+            stack.right_exterior(),
+            &right_quantities,
+            input,
+            primitive,
+        );
+
+        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
+
+        workspace.append(final_interface);
+
+        if let Some(rule) = variable.chain_rule(input) {
+            workspace = workspace.chain_rule(&rule);
+        }
+
+        Ok(workspace)
+    }
+
+    /// Evaluate the scattering matrix and its first two derivatives.
+    pub(crate) fn evaluate_second_meromorphic<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace =
+            self.accumulate_second_meromorphic(stack, input, variable, InternalFieldRequest::None)?;
+
+        Ok(workspace.into_total())
+    }
+
+    /// Evaluate the scattering matrix and its first two derivatives.
+    pub(crate) fn accumulate_second_meromorphic<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: DerivativeVariable,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
+    where
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        validate_derivative_variable(stack, variable)?;
+
+        let primitive = variable.primitive();
+
+        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+
+        let left_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
+
+        let (_, mut current_admittance) = medium_second_jets_meromorphic(
+            stack.left_exterior(),
+            &left_quantities,
+            input,
+            primitive,
+        );
+
+        for (index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new_meromorphic(layer.material(), input);
+
+            let (kappa, layer_admittance) =
+                medium_second_jets_meromorphic(layer.material(), &quantities, input, primitive);
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
+
+            let exponent = second_propagation_exponent(
+                &quantities,
+                &kappa,
+                layer.thickness().as_cm(),
+                primitive,
+                index,
+            );
+
+            let propagation = propagation_from_exponent::<C, D, _>(exponent);
+
+            workspace.append_layer::<C, D>(interface, propagation);
+
+            current_admittance = layer_admittance;
+        }
+
+        let right_quantities =
+            IsotropicLayerQuantities::new_meromorphic(stack.right_exterior(), input);
+
+        let (_, right_admittance) = medium_second_jets_meromorphic(
+            stack.right_exterior(),
+            &right_quantities,
+            input,
+            primitive,
+        );
+
+        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
+
+        workspace.append(final_interface);
+
+        if let Some(rule) = variable.chain_rule(input) {
+            workspace = workspace.chain_rule(&rule);
+        }
+
+        Ok(workspace)
+    }
+}
+
+impl Scatter2 {
+    pub(crate) fn evaluate<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    where
+        M: Material<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace = self.accumulate(stack, input, InternalFieldRequest::None)?;
+
+        let total = workspace.into_total();
+
+        Ok(ScatterMatrix2::from_entries(total))
+    }
+
+    /// Evaluate the native scattering matrix without derivatives.
+    pub(crate) fn accumulate<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    where
+        M: Material<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        type Samples<C, D> = ArrayBase<OwnedRepr<C>, D>;
+
+        let source = input.vacuum_wavenumber().mapv(|x| C::from_real(x));
+
+        let mut workspace: ScatterWorkspace<Samples<C, D>> =
+            ScatterWorkspace::new(&source, request, stack.len());
 
         // let mut total: ScatterEntries<Samples<C, D>> =
         //     ScatterEntries::identity_like(input.vacuum_wavenumber());
@@ -134,21 +421,39 @@ impl Scatter2 {
 
         workspace.append(final_interface);
 
-        let total = workspace.into_total();
-
-        Ok(ScatterMatrix2::from_entries(total))
+        Ok(workspace)
     }
 
-    /// Evaluate the scattering matrix and its first derivative.
     pub(crate) fn evaluate_first<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
-        request: InternalFieldRequest,
     ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace =
+            self.accumulate_first(stack, input, variable, InternalFieldRequest::None)?;
+
+        let total = workspace.into_total();
+
+        Ok(total)
+    }
+
+    /// Evaluate the scattering matrix and its first derivative.
+    pub(crate) fn accumulate_first<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: DerivativeVariable,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
+    where
+        M: DifferentiableMaterial<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -157,9 +462,14 @@ impl Scatter2 {
 
         let primitive = variable.primitive();
 
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+        let source: ArrayBase<OwnedRepr<C>, D> =
+            input.vacuum_wavenumber().mapv(|x| C::from_real(x));
 
-        let left_quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
+        let mut workspace: ScatterWorkspace<ArrayJetFirst<C, D>> =
+            ScatterWorkspace::new(&source, request, stack.len());
+
+        let left_quantities: IsotropicLayerQuantities<C, _> =
+            IsotropicLayerQuantities::new(stack.left_exterior(), input);
 
         let (_, mut current_admittance) =
             medium_first_jets(stack.left_exterior(), &left_quantities, input, primitive);
@@ -196,25 +506,44 @@ impl Scatter2 {
 
         workspace.append(final_interface);
 
-        let mut total = workspace.into_total();
+        let cmp_input = input.map(|values| values.mapv(C::from_real));
 
-        if let Some(rule) = variable.chain_rule(input) {
-            total = total.chain_rule(&rule);
+        if let Some(rule) = variable.chain_rule(&cmp_input) {
+            workspace = workspace.chain_rule(&rule);
         }
 
-        Ok(total)
+        Ok(workspace)
     }
 
     /// Evaluate the scattering matrix and its first two derivatives.
     pub(crate) fn evaluate_second<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
-        request: InternalFieldRequest,
     ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let workspace =
+            self.accumulate_second(stack, input, variable, InternalFieldRequest::None)?;
+
+        Ok(workspace.into_total())
+    }
+
+    /// Evaluate the scattering matrix and its first two derivatives.
+    pub(crate) fn accumulate_second<M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        variable: DerivativeVariable,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
+    where
+        M: DifferentiableMaterial<Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -223,7 +552,9 @@ impl Scatter2 {
 
         let primitive = variable.primitive();
 
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+        let source: ArrayBase<OwnedRepr<C>, D> =
+            input.vacuum_wavenumber().mapv(|x| C::from_real(x));
+        let mut workspace = ScatterWorkspace::new(&source, request, stack.len());
 
         let left_quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
 
@@ -262,202 +593,13 @@ impl Scatter2 {
 
         workspace.append(final_interface);
 
-        let mut total = workspace.into_total();
-
-        if let Some(rule) = variable.chain_rule(input) {
-            total = total.chain_rule(&rule);
+        let cmp_input = input.map(|values| values.mapv(C::from_real));
+        if let Some(rule) = variable.chain_rule(&cmp_input) {
+            workspace = workspace.chain_rule(&rule);
         }
 
-        Ok(total)
+        Ok(workspace)
     }
-}
-
-/// Cut positions corresponding to the two boundaries of one finite layer.
-///
-/// A cut index `k` refers to the division:
-///
-/// ```text
-/// components[..k] | components[k..]
-/// ```
-///
-/// Thus:
-///
-/// - `left` is the cut immediately after the interface entering the layer;
-/// - `right` is the cut immediately after propagation through the layer and
-///   before the interface leaving it.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LayerCutIndices {
-    left: usize,
-    right: usize,
-}
-
-impl LayerCutIndices {
-    pub(crate) const fn new(left: usize, right: usize) -> Self {
-        Self { left, right }
-    }
-
-    pub(crate) const fn left(self) -> usize {
-        self.left
-    }
-
-    pub(crate) const fn right(self) -> usize {
-        self.right
-    }
-}
-
-/// Workspace used while constructing a scalar-channel scattering response.
-///
-/// `A` determines the derivative order carried by each scattering entry:
-///
-/// - sampled arrays for value-only evaluation;
-/// - first-order jets for first derivatives;
-/// - second-order jets for first and second derivatives.
-///
-/// The workspace always accumulates `total`. Individual components and layer
-/// cut positions are retained only when internal fields were requested.
-pub(crate) struct ScatterWorkspace<A> {
-    total: ScatterEntries<A>,
-    components: Option<Vec<ScatterEntries<A>>>,
-    layer_cuts: Option<Vec<LayerCutIndices>>,
-}
-
-impl<A> ScatterWorkspace<A> {
-    /// Return the accumulated scattering response.
-    pub(crate) fn total(&self) -> &ScatterEntries<A> {
-        &self.total
-    }
-
-    /// Consume the workspace and return the accumulated response.
-    pub(crate) fn into_total(self) -> ScatterEntries<A> {
-        self.total
-    }
-
-    /// Return retained physical components, when internal fields were
-    /// requested.
-    pub(crate) fn components(&self) -> Option<&[ScatterEntries<A>]> {
-        self.components.as_deref()
-    }
-
-    /// Return finite-layer cut positions, when internal fields were requested.
-    pub(crate) fn layer_cuts(&self) -> Option<&[LayerCutIndices]> {
-        self.layer_cuts.as_deref()
-    }
-
-    /// Return the current cut index.
-    ///
-    /// The cut index equals the number of physical components appended so far.
-    fn current_cut(&self) -> usize {
-        self.components.as_ref().map_or(0, Vec::len)
-    }
-
-    pub(crate) fn new<C, D>(
-        source: &ArrayBase<OwnedRepr<C>, D>,
-        request: InternalFieldRequest,
-        layer_count: usize,
-    ) -> Self
-    where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
-    {
-        Self {
-            total: ScatterEntries::identity_like(source),
-
-            components: request.is_requested().then(|| {
-                /*
-                 * A stack with N finite layers contains:
-                 *
-                 * N propagation components
-                 * N + 1 interface components
-                 *
-                 * for a total of 2N + 1 components.
-                 */
-                Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1))
-            }),
-
-            layer_cuts: request
-                .is_requested()
-                .then(|| Vec::with_capacity(layer_count)),
-        }
-    }
-
-    /// Append one physical scattering component.
-    ///
-    /// The accumulated system represents the previous total followed
-    /// geometrically by `component`.
-    pub(crate) fn append<C, D>(&mut self, component: ScatterEntries<A>)
-    where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
-    {
-        self.total = cascade::<C, D, A>(&self.total, &component);
-
-        if let Some(components) = &mut self.components {
-            components.push(component);
-        }
-    }
-
-    /// Record the cuts at the left and right boundaries of one finite layer.
-    pub(crate) fn record_layer(&mut self, left_cut: usize, right_cut: usize) {
-        let current_cut = self.current_cut();
-
-        debug_assert!(left_cut <= right_cut);
-        debug_assert!(
-            right_cut <= current_cut,
-            "layer cut lies beyond appended components",
-        );
-
-        if let Some(layer_cuts) = &mut self.layer_cuts {
-            layer_cuts.push(LayerCutIndices::new(left_cut, right_cut));
-        }
-    }
-
-    /// Append the interface entering a finite layer and its propagation
-    /// component, then record the corresponding internal cuts.
-    ///
-    /// The sequence is:
-    ///
-    /// ```text
-    /// previous medium
-    ///     → interface
-    ///     → left layer boundary cut
-    ///     → propagation
-    ///     → right layer boundary cut.
-    /// ```
-    pub(crate) fn append_layer<C, D>(
-        &mut self,
-        interface: ScatterEntries<A>,
-        propagation: ScatterEntries<A>,
-    ) where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
-    {
-        self.append::<C, D>(interface);
-
-        let left_cut = self.current_cut();
-
-        self.append::<C, D>(propagation);
-
-        let right_cut = self.current_cut();
-
-        self.record_layer(left_cut, right_cut);
-    }
-
-    pub(crate) fn into_parts(self) -> ScatterWorkspaceParts<A> {
-        ScatterWorkspaceParts {
-            total: self.total,
-            components: self.components,
-            layer_cuts: self.layer_cuts,
-        }
-    }
-}
-
-pub(crate) struct ScatterWorkspaceParts<A> {
-    pub(crate) total: ScatterEntries<A>,
-    pub(crate) components: Option<Vec<ScatterEntries<A>>>,
-    pub(crate) layer_cuts: Option<Vec<LayerCutIndices>>,
 }
 
 fn validate_derivative_variable<M, R>(
@@ -544,20 +686,82 @@ where
 /// `variable` must already be primitive. Thickness derivatives return constant
 /// medium jets because material and admittance values have no explicit
 /// thickness dependence.
-fn medium_first_jets<M, C, D>(
+fn medium_first_jets_meromorphic<M, C, D>(
     material: &M,
     quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     variable: DerivativeVariable,
 ) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
 where
-    M: Material<Real = C::RealField>,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
     match variable {
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
+            let derivatives = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+                material,
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
+
+            let kappa =
+                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
+
+            let admittance =
+                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
+
+            (kappa, admittance)
+        }
+
+        DerivativeVariable::ParallelWavenumberSquared => {
+            let derivatives =
+                IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
+
+            let kappa =
+                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
+
+            let admittance =
+                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
+
+            (kappa, admittance)
+        }
+
+        DerivativeVariable::Thickness(_) => {
+            let kappa = ArrayJetFirst::constant(quantities.kappa().clone());
+
+            let admittance = ArrayJetFirst::constant(quantities.admittance().into_inner());
+
+            (kappa, admittance)
+        }
+
+        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+            unreachable!("primitive() returned a linear derivative variable")
+        }
+    }
+}
+
+/// Construct first-order normal-wavenumber and admittance jets for one medium.
+///
+/// `variable` must already be primitive. Thickness derivatives return constant
+/// medium jets because material and admittance values have no explicit
+/// thickness dependence.
+fn medium_first_jets<M, C, D>(
+    material: &M,
+    quantities: &IsotropicLayerQuantities<C, D>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    variable: DerivativeVariable,
+) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
+where
+    M: DifferentiableMaterial<Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    match variable {
+        DerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerFirstDerivatives::real_vacuum_wavenumber_squared(
                 material,
                 quantities,
                 input.vacuum_wavenumber(),
@@ -603,20 +807,20 @@ where
 /// Construct second-order normal-wavenumber and admittance jets for one medium.
 ///
 /// `variable` must already be primitive.
-fn medium_second_jets<M, C, D>(
+fn medium_second_jets_meromorphic<M, C, D>(
     material: &M,
     quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     variable: DerivativeVariable,
 ) -> (ArrayJet<C, D>, ArrayJet<C, D>)
 where
-    M: Material<Real = C::RealField>,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
     match variable {
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
+            let derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
                 material,
                 quantities,
                 input.vacuum_wavenumber(),
@@ -665,150 +869,70 @@ where
     }
 }
 
-pub(crate) fn reconstruct_scatter_fields<C, D, A>(
-    workspace: &ScatterWorkspace<A>,
-    incident_side: IncidentSide,
-    source: &ArrayBase<OwnedRepr<C>, D>,
-) -> Vec<LayerBoundaryWavesGeneric<A>>
+/// Construct second-order normal-wavenumber and admittance jets for one medium.
+///
+/// `variable` must already be primitive.
+fn medium_second_jets<M, C, D>(
+    material: &M,
+    quantities: &IsotropicLayerQuantities<C, D>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    variable: DerivativeVariable,
+) -> (ArrayJet<C, D>, ArrayJet<C, D>)
 where
+    M: DifferentiableMaterial<Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
-    A: ScalarAlgebra<C, D> + Clone,
 {
-    let components = workspace.components().expect(
-        "scatter components are retained only when \
-             internal fields are requested",
-    );
-
-    let layer_cuts = workspace.layer_cuts().expect(
-        "layer cuts are retained only when \
-             internal fields are requested",
-    );
-
-    let prefixes = prefix_cascades::<C, D, A>(components, source);
-
-    let suffixes = suffix_cascades::<C, D, A>(components, source);
-
-    /*
-     * Incoming amplitudes are represented using the same algebra as the
-     * scattering entries. For jets, both are constants: changing a stack or
-     * spectral parameter does not change the imposed unit incident amplitude.
-     */
-    let zero = A::constant_like(source, C::zero());
-
-    let one = A::constant_like(source, C::one());
-
-    let (left_incoming, right_incoming) = match incident_side {
-        IncidentSide::Left => (one, zero),
-
-        IncidentSide::Right => (zero, one),
-    };
-
-    layer_cuts
-        .iter()
-        .map(|cuts| {
-            let left_cut = cuts.left();
-            let right_cut = cuts.right();
-
-            let left = waves_at_cut::<C, D, A>(
-                &prefixes[left_cut],
-                &suffixes[left_cut],
-                &left_incoming,
-                &right_incoming,
+    match variable {
+        DerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerSecondDerivatives::real_vacuum_wavenumber_squared(
+                material,
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
             );
 
-            let right = waves_at_cut::<C, D, A>(
-                &prefixes[right_cut],
-                &suffixes[right_cut],
-                &left_incoming,
-                &right_incoming,
+            let kappa = ArrayJet::from_parts(
+                quantities.kappa().clone(),
+                derivatives.first().dkappa().clone(),
+                derivatives.ddkappa().clone(),
             );
 
-            LayerBoundaryWavesGeneric::new(left, right)
-        })
-        .collect()
-}
+            let admittance =
+                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
 
-fn prefix_cascades<C, D, A>(
-    components: &[ScatterEntries<A>],
-    source: &ArrayBase<OwnedRepr<C>, D>,
-) -> Vec<ScatterEntries<A>>
-where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D> + Clone,
-{
-    let mut prefixes = Vec::with_capacity(components.len() + 1);
+            (kappa, admittance)
+        }
 
-    prefixes.push(ScatterEntries::identity_like(source));
+        DerivativeVariable::ParallelWavenumberSquared => {
+            let derivatives =
+                IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
 
-    for component in components {
-        let next = cascade::<C, D, A>(
-            prefixes.last().expect("identity prefix was inserted"),
-            component,
-        );
+            let kappa = ArrayJet::from_parts(
+                quantities.kappa().clone(),
+                derivatives.first().dkappa().clone(),
+                derivatives.ddkappa().clone(),
+            );
 
-        prefixes.push(next);
+            let admittance =
+                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
+
+            (kappa, admittance)
+        }
+
+        DerivativeVariable::Thickness(_) => {
+            let kappa = ArrayJet::constant(quantities.kappa().clone());
+
+            let admittance = ArrayJet::constant(quantities.admittance().into_inner());
+
+            (kappa, admittance)
+        }
+
+        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+            unreachable!("primitive() returned a linear derivative variable")
+        }
     }
-
-    prefixes
-}
-
-fn suffix_cascades<C, D, A>(
-    components: &[ScatterEntries<A>],
-    source: &ArrayBase<OwnedRepr<C>, D>,
-) -> Vec<ScatterEntries<A>>
-where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D> + Clone,
-{
-    let component_count = components.len();
-
-    let mut reversed = Vec::with_capacity(component_count + 1);
-
-    reversed.push(ScatterEntries::identity_like(source));
-
-    for component in components.iter().rev() {
-        let next = cascade::<C, D, A>(
-            component,
-            reversed.last().expect("identity suffix was inserted"),
-        );
-
-        reversed.push(next);
-    }
-
-    reversed.reverse();
-    reversed
-}
-
-fn waves_at_cut<C, D, A>(
-    left: &ScatterEntries<A>,
-    right: &ScatterEntries<A>,
-    left_incoming: &A,
-    right_incoming: &A,
-) -> BidirectionalWavesGeneric<A>
-where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D>,
-{
-    let one = A::constant_like(left.s11.value(), C::one());
-
-    let denominator = one.subtract(&left.s22.multiply(&right.s11));
-
-    let forward = left
-        .s21
-        .multiply(left_incoming)
-        .add(&left.s22.multiply(&right.s12).multiply(right_incoming))
-        .divide(&denominator);
-
-    let backward = right
-        .s11
-        .multiply(&forward)
-        .add(&right.s12.multiply(right_incoming));
-
-    BidirectionalWavesGeneric::new(forward, backward)
 }
 
 #[cfg(test)]
@@ -934,9 +1058,7 @@ mod tests {
 
         let input = planar(3.0, 0.0, Polarisation::TransverseElectric);
 
-        let matrix = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let matrix = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         let denominator = 1.0 + 1.5;
 
@@ -956,7 +1078,7 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
 
         let matrix = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
+            .evaluate_meromorphic(&stack, &input)
             .unwrap();
 
         assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
@@ -981,9 +1103,7 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let matrix = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let matrix = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         let kappa = (2.25 * 3.0_f64.powi(2) - 0.4_f64.powi(2)).sqrt();
 
@@ -1004,9 +1124,7 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let with_layer = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let with_layer = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         /*
          * A zero-thickness intermediate layer should algebraically collapse to
@@ -1014,9 +1132,7 @@ mod tests {
          */
         let direct = empty_stack(1.0, 1.44);
 
-        let without_layer = Scatter2::new()
-            .evaluate(&direct, &input, InternalFieldRequest::None)
-            .unwrap();
+        let without_layer = Scatter2::new().evaluate(&direct, &input).unwrap();
 
         assert_matrix_close(&with_layer, &without_layer, 1e-12);
     }
@@ -1033,13 +1149,9 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let first = Scatter2::new()
-            .evaluate(&first, &input, InternalFieldRequest::None)
-            .unwrap();
+        let first = Scatter2::new().evaluate(&first, &input).unwrap();
 
-        let reversed = Scatter2::new()
-            .evaluate(&reversed, &input, InternalFieldRequest::None)
-            .unwrap();
+        let reversed = Scatter2::new().evaluate(&reversed, &input).unwrap();
 
         assert_ne!(first.s11(), reversed.s11());
     }
@@ -1057,24 +1169,15 @@ mod tests {
                 &two_layer_stack(d0, d1),
                 &input,
                 DerivativeVariable::Thickness(0),
-                InternalFieldRequest::None,
             )
             .unwrap();
 
         let plus = Scatter2::new()
-            .evaluate(
-                &two_layer_stack(d0 + h, d1),
-                &input,
-                InternalFieldRequest::None,
-            )
+            .evaluate(&two_layer_stack(d0 + h, d1), &input)
             .unwrap();
 
         let minus = Scatter2::new()
-            .evaluate(
-                &two_layer_stack(d0 - h, d1),
-                &input,
-                InternalFieldRequest::None,
-            )
+            .evaluate(&two_layer_stack(d0 - h, d1), &input)
             .unwrap();
 
         assert_complex_close(
@@ -1115,28 +1218,19 @@ mod tests {
                 &two_layer_stack(d0, d1),
                 &input,
                 DerivativeVariable::Thickness(1),
-                InternalFieldRequest::None,
             )
             .unwrap();
 
         let plus = Scatter2::new()
-            .evaluate(
-                &two_layer_stack(d0, d1 + h),
-                &input,
-                InternalFieldRequest::None,
-            )
+            .evaluate(&two_layer_stack(d0, d1 + h), &input)
             .unwrap();
 
         let zero = Scatter2::new()
-            .evaluate(&two_layer_stack(d0, d1), &input, InternalFieldRequest::None)
+            .evaluate(&two_layer_stack(d0, d1), &input)
             .unwrap();
 
         let minus = Scatter2::new()
-            .evaluate(
-                &two_layer_stack(d0, d1 - h),
-                &input,
-                InternalFieldRequest::None,
-            )
+            .evaluate(&two_layer_stack(d0, d1 - h), &input)
             .unwrap();
 
         let h2 = h * h;
@@ -1164,25 +1258,16 @@ mod tests {
         let input = planar(k0, 0.4, Polarisation::TransverseElectric);
 
         let analytic = Scatter2::new()
-            .evaluate_first(
-                &stack,
-                &input,
-                DerivativeVariable::VacuumWavenumber,
-                InternalFieldRequest::None,
-            )
+            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumber)
             .unwrap();
 
         let plus_input = planar(k0 + h, 0.4, Polarisation::TransverseElectric);
 
         let minus_input = planar(k0 - h, 0.4, Polarisation::TransverseElectric);
 
-        let plus = Scatter2::new()
-            .evaluate(&stack, &plus_input, InternalFieldRequest::None)
-            .unwrap();
+        let plus = Scatter2::new().evaluate(&stack, &plus_input).unwrap();
 
-        let minus = Scatter2::new()
-            .evaluate(&stack, &minus_input, InternalFieldRequest::None)
-            .unwrap();
+        let minus = Scatter2::new().evaluate(&stack, &minus_input).unwrap();
 
         assert_complex_close(
             analytic.s11.first()[()],
@@ -1215,7 +1300,6 @@ mod tests {
                 &stack,
                 &input,
                 DerivativeVariable::ParallelWavenumberSquared,
-                InternalFieldRequest::None,
             )
             .unwrap();
 
@@ -1237,17 +1321,11 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus = Scatter2::new()
-            .evaluate(&stack, &plus_input, InternalFieldRequest::None)
-            .unwrap();
+        let plus = Scatter2::new().evaluate(&stack, &plus_input).unwrap();
 
-        let zero = Scatter2::new()
-            .evaluate(&stack, &zero_input, InternalFieldRequest::None)
-            .unwrap();
+        let zero = Scatter2::new().evaluate(&stack, &zero_input).unwrap();
 
-        let minus = Scatter2::new()
-            .evaluate(&stack, &minus_input, InternalFieldRequest::None)
-            .unwrap();
+        let minus = Scatter2::new().evaluate(&stack, &minus_input).unwrap();
 
         let h2 = h * h;
 
@@ -1271,12 +1349,7 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
-            .evaluate_first(
-                &stack,
-                &input,
-                DerivativeVariable::Thickness(1),
-                InternalFieldRequest::None,
-            )
+            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(1))
             .unwrap_err();
 
         assert_eq!(
@@ -1299,12 +1372,7 @@ mod tests {
         );
 
         let result = Scatter2::new()
-            .evaluate_second(
-                &stack,
-                &input,
-                DerivativeVariable::VacuumWavenumber,
-                InternalFieldRequest::None,
-            )
+            .evaluate_second(&stack, &input, DerivativeVariable::VacuumWavenumber)
             .unwrap();
 
         let expected = input.vacuum_wavenumber().raw_dim();

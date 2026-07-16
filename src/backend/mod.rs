@@ -9,7 +9,7 @@ mod mode;
 mod plane_wave;
 
 pub mod scatter2;
-pub mod transfer2;
+// pub mod transfer2;
 
 pub use derivative::DerivativeVariable;
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};

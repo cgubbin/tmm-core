@@ -36,7 +36,7 @@ use crate::{
         },
         jet::{ArrayJet, ArrayJetFirst},
     },
-    material::Material,
+    material::{DifferentiableMaterial, Material, MeromorphicMaterial},
 };
 
 /// Characteristic admittance of one isotropic medium.
@@ -74,12 +74,29 @@ where
     /// already been evaluated.
     pub(crate) fn evaluate<M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Self
     where
         M: Material<Real = C::RealField>,
+        C::RealField: Copy,
     {
         let quantities = IsotropicLayerQuantities::new(material, planar);
+
+        Self::from_quantities(&quantities)
+    }
+
+    /// Evaluate the admittance of a material at a sampled planar input.
+    ///
+    /// Prefer [`Self::from_quantities`] when the isotropic quantities have
+    /// already been evaluated.
+    pub(crate) fn evaluate_meromorphic<M>(
+        material: &M,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self
+    where
+        M: MeromorphicMaterial<Real = C::RealField>,
+    {
+        let quantities = IsotropicLayerQuantities::new_meromorphic(material, planar);
 
         Self::from_quantities(&quantities)
     }
@@ -171,11 +188,12 @@ where
     /// requested linear coordinate when necessary.
     pub(crate) fn evaluate_first<M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: Material<Real = C::RealField>,
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C::RealField: Copy,
     {
         let quantities = IsotropicLayerQuantities::new(material, planar);
 
@@ -185,7 +203,7 @@ where
 
         let first = match primitive {
             DerivativeVariable::VacuumWavenumberSquared => {
-                let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
+                let derivatives = IsotropicLayerFirstDerivatives::real_vacuum_wavenumber_squared(
                     material,
                     &quantities,
                     planar.vacuum_wavenumber(),
@@ -211,7 +229,7 @@ where
 
         let jet = ArrayJetFirst::from_parts(value, first);
 
-        match variable.chain_rule(planar) {
+        match variable.chain_rule(&planar.map(|values| values.mapv(C::from_real))) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }
@@ -229,11 +247,12 @@ where
     /// requested linear coordinate when necessary.
     pub(crate) fn evaluate_second<M>(
         material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: Material<Real = C::RealField>,
+        M: DifferentiableMaterial<Real = C::RealField>,
+        C::RealField: Copy,
     {
         let quantities = IsotropicLayerQuantities::new(material, planar);
 
@@ -243,7 +262,7 @@ where
 
         let (first, second) = match primitive {
             DerivativeVariable::VacuumWavenumberSquared => {
-                let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
+                let derivatives = IsotropicLayerSecondDerivatives::real_vacuum_wavenumber_squared(
                     material,
                     &quantities,
                     planar.vacuum_wavenumber(),
@@ -279,7 +298,7 @@ where
 
         let jet = ArrayJet::from_parts(value, first, second);
 
-        match variable.chain_rule(planar) {
+        match variable.chain_rule(&planar.map(|values| values.mapv(C::from_real))) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }

@@ -53,7 +53,13 @@ where
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+}
 
+pub trait DifferentiablePlaneWaveBackend<C, D, S>: PlaneWaveBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
     /// Solve for the response and its first derivative with respect to
     /// `variable`.
     fn solve_plane_wave_first_derivative(

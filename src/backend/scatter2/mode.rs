@@ -37,10 +37,10 @@ use crate::{
             IsotropicLayerSecondDerivatives,
         },
         jet::{ArrayJet, ArrayJetFirst},
-        mode::ResidualDerivatives,
+        mode::{DifferentiableOutgoingModeBackend, ResidualDerivatives},
         scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
     },
-    material::Material,
+    material::{DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial},
     stack::Stack,
 };
 
@@ -49,7 +49,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: MeromorphicMaterial<Real = C::RealField>,
 {
     type Error = Scatter2Error;
 
@@ -58,7 +58,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix = self.evaluate(stack, input, InternalFieldRequest::None)?;
+        let matrix = self.evaluate_meromorphic(stack, input)?;
 
         let entries = matrix.into_entries();
 
@@ -68,7 +68,15 @@ where
 
         Ok(AnalyticResidual::new(residual))
     }
+}
 
+impl<C, D, M> DifferentiableOutgoingModeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+{
     fn outgoing_mode_residual_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
@@ -83,12 +91,7 @@ where
          *
          * The exterior admittance must undergo the same transformation.
          */
-        let entries = self.evaluate_first(
-            stack,
-            input,
-            variable,
-            crate::backend::field::InternalFieldRequest::None,
-        )?;
+        let entries = self.evaluate_first_meromorphic(stack, input, variable)?;
 
         let primitive = variable.primitive();
 
@@ -114,12 +117,7 @@ where
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
         variable: DerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let entries = self.evaluate_second(
-            stack,
-            input,
-            variable,
-            crate::backend::field::InternalFieldRequest::None,
-        )?;
+        let entries = self.evaluate_second_meromorphic(stack, input, variable)?;
 
         let primitive = variable.primitive();
 
@@ -175,11 +173,11 @@ fn left_admittance<M, C, D>(
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
 ) -> ArrayBase<OwnedRepr<C>, D>
 where
-    M: Material<Real = C::RealField>,
+    M: MeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
-    IsotropicLayerQuantities::new(stack.left_exterior(), input)
+    IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input)
         .admittance()
         .into_inner()
 }
@@ -190,15 +188,15 @@ fn left_admittance_first<M, C, D>(
     variable: DerivativeVariable,
 ) -> ArrayJetFirst<C, D>
 where
-    M: Material<Real = C::RealField>,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
-    let quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
+    let quantities = IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
 
     match variable {
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
+            let derivatives = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
                 stack.left_exterior(),
                 &quantities,
                 input.vacuum_wavenumber(),
@@ -231,15 +229,15 @@ fn left_admittance_second<M, C, D>(
     variable: DerivativeVariable,
 ) -> ArrayJet<C, D>
 where
-    M: Material<Real = C::RealField>,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
     C: ComplexScalar,
     D: Dimension,
 {
-    let quantities = IsotropicLayerQuantities::new(stack.left_exterior(), input);
+    let quantities = IsotropicLayerQuantities::new_meromorphic(stack.left_exterior(), input);
 
     match variable {
         DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
+            let derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
                 stack.left_exterior(),
                 &quantities,
                 input.vacuum_wavenumber(),

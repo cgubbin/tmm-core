@@ -8,12 +8,6 @@ use crate::{
 pub trait TensorMaterial {
     type Real;
 
-    fn is_dispersive(&self) -> bool;
-
-    fn static_permittivity_tensor<C>(&self) -> Tensor3<C>
-    where
-        C: ComplexScalar<RealField = Self::Real>;
-
     fn relative_permittivity_tensor<I, C>(&self, wavenumber: I) -> I::TensorOutput<C>
     where
         I: TensorSampled<Elem = C>,
@@ -50,18 +44,6 @@ where
     M: Material,
 {
     type Real = M::Real;
-
-    fn is_dispersive(&self) -> bool {
-        Material::is_dispersive(self)
-    }
-
-    fn static_permittivity_tensor<C>(&self) -> Tensor3<C>
-    where
-        C: ComplexScalar<RealField = Self::Real>,
-    {
-        let eps = C::from_real(self.static_permittivity());
-        diagonal3(eps, eps, eps)
-    }
 
     fn relative_permittivity_tensor<I, C>(&self, wavenumber: I) -> I::TensorOutput<C>
     where
@@ -151,21 +133,6 @@ where
     Mz: Material<Real = Mx::Real>,
 {
     type Real = Mx::Real;
-
-    fn is_dispersive(&self) -> bool {
-        self.xx.is_dispersive() || self.yy.is_dispersive() || self.zz.is_dispersive()
-    }
-
-    fn static_permittivity_tensor<C>(&self) -> Tensor3<C>
-    where
-        C: ComplexScalar<RealField = Self::Real>,
-    {
-        diagonal3(
-            C::from_real(self.xx.static_permittivity()),
-            C::from_real(self.yy.static_permittivity()),
-            C::from_real(self.zz.static_permittivity()),
-        )
-    }
 
     fn relative_permittivity_tensor<I, C>(&self, wavenumber: I) -> I::TensorOutput<C>
     where

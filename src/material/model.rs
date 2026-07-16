@@ -1,7 +1,10 @@
 use num_traits::{Float, One, Zero};
 
 use super::{DerivativeOrder, DrudeLorentzBuilder, Material, Sampled, SpectralVariable};
-use crate::ComplexScalar;
+use crate::{
+    ComplexScalar,
+    material::{DifferentiableMaterial, DifferentiableMeromorphicMaterial, MeromorphicMaterial},
+};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Constant<R> {
@@ -39,17 +42,9 @@ where
 {
     type Real = R;
 
-    fn is_dispersive(&self) -> bool {
-        false
-    }
-
-    fn static_permittivity(&self) -> R {
-        self.epsilon
-    }
-
     fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = Self::Real>,
         C: ComplexScalar<RealField = R>,
     {
         wavenumber.map(|_| C::from_real(self.epsilon.sqrt()))
@@ -57,7 +52,7 @@ where
 
     fn relative_permittivity<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = Self::Real>,
         C: ComplexScalar<RealField = R>,
     {
         wavenumber.map(|_| C::from_real(self.epsilon))
@@ -65,12 +60,17 @@ where
 
     fn relative_permeability<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = Self::Real>,
         C: ComplexScalar<RealField = R>,
     {
         wavenumber.map(|_| C::from_real(self.mu))
     }
+}
 
+impl<R> DifferentiableMaterial for Constant<R>
+where
+    R: Float + Zero + One,
+{
     fn relative_permittivity_derivative<I, C>(
         &self,
         wavenumber: I,
@@ -78,10 +78,49 @@ where
         _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = Self::Real>,
         C: ComplexScalar<RealField = R>,
     {
         wavenumber.map(|_| C::zero())
+    }
+}
+
+impl<R> MeromorphicMaterial for Constant<R>
+where
+    R: Float + Zero + One,
+{
+    fn relative_permittivity_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|_| C::from_real(self.epsilon))
+    }
+
+    fn relative_permeability_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|_| C::from_real(self.mu))
+    }
+}
+
+impl<R> DifferentiableMeromorphicMaterial for Constant<R>
+where
+    R: Float + Zero + One,
+{
+    fn relative_permittivity_complex_derivative<I, C>(
+        &self,
+        vacuum_wavenumber: I,
+        _order: DerivativeOrder,
+        _variable: SpectralVariable,
+    ) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|_| C::zero())
     }
 }
 
@@ -129,30 +168,27 @@ where
 {
     type Real = R;
 
-    fn is_dispersive(&self) -> bool {
-        self.drude.is_some() || !self.lorentz.is_empty()
-    }
-
-    fn static_permittivity(&self) -> R {
-        self.epsilon_infinity
-    }
-
     fn relative_permittivity<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = C::RealField>,
         C: ComplexScalar<RealField = R> + Copy,
     {
-        wavenumber.map(|w| self.relative_permittivity_at(w))
+        wavenumber.map(|w| self.relative_permittivity_at(C::from_real(w)))
     }
 
     fn refractive_index<I, C>(&self, wavenumber: I) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real> + Copy,
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = C::RealField>,
     {
-        wavenumber.map(|w| self.relative_permittivity_at(w).sqrt())
+        wavenumber.map(|w| self.relative_permittivity_at(C::from_real(w)).sqrt())
     }
+}
 
+impl<R> DifferentiableMaterial for DrudeLorentz<R>
+where
+    R: Float + Zero + One,
+{
     fn relative_permittivity_derivative<I, C>(
         &self,
         wavenumber: I,
@@ -160,10 +196,50 @@ where
         variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        I: Sampled<Elem = C>,
+        I: Sampled<Elem = C::RealField>,
         C: ComplexScalar<RealField = R> + Copy,
     {
-        wavenumber.map(|w| self.relative_permittivity_derivative_at(w, order, variable))
+        wavenumber
+            .map(|w| self.relative_permittivity_derivative_at(C::from_real(w), order, variable))
+    }
+}
+
+impl<R> MeromorphicMaterial for DrudeLorentz<R>
+where
+    R: Float + Zero + One,
+{
+    fn relative_permittivity_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|w| self.relative_permittivity_at(w))
+    }
+
+    fn relative_permeability_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|_| C::one())
+    }
+}
+
+impl<R> DifferentiableMeromorphicMaterial for DrudeLorentz<R>
+where
+    R: Float + Zero + One,
+{
+    fn relative_permittivity_complex_derivative<I, C>(
+        &self,
+        vacuum_wavenumber: I,
+        order: DerivativeOrder,
+        variable: SpectralVariable,
+    ) -> I::Mapped<C>
+    where
+        C: ComplexScalar<RealField = Self::Real> + Copy,
+        I: Sampled<Elem = C>,
+    {
+        vacuum_wavenumber.map(|w| self.relative_permittivity_derivative_at(w, order, variable))
     }
 }
 
@@ -352,19 +428,6 @@ mod tests {
     type C = Complex<f64>;
 
     #[test]
-    fn constant_material_is_not_dispersive() {
-        let material = Constant::new(4.0, 1.0);
-
-        assert!(!material.is_dispersive());
-        assert_eq!(material.static_permittivity(), 4.0);
-
-        let eps: C = material.relative_permittivity(Scalar(C::new(1000.0, 0.0)));
-
-        assert_relative_eq!(eps.re, 4.0);
-        assert_relative_eq!(eps.im, 0.0);
-    }
-
-    #[test]
     fn constant_material_derivative_is_zero() {
         let material = Constant::new(4.0, 1.0);
 
@@ -376,16 +439,6 @@ mod tests {
 
         assert_relative_eq!(deps.re, 0.0);
         assert_relative_eq!(deps.im, 0.0);
-    }
-
-    #[test]
-    fn drude_lorentz_reports_dispersion() {
-        let material = DrudeLorentz::builder(1.0)
-            .with_drude(68153.8, 2382.6)
-            .build();
-
-        assert!(material.is_dispersive());
-        assert_eq!(material.static_permittivity(), 1.0);
     }
 
     #[test]

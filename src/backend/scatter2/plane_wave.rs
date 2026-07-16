@@ -5,11 +5,12 @@ use crate::{
     ComplexScalar, IncidentSide, PlanarInput,
     backend::{
         DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
-        field::InternalFieldRequest,
         isotropic::IsotropicLayerAdmittance,
-        scatter2::{Scatter2, Scatter2Error},
+        jet::{ArrayJet, ArrayJetFirst},
+        plane_wave::DifferentiablePlaneWaveBackend,
+        scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
     },
-    material::Material,
+    material::{DifferentiableMaterial, Material},
     stack::Stack,
 };
 
@@ -27,68 +28,51 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
-
-        let matrix = self.evaluate(stack, &planar, InternalFieldRequest::None)?;
+        let matrix = self.evaluate(stack, input.planar())?;
 
         let entries = matrix.into_entries();
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        // Construct complex exterior admittances using the lifted input.
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner();
-
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar).into_inner();
-
-        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
-            IncidentSide::Left => (left_admittance, right_admittance),
-
-            IncidentSide::Right => (right_admittance, left_admittance),
-        };
-
-        Ok(PlaneWaveResponse::from_values(
+        let response = plane_wave_from_amplitudes(
             reflection,
             transmission,
-            incident_normalisation,
-            transmitted_normalisation,
-        ))
-    }
+            input.planar(),
+            stack,
+            input.incident_side(),
+        );
 
+        Ok(response)
+    }
+}
+
+impl<C, D, M> DifferentiablePlaneWaveBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+{
     fn solve_plane_wave_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
-
-        let entries = self.evaluate_first(stack, &planar, variable, InternalFieldRequest::None)?;
+        let entries = self.evaluate_first(stack, input.planar(), variable)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), &planar, variable);
-
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), &planar, variable);
-
-        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
-            IncidentSide::Left => (left_admittance, right_admittance),
-
-            IncidentSide::Right => (right_admittance, left_admittance),
-        };
-
-        Ok(PlaneWaveResponse::from_first_jets(
+        let response = plane_wave_from_first_jet_amplitudes(
             reflection,
             transmission,
-            incident_normalisation,
-            transmitted_normalisation,
+            input.planar(),
+            stack,
+            input.incident_side(),
             variable,
-        ))
+        );
+
+        Ok(response)
     }
 
     fn solve_plane_wave_second_derivative(
@@ -97,32 +81,127 @@ where
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: DerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
-        let entries = self.evaluate_second(stack, &planar, variable, InternalFieldRequest::None)?;
+        let entries = self.evaluate_second(stack, input.planar(), variable)?;
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), &planar, variable);
-
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), &planar, variable);
-
-        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
-            IncidentSide::Left => (left_admittance, right_admittance),
-
-            IncidentSide::Right => (right_admittance, left_admittance),
-        };
-
-        Ok(PlaneWaveResponse::from_second_jets(
+        let response = plane_wave_from_second_jet_amplitudes(
             reflection,
             transmission,
-            incident_normalisation,
-            transmitted_normalisation,
+            input.planar(),
+            stack,
+            input.incident_side(),
             variable,
-        ))
+        );
+
+        Ok(response)
     }
+}
+
+pub(super) fn plane_wave_from_amplitudes<C, D, M>(
+    reflection: ArrayBase<OwnedRepr<C>, D>,
+    transmission: ArrayBase<OwnedRepr<C>, D>,
+    planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    stack: &Stack<M, C::RealField>,
+    incident_side: IncidentSide,
+) -> PlaneWaveResponse<C, D>
+where
+    C: ComplexScalar,
+    C::RealField: Float,
+    D: Dimension,
+    M: Material<Real = C::RealField>,
+{
+    // Construct complex exterior admittances using the lifted input.
+    let left_admittance =
+        IsotropicLayerAdmittance::evaluate(stack.left_exterior(), planar).into_inner();
+
+    let right_admittance =
+        IsotropicLayerAdmittance::evaluate(stack.right_exterior(), planar).into_inner();
+
+    let (incident_normalisation, transmitted_normalisation) = match incident_side {
+        IncidentSide::Left => (left_admittance, right_admittance),
+
+        IncidentSide::Right => (right_admittance, left_admittance),
+    };
+
+    PlaneWaveResponse::from_values(
+        reflection,
+        transmission,
+        incident_normalisation,
+        transmitted_normalisation,
+    )
+}
+
+pub(super) fn plane_wave_from_first_jet_amplitudes<C, D, M>(
+    reflection: ArrayJetFirst<C, D>,
+    transmission: ArrayJetFirst<C, D>,
+    planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    stack: &Stack<M, C::RealField>,
+    incident_side: IncidentSide,
+    variable: DerivativeVariable,
+) -> PlaneWaveResponse<C, D>
+where
+    C: ComplexScalar,
+    C::RealField: Float,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+{
+    // Construct complex exterior admittances using the lifted input.
+    let left_admittance =
+        IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), planar, variable);
+
+    let right_admittance =
+        IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), planar, variable);
+
+    let (incident_normalisation, transmitted_normalisation) = match incident_side {
+        IncidentSide::Left => (left_admittance, right_admittance),
+
+        IncidentSide::Right => (right_admittance, left_admittance),
+    };
+
+    PlaneWaveResponse::from_first_jets(
+        reflection,
+        transmission,
+        incident_normalisation,
+        transmitted_normalisation,
+        variable,
+    )
+}
+
+pub(super) fn plane_wave_from_second_jet_amplitudes<C, D, M>(
+    reflection: ArrayJet<C, D>,
+    transmission: ArrayJet<C, D>,
+    planar: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    stack: &Stack<M, C::RealField>,
+    incident_side: IncidentSide,
+    variable: DerivativeVariable,
+) -> PlaneWaveResponse<C, D>
+where
+    C: ComplexScalar,
+    C::RealField: Float,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+{
+    // Construct complex exterior admittances using the lifted input.
+    let left_admittance =
+        IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), planar, variable);
+
+    let right_admittance =
+        IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), planar, variable);
+
+    let (incident_normalisation, transmitted_normalisation) = match incident_side {
+        IncidentSide::Left => (left_admittance, right_admittance),
+
+        IncidentSide::Right => (right_admittance, left_admittance),
+    };
+
+    PlaneWaveResponse::from_second_jets(
+        reflection,
+        transmission,
+        incident_normalisation,
+        transmitted_normalisation,
+        variable,
+    )
 }
 
 #[cfg(test)]
@@ -293,9 +372,7 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -319,9 +396,7 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -339,9 +414,7 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -360,9 +433,7 @@ mod plane_wave_backend_tests {
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new()
-            .evaluate(&stack, &input, InternalFieldRequest::None)
-            .unwrap();
+        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }

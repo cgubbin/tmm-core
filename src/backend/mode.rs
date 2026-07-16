@@ -77,7 +77,13 @@ where
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+}
 
+pub trait DifferentiableOutgoingModeBackend<C, D, S>: OutgoingModeBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
     /// Evaluate the residual and its first derivative with respect to
     /// `variable`.
     fn outgoing_mode_residual_first_derivative(
