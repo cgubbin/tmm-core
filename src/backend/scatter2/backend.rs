@@ -49,7 +49,7 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
-    ComplexScalar, DerivativeVariable, IncidentSide,
+    ComplexScalar,
     backend::{
         PlanarInput,
         algebra::ScalarAlgebra,
@@ -57,11 +57,7 @@ use crate::{
         evaluator::{
             ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
         },
-        field::{
-            BidirectionalWaveDifferential, BidirectionalWaves, BidirectionalWavesGeneric,
-            ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves, InternalFieldRequest,
-            LayerBoundaryWavesGeneric,
-        },
+        field::InternalFieldRequest,
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
@@ -70,14 +66,12 @@ use crate::{
         scatter2::{
             ScatterMatrix2,
             component::{interface, propagation_from_exponent},
-            entries::{Scatter2Jet, Scatter2JetFirst, ScatterEntries, cascade},
+            entries::{Scatter2Jet, Scatter2JetFirst},
             error::Scatter2Error,
             workspace::ScatterWorkspace,
         },
     },
-    material::{
-        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
-    },
+    material::{Material, MeromorphicMaterial},
     stack::Stack,
 };
 

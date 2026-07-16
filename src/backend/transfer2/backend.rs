@@ -30,6 +30,8 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlanarInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::{ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator},
         isotropic::{
             IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
@@ -54,13 +56,13 @@ impl Transfer2 {
     }
 
     /// Evaluate the transfer matrix without derivatives.
-    pub(crate) fn evaluate<M, C, D>(
+    pub(crate) fn evaluate_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<Matrix2<C, D>, Transfer2Error>
     where
-        M: Material<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -68,7 +70,7 @@ impl Transfer2 {
         let mut total = Matrix2::identity_like(input.vacuum_wavenumber());
 
         for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let layer_matrix = Matrix2::from_layer(&quantities, layer.thickness());
 
@@ -79,14 +81,14 @@ impl Transfer2 {
     }
 
     /// Evaluate the transfer matrix and its first derivative.
-    pub(crate) fn evaluate_first<M, C, D>(
+    pub(crate) fn evaluate_structural_first_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<Transfer2JetFirst<C, D>, Transfer2Error>
     where
-        M: Material<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -99,9 +101,43 @@ impl Transfer2 {
             Transfer2JetFirst::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-            let layer = first_layer_jet(index, layer, &quantities, input, primitive);
+            let layer = first_layer_jet_structural(index, layer, &quantities, primitive);
+
+            total = total.multiply(&layer);
+        }
+
+        if let Some(rule) = variable.chain_rule(input) {
+            total = total.chain_rule(&rule);
+        }
+
+        Ok(total)
+    }
+
+    /// Evaluate the transfer matrix and its first derivative.
+    pub(crate) fn evaluate_spectral_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<Transfer2JetFirst<C, D>, Transfer2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let primitive = variable.primitive();
+
+        let mut total =
+            Transfer2JetFirst::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
+
+        for (_index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
+
+            let layer =
+                first_layer_jet_spectral::<E, _, _, _>(layer, &quantities, input, primitive);
 
             total = total.multiply(&layer);
         }
@@ -114,14 +150,14 @@ impl Transfer2 {
     }
 
     /// Evaluate the transfer matrix and its first two derivatives.
-    pub(crate) fn evaluate_second<M, C, D>(
+    pub(crate) fn evaluate_structural_second_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<Transfer2Jet<C, D>, Transfer2Error>
     where
-        M: Material<Real = C::RealField>,
+        E: ConstitutiveEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -133,9 +169,42 @@ impl Transfer2 {
         let mut total = Transfer2Jet::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-            let layer = second_layer_jet(index, layer, &quantities, input, primitive);
+            let layer = second_layer_jet_structural(index, layer, &quantities, primitive);
+
+            total = total.multiply(&layer);
+        }
+
+        if let Some(rule) = variable.chain_rule(input) {
+            total = total.chain_rule(&rule);
+        }
+
+        Ok(total)
+    }
+
+    /// Evaluate the transfer matrix and its first two derivatives.
+    pub(crate) fn evaluate_spectral_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: SpectralDerivativeVariable,
+    ) -> Result<Transfer2Jet<C, D>, Transfer2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let primitive = variable.primitive();
+
+        let mut total = Transfer2Jet::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
+
+        for (_index, layer) in stack.iter().enumerate() {
+            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
+
+            let layer =
+                second_layer_jet_spectral::<E, _, _, _>(layer, &quantities, input, primitive);
 
             total = total.multiply(&layer);
         }
@@ -150,9 +219,9 @@ impl Transfer2 {
 
 fn validate_derivative_variable<M, R>(
     stack: &Stack<M, R>,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
 ) -> Result<(), Transfer2Error> {
-    if let DerivativeVariable::Thickness(requested) = variable {
+    if let StructuralDerivativeVariable::Thickness(requested) = variable {
         let layer_count = stack.len();
 
         if requested >= layer_count {
@@ -166,15 +235,13 @@ fn validate_derivative_variable<M, R>(
     Ok(())
 }
 
-fn first_layer_jet<M, C, D>(
+fn first_layer_jet_structural<M, C, D>(
     layer_index: usize,
     layer: &Layer<M, C::RealField>,
     quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
+    variable: StructuralDerivativeVariable,
 ) -> Transfer2JetFirst<C, D>
 where
-    M: Material<Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
@@ -182,28 +249,15 @@ where
     let matrix = Matrix2::from_layer(quantities, layer.thickness());
 
     match variable {
-        DerivativeVariable::Thickness(requested) if requested == layer_index => {
+        StructuralDerivativeVariable::Thickness(requested) if requested == layer_index => {
             let first = Matrix2::thickness_derivative(quantities, layer.thickness());
 
             Transfer2JetFirst::from_parts(matrix, first)
         }
 
-        DerivativeVariable::Thickness(_) => Transfer2JetFirst::constant(matrix),
+        StructuralDerivativeVariable::Thickness(_) => Transfer2JetFirst::constant(matrix),
 
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
-                layer.material(),
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let first = Matrix2::spectral_derivative(quantities, layer.thickness(), &derivatives);
-
-            Transfer2JetFirst::from_parts(matrix, first)
-        }
-
-        DerivativeVariable::ParallelWavenumberSquared => {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
 
@@ -212,21 +266,20 @@ where
             Transfer2JetFirst::from_parts(matrix, first)
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
             unreachable!("primitive() returned a linear derivative variable")
         }
     }
 }
 
-fn second_layer_jet<M, C, D>(
-    layer_index: usize,
+fn first_layer_jet_spectral<E, M, C, D>(
     layer: &Layer<M, C::RealField>,
     quantities: &IsotropicLayerQuantities<C, D>,
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: DerivativeVariable,
-) -> Transfer2Jet<C, D>
+    variable: SpectralDerivativeVariable,
+) -> Transfer2JetFirst<C, D>
 where
-    M: Material<Real = C::RealField>,
+    E: ConstitutiveDerivativeEvaluator<C, D, M>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
@@ -234,7 +287,40 @@ where
     let matrix = Matrix2::from_layer(quantities, layer.thickness());
 
     match variable {
-        DerivativeVariable::Thickness(requested) if requested == layer_index => {
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared::<E, _>(
+                layer.material(),
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
+
+            let first = Matrix2::spectral_derivative(quantities, layer.thickness(), &derivatives);
+
+            Transfer2JetFirst::from_parts(matrix, first)
+        }
+
+        SpectralDerivativeVariable::VacuumWavenumber => {
+            unreachable!("primitive() returned a linear derivative variable")
+        }
+    }
+}
+
+fn second_layer_jet_structural<M, C, D>(
+    layer_index: usize,
+    layer: &Layer<M, C::RealField>,
+    quantities: &IsotropicLayerQuantities<C, D>,
+    variable: StructuralDerivativeVariable,
+) -> Transfer2Jet<C, D>
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let matrix = Matrix2::from_layer(quantities, layer.thickness());
+
+    match variable {
+        StructuralDerivativeVariable::Thickness(requested) if requested == layer_index => {
             let first = Matrix2::thickness_derivative(quantities, layer.thickness());
 
             let second = Matrix2::thickness_second_derivative(quantities, layer.thickness());
@@ -242,26 +328,9 @@ where
             Transfer2Jet::from_parts(matrix, first, second)
         }
 
-        DerivativeVariable::Thickness(_) => Transfer2Jet::constant(matrix),
+        StructuralDerivativeVariable::Thickness(_) => Transfer2Jet::constant(matrix),
 
-        DerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
-                layer.material(),
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let first =
-                Matrix2::spectral_derivative(quantities, layer.thickness(), derivatives.first());
-
-            let second =
-                Matrix2::spectral_second_derivative(quantities, layer.thickness(), &derivatives);
-
-            Transfer2Jet::from_parts(matrix, first, second)
-        }
-
-        DerivativeVariable::ParallelWavenumberSquared => {
+        StructuralDerivativeVariable::ParallelWavenumberSquared => {
             let derivatives =
                 IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
 
@@ -274,7 +343,45 @@ where
             Transfer2Jet::from_parts(matrix, first, second)
         }
 
-        DerivativeVariable::VacuumWavenumber | DerivativeVariable::ParallelWavenumber => {
+        StructuralDerivativeVariable::ParallelWavenumber => {
+            unreachable!("primitive() returned a linear derivative variable")
+        }
+    }
+}
+
+fn second_layer_jet_spectral<E, M, C, D>(
+    layer: &Layer<M, C::RealField>,
+    quantities: &IsotropicLayerQuantities<C, D>,
+    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    variable: SpectralDerivativeVariable,
+) -> Transfer2Jet<C, D>
+where
+    E: ConstitutiveDerivativeEvaluator<C, D, M>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let matrix = Matrix2::from_layer(quantities, layer.thickness());
+
+    match variable {
+        SpectralDerivativeVariable::VacuumWavenumberSquared => {
+            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared::<E, _>(
+                layer.material(),
+                quantities,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
+
+            let first =
+                Matrix2::spectral_derivative(quantities, layer.thickness(), derivatives.first());
+
+            let second =
+                Matrix2::spectral_second_derivative(quantities, layer.thickness(), &derivatives);
+
+            Transfer2Jet::from_parts(matrix, first, second)
+        }
+
+        SpectralDerivativeVariable::VacuumWavenumber => {
             unreachable!("primitive() returned a linear derivative variable")
         }
     }

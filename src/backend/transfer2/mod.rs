@@ -25,8 +25,18 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
-    backend::{DerivativeVariable, MatrixEvaluation, PlanarInput, RawMatrixBackend},
-    material::Material,
+    backend::{
+        MatrixEvaluation, PlanarInput, RawMatrixBackend,
+        evaluator::{ComplexPlane, RealAxis},
+        matrix::{
+            ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,
+            ComplexMatrixStructuralDerivativeBackend, RawMatrixSpectralDerivativeBackend,
+            RawMatrixStructuralDerivativeBackend,
+        },
+    },
+    material::{
+        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+    },
     stack::Stack,
 };
 
@@ -43,29 +53,147 @@ where
     fn solve_matrix(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate(stack, input).map(MatrixEvaluation::new)
+        let input = input.clone().to_complex();
+        self.evaluate_with::<RealAxis, _, _, _>(stack, &input)
+            .map(MatrixEvaluation::new)
+    }
+}
+
+impl<C, D, M> RawMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: Material<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    fn solve_matrix_structural_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: super::derivative::StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let input = input.clone().to_complex();
+        self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &input, variable)
+            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
     }
 
-    fn solve_matrix_first_derivative(
+    fn solve_matrix_structural_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: super::derivative::StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let input = input.clone().to_complex();
+        self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &input, variable)
+            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
+    }
+}
+
+impl<C, D, M> RawMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    fn solve_matrix_spectral_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: super::derivative::SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let input = input.clone().to_complex();
+        self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &input, variable)
+            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
+    }
+
+    fn solve_matrix_spectral_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: super::derivative::SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let input = input.clone().to_complex();
+        self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &input, variable)
+            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
+    }
+}
+
+impl<C, D, M> ComplexMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: MeromorphicMaterial<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    type Matrix = Matrix2<C, D>;
+    type Error = Transfer2Error;
+
+    fn solve_analytic_matrix(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_first(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_first_jet(j, variable))
+        self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)
+            .map(MatrixEvaluation::new)
     }
+}
 
-    fn solve_matrix_second_derivative(
+impl<C, D, M> ComplexMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: MeromorphicMaterial<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    fn solve_complex_matrix_structural_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: DerivativeVariable,
+        variable: super::derivative::StructuralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_second(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_second_jet(j, variable))
+        self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
+    }
+
+    fn solve_complex_matrix_structural_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: super::derivative::StructuralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
+    }
+}
+
+impl<C, D, M> ComplexMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    D: Dimension,
+    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    C::RealField: Copy,
+{
+    fn solve_complex_matrix_spectral_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: super::derivative::SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
+    }
+
+    fn solve_complex_matrix_spectral_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        variable: super::derivative::SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, input, variable)
+            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
     }
 }
 
@@ -170,9 +298,11 @@ mod interface_consistency_tests {
         stack: &Stack<IsotropicMaterial<f64>, f64>,
         planar: &PlanarInput<ScalarArray>,
     ) -> (ScalarArray, ScalarArray) {
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), planar).into_inner();
+        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), planar)
+            .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), planar).into_inner();
+        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), planar)
+            .into_inner();
 
         (left, right)
     }
@@ -210,7 +340,7 @@ mod interface_consistency_tests {
         let stack = stack();
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let input = plane_wave_input(side);
+            let input = plane_wave_input_re(side);
             let input_re = plane_wave_input_re(side);
             let planar = input.planar();
 

@@ -6,15 +6,18 @@ use crate::{
     backend::{
         DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
         algebra::ScalarAlgebra,
+        derivative::StructuralDerivativeVariable,
+        evaluator::RealAxis,
         input::IncidentSide,
         isotropic::IsotropicLayerAdmittance,
         jet::{ArrayJet, ArrayJetFirst},
+        plane_wave::DifferentiablePlaneWaveBackend,
         transfer2::{
             jet::{Transfer2Jet, Transfer2JetFirst},
             response::Matrix2Entries,
         },
     },
-    material::Material,
+    material::{DifferentiableMaterial, Material},
     stack::Stack,
 };
 
@@ -180,16 +183,17 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
+        let planar = input.complex_planar_input();
 
-        let matrix = self.evaluate(stack, &planar)?;
+        let matrix = self.evaluate_with::<RealAxis, _, _, _>(stack, &planar)?;
 
         let left_admittance =
-            IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner();
+            IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &planar)
+                .into_inner();
 
         let right_admittance =
-            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar).into_inner();
+            IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &planar)
+                .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitudes(&left_admittance, &right_admittance, input.incident_side());
@@ -208,22 +212,28 @@ where
         ))
     }
 
-    fn solve_plane_wave_first_derivative(
+    fn solve_plane_wave_structural_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
+        let planar = input.complex_planar_input();
 
-        let matrix = self.evaluate_first(stack, &planar, variable)?;
+        let matrix =
+            self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), &planar, variable);
+        let left_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
 
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), &planar, variable);
+        let right_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -239,26 +249,32 @@ where
             transmission,
             incident_normalisation,
             transmitted_normalisation,
-            variable,
+            variable.into(),
         ))
     }
 
-    fn solve_plane_wave_second_derivative(
+    fn solve_plane_wave_structural_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: DerivativeVariable,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: StructuralDerivativeVariable,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>> =
-            input.planar().map(|values| values.mapv(C::from_real));
+        let planar = input.complex_planar_input();
 
-        let matrix = self.evaluate_second(stack, &planar, variable)?;
+        let matrix =
+            self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), &planar, variable);
+        let left_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
 
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), &planar, variable);
+        let right_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -274,11 +290,100 @@ where
             transmission,
             incident_normalisation,
             transmitted_normalisation,
-            variable,
+            variable.into(),
         ))
     }
 }
 
+impl<C, D, M> DifferentiablePlaneWaveBackend<C, D, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+    M: DifferentiableMaterial<Real = C::RealField>,
+{
+    fn solve_plane_wave_spectral_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: crate::backend::derivative::SpectralDerivativeVariable,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input();
+
+        let matrix =
+            self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+
+        let left_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
+
+        let right_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
+
+        let (reflection, transmission) =
+            matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
+
+        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
+            IncidentSide::Left => (left_admittance, right_admittance),
+
+            IncidentSide::Right => (right_admittance, left_admittance),
+        };
+
+        Ok(PlaneWaveResponse::from_first_jets(
+            reflection,
+            transmission,
+            incident_normalisation,
+            transmitted_normalisation,
+            variable.into(),
+        ))
+    }
+
+    fn solve_plane_wave_spectral_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        variable: crate::backend::derivative::SpectralDerivativeVariable,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input();
+
+        let matrix =
+            self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+
+        let left_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
+
+        let right_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
+
+        let (reflection, transmission) =
+            matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
+
+        let (incident_normalisation, transmitted_normalisation) = match input.incident_side() {
+            IncidentSide::Left => (left_admittance, right_admittance),
+
+            IncidentSide::Right => (right_admittance, left_admittance),
+        };
+
+        Ok(PlaneWaveResponse::from_second_jets(
+            reflection,
+            transmission,
+            incident_normalisation,
+            transmitted_normalisation,
+            variable.into(),
+        ))
+    }
+}
 /// Convert a physical characteristic admittance into the field-state slope
 /// used by the transfer matrix.
 ///

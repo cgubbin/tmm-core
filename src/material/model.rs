@@ -416,7 +416,7 @@ mod tests {
         let material = Constant::new(4.0, 1.0);
 
         let deps: C = material.relative_permittivity_derivative(
-            Scalar(C::new(1000.0, 0.0)),
+            Scalar(1000.0),
             DerivativeOrder::First,
             SpectralVariable::VacuumWavenumber,
         );
@@ -429,7 +429,7 @@ mod tests {
     fn drude_permittivity_matches_formula() {
         let wp = 68153.8;
         let gamma = 2382.6;
-        let w = C::new(1000.0, 0.0);
+        let w = 1000.00;
 
         let material = DrudeLorentz::builder(1.0).with_drude(wp, gamma).build();
 
@@ -446,7 +446,7 @@ mod tests {
         let strength = 0.5;
         let wt = 800.0;
         let gamma = 4.0;
-        let w = C::new(1000.0, 0.0);
+        let w = 1000.0;
 
         let material = DrudeLorentz::builder(2.0)
             .with_lorentz(strength, wt, gamma)
@@ -481,9 +481,9 @@ mod ndarray_tests {
             .with_lorentz(0.2, 900.0, 5.0)
             .build();
 
-        let values = arr1(&[C::new(500.0, 0.0), C::new(1000.0, 0.0), C::new(1500.0, 0.0)]);
+        let values = arr1(&[500.0, 1000.0, 1500.0]);
 
-        let array_eps = material.relative_permittivity(values.clone());
+        let array_eps: ndarray::Array1<C> = material.relative_permittivity(values.clone());
 
         for (w, eps_from_array) in values.iter().zip(array_eps.iter()) {
             let eps_from_scalar: C = material.relative_permittivity(Scalar(*w));
@@ -497,20 +497,9 @@ mod ndarray_tests {
     fn array2_shape_is_preserved() {
         let material = Constant::new(3.0, 1.0);
 
-        let values = Array2::from_shape_vec(
-            (2, 3),
-            vec![
-                C::new(1.0, 0.0),
-                C::new(2.0, 0.0),
-                C::new(3.0, 0.0),
-                C::new(4.0, 0.0),
-                C::new(5.0, 0.0),
-                C::new(6.0, 0.0),
-            ],
-        )
-        .unwrap();
+        let values = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
 
-        let eps = material.relative_permittivity(values);
+        let eps: Array2<C> = material.relative_permittivity(values);
 
         assert_eq!(eps.shape(), &[2, 3]);
 
@@ -524,7 +513,7 @@ mod ndarray_tests {
     fn permeability_reflects_value() {
         let material = Constant::new(4.0, 2.0);
 
-        let mu: C = material.relative_permeability(Scalar(C::new(1000.0, 0.0)));
+        let mu: C = material.relative_permeability(Scalar(1000.0));
 
         assert_relative_eq!(mu.re, 2.0);
         assert_relative_eq!(mu.im, 0.0);
@@ -535,7 +524,7 @@ mod ndarray_tests {
         let material = Constant::new(4.0, 1.0);
 
         let dmu: C = material.relative_permeability_derivative(
-            Scalar(C::new(1000.0, 0.0)),
+            Scalar(1000.0),
             DerivativeOrder::First,
             SpectralVariable::VacuumWavenumber,
         );
