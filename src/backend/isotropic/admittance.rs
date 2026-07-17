@@ -41,7 +41,8 @@ use crate::{
         jet::{ArrayJet, ArrayJetFirst},
     },
     material::{
-        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+        EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
+        EvaluateMaterial, EvaluateMeromorphicMaterial,
     },
 };
 
@@ -83,7 +84,7 @@ where
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         let quantities = IsotropicLayerQuantities::real_axis(material, planar);
@@ -100,7 +101,8 @@ where
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+        C::RealField: Copy,
     {
         let quantities = IsotropicLayerQuantities::complex_plane(material, planar);
 
@@ -194,7 +196,7 @@ where
         variable: StructuralDerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_first_structural::<RealAxis, _>(material, planar, variable)
@@ -206,7 +208,8 @@ where
         variable: StructuralDerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+        C::RealField: Copy,
     {
         Self::evaluate_first_structural::<ComplexPlane, _>(material, planar, variable)
     }
@@ -253,7 +256,7 @@ where
         variable: SpectralDerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_first_spectral::<RealAxis, _>(material, planar, variable)
@@ -265,7 +268,7 @@ where
         variable: SpectralDerivativeVariable,
     ) -> ArrayJetFirst<C, D>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_first_spectral::<ComplexPlane, _>(material, planar, variable)
@@ -313,7 +316,7 @@ where
         variable: StructuralDerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_second_structural::<RealAxis, _>(material, planar, variable)
@@ -325,7 +328,7 @@ where
         variable: StructuralDerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_second_structural::<ComplexPlane, _>(material, planar, variable)
@@ -382,7 +385,7 @@ where
         variable: SpectralDerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_second_spectral::<RealAxis, _>(material, planar, variable)
@@ -394,7 +397,7 @@ where
         variable: SpectralDerivativeVariable,
     ) -> ArrayJet<C, D>
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::evaluate_second_spectral::<ComplexPlane, _>(material, planar, variable)

@@ -12,7 +12,7 @@ use crate::{
         plane_wave::DifferentiablePlaneWaveBackend,
         scatter2::{Scatter2, Scatter2Error},
     },
-    material::{DifferentiableMaterial, Material},
+    material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
     stack::Stack,
 };
 
@@ -21,7 +21,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     type Error = Scatter2Error;
 
@@ -102,7 +102,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     fn solve_plane_wave_spectral_first_derivative(
         &self,
@@ -164,7 +164,7 @@ where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance =
@@ -199,7 +199,7 @@ where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
@@ -241,7 +241,7 @@ where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
@@ -283,7 +283,7 @@ where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
@@ -325,7 +325,7 @@ where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
@@ -371,7 +371,7 @@ mod plane_wave_backend_tests {
             scatter2::ScatterMatrix2,
             transfer2::{Matrix2, Transfer2},
         },
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
     };
 
     fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
@@ -420,7 +420,7 @@ mod plane_wave_backend_tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -430,9 +430,9 @@ mod plane_wave_backend_tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness_cm).unwrap(),
             )
@@ -444,13 +444,13 @@ mod plane_wave_backend_tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<IsotropicMaterial<f64>, f64> {
+    ) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(first_thickness_cm).unwrap(),
             )
-            .with_layer(
+            .layer(
                 Constant::new(3.24, 1.0),
                 Thickness::from_cm(second_thickness_cm).unwrap(),
             )
@@ -539,7 +539,7 @@ mod plane_wave_backend_tests {
         let medium = Constant::new(2.25, 1.0);
 
         let stack = Stack::builder(medium.clone(), medium)
-            .with_layer(medium.clone(), Thickness::from_cm(0.2).unwrap())
+            .layer(medium.clone(), Thickness::from_cm(0.2).unwrap())
             .build()
             .unwrap();
 

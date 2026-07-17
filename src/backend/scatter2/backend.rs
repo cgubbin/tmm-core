@@ -71,7 +71,7 @@ use crate::{
             workspace::ScatterWorkspace,
         },
     },
-    material::{Material, MeromorphicMaterial},
+    material::{EvaluateMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
 };
 
@@ -91,7 +91,7 @@ impl Scatter2 {
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -106,7 +106,7 @@ impl Scatter2 {
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -140,7 +140,7 @@ impl Scatter2 {
         request: InternalFieldRequest,
     ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -156,7 +156,7 @@ impl Scatter2 {
         request: InternalFieldRequest,
     ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
@@ -831,12 +831,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{
-        ValidationConfig,
-        backend::Polarisation,
-        material::{Constant, enums::IsotropicMaterial},
-        stack::Thickness,
-    };
+    use crate::{ValidationConfig, backend::Polarisation, material::Constant, stack::Thickness};
 
     type C = Complex64;
 
@@ -902,7 +897,7 @@ mod tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -912,9 +907,9 @@ mod tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness_cm).unwrap(),
             )
@@ -926,13 +921,13 @@ mod tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<IsotropicMaterial<f64>, f64> {
+    ) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(first_thickness_cm).unwrap(),
             )
-            .with_layer(
+            .layer(
                 Constant::new(3.24, 1.0),
                 Thickness::from_cm(second_thickness_cm).unwrap(),
             )
@@ -987,7 +982,7 @@ mod tests {
         let thickness_cm = 0.3;
 
         let stack = Stack::builder(medium.clone(), medium)
-            .with_layer(medium.clone(), Thickness::from_cm(thickness_cm).unwrap())
+            .layer(medium.clone(), Thickness::from_cm(thickness_cm).unwrap())
             .build()
             .unwrap();
 
@@ -1016,7 +1011,7 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let with_layer = Scatter2::new()
+        let layer = Scatter2::new()
             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
             .unwrap();
 
@@ -1030,7 +1025,7 @@ mod tests {
             .evaluate_with::<RealAxis, _, _, _>(&direct, &input)
             .unwrap();
 
-        assert_matrix_close(&with_layer, &without_layer, 1e-12);
+        assert_matrix_close(&layer, &without_layer, 1e-12);
     }
 
     #[test]
@@ -1038,8 +1033,8 @@ mod tests {
         let first = two_layer_stack(0.17, 0.29);
 
         let reversed = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.29).unwrap())
-            .with_layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.17).unwrap())
+            .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.29).unwrap())
+            .layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.17).unwrap())
             .build()
             .unwrap();
 

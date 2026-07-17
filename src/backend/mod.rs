@@ -12,7 +12,15 @@ mod plane_wave;
 pub mod scatter2;
 pub mod transfer2;
 
-pub use derivative::DerivativeVariable;
+pub use derivative::{
+    DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
+};
+pub use field::{
+    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, IsotropicFieldState,
+    LayerSampling, PlaneWaveFieldError, PlaneWaveFieldResponse, PlaneWaveFieldSample,
+    PlaneWaveFields, PlaneWavePowerBalance, plane_wave_power_balance,
+    sample_plane_wave_field_profile, sample_plane_wave_fields,
+};
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
 pub use matrix::{
     ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,

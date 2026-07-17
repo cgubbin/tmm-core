@@ -20,7 +20,7 @@
 //! reconstruction algebra. Jet-valued components carry derivatives through
 //! the prefix, suffix, and cut-wave calculations automatically.
 use crate::{
-    ComplexScalar, IncidentSide, Material, PlanarInput, PlaneWaveInput, Stack,
+    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Stack,
     backend::{
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
@@ -42,7 +42,7 @@ use crate::{
             },
         },
     },
-    material::DifferentiableMaterial,
+    material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
@@ -53,7 +53,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     fn solve_plane_wave_internal_fields(
         &self,
@@ -189,7 +189,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     fn solve_plane_wave_internal_fields_spectral_first_derivative(
         &self,
@@ -488,7 +488,7 @@ mod tests {
     use crate::{
         IncidentSide, Polarisation, ValidationConfig,
         backend::{DifferentiablePlaneWaveBackend, PlaneWaveBackend, field::PlaneWaveFieldBackend},
-        material::{Constant, IsotropicMaterial},
+        material::Constant,
         stack::Thickness,
     };
 
@@ -530,20 +530,20 @@ mod tests {
         }
     }
 
-    fn uniform_one_layer_stack() -> Stack<IsotropicMaterial<f64>, f64> {
+    fn uniform_one_layer_stack() -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::dielectric(1.0), Constant::dielectric(1.0))
-            .with_layer(Constant::dielectric(1.0), Thickness::from_cm(0.25).unwrap())
+            .layer(Constant::dielectric(1.0), Thickness::from_cm(0.25).unwrap())
             .build()
             .unwrap()
     }
 
-    fn two_layer_stack() -> Stack<IsotropicMaterial<f64>, f64> {
+    fn two_layer_stack() -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::dielectric(1.0), Constant::dielectric(1.69))
-            .with_layer(
+            .layer(
                 Constant::dielectric(2.25),
                 Thickness::from_cm(0.17).unwrap(),
             )
-            .with_layer(
+            .layer(
                 Constant::dielectric(1.44),
                 Thickness::from_cm(0.29).unwrap(),
             )

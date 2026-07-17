@@ -41,7 +41,7 @@ use crate::{
         mode::{DifferentiableOutgoingModeBackend, ResidualDerivatives},
         scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
     },
-    material::{DifferentiableMeromorphicMaterial, MeromorphicMaterial},
+    material::{EvaluateDifferentiableMeromorphicMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
 };
 
@@ -50,7 +50,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     type Error = Scatter2Error;
 
@@ -138,7 +138,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn outgoing_mode_residual_first_spectral_derivative(
         &self,
@@ -238,8 +238,9 @@ fn left_admittance<M, C, D>(
     input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
 ) -> ArrayBase<OwnedRepr<C>, D>
 where
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
     IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input)
@@ -253,8 +254,9 @@ fn left_admittance_first_structural<M, C, D>(
     variable: StructuralDerivativeVariable,
 ) -> ArrayJetFirst<C, D>
 where
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
     let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
@@ -283,7 +285,7 @@ fn left_admittance_first_spectral<M, C, D>(
     variable: SpectralDerivativeVariable,
 ) -> ArrayJetFirst<C, D>
 where
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
@@ -315,8 +317,9 @@ fn left_admittance_second_structural<M, C, D>(
     variable: StructuralDerivativeVariable,
 ) -> ArrayJet<C, D>
 where
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
+    C::RealField: Copy,
     D: Dimension,
 {
     let quantities = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input);
@@ -345,7 +348,7 @@ fn left_admittance_second_spectral<M, C, D>(
     variable: SpectralDerivativeVariable,
 ) -> ArrayJet<C, D>
 where
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
@@ -382,7 +385,7 @@ mod tests {
     use crate::{
         Thickness, ValidationConfig,
         backend::{Polarisation, transfer2::Transfer2},
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
     };
 
     fn assert_complex_close(actual: Complex64, expected: Complex64, tolerance: f64) {
@@ -419,7 +422,7 @@ mod tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -429,9 +432,9 @@ mod tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness_cm).unwrap(),
             )
@@ -443,13 +446,13 @@ mod tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<IsotropicMaterial<f64>, f64> {
+    ) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(first_thickness_cm).unwrap(),
             )
-            .with_layer(
+            .layer(
                 Constant::new(3.24, 1.0),
                 Thickness::from_cm(second_thickness_cm).unwrap(),
             )

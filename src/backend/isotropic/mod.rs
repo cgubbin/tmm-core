@@ -75,7 +75,7 @@ use crate::{
         PlanarInput, Polarisation,
         evaluator::{ComplexPlane, ConstitutiveEvaluator, RealAxis},
     },
-    material::{Material, MeromorphicMaterial},
+    material::{EvaluateMaterial, EvaluateMeromorphicMaterial},
 };
 
 /// Material and propagation quantities for one isotropic medium.
@@ -103,7 +103,7 @@ where
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
-        M: Material<Real = C::RealField>,
+        M: EvaluateMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::new::<RealAxis, M>(material, planar)
@@ -114,7 +114,8 @@ where
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self
     where
-        M: MeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+        C::RealField: Copy,
     {
         Self::new::<ComplexPlane, M>(material, planar)
     }

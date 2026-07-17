@@ -1,119 +1,117 @@
-//! Internal plane-wave amplitude conventions.
+//! Spatial field reconstruction and power-flow observables.
 //!
-//! This module represents the internal solution of a scalar isotropic planar
-//! scattering problem in terms of forward- and backward-propagating modal
-//! amplitudes.
+//! This module reconstructs physical electromagnetic fields from the
+//! boundary-wave solution returned by a plane-wave backend.
 //!
-//! # Geometry and propagation direction
+//! Once a backend has computed the travelling-wave amplitudes at every
+//! interface, this module provides backend-independent algorithms for
 //!
-//! The stack has a fixed geometric orientation:
+//! - reconstructing canonical tangential fields;
+//! - sampling fields at arbitrary positions;
+//! - generating field profiles through multilayer stacks;
+//! - computing signed normal power flux;
+//! - evaluating per-layer absorptance;
+//! - checking global energy conservation.
 //!
-//! ```text
-//! left exterior | layer 0 | layer 1 | ... | layer N - 1 | right exterior
+//! # Workflow
+//!
+//! Typical usage is
+//!
+//! ```ignore
+//! let solution = backend.solve_plane_wave_fields(
+//!     &stack,
+//!     &input,
+//! )?;
+//!
+//! let sampling = FieldSampling::new()
+//!     .layer_interfaces()
+//!     .layer(
+//!         0,
+//!         LayerSampling::uniform(200),
+//!     )
+//!     .layer_centres();
+//!
+//! let fields = solution.sample_fields(
+//!     &stack,
+//!     &input,
+//!     &sampling,
+//! )?;
+//!
+//! let balance = solution.power_balance(
+//!     &stack,
+//!     &input,
+//! )?;
 //! ```
 //!
-//! Wave directions are defined geometrically and do not depend on the incident
-//! side:
+//! # Coordinate system
 //!
-//! - `forward` propagates from left to right;
-//! - `backward` propagates from right to left.
+//! Distances are measured in centimetres.
 //!
-//! Consequently, for right incidence the imposed incident wave is a backward
-//! wave in the right exterior.
+//! Global coordinates increase from left to right.
 //!
-//! # Normalisation
+//! Left-exterior coordinates are negative.
 //!
-//! Internal amplitudes are normalised to a unit incident modal amplitude:
+//! Finite-layer positions are measured relative to each layer's left
+//! boundary.
 //!
-//! ```text
-//! left incidence:
-//!     left-exterior forward amplitude  = 1
-//!     right-exterior backward amplitude = 0
+//! Right-exterior coordinates are greater than the total stack thickness.
 //!
-//! right incidence:
-//!     left-exterior forward amplitude   = 0
-//!     right-exterior backward amplitude = 1
-//! ```
+//! # Canonical field state
 //!
-//! The reflected, transmitted, and internal amplitudes therefore use the same
-//! modal-amplitude normalisation as [`PlaneWaveResponse`].
+//! Each sampled field is represented by an [`IsotropicFieldState`].
 //!
-//! This is an amplitude normalisation, not a unit-power normalisation. When the
-//! exterior media differ, a unit transmitted amplitude does not generally
-//! carry the same normal power flux as a unit incident amplitude.
-//!
-//! # Boundary reference planes
-//!
-//! Each finite layer stores amplitudes at two reference planes:
+//! The stored quantities are
 //!
 //! ```text
-//! left boundary |        finite layer        | right boundary
+//! primary = a⁺ + a⁻
+//! dual = Y(a⁺ − a⁻)
 //! ```
 //!
-//! `LayerBoundaryWaves::left()` contains amplitudes evaluated immediately
-//! inside the finite layer on the right-hand side of its left interface.
+//! where `Y` is the characteristic admittance.
 //!
-//! `LayerBoundaryWaves::right()` contains amplitudes evaluated immediately
-//! inside the same finite layer on the left-hand side of its right interface.
-//!
-//! Thus both wave pairs belong to the finite-layer material. They are not the
-//! amplitudes in the adjacent exterior or neighbouring layer.
-//!
-//! # Phase reference
-//!
-//! At each stored boundary, the local modal amplitudes are referenced to that
-//! boundary plane. No additional propagation phase is included in the position
-//! of the reference plane.
-//!
-//! For a layer extending from `z = 0` at its left boundary to `z = d` at its
-//! right boundary, the local waves may be written schematically as:
+//! This representation is independent of TE/TM convention and gives the
+//! normal power flux
 //!
 //! ```text
-//! forward(z)  = forward_at_left  * exp(s i κ z)
-//! backward(z) = backward_at_right * exp(s i κ (d - z))
+//! Pz = 1/2 Re(primary · dual*).
 //! ```
 //!
-//! where `s` is the spatial-phase sign used by the backend convention.
+//! # Sampling
 //!
-//! Both boundary values are stored explicitly so callers do not need to
-//! recover one boundary by dividing by a potentially very small evanescent
-//! propagation factor.
+//! High-level spatial sampling is described using [`FieldSampling`].
 //!
-//! # Layer indexing
+//! A sampling specification is expanded into concrete [`FieldPosition`]s
+//! before reconstruction.
 //!
-//! Layers are returned in fixed geometric left-to-right order. Layer index `j`
-//! refers to the same finite layer as:
-//!
-//! ```text
-//! DerivativeVariable::Thickness(j)
-//! ```
-//!
-//! and does not change with the incident side.
-//!
-//! # Derivatives
-//!
-//! First and second derivatives are taken along the requested real coordinate.
-//! The imposed unit incident amplitude is constant with respect to all
-//! derivative variables.
-//!
-//! For example, a thickness derivative differentiates the internal amplitudes
-//! while keeping the incident modal amplitude equal to one.
-//!
-//! The stored differential arrays are derivatives of modal amplitudes. They are
-//! not derivatives of intensity, energy density, or power flux. Those real
-//! observables must be formed from the complex amplitudes and their
-//! derivatives.
+//! This separation allows sampling strategies to evolve independently of
+//! the field-reconstruction algorithms.
+mod error;
+mod observables;
+mod sampling;
+
+pub use error::PlaneWaveFieldError;
+pub use observables::{
+    IsotropicFieldState, PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance,
+    plane_wave_power_balance, sample_plane_wave_field_profile, sample_plane_wave_fields,
+};
+pub use sampling::{
+    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, LayerSampling,
+};
 
 use crate::{
     ComplexScalar, DerivativeVariable, IncidentSide, PlaneWaveBackend, PlaneWaveInput,
-    PlaneWaveResponse,
+    PlaneWaveResponse, PlaneWaveResponseDerivatives, Stack,
     backend::{
+        PlaneWaveAmplitudes,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         jet::{ArrayJet, ArrayJetFirst},
+        plane_wave::PlaneWavePower,
     },
+    material::EvaluateMaterial,
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::Float;
 
 /// Backend capable of reconstructing internal waves for a physical plane-wave
 /// scattering problem.
@@ -233,7 +231,7 @@ where
         }
     }
 
-    pub(crate) fn response(&self) -> &PlaneWaveResponse<C, D> {
+    pub fn response(&self) -> &PlaneWaveResponse<C, D> {
         &self.response
     }
 
@@ -241,8 +239,62 @@ where
         &self.boundary_waves
     }
 
-    pub(crate) fn into_parts(self) -> (PlaneWaveResponse<C, D>, PlaneWaveBoundaryWaves<C, D>) {
+    pub fn into_parts(self) -> (PlaneWaveResponse<C, D>, PlaneWaveBoundaryWaves<C, D>) {
         (self.response, self.boundary_waves)
+    }
+
+    pub fn amplitudes(&self) -> &PlaneWaveAmplitudes<C, D> {
+        self.response.amplitudes()
+    }
+
+    pub fn power(&self) -> &PlaneWavePower<C::RealField, D> {
+        self.response.power()
+    }
+
+    pub fn derivatives(&self) -> Option<&PlaneWaveResponseDerivatives<C, D>> {
+        self.response.derivatives()
+    }
+}
+
+impl<C, D> PlaneWaveFieldResponse<C, D>
+where
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    pub fn sample_fields<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        sampling: &FieldSampling<C::RealField>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+    {
+        sample_plane_wave_field_profile(stack, input, self.boundary_waves(), sampling)
+    }
+
+    pub fn sample_field_positions<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+    {
+        sample_plane_wave_fields(stack, input, self.boundary_waves(), positions)
+    }
+
+    pub fn power_balance<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+    {
+        plane_wave_power_balance(stack, input, self)
     }
 }
 
@@ -885,37 +937,6 @@ where
     ) {
         (self.left, self.right)
     }
-}
-
-pub enum FieldPosition<R> {
-    /// Position measured from the left boundary of a finite layer.
-    Layer { layer: usize, offset: R },
-
-    /// Position in the left exterior, measured away from the stack.
-    LeftExterior { distance: R },
-
-    /// Position in the right exterior, measured away from the stack.
-    RightExterior { distance: R },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlaneWavePowerBalance<R, D>
-where
-    D: Dimension,
-{
-    incident: ArrayBase<OwnedRepr<R>, D>,
-    reflected: ArrayBase<OwnedRepr<R>, D>,
-    transmitted: ArrayBase<OwnedRepr<R>, D>,
-    layer_absorptance: Vec<ArrayBase<OwnedRepr<R>, D>>,
-    balance_residual: ArrayBase<OwnedRepr<R>, D>,
-}
-
-pub struct PlaneWaveFields<C, D>
-where
-    D: Dimension,
-{
-    electric_tangential: ArrayBase<OwnedRepr<C>, D>,
-    magnetic_tangential: ArrayBase<OwnedRepr<C>, D>,
 }
 
 #[cfg(test)]

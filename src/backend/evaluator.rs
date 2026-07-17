@@ -1,8 +1,8 @@
 use crate::{
-    ComplexScalar, Material,
+    ComplexScalar,
     material::{
-        DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
-        MeromorphicMaterial, SpectralVariable,
+        DerivativeOrder, EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
+        EvaluateMaterial, EvaluateMeromorphicMaterial, SpectralVariable,
     },
 };
 
@@ -53,20 +53,20 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     fn relative_permittivity(
         material: &M,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permittivity(vacuum_wavenumber.mapv(|value| value.real()))
+        material.evaluate_relative_permittivity(vacuum_wavenumber.mapv(|value| value.real()))
     }
 
     fn relative_permeability(
         material: &M,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permeability(vacuum_wavenumber.mapv(|value| value.real()))
+        material.evaluate_relative_permeability(vacuum_wavenumber.mapv(|value| value.real()))
     }
 }
 
@@ -75,7 +75,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     fn relative_permittivity_derivative(
         material: &M,
@@ -83,7 +83,7 @@ where
         order: DerivativeOrder,
         variable: SpectralVariable,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permittivity_derivative(
+        material.evaluate_relative_permittivity_derivative(
             vacuum_wavenumber.mapv(|value| value.real()),
             order,
             variable,
@@ -96,7 +96,7 @@ where
         order: DerivativeOrder,
         variable: SpectralVariable,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permeability_derivative(
+        material.evaluate_relative_permeability_derivative(
             vacuum_wavenumber.mapv(|value| value.real()),
             order,
             variable,
@@ -108,20 +108,20 @@ impl<C, D, M> ConstitutiveEvaluator<C, D, M> for ComplexPlane
 where
     C: ComplexScalar,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn relative_permittivity(
         material: &M,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permittivity_complex(vacuum_wavenumber.clone())
+        material.evaluate_relative_permittivity_complex(vacuum_wavenumber.clone())
     }
 
     fn relative_permeability(
         material: &M,
         vacuum_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permeability_complex(vacuum_wavenumber.clone())
+        material.evaluate_relative_permeability_complex(vacuum_wavenumber.clone())
     }
 }
 
@@ -130,7 +130,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn relative_permeability_derivative(
         material: &M,
@@ -138,7 +138,7 @@ where
         order: DerivativeOrder,
         variable: SpectralVariable,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permeability_complex_derivative(
+        material.evaluate_relative_permeability_complex_derivative(
             vacuum_wavenumber.clone(),
             order,
             variable,
@@ -151,7 +151,7 @@ where
         order: DerivativeOrder,
         variable: SpectralVariable,
     ) -> ArrayBase<OwnedRepr<C>, D> {
-        material.relative_permittivity_complex_derivative(
+        material.evaluate_relative_permittivity_complex_derivative(
             vacuum_wavenumber.clone(),
             order,
             variable,

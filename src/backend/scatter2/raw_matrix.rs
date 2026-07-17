@@ -28,7 +28,8 @@ use crate::{
         scatter2::{Scatter2, Scatter2Error, ScatterMatrix2, entries::ScatterEntries},
     },
     material::{
-        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+        EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
+        EvaluateMaterial, EvaluateMeromorphicMaterial,
     },
     stack::Stack,
 };
@@ -101,7 +102,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     type Matrix = ScatterMatrix2<C, D>;
     type Error = Scatter2Error;
@@ -123,7 +124,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     fn solve_matrix_structural_first_derivative(
         &self,
@@ -167,7 +168,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     fn solve_matrix_spectral_first_derivative(
         &self,
@@ -211,7 +212,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     type Matrix = ScatterMatrix2<C, D>;
     type Error = Scatter2Error;
@@ -231,7 +232,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn solve_complex_matrix_structural_first_derivative(
         &self,
@@ -273,7 +274,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn solve_complex_matrix_spectral_first_derivative(
         &self,
@@ -456,7 +457,7 @@ mod raw_matrix_backend_tests {
     use crate::{
         Polarisation, Thickness, ValidationConfig,
         backend::derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
     };
 
     use ndarray::{Array0, arr0};
@@ -493,9 +494,9 @@ mod raw_matrix_backend_tests {
         )
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness_cm).unwrap(),
             )

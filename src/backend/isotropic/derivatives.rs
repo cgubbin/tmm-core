@@ -36,12 +36,11 @@ use crate::{
     ComplexScalar,
     backend::{
         IsotropicLayerQuantities, Polarisation,
-        evaluator::{
-            ComplexPlane, ConstitutiveDerivativeEvaluator, RealAxis,
-        },
+        evaluator::{ComplexPlane, ConstitutiveDerivativeEvaluator, RealAxis},
     },
     material::{
-        DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, SpectralVariable,
+        DerivativeOrder, EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
+        SpectralVariable,
     },
 };
 
@@ -137,7 +136,7 @@ where
         polarisation: Polarisation,
     ) -> Self
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::vacuum_wavenumber_squared::<RealAxis, M>(
@@ -155,7 +154,7 @@ where
         polarisation: Polarisation,
     ) -> Self
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::vacuum_wavenumber_squared::<ComplexPlane, M>(
@@ -265,7 +264,7 @@ where
         polarisation: Polarisation,
     ) -> Self
     where
-        M: DifferentiableMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::vacuum_wavenumber_squared::<RealAxis, M>(
@@ -283,7 +282,7 @@ where
         polarisation: Polarisation,
     ) -> Self
     where
-        M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
         C::RealField: Copy,
     {
         Self::vacuum_wavenumber_squared::<ComplexPlane, M>(

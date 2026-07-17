@@ -166,6 +166,11 @@ where
         &self.power
     }
 
+    /// Return the power absorptance.
+    pub fn absorptance(&self) -> &ArrayBase<OwnedRepr<C::RealField>, D> {
+        self.power.absorptance()
+    }
+
     /// Return the power reflectance.
     pub fn reflectance(&self) -> &ArrayBase<OwnedRepr<C::RealField>, D> {
         self.power.reflectance()
@@ -408,6 +413,7 @@ where
 {
     reflectance: ArrayBase<OwnedRepr<R>, D>,
     transmittance: ArrayBase<OwnedRepr<R>, D>,
+    absorptance: ArrayBase<OwnedRepr<R>, D>,
 }
 
 impl<R, D> PlaneWavePower<R, D>
@@ -418,12 +424,18 @@ where
     pub fn new(
         reflectance: ArrayBase<OwnedRepr<R>, D>,
         transmittance: ArrayBase<OwnedRepr<R>, D>,
-    ) -> Self {
+    ) -> Self
+    where
+        R: Float,
+    {
         debug_assert_eq!(reflectance.raw_dim(), transmittance.raw_dim());
+
+        let absorptance = reflectance.mapv(|value| R::one() - value) - transmittance.view();
 
         Self {
             reflectance,
             transmittance,
+            absorptance,
         }
     }
 
@@ -451,9 +463,12 @@ where
             .mapv(|value| value.modulus_squared())
             * transmission_factor;
 
+        let absorptance = reflectance.mapv(|value| R::one() - value) - transmittance.view();
+
         Self {
             reflectance,
             transmittance,
+            absorptance,
         }
     }
 
@@ -468,16 +483,19 @@ where
     }
 
     /// Return total absorptance as `1 - R - T`.
-    pub fn absorptance(&self) -> ArrayBase<OwnedRepr<R>, D>
-    where
-        R: Float,
-    {
-        self.reflectance.mapv(|value| R::one() - value) - self.transmittance.view()
+    pub fn absorptance(&self) -> &ArrayBase<OwnedRepr<R>, D> {
+        &self.absorptance
     }
 
     /// Consume the value and return its power arrays.
-    pub fn into_parts(self) -> (ArrayBase<OwnedRepr<R>, D>, ArrayBase<OwnedRepr<R>, D>) {
-        (self.reflectance, self.transmittance)
+    pub fn into_parts(
+        self,
+    ) -> (
+        ArrayBase<OwnedRepr<R>, D>,
+        ArrayBase<OwnedRepr<R>, D>,
+        ArrayBase<OwnedRepr<R>, D>,
+    ) {
+        (self.reflectance, self.transmittance, self.absorptance)
     }
 }
 

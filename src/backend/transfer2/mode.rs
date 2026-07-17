@@ -62,7 +62,7 @@ use crate::{
         AnalyticResidual, OutgoingModeBackend, PlanarInput, evaluator::ComplexPlane,
         isotropic::IsotropicLayerAdmittance, mode::DifferentiableOutgoingModeBackend,
     },
-    material::{DifferentiableMeromorphicMaterial, MeromorphicMaterial},
+    material::{EvaluateDifferentiableMeromorphicMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
 };
 
@@ -73,7 +73,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     type Error = Transfer2Error;
 
@@ -158,7 +158,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn outgoing_mode_residual_first_spectral_derivative(
         &self,
@@ -231,7 +231,7 @@ mod tests {
             },
             evaluator::RealAxis,
         },
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
         stack::{Thickness, ValidationConfig},
     };
 
@@ -266,7 +266,7 @@ mod tests {
     }
 
     // Adapt these constructors to the actual Stack API.
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(
             Constant::new(left_epsilon, 1.0),
             Constant::new(right_epsilon, 1.0),
@@ -276,9 +276,9 @@ mod tests {
         .unwrap()
     }
 
-    fn one_layer_stack(thickness: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness).unwrap(),
             )

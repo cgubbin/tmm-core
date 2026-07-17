@@ -17,7 +17,7 @@ use crate::{
             response::Matrix2Entries,
         },
     },
-    material::{DifferentiableMaterial, Material},
+    material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
     stack::Stack,
 };
 
@@ -174,7 +174,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
 {
     type Error = Transfer2Error;
 
@@ -300,7 +300,7 @@ where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     fn solve_plane_wave_spectral_first_derivative(
         &self,
@@ -1026,7 +1026,7 @@ mod transfer2_pw_tests {
             derivative::SpectralDerivativeVariable,
             transfer2::{Transfer2, Transfer2Error},
         },
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
         stack::{Stack, Thickness, ValidationConfig},
     };
 
@@ -1068,7 +1068,7 @@ mod transfer2_pw_tests {
         )
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(material(left_epsilon, 1.0), material(right_epsilon, 1.0))
             .validation(ValidationConfig::permissive())
@@ -1076,10 +1076,10 @@ mod transfer2_pw_tests {
             .unwrap()
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(material(1.0, 1.0), material(1.44, 1.0))
-            .with_layer(material(2.25, 1.0), thickness(thickness_cm))
+            .layer(material(2.25, 1.0), thickness(thickness_cm))
             .build()
             .unwrap()
     }
@@ -1087,10 +1087,10 @@ mod transfer2_pw_tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<IsotropicMaterial<f64>, f64> {
+    ) -> Stack<Constant<f64>, f64> {
         Stack::builder(material(1.0, 1.0), material(1.44, 1.0))
-            .with_layer(material(2.25, 1.0), thickness(first_thickness_cm))
-            .with_layer(material(3.24, 1.0), thickness(second_thickness_cm))
+            .layer(material(2.25, 1.0), thickness(first_thickness_cm))
+            .layer(material(3.24, 1.0), thickness(second_thickness_cm))
             .build()
             .unwrap()
     }
@@ -1507,7 +1507,7 @@ mod transfer2_pw_tests {
         let error = <Transfer2 as PlaneWaveBackend<
             C,
             ndarray::Dim<[usize; 0]>,
-            Stack<IsotropicMaterial<f64>, f64>,
+            Stack<Constant<f64>, f64>,
         >>::solve_plane_wave_structural_first_derivative(
             &Transfer2::new(),
             &stack,

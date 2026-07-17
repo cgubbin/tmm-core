@@ -35,7 +35,8 @@ use crate::{
         },
     },
     material::{
-        DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial,
+        EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
+        EvaluateMaterial, EvaluateMeromorphicMaterial,
     },
     stack::Stack,
 };
@@ -44,7 +45,7 @@ impl<C, D, M> RawMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
     C: ComplexScalar,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     type Matrix = Matrix2<C, D>;
@@ -65,7 +66,7 @@ impl<C, D, M> RawMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>>
 where
     C: ComplexScalar,
     D: Dimension,
-    M: Material<Real = C::RealField>,
+    M: EvaluateMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     fn solve_matrix_structural_first_derivative(
@@ -95,7 +96,7 @@ impl<C, D, M> RawMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> f
 where
     C: ComplexScalar,
     D: Dimension,
-    M: DifferentiableMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     fn solve_matrix_spectral_first_derivative(
@@ -125,7 +126,7 @@ impl<C, D, M> ComplexMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
     C: ComplexScalar,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     type Matrix = Matrix2<C, D>;
@@ -145,7 +146,7 @@ impl<C, D, M> ComplexMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealFie
 where
     C: ComplexScalar,
     D: Dimension,
-    M: MeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     fn solve_complex_matrix_structural_first_derivative(
@@ -173,7 +174,7 @@ impl<C, D, M> ComplexMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField
 where
     C: ComplexScalar,
     D: Dimension,
-    M: DifferentiableMeromorphicMaterial<Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
     fn solve_complex_matrix_spectral_first_derivative(
@@ -222,7 +223,7 @@ mod interface_consistency_tests {
             plane_wave::DifferentiablePlaneWaveBackend,
             transfer2::{Matrix2, Transfer2, response::outgoing_residual},
         },
-        material::{Constant, enums::IsotropicMaterial},
+        material::Constant,
         stack::{Stack, Thickness, ValidationConfig},
     };
 
@@ -285,16 +286,16 @@ mod interface_consistency_tests {
         Constant::new(epsilon, mu)
     }
 
-    fn stack() -> Stack<IsotropicMaterial<f64>, f64> {
+    fn stack() -> Stack<Constant<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.15).unwrap())
-            .with_layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.23).unwrap())
+            .layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.15).unwrap())
+            .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.23).unwrap())
             .build()
             .unwrap()
     }
 
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
         // Adapt to the concrete Stack constructor.
         Stack::builder(material(left_epsilon, 1.0), material(right_epsilon, 1.0))
             .validation(ValidationConfig::permissive())
@@ -303,7 +304,7 @@ mod interface_consistency_tests {
     }
 
     fn exterior_admittances(
-        stack: &Stack<IsotropicMaterial<f64>, f64>,
+        stack: &Stack<Constant<f64>, f64>,
         planar: &PlanarInput<ScalarArray>,
     ) -> (ScalarArray, ScalarArray) {
         let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), planar)
@@ -637,7 +638,7 @@ mod interface_consistency_tests {
             .unwrap();
 
         let with_zero_layer = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.0).unwrap())
+            .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.0).unwrap())
             .validation(ValidationConfig::permissive())
             .build()
             .unwrap();
@@ -676,7 +677,7 @@ mod interface_consistency_tests {
         let medium = Constant::new(2.25, 1.0);
 
         let stack = Stack::builder(medium.clone(), medium)
-            .with_layer(medium.clone(), Thickness::from_cm(0.37).unwrap())
+            .layer(medium.clone(), Thickness::from_cm(0.37).unwrap())
             .build()
             .unwrap();
 
@@ -710,8 +711,8 @@ mod interface_consistency_tests {
     #[test]
     fn lossless_stack_conserves_flux() {
         let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.15).unwrap())
-            .with_layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.27).unwrap())
+            .layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.15).unwrap())
+            .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.27).unwrap())
             .build()
             .unwrap();
 

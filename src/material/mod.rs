@@ -138,13 +138,22 @@
 //! complex mode calculation.
 
 pub mod builder;
-pub mod enums;
+pub mod erased;
+pub mod evaluate;
+pub mod handle;
 pub mod model;
 pub mod sample;
 // pub mod tensor;
 
 pub use builder::DrudeLorentzBuilder;
-pub use enums::IsotropicMaterial;
+pub use evaluate::{
+    EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
+    EvaluateMeromorphicMaterial,
+};
+pub use handle::{
+    AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
+    MeromorphicMaterialHandle,
+};
 pub use model::{Constant, DrudeLorentz};
 pub use sample::Scalar;
 
@@ -157,7 +166,6 @@ use num_traits::{One, Zero};
 
 /// Differentiation variable for material response functions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum SpectralVariable {
     /// Differentiate with respect to `k0`.
     VacuumWavenumber,
@@ -168,7 +176,6 @@ pub enum SpectralVariable {
 
 /// Highest derivative order requested.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum DerivativeOrder {
     First,
     Second,

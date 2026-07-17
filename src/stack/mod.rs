@@ -13,9 +13,25 @@ use either::Either;
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, IncidentSide,
-    material::{Material, enums::IsotropicMaterial, sample::Sampled},
+    ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, IncidentSide,
+    MeromorphicMaterial,
+    material::{
+        AnalyticalMaterialHandle, DifferentiableMaterialHandle, Material, MaterialHandle,
+        MeromorphicMaterialHandle, sample::Sampled,
+    },
 };
+
+/// Heterogeneous stack supporting real-axis constitutive evaluation.
+pub type MaterialStack<R, C, F = R> = Stack<MaterialHandle<R, C>, F>;
+
+/// Heterogeneous stack supporting real-axis derivatives.
+pub type DifferentiableMaterialStack<R, C, F = R> = Stack<DifferentiableMaterialHandle<R, C>, F>;
+
+/// Heterogeneous stack supporting complex continuation.
+pub type MeromorphicMaterialStack<R, C, F = R> = Stack<MeromorphicMaterialHandle<R, C>, F>;
+
+/// Heterogeneous stack supporting complex continuation and derivatives.
+pub type AnalyticalMaterialStack<R, C, F = R> = Stack<AnalyticalMaterialHandle<R, C>, F>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stack<M, F> {
@@ -39,15 +55,84 @@ impl IncidentSide {
     }
 }
 
-impl<F> Stack<IsotropicMaterial<F>, F> {
-    pub fn builder<ML: Into<IsotropicMaterial<F>>, MR: Into<IsotropicMaterial<F>>>(
-        left_exterior: ML,
-        right_exterior: MR,
-    ) -> StackBuilder<IsotropicMaterial<F>, F>
+impl<M, F> Stack<M, F> {
+    pub fn builder(left_exterior: M, right_exterior: M) -> StackBuilder<M, F>
     where
         F: Float,
     {
         StackBuilder::new(left_exterior, right_exterior)
+    }
+}
+
+impl<R, C, F> Stack<MaterialHandle<R, C>, F>
+where
+    R: Copy + 'static,
+    C: ComplexScalar<RealField = R> + Copy + 'static,
+{
+    pub fn from_materials<L, U>(
+        left_exterior: L,
+        right_exterior: U,
+    ) -> StackBuilder<MaterialHandle<R, C>, F>
+    where
+        L: Material<Real = R> + Send + Sync + 'static,
+        U: Material<Real = R> + Send + Sync + 'static,
+        F: Float,
+    {
+        StackBuilder::from_materials(left_exterior, right_exterior)
+    }
+}
+
+impl<R, C, F> Stack<AnalyticalMaterialHandle<R, C>, F>
+where
+    R: Copy + 'static,
+    C: ComplexScalar<RealField = R> + Copy + 'static,
+{
+    pub fn from_analytical_materials<L, U>(
+        left_exterior: L,
+        right_exterior: U,
+    ) -> StackBuilder<AnalyticalMaterialHandle<R, C>, F>
+    where
+        L: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        U: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        F: Float,
+    {
+        StackBuilder::from_analytical_materials(left_exterior, right_exterior)
+    }
+}
+
+impl<R, C, F> Stack<DifferentiableMaterialHandle<R, C>, F>
+where
+    R: Copy + 'static,
+    C: ComplexScalar<RealField = R> + Copy + 'static,
+{
+    pub fn from_analytical_materials<L, U>(
+        left_exterior: L,
+        right_exterior: U,
+    ) -> StackBuilder<DifferentiableMaterialHandle<R, C>, F>
+    where
+        L: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
+        U: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
+        F: Float,
+    {
+        StackBuilder::from_differentiable_materials(left_exterior, right_exterior)
+    }
+}
+
+impl<R, C, F> Stack<MeromorphicMaterialHandle<R, C>, F>
+where
+    R: Copy + 'static,
+    C: ComplexScalar<RealField = R> + Copy + 'static,
+{
+    pub fn from_meromorphic_materials<L, U>(
+        left_exterior: L,
+        right_exterior: U,
+    ) -> StackBuilder<MeromorphicMaterialHandle<R, C>, F>
+    where
+        L: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        U: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        F: Float,
+    {
+        StackBuilder::from_meromorphic_materials(left_exterior, right_exterior)
     }
 }
 
@@ -108,16 +193,19 @@ impl<M, F> Stack<M, F> {
         }
     }
 
-    pub fn incident_index<I, C>(&self, _vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
+    pub fn incident_relative_permittivity<I, C>(
+        &self,
+        vacuum_wavenumber: I,
+        side: IncidentSide,
+    ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = M::Real> + Copy,
         I: Sampled<Elem = M::Real>,
         M: Material,
     {
         let direction = side.propagation_direction();
-        let _material = self.entrance_exterior(direction);
+        let material = self.entrance_exterior(direction);
 
-        // material.relative_permittivity(vacuum_wavenumber);
-        todo!()
+        material.relative_permittivity(vacuum_wavenumber)
     }
 }

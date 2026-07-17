@@ -24,7 +24,7 @@ mod tests {
             evaluator::RealAxis,
             scatter2::Scatter2,
         },
-        material::{Constant, enums::IsotropicMaterial},
+        material::{Constant, MaterialHandle},
     };
 
     use approx::assert_relative_eq;
@@ -49,9 +49,9 @@ mod tests {
         )
     }
 
-    fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
+    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(thickness_cm).unwrap(),
             )
@@ -63,13 +63,30 @@ mod tests {
     fn two_layer_stack(
         first_thickness_cm: f64,
         second_thickness_cm: f64,
-    ) -> Stack<IsotropicMaterial<f64>, f64> {
+    ) -> Stack<Constant<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .with_layer(
+            .layer(
                 Constant::new(2.25, 1.0),
                 Thickness::from_cm(first_thickness_cm).unwrap(),
             )
-            .with_layer(
+            .layer(
+                Constant::new(3.24, 1.0),
+                Thickness::from_cm(second_thickness_cm).unwrap(),
+            )
+            .build()
+            .unwrap()
+    }
+
+    fn two_handle_layer_stack(
+        first_thickness_cm: f64,
+        second_thickness_cm: f64,
+    ) -> Stack<MaterialHandle<f64, C>, f64> {
+        Stack::from_materials(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
+            .material_layer(
+                Constant::new(2.25, 1.0),
+                Thickness::from_cm(first_thickness_cm).unwrap(),
+            )
+            .material_layer(
                 Constant::new(3.24, 1.0),
                 Thickness::from_cm(second_thickness_cm).unwrap(),
             )
@@ -110,7 +127,7 @@ mod tests {
     #[test]
     fn thick_evanescent_layer_has_finite_scattering_response() {
         let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.0, 1.0))
-            .with_layer(Constant::new(1.0, 1.0), Thickness::from_cm(100.0).unwrap())
+            .layer(Constant::new(1.0, 1.0), Thickness::from_cm(100.0).unwrap())
             .build()
             .unwrap();
 
@@ -154,6 +171,55 @@ mod tests {
 
                     let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
                         .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    assert_array_close(scatter.reflection(), transfer.reflection(), 1e-11);
+
+                    assert_array_close(scatter.transmission(), transfer.transmission(), 1e-11);
+
+                    let scatter_first = scatter.derivatives().unwrap().first();
+
+                    let transfer_first = transfer.derivatives().unwrap().first();
+
+                    assert_array_close(
+                        scatter_first.reflection(),
+                        transfer_first.reflection(),
+                        1e-9,
+                    );
+
+                    assert_array_close(
+                        scatter_first.transmission(),
+                        transfer_first.transmission(),
+                        1e-9,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn first_structural_derivatives_match_transfer_backend_from_both_sides_with_handle() {
+        let stack = two_handle_layer_stack(0.17, 0.29);
+
+        for polarisation in [
+            Polarisation::TransverseElectric,
+            Polarisation::TransverseMagnetic,
+        ] {
+            for side in [IncidentSide::Left, IncidentSide::Right] {
+                let input = PlaneWaveInput::new(planar(3.0, 0.4, polarisation), side);
+
+                for variable in [
+                    StructuralDerivativeVariable::ParallelWavenumber,
+                    StructuralDerivativeVariable::ParallelWavenumberSquared,
+                    StructuralDerivativeVariable::Thickness(0),
+                    StructuralDerivativeVariable::Thickness(1),
+                ] {
+                    let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
+                        .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
+                        .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
                         .unwrap();
 
                     assert_array_close(scatter.reflection(), transfer.reflection(), 1e-11);
@@ -535,7 +601,7 @@ mod tests {
     #[test]
     fn thick_evanescent_mode_residual_is_finite() {
         let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.0, 1.0))
-            .with_layer(Constant::new(1.0, 1.0), Thickness::from_cm(10.0).unwrap())
+            .layer(Constant::new(1.0, 1.0), Thickness::from_cm(10.0).unwrap())
             .build()
             .unwrap();
 
