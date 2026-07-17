@@ -37,12 +37,11 @@ use crate::{
     backend::{
         IsotropicLayerQuantities, Polarisation,
         evaluator::{
-            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
+            ComplexPlane, ConstitutiveDerivativeEvaluator, RealAxis,
         },
     },
     material::{
-        DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
-        Scalar, SpectralVariable,
+        DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, SpectralVariable,
     },
 };
 

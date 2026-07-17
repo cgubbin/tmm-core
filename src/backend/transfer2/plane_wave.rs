@@ -2,9 +2,9 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, PlanarInput,
+    ComplexScalar,
     backend::{
-        DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
         algebra::ScalarAlgebra,
         derivative::StructuralDerivativeVariable,
         evaluator::RealAxis,

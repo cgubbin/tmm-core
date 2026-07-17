@@ -16,8 +16,8 @@ pub use matrix::ScatterMatrix2;
 #[cfg(test)]
 mod tests {
     use crate::{
-        DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse,
-        Polarisation, Stack, Thickness, Transfer2, ValidationConfig,
+        IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse, Polarisation, Stack,
+        Thickness, Transfer2, ValidationConfig,
         backend::{
             DifferentiablePlaneWaveBackend, OutgoingModeBackend, PlaneWaveBackend,
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},

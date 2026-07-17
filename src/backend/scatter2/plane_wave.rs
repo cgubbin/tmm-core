@@ -4,13 +4,13 @@ use num_traits::Float;
 use crate::{
     ComplexScalar, IncidentSide, PlanarInput,
     backend::{
-        DerivativeVariable, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
         isotropic::IsotropicLayerAdmittance,
         jet::{ArrayJet, ArrayJetFirst},
         plane_wave::DifferentiablePlaneWaveBackend,
-        scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
+        scatter2::{Scatter2, Scatter2Error},
     },
     material::{DifferentiableMaterial, Material},
     stack::Stack,

@@ -354,7 +354,7 @@ impl Scatter2 {
             primitive,
         );
 
-        for (index, layer) in stack.iter().enumerate() {
+        for (_index, layer) in stack.iter().enumerate() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let (kappa, layer_admittance) = medium_first_jets_spectral::<E, _, _, _>(
@@ -534,7 +534,7 @@ impl Scatter2 {
             primitive,
         );
 
-        for (index, layer) in stack.iter().enumerate() {
+        for (_index, layer) in stack.iter().enumerate() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let (kappa, layer_admittance) = medium_second_jets_spectral::<E, _, _, _>(

@@ -20,7 +20,7 @@
 //! reconstruction algebra. Jet-valued components carry derivatives through
 //! the prefix, suffix, and cut-wave calculations automatically.
 use crate::{
-    ComplexScalar, DerivativeVariable, IncidentSide, Material, PlanarInput, PlaneWaveInput, Stack,
+    ComplexScalar, IncidentSide, Material, PlanarInput, PlaneWaveInput, Stack,
     backend::{
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
@@ -683,20 +683,14 @@ mod tests {
         let stack = two_layer_stack();
         let input = input(IncidentSide::Left);
 
+        let variable = SpectralDerivativeVariable::VacuumWavenumber;
+
         let ordinary = backend
-            .solve_plane_wave_spectral_first_derivative(
-                &stack,
-                &input,
-                SpectralDerivativeVariable::VacuumWavenumber,
-            )
+            .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
             .unwrap();
 
         let field = backend
-            .solve_plane_wave_internal_fields_spectral_first_derivative(
-                &stack,
-                &input,
-                SpectralDerivativeVariable::VacuumWavenumber,
-            )
+            .solve_plane_wave_internal_fields_spectral_first_derivative(&stack, &input, variable)
             .unwrap();
 
         let ordinary_derivatives = ordinary.derivatives().unwrap();
@@ -717,7 +711,7 @@ mod tests {
 
         let internal = field.boundary_waves().derivatives().unwrap();
 
-        assert_eq!(internal.variable(), DerivativeVariable::VacuumWavenumber,);
+        assert_eq!(internal.variable(), variable.into());
 
         assert_eq!(internal.first_layers().len(), stack.len(),);
 

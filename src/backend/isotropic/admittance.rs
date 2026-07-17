@@ -29,7 +29,7 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, PlanarInput,
+        PlanarInput,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::{
             ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,

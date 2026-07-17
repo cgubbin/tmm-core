@@ -29,11 +29,10 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        AnalyticResidual, DerivativeVariable, OutgoingModeBackend, PlanarInput,
+        AnalyticResidual, OutgoingModeBackend, PlanarInput,
         algebra::ScalarAlgebra,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::ComplexPlane,
-        field::InternalFieldRequest,
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
@@ -42,7 +41,7 @@ use crate::{
         mode::{DifferentiableOutgoingModeBackend, ResidualDerivatives},
         scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
     },
-    material::{DifferentiableMeromorphicMaterial, Material, MeromorphicMaterial},
+    material::{DifferentiableMeromorphicMaterial, MeromorphicMaterial},
     stack::Stack,
 };
 

@@ -75,7 +75,7 @@ use crate::{
         PlanarInput, Polarisation,
         evaluator::{ComplexPlane, ConstitutiveEvaluator, RealAxis},
     },
-    material::{Material, MeromorphicMaterial, Scalar},
+    material::{Material, MeromorphicMaterial},
 };
 
 /// Material and propagation quantities for one isotropic medium.

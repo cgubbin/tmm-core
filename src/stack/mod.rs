@@ -108,14 +108,14 @@ impl<M, F> Stack<M, F> {
         }
     }
 
-    pub fn incident_index<I, C>(&self, vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
+    pub fn incident_index<I, C>(&self, _vacuum_wavenumber: I, side: IncidentSide) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = M::Real> + Copy,
         I: Sampled<Elem = M::Real>,
         M: Material,
     {
         let direction = side.propagation_direction();
-        let material = self.entrance_exterior(direction);
+        let _material = self.entrance_exterior(direction);
 
         // material.relative_permittivity(vacuum_wavenumber);
         todo!()
