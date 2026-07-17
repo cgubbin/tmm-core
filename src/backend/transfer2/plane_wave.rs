@@ -1023,6 +1023,7 @@ mod transfer2_pw_tests {
     use crate::{
         backend::{
             DerivativeVariable, PlanarInput, PlaneWaveBackend, PlaneWaveInput, Polarisation,
+            derivative::SpectralDerivativeVariable,
             transfer2::{Transfer2, Transfer2Error},
         },
         material::{Constant, enums::IsotropicMaterial},
@@ -1208,7 +1209,11 @@ mod transfer2_pw_tests {
         );
 
         let response: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-            .solve_plane_wave_first_derivative(&stack, &input, DerivativeVariable::Thickness(0))
+            .solve_plane_wave_structural_first_derivative(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(0),
+            )
             .unwrap();
 
         let derivatives = response.derivatives().unwrap();
@@ -1230,10 +1235,10 @@ mod transfer2_pw_tests {
         );
 
         let response: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_structural_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -1260,10 +1265,10 @@ mod transfer2_pw_tests {
         );
 
         let analytic = Transfer2::new()
-            .solve_plane_wave_first_derivative(
+            .solve_plane_wave_structural_first_derivative(
                 &one_layer_stack(d),
                 &input,
-                DerivativeVariable::Thickness(0),
+                StructuralDerivativeVariable::Thickness(0),
             )
             .unwrap();
 
@@ -1299,10 +1304,10 @@ mod transfer2_pw_tests {
         );
 
         let analytic = Transfer2::new()
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_structural_second_derivative(
                 &one_layer_stack(d),
                 &input,
-                DerivativeVariable::Thickness(0),
+                StructuralDerivativeVariable::Thickness(0),
             )
             .unwrap();
 
@@ -1348,7 +1353,11 @@ mod transfer2_pw_tests {
         );
 
         let analytic = Transfer2::new()
-            .solve_plane_wave_first_derivative(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .solve_plane_wave_spectral_first_derivative(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumber,
+            )
             .unwrap();
 
         let plus_input = plane_wave_input(
@@ -1399,10 +1408,10 @@ mod transfer2_pw_tests {
         );
 
         let analytic = Transfer2::new()
-            .solve_plane_wave_first_derivative(
+            .solve_plane_wave_structural_first_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -1453,18 +1462,18 @@ mod transfer2_pw_tests {
         );
 
         let linear: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-            .solve_plane_wave_first_derivative(
+            .solve_plane_wave_structural_first_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumber,
+                StructuralDerivativeVariable::ParallelWavenumber,
             )
             .unwrap();
 
         let squared: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-            .solve_plane_wave_first_derivative(
+            .solve_plane_wave_structural_first_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -1499,11 +1508,11 @@ mod transfer2_pw_tests {
             C,
             ndarray::Dim<[usize; 0]>,
             Stack<IsotropicMaterial<f64>, f64>,
-        >>::solve_plane_wave_first_derivative(
+        >>::solve_plane_wave_structural_first_derivative(
             &Transfer2::new(),
             &stack,
             &input,
-            DerivativeVariable::Thickness(1),
+            StructuralDerivativeVariable::Thickness(1),
         )
         .unwrap_err();
 
@@ -1529,10 +1538,10 @@ mod transfer2_pw_tests {
         let input = PlaneWaveInput::new(planar, IncidentSide::Left);
 
         let response: PlaneWaveResponse<C, ndarray::Ix1> = Transfer2::new()
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_spectral_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
@@ -1605,10 +1614,10 @@ mod transfer2_pw_tests {
         };
 
         let analytic: PlaneWaveResponse<C, ndarray::Ix0> = backend
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_spectral_second_derivative(
                 &stack,
                 &input(k0),
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 

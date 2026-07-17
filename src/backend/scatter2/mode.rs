@@ -476,25 +476,21 @@ mod tests {
     }
 
     #[test]
-    fn residual_first_derivative_matches_transfer_backend() {
+    fn residual_first_spectral_derivative_matches_transfer_backend() {
         let stack = two_layer_stack(0.17, 0.29);
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         for variable in [
-            DerivativeVariable::VacuumWavenumber,
-            DerivativeVariable::VacuumWavenumberSquared,
-            DerivativeVariable::ParallelWavenumber,
-            DerivativeVariable::ParallelWavenumberSquared,
-            DerivativeVariable::Thickness(0),
-            DerivativeVariable::Thickness(1),
+            SpectralDerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared,
         ] {
             let scatter = Scatter2::new()
-                .outgoing_mode_residual_first_derivative(&stack, &input, variable)
+                .outgoing_mode_residual_first_spectral_derivative(&stack, &input, variable)
                 .unwrap();
 
             let transfer = Transfer2::new()
-                .outgoing_mode_residual_first_derivative(&stack, &input, variable)
+                .outgoing_mode_residual_first_spectral_derivative(&stack, &input, variable)
                 .unwrap();
 
             assert_complex_close(scatter.value()[()], transfer.value()[()], 1e-10);
@@ -508,25 +504,91 @@ mod tests {
     }
 
     #[test]
-    fn residual_second_derivative_matches_transfer_backend() {
+    fn residual_first_derivative_matches_transfer_backend() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+        for variable in [
+            StructuralDerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(1),
+        ] {
+            let scatter = Scatter2::new()
+                .outgoing_mode_residual_first_structural_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let transfer = Transfer2::new()
+                .outgoing_mode_residual_first_structural_derivative(&stack, &input, variable)
+                .unwrap();
+
+            assert_complex_close(scatter.value()[()], transfer.value()[()], 1e-10);
+
+            assert_complex_close(
+                scatter.derivatives().unwrap().first()[()],
+                transfer.derivatives().unwrap().first()[()],
+                1e-9,
+            );
+        }
+    }
+
+    #[test]
+    fn residual_second_spectral_derivative_matches_transfer_backend() {
         let stack = two_layer_stack(0.17, 0.29);
 
         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
 
         for variable in [
-            DerivativeVariable::VacuumWavenumber,
-            DerivativeVariable::VacuumWavenumberSquared,
-            DerivativeVariable::ParallelWavenumber,
-            DerivativeVariable::ParallelWavenumberSquared,
-            DerivativeVariable::Thickness(0),
-            DerivativeVariable::Thickness(1),
+            SpectralDerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared,
         ] {
             let scatter = Scatter2::new()
-                .outgoing_mode_residual_second_derivative(&stack, &input, variable)
+                .outgoing_mode_residual_second_spectral_derivative(&stack, &input, variable)
                 .unwrap();
 
             let transfer = Transfer2::new()
-                .outgoing_mode_residual_second_derivative(&stack, &input, variable)
+                .outgoing_mode_residual_second_spectral_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let scatter_derivatives = scatter.derivatives().unwrap();
+
+            let transfer_derivatives = transfer.derivatives().unwrap();
+
+            assert_complex_close(scatter.value()[()], transfer.value()[()], 1e-10);
+
+            assert_complex_close(
+                scatter_derivatives.first()[()],
+                transfer_derivatives.first()[()],
+                1e-8,
+            );
+
+            assert_complex_close(
+                scatter_derivatives.second().unwrap()[()],
+                transfer_derivatives.second().unwrap()[()],
+                1e-7,
+            );
+        }
+    }
+
+    #[test]
+    fn residual_second_structural_derivative_matches_transfer_backend() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
+
+        for variable in [
+            StructuralDerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(1),
+        ] {
+            let scatter = Scatter2::new()
+                .outgoing_mode_residual_second_structural_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let transfer = Transfer2::new()
+                .outgoing_mode_residual_second_structural_derivative(&stack, &input, variable)
                 .unwrap();
 
             let scatter_derivatives = scatter.derivatives().unwrap();

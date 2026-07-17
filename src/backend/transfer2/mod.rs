@@ -209,9 +209,17 @@ mod interface_consistency_tests {
         backend::{
             DerivativeVariable, OutgoingModeBackend, PlanarInput, PlaneWaveBackend, PlaneWaveInput,
             Polarisation, RawMatrixBackend,
+            derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+            evaluator::ComplexPlane,
             input::IncidentSide,
             isotropic::IsotropicLayerAdmittance,
             jet::{Jet, JetFirst},
+            matrix::{
+                ComplexMatrixBackend, RawMatrixSpectralDerivativeBackend,
+                RawMatrixStructuralDerivativeBackend,
+            },
+            mode::DifferentiableOutgoingModeBackend,
+            plane_wave::DifferentiablePlaneWaveBackend,
             transfer2::{Matrix2, Transfer2, response::outgoing_residual},
         },
         material::{Constant, enums::IsotropicMaterial},
@@ -340,11 +348,14 @@ mod interface_consistency_tests {
         let stack = stack();
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let input = plane_wave_input_re(side);
+            let input = plane_wave_input(side);
             let input_re = plane_wave_input_re(side);
             let planar = input.planar();
 
-            let raw = backend.solve_matrix(&stack, planar).unwrap().into_matrix();
+            let raw = backend
+                .solve_matrix(&stack, input_re.planar())
+                .unwrap()
+                .into_matrix();
 
             let (left, right) = exterior_admittances(&stack, planar);
 
@@ -367,10 +378,10 @@ mod interface_consistency_tests {
 
         let input_re = plane_wave_input_re(IncidentSide::Right);
 
-        let variable = DerivativeVariable::VacuumWavenumber;
+        let variable = SpectralDerivativeVariable::VacuumWavenumber;
 
         let raw = backend
-            .solve_matrix_first_derivative(&stack, planar, variable)
+            .solve_matrix_spectral_first_derivative(&stack, input_re.planar(), variable)
             .unwrap();
 
         let (matrix, derivatives) = raw.into_parts();
@@ -378,17 +389,23 @@ mod interface_consistency_tests {
 
         let matrix_jet = JetFirst::from_parts(matrix, derivatives.into_first());
 
-        let left =
-            IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), planar, variable);
+        let left = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+            stack.left_exterior(),
+            planar,
+            variable,
+        );
 
-        let right =
-            IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), planar, variable);
+        let right = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+            stack.right_exterior(),
+            planar,
+            variable,
+        );
 
         let (expected_r, expected_t) =
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
 
         let response = backend
-            .solve_plane_wave_first_derivative(&stack, &input_re, variable)
+            .solve_plane_wave_spectral_first_derivative(&stack, &input_re, variable)
             .unwrap();
 
         assert_array_close(response.reflection(), expected_r.value(), 1e-12);
@@ -406,35 +423,43 @@ mod interface_consistency_tests {
     fn raw_matrix_and_plane_wave_second_derivative_interfaces_agree() {
         let backend = Transfer2::new();
         let stack = stack();
-        let input = plane_wave_input(IncidentSide::Left);
+        let input_cp = plane_wave_input(IncidentSide::Left);
+        let input = plane_wave_input_re(IncidentSide::Left);
         let planar = input.planar();
 
-        let input_re = plane_wave_input_re(IncidentSide::Left);
-
-        let variable = DerivativeVariable::ParallelWavenumberSquared;
+        let variable = StructuralDerivativeVariable::ParallelWavenumberSquared;
 
         let raw = backend
-            .solve_matrix_second_derivative(&stack, planar, variable)
+            .solve_matrix_structural_second_derivative(&stack, planar, variable)
             .unwrap();
 
         let (matrix, derivatives) = raw.into_parts();
         let (stored_variable, first, second) = derivatives.unwrap().into_parts();
 
-        assert_eq!(stored_variable, variable);
+        assert_eq!(
+            stored_variable,
+            DerivativeVariable::ParallelWavenumberSquared
+        );
 
         let matrix_jet = Jet::from_parts(matrix, first, second.unwrap());
 
-        let left =
-            IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), planar, variable);
+        let left = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+            stack.left_exterior(),
+            input_cp.planar(),
+            variable,
+        );
 
-        let right =
-            IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), planar, variable);
+        let right = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+            stack.right_exterior(),
+            input_cp.planar(),
+            variable,
+        );
 
         let (expected_r, expected_t) =
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
 
         let response = backend
-            .solve_plane_wave_second_derivative(&stack, &input_re, variable)
+            .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
             .unwrap();
 
         assert_array_close(response.reflection(), expected_r.value(), 1e-12);
@@ -464,7 +489,10 @@ mod interface_consistency_tests {
         let stack = stack();
         let planar = planar_input();
 
-        let matrix = backend.solve_matrix(&stack, &planar).unwrap().into_matrix();
+        let matrix = backend
+            .solve_analytic_matrix(&stack, &planar)
+            .unwrap()
+            .into_matrix();
 
         let (left, right) = exterior_admittances(&stack, &planar);
 
@@ -481,20 +509,28 @@ mod interface_consistency_tests {
         let stack = stack();
         let planar = planar_input();
 
-        let variable = DerivativeVariable::ParallelWavenumber;
+        let variable = StructuralDerivativeVariable::ParallelWavenumber;
 
-        let matrix = backend.evaluate_first(&stack, &planar, variable).unwrap();
+        let matrix = backend
+            .evaluate_structural_first_with::<ComplexPlane, _, _, _>(&stack, &planar, variable)
+            .unwrap();
 
-        let left =
-            IsotropicLayerAdmittance::evaluate_first(stack.left_exterior(), &planar, variable);
+        let left = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
 
-        let right =
-            IsotropicLayerAdmittance::evaluate_first(stack.right_exterior(), &planar, variable);
+        let right = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
 
         let expected = outgoing_residual(matrix.into_entries(), &left, &right);
 
         let actual = backend
-            .outgoing_mode_residual_first_derivative(&stack, &planar, variable)
+            .outgoing_mode_residual_first_structural_derivative(&stack, &planar, variable)
             .unwrap();
 
         assert_array_close(actual.value(), expected.value(), 1e-12);
@@ -512,20 +548,28 @@ mod interface_consistency_tests {
         let stack = stack();
         let planar = planar_input();
 
-        let variable = DerivativeVariable::VacuumWavenumber;
+        let variable = SpectralDerivativeVariable::VacuumWavenumber;
 
-        let matrix = backend.evaluate_second(&stack, &planar, variable).unwrap();
+        let matrix = backend
+            .evaluate_spectral_second_with::<ComplexPlane, _, _, _>(&stack, &planar, variable)
+            .unwrap();
 
-        let left =
-            IsotropicLayerAdmittance::evaluate_second(stack.left_exterior(), &planar, variable);
+        let left = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
+            stack.left_exterior(),
+            &planar,
+            variable,
+        );
 
-        let right =
-            IsotropicLayerAdmittance::evaluate_second(stack.right_exterior(), &planar, variable);
+        let right = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
+            stack.right_exterior(),
+            &planar,
+            variable,
+        );
 
         let expected = outgoing_residual(matrix.into_entries(), &left, &right);
 
         let actual = backend
-            .outgoing_mode_residual_second_derivative(&stack, &planar, variable)
+            .outgoing_mode_residual_second_spectral_derivative(&stack, &planar, variable)
             .unwrap();
 
         let actual_derivatives = actual.derivatives().unwrap();
@@ -559,11 +603,13 @@ mod interface_consistency_tests {
                 let response: PlaneWaveResponse<C, ndarray::Ix0> =
                     backend.solve_plane_wave(&stack, &input).unwrap();
 
-                let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar)
-                    .into_inner();
+                let left =
+                    IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar)
+                        .into_inner();
 
-                let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar)
-                    .into_inner();
+                let right =
+                    IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar)
+                        .into_inner();
 
                 let yl = left[()];
                 let yr = right[()];
@@ -596,8 +642,7 @@ mod interface_consistency_tests {
             .build()
             .unwrap();
 
-        let planar = PlanarInput::new(arr0(c(3.0)), arr0(c(0.4)), Polarisation::TransverseMagnetic);
-        let re_planar = PlanarInput::new(arr0(3.0), arr0(0.4), Polarisation::TransverseMagnetic);
+        let planar = PlanarInput::new(arr0(3.0), arr0(0.4), Polarisation::TransverseMagnetic);
 
         let matrix_without = backend.solve_matrix(&without_layer, &planar).unwrap();
 
@@ -606,7 +651,7 @@ mod interface_consistency_tests {
         assert_matrix_close(matrix_with.matrix(), matrix_without.matrix(), 1e-12);
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let input = PlaneWaveInput::new(re_planar.clone(), side);
+            let input = PlaneWaveInput::new(planar.clone(), side);
 
             let response_without = backend.solve_plane_wave(&without_layer, &input).unwrap();
 
@@ -684,9 +729,11 @@ mod interface_consistency_tests {
             let response: PlaneWaveResponse<C, ndarray::Ix0> =
                 backend.solve_plane_wave(&stack, &input).unwrap();
 
-            let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar);
+            let left =
+                IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar);
 
-            let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar);
+            let right =
+                IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar);
 
             let reflection = response.reflection()[()].modulus_squared();
 
@@ -725,10 +772,11 @@ mod interface_consistency_tests {
             )
             .unwrap();
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar);
+        let left_admittance =
+            IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar);
 
         let right_admittance =
-            IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar);
+            IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar);
 
         let left_to_right = right_admittance.value()[()].real()
             / left_admittance.value()[()].real()

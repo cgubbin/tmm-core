@@ -357,7 +357,7 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let matrix = Matrix2::from_layer(&quantities, thickness(0.0));
 
@@ -372,7 +372,7 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let matrix = Matrix2::from_layer(&quantities, thickness(0.2));
 
@@ -385,7 +385,7 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let d = 0.2;
         let h = 1e-6;
@@ -407,7 +407,7 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let d = 0.2;
         let h = 1e-4;
@@ -440,9 +440,9 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared(
+        let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &quantities,
             input.vacuum_wavenumber(),
@@ -463,9 +463,9 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let plus_quantities = IsotropicLayerQuantities::new(&material, &plus_input);
+        let plus_quantities = IsotropicLayerQuantities::real_axis(&material, &plus_input);
 
-        let minus_quantities = IsotropicLayerQuantities::new(&material, &minus_input);
+        let minus_quantities = IsotropicLayerQuantities::real_axis(&material, &minus_input);
 
         let plus = Matrix2::from_layer(&plus_quantities, layer_thickness);
 
@@ -491,9 +491,9 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared(
+        let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &quantities,
             input.vacuum_wavenumber(),
@@ -521,11 +521,11 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus_quantities = IsotropicLayerQuantities::new(&material, &plus_input);
+        let plus_quantities = IsotropicLayerQuantities::real_axis(&material, &plus_input);
 
-        let zero_quantities = IsotropicLayerQuantities::new(&material, &zero_input);
+        let zero_quantities = IsotropicLayerQuantities::real_axis(&material, &zero_input);
 
-        let minus_quantities = IsotropicLayerQuantities::new(&material, &minus_input);
+        let minus_quantities = IsotropicLayerQuantities::real_axis(&material, &minus_input);
 
         let plus = Matrix2::from_layer(&plus_quantities, layer_thickness);
 
@@ -553,7 +553,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let derivatives = IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&quantities);
 
@@ -571,9 +571,9 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let plus_quantities = IsotropicLayerQuantities::new(&material, &plus_input);
+        let plus_quantities = IsotropicLayerQuantities::real_axis(&material, &plus_input);
 
-        let minus_quantities = IsotropicLayerQuantities::new(&material, &minus_input);
+        let minus_quantities = IsotropicLayerQuantities::real_axis(&material, &minus_input);
 
         let plus = Matrix2::from_layer(&plus_quantities, layer_thickness);
 
@@ -599,7 +599,7 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let derivatives = IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&quantities);
 
@@ -624,11 +624,11 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus_quantities = IsotropicLayerQuantities::new(&material, &plus_input);
+        let plus_quantities = IsotropicLayerQuantities::real_axis(&material, &plus_input);
 
-        let zero_quantities = IsotropicLayerQuantities::new(&material, &zero_input);
+        let zero_quantities = IsotropicLayerQuantities::real_axis(&material, &zero_input);
 
-        let minus_quantities = IsotropicLayerQuantities::new(&material, &minus_input);
+        let minus_quantities = IsotropicLayerQuantities::real_axis(&material, &minus_input);
 
         let plus = Matrix2::from_layer(&plus_quantities, layer_thickness);
 
@@ -651,7 +651,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let matrix = Matrix2::from_layer(&quantities, thickness(0.2));
 

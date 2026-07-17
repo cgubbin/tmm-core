@@ -492,7 +492,7 @@ mod tests {
             polarisation,
         );
 
-        IsotropicLayerQuantities::new(material, &input)
+        IsotropicLayerQuantities::real_axis(material, &input)
     }
 
     fn quantities_at_parallel_wavenumber_squared(
@@ -507,11 +507,11 @@ mod tests {
             polarisation,
         );
 
-        IsotropicLayerQuantities::new(material, &input)
+        IsotropicLayerQuantities::real_axis(material, &input)
     }
 
     #[test]
-    fn complex_vacuum_wavenumber_squared_first_derivative_matches_finite_difference() {
+    fn vacuum_wavenumber_squared_real_axis_first_derivative_matches_finite_difference() {
         let material = constant_material(2.25, 1.4);
 
         let k0_squared: f64 = 9.0;
@@ -524,9 +524,9 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let derivatives = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+        let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
@@ -557,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn complex_vacuum_wavenumber_squared_second_derivative_matches_finite_difference() {
+    fn vacuum_wavenumber_squared_real_axis_second_derivative_matches_finite_difference() {
         let material = constant_material(2.25, 1.4);
 
         let k0_squared: f64 = 9.0;
@@ -570,9 +570,9 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+        let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
@@ -625,7 +625,7 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let derivatives = IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&q);
 
@@ -666,7 +666,7 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let derivatives = IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&q);
 
@@ -708,16 +708,16 @@ mod tests {
 
         let input = scalar_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let first = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+        let first = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
             input.polarisation(),
         );
 
-        let second = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+        let second = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
@@ -735,16 +735,16 @@ mod tests {
 
         let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let first = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+        let first = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
             input.polarisation(),
         );
 
-        let second = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+        let second = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
@@ -766,16 +766,16 @@ mod tests {
         ] {
             let input = scalar_input(2.4, 0.5, polarisation);
 
-            let q = IsotropicLayerQuantities::new(&material, &input);
+            let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-            let first = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+            let first = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
                 &material,
                 &q,
                 input.vacuum_wavenumber(),
                 input.polarisation(),
             );
 
-            let second = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+            let second = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
                 &material,
                 &q,
                 input.vacuum_wavenumber(),
@@ -798,7 +798,7 @@ mod tests {
         ] {
             let input = scalar_input(2.4, 0.5, polarisation);
 
-            let q = IsotropicLayerQuantities::new(&material, &input);
+            let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
             let first = IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&q);
 
@@ -818,16 +818,16 @@ mod tests {
 
         let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let first = IsotropicLayerFirstDerivatives::complex_vacuum_wavenumber_squared(
+        let first = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
             input.polarisation(),
         );
 
-        let second = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+        let second = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
             &material,
             &q,
             input.vacuum_wavenumber(),
@@ -849,7 +849,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let first = IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&q);
 
@@ -879,14 +879,15 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let array_derivatives = IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
-            &material,
-            &q,
-            input.vacuum_wavenumber(),
-            input.polarisation(),
-        );
+        let array_derivatives =
+            IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
+                &material,
+                &q,
+                input.vacuum_wavenumber(),
+                input.polarisation(),
+            );
 
         let mut expected_dkappa = Vec::new();
         let mut expected_ddkappa = Vec::new();
@@ -897,10 +898,10 @@ mod tests {
             let scalar =
                 PlanarInput::new(arr0(k0), arr0(k_parallel), Polarisation::TransverseMagnetic);
 
-            let scalar_q = IsotropicLayerQuantities::new(&material, &scalar);
+            let scalar_q = IsotropicLayerQuantities::real_axis(&material, &scalar);
 
             let scalar_derivatives =
-                IsotropicLayerSecondDerivatives::complex_vacuum_wavenumber_squared(
+                IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared_real_axis(
                     &material,
                     &scalar_q,
                     scalar.vacuum_wavenumber(),
@@ -955,7 +956,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let array_derivatives = IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&q);
 
@@ -966,7 +967,7 @@ mod tests {
             let scalar =
                 PlanarInput::new(arr0(k0), arr0(k_parallel), Polarisation::TransverseElectric);
 
-            let scalar_q = IsotropicLayerQuantities::new(&material, &scalar);
+            let scalar_q = IsotropicLayerQuantities::real_axis(&material, &scalar);
 
             let scalar_derivatives =
                 IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&scalar_q);

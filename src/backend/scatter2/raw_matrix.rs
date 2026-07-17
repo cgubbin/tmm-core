@@ -455,7 +455,7 @@ mod tests {
 mod raw_matrix_backend_tests {
     use crate::{
         Polarisation, Thickness, ValidationConfig,
-        backend::field::InternalFieldRequest,
+        backend::derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         material::{Constant, enums::IsotropicMaterial},
     };
 
@@ -481,6 +481,17 @@ mod raw_matrix_backend_tests {
             polarisation,
         )
     }
+    fn planar_re(
+        vacuum_wavenumber: f64,
+        parallel_wavenumber: f64,
+        polarisation: Polarisation,
+    ) -> PlanarInput<Array0<f64>> {
+        PlanarInput::new(
+            arr0(vacuum_wavenumber),
+            arr0(parallel_wavenumber),
+            polarisation,
+        )
+    }
 
     fn one_layer_stack(thickness_cm: f64) -> Stack<IsotropicMaterial<f64>, f64> {
         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
@@ -498,7 +509,9 @@ mod raw_matrix_backend_tests {
         let stack = one_layer_stack(0.2);
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let result = Scatter2::new().solve_matrix(&stack, &input).unwrap();
+        let result = Scatter2::new()
+            .solve_analytic_matrix(&stack, &input)
+            .unwrap();
 
         assert!(result.derivatives().is_none());
     }
@@ -508,15 +521,15 @@ mod raw_matrix_backend_tests {
         let stack = one_layer_stack(0.2);
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let variable = DerivativeVariable::Thickness(0);
+        let variable = StructuralDerivativeVariable::Thickness(0);
 
         let result = Scatter2::new()
-            .solve_matrix_first_derivative(&stack, &input, variable)
+            .solve_complex_matrix_structural_first_derivative(&stack, &input, variable)
             .unwrap();
 
         let derivatives = result.derivatives().unwrap();
 
-        assert_eq!(derivatives.variable(), variable,);
+        assert_eq!(derivatives.variable(), variable.into(),);
 
         assert!(derivatives.second().is_none());
     }
@@ -526,15 +539,15 @@ mod raw_matrix_backend_tests {
         let stack = one_layer_stack(0.2);
         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
 
-        let variable = DerivativeVariable::VacuumWavenumber;
+        let variable = SpectralDerivativeVariable::VacuumWavenumber;
 
         let result = Scatter2::new()
-            .solve_matrix_second_derivative(&stack, &input, variable)
+            .solve_complex_matrix_spectral_second_derivative(&stack, &input, variable)
             .unwrap();
 
         let derivatives = result.derivatives().unwrap();
 
-        assert_eq!(derivatives.variable(), variable,);
+        assert_eq!(derivatives.variable(), variable.into(),);
 
         assert!(derivatives.second().is_some());
     }
@@ -544,16 +557,16 @@ mod raw_matrix_backend_tests {
         let stack = one_layer_stack(0.2);
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let variable = DerivativeVariable::ParallelWavenumberSquared;
+        let variable = StructuralDerivativeVariable::ParallelWavenumberSquared;
 
         let internal = Scatter2::new()
-            .evaluate_first(&stack, &input, variable)
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(&stack, &input, variable)
             .unwrap();
 
         let (expected_value, expected_first) = internal.into_matrix_parts();
 
         let public = Scatter2::new()
-            .solve_matrix_first_derivative(&stack, &input, variable)
+            .solve_complex_matrix_structural_first_derivative(&stack, &input, variable)
             .unwrap();
 
         assert_eq!(public.matrix(), &expected_value,);

@@ -946,7 +946,9 @@ mod tests {
 
         let input = planar(3.0, 0.0, Polarisation::TransverseElectric);
 
-        let matrix = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let matrix = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         let denominator = 1.0 + 1.5;
 
@@ -966,7 +968,7 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
 
         let matrix = Scatter2::new()
-            .evaluate_meromorphic(&stack, &input)
+            .evaluate_with::<ComplexPlane, _, _, _>(&stack, &input)
             .unwrap();
 
         assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
@@ -991,7 +993,9 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let matrix = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let matrix = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         let kappa = (2.25 * 3.0_f64.powi(2) - 0.4_f64.powi(2)).sqrt();
 
@@ -1012,7 +1016,9 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let with_layer = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let with_layer = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         /*
          * A zero-thickness intermediate layer should algebraically collapse to
@@ -1020,7 +1026,9 @@ mod tests {
          */
         let direct = empty_stack(1.0, 1.44);
 
-        let without_layer = Scatter2::new().evaluate(&direct, &input).unwrap();
+        let without_layer = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&direct, &input)
+            .unwrap();
 
         assert_matrix_close(&with_layer, &without_layer, 1e-12);
     }
@@ -1037,9 +1045,13 @@ mod tests {
 
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let first = Scatter2::new().evaluate(&first, &input).unwrap();
+        let first = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&first, &input)
+            .unwrap();
 
-        let reversed = Scatter2::new().evaluate(&reversed, &input).unwrap();
+        let reversed = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&reversed, &input)
+            .unwrap();
 
         assert_ne!(first.s11(), reversed.s11());
     }
@@ -1053,19 +1065,19 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let analytic = Scatter2::new()
-            .evaluate_first(
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(
                 &two_layer_stack(d0, d1),
                 &input,
-                DerivativeVariable::Thickness(0),
+                StructuralDerivativeVariable::Thickness(0),
             )
             .unwrap();
 
         let plus = Scatter2::new()
-            .evaluate(&two_layer_stack(d0 + h, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 + h, d1), &input)
             .unwrap();
 
         let minus = Scatter2::new()
-            .evaluate(&two_layer_stack(d0 - h, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 - h, d1), &input)
             .unwrap();
 
         assert_complex_close(
@@ -1102,23 +1114,23 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
 
         let analytic = Scatter2::new()
-            .evaluate_second(
+            .evaluate_structural_second_with::<RealAxis, _, _, _>(
                 &two_layer_stack(d0, d1),
                 &input,
-                DerivativeVariable::Thickness(1),
+                StructuralDerivativeVariable::Thickness(1),
             )
             .unwrap();
 
         let plus = Scatter2::new()
-            .evaluate(&two_layer_stack(d0, d1 + h), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 + h), &input)
             .unwrap();
 
         let zero = Scatter2::new()
-            .evaluate(&two_layer_stack(d0, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1), &input)
             .unwrap();
 
         let minus = Scatter2::new()
-            .evaluate(&two_layer_stack(d0, d1 - h), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 - h), &input)
             .unwrap();
 
         let h2 = h * h;
@@ -1146,16 +1158,24 @@ mod tests {
         let input = planar(k0, 0.4, Polarisation::TransverseElectric);
 
         let analytic = Scatter2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .evaluate_spectral_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumber,
+            )
             .unwrap();
 
         let plus_input = planar(k0 + h, 0.4, Polarisation::TransverseElectric);
 
         let minus_input = planar(k0 - h, 0.4, Polarisation::TransverseElectric);
 
-        let plus = Scatter2::new().evaluate(&stack, &plus_input).unwrap();
+        let plus = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
+            .unwrap();
 
-        let minus = Scatter2::new().evaluate(&stack, &minus_input).unwrap();
+        let minus = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
+            .unwrap();
 
         assert_complex_close(
             analytic.s11.first()[()],
@@ -1184,10 +1204,10 @@ mod tests {
         );
 
         let analytic = Scatter2::new()
-            .evaluate_second(
+            .evaluate_structural_second_with::<RealAxis, _, _, _>(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -1209,11 +1229,17 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus = Scatter2::new().evaluate(&stack, &plus_input).unwrap();
+        let plus = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
+            .unwrap();
 
-        let zero = Scatter2::new().evaluate(&stack, &zero_input).unwrap();
+        let zero = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &zero_input)
+            .unwrap();
 
-        let minus = Scatter2::new().evaluate(&stack, &minus_input).unwrap();
+        let minus = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
+            .unwrap();
 
         let h2 = h * h;
 
@@ -1237,7 +1263,11 @@ mod tests {
         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(1))
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(1),
+            )
             .unwrap_err();
 
         assert_eq!(
@@ -1260,7 +1290,11 @@ mod tests {
         );
 
         let result = Scatter2::new()
-            .evaluate_second(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .evaluate_spectral_second_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumber,
+            )
             .unwrap();
 
         let expected = input.vacuum_wavenumber().raw_dim();

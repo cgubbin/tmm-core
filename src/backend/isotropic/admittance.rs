@@ -520,7 +520,7 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let quantities = IsotropicLayerQuantities::new(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let admittance = IsotropicLayerAdmittance::from_quantities(&quantities);
 
@@ -545,10 +545,10 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let jet = IsotropicLayerAdmittance::evaluate_first(
+        let jet = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
         );
 
         let plus = make_input(
@@ -563,9 +563,9 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus = IsotropicLayerAdmittance::evaluate(&material, &plus);
+        let plus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &plus);
 
-        let minus = IsotropicLayerAdmittance::evaluate(&material, &minus);
+        let minus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &minus);
 
         let expected = (plus.value()[()] - minus.value()[()]) / (2.0 * h);
 
@@ -586,10 +586,10 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let jet = IsotropicLayerAdmittance::evaluate_second(
+        let jet = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
         );
 
         let plus_input = make_input(
@@ -610,11 +610,11 @@ mod tests {
             Polarisation::TransverseMagnetic,
         );
 
-        let plus = IsotropicLayerAdmittance::evaluate(&material, &plus_input);
+        let plus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &plus_input);
 
-        let zero = IsotropicLayerAdmittance::evaluate(&material, &zero_input);
+        let zero = IsotropicLayerAdmittance::evaluate_real_axis(&material, &zero_input);
 
-        let minus = IsotropicLayerAdmittance::evaluate(&material, &minus_input);
+        let minus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &minus_input);
 
         let expected = (plus.value()[()] - c(2.0) * zero.value()[()] + minus.value()[()]) / (h * h);
 
@@ -627,16 +627,16 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let squared = IsotropicLayerAdmittance::evaluate_first(
+        let squared = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
         );
 
-        let linear = IsotropicLayerAdmittance::evaluate_first(
+        let linear = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumber,
         );
 
         assert_close(
@@ -652,16 +652,16 @@ mod tests {
 
         let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
 
-        let first = IsotropicLayerAdmittance::evaluate_first(
+        let first = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(0),
         );
 
-        let second = IsotropicLayerAdmittance::evaluate_second(
+        let second = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
             &material,
             &input,
-            DerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(0),
         );
 
         assert_close(first.first()[()], c(0.0), 1e-12);

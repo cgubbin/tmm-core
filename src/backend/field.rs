@@ -149,14 +149,14 @@ where
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 
-    fn solve_plane_wave_internal_fields_first_structural_derivative(
+    fn solve_plane_wave_internal_fields_structural_first_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: StructuralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 
-    fn solve_plane_wave_internal_fields_second_structural_derivative(
+    fn solve_plane_wave_internal_fields_structural_second_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -169,14 +169,14 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn solve_plane_wave_internal_fields_first_spectral_derivative(
+    fn solve_plane_wave_internal_fields_spectral_first_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
         variable: SpectralDerivativeVariable,
     ) -> Result<PlaneWaveFieldResponse<C, D>, Self::Error>;
 
-    fn solve_plane_wave_internal_fields_second_spectral_derivative(
+    fn solve_plane_wave_internal_fields_spectral_second_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -382,12 +382,22 @@ where
     }
 
     /// Return first derivatives for every finite layer.
-    pub(crate) fn first(&self) -> &[LayerBoundaryWaveDifferential<C, D>] {
+    pub(crate) fn first_layers(&self) -> &[LayerBoundaryWaveDifferential<C, D>] {
         &self.first
     }
 
+    /// Return first derivatives for the exterior
+    pub(crate) fn exterior_first(&self) -> &ExteriorBoundaryWaveDifferential<C, D> {
+        &self.exterior_first
+    }
+
+    /// Return second derivatives for the exterior
+    pub(crate) fn exterior_second(&self) -> Option<&ExteriorBoundaryWaveDifferential<C, D>> {
+        self.exterior_second.as_ref()
+    }
+
     /// Return second derivatives for every finite layer, when available.
-    pub(crate) fn second(&self) -> Option<&[LayerBoundaryWaveDifferential<C, D>]> {
+    pub(crate) fn second_layers(&self) -> Option<&[LayerBoundaryWaveDifferential<C, D>]> {
         self.second.as_deref()
     }
 
@@ -856,6 +866,23 @@ where
     ) -> Self {
         Self { left, right }
     }
+
+    pub fn left(&self) -> &BidirectionalWaveDifferential<C, D> {
+        &self.left
+    }
+
+    pub fn right(&self) -> &BidirectionalWaveDifferential<C, D> {
+        &self.right
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        BidirectionalWaveDifferential<C, D>,
+        BidirectionalWaveDifferential<C, D>,
+    ) {
+        (self.left, self.right)
+    }
 }
 
 pub enum FieldPosition<R> {
@@ -891,7 +918,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::arr1;
+    use ndarray::{ArrayBase, OwnedRepr, arr1};
     use num_complex::Complex64;
 
     use super::*;
@@ -902,6 +929,33 @@ mod tests {
         C::new(value, 0.0)
     }
 
+    fn exterior_values(
+        left_forward: f64,
+        left_backward: f64,
+        right_forward: f64,
+        right_backward: f64,
+    ) -> ExteriorBoundaryWaves<C, ndarray::Ix1> {
+        ExteriorBoundaryWaves::new(
+            BidirectionalWaves::new(arr1(&[c(left_forward)]), arr1(&[c(left_backward)])),
+            BidirectionalWaves::new(arr1(&[c(right_forward)]), arr1(&[c(right_backward)])),
+        )
+    }
+
+    fn exterior_differential(
+        left_forward: f64,
+        left_backward: f64,
+        right_forward: f64,
+        right_backward: f64,
+    ) -> ExteriorBoundaryWaveDifferential<C, ndarray::Ix1> {
+        ExteriorBoundaryWaveDifferential::new(
+            BidirectionalWaveDifferential::new(arr1(&[c(left_forward)]), arr1(&[c(left_backward)])),
+            BidirectionalWaveDifferential::new(
+                arr1(&[c(right_forward)]),
+                arr1(&[c(right_backward)]),
+            ),
+        )
+    }
+
     #[test]
     fn value_conversion_preserves_layer_boundary_waves() {
         let generic = vec![LayerBoundaryWavesGeneric::new(
@@ -909,21 +963,55 @@ mod tests {
             BidirectionalWavesGeneric::new(arr1(&[c(5.0), c(6.0)]), arr1(&[c(7.0), c(8.0)])),
         )];
 
-        let fields = value_fields_from_generic(generic);
+        let layers = value_fields_from_generic(generic);
 
-        assert_eq!(fields.len(), 1);
-        assert!(fields.derivatives().is_none());
+        assert_eq!(layers.len(), 1);
 
-        let layer = fields.layer(0).unwrap();
+        let layer = &layers[0];
 
         assert_eq!(layer.left().forward(), &arr1(&[c(1.0), c(2.0)]),);
+
         assert_eq!(layer.left().backward(), &arr1(&[c(3.0), c(4.0)]),);
+
         assert_eq!(layer.right().forward(), &arr1(&[c(5.0), c(6.0)]),);
+
         assert_eq!(layer.right().backward(), &arr1(&[c(7.0), c(8.0)]),);
     }
 
     #[test]
-    fn first_order_conversion_separates_value_and_first_derivative() {
+    fn value_layers_can_be_assembled_with_exterior_waves() {
+        let generic = vec![LayerBoundaryWavesGeneric::new(
+            BidirectionalWavesGeneric::new(arr1(&[c(1.0)]), arr1(&[c(2.0)])),
+            BidirectionalWavesGeneric::new(arr1(&[c(3.0)]), arr1(&[c(4.0)])),
+        )];
+
+        let layers = value_fields_from_generic(generic);
+
+        let exterior = exterior_values(1.0, 0.25, 0.75, 0.0);
+
+        let fields = PlaneWaveBoundaryWaves::new(exterior, layers);
+
+        assert_eq!(fields.len(), 1);
+        assert!(!fields.is_empty());
+        assert!(fields.derivatives().is_none());
+
+        assert_eq!(fields.exterior().left().forward(), &arr1(&[c(1.0)]),);
+
+        assert_eq!(fields.exterior().left().backward(), &arr1(&[c(0.25)]),);
+
+        assert_eq!(fields.exterior().right().forward(), &arr1(&[c(0.75)]),);
+
+        assert_eq!(fields.exterior().right().backward(), &arr1(&[c(0.0)]),);
+
+        let layer = fields.layer(0).unwrap();
+
+        assert_eq!(layer.left().forward(), &arr1(&[c(1.0)]),);
+
+        assert_eq!(layer.right().backward(), &arr1(&[c(4.0)]),);
+    }
+
+    #[test]
+    fn first_order_conversion_separates_values_and_first_derivatives() {
         let generic = vec![LayerBoundaryWavesGeneric::new(
             BidirectionalWavesGeneric::new(
                 ArrayJetFirst::from_parts(arr1(&[c(1.0)]), arr1(&[c(11.0)])),
@@ -935,25 +1023,90 @@ mod tests {
             ),
         )];
 
-        let fields = first_order_fields_from_generic(generic, DerivativeVariable::VacuumWavenumber);
+        let (layers, first) = first_order_fields_from_generic(generic);
 
-        let value = fields.layer(0).unwrap();
-        assert_eq!(value.left().forward(), &arr1(&[c(1.0)]));
-        assert_eq!(value.left().backward(), &arr1(&[c(2.0)]));
-        assert_eq!(value.right().forward(), &arr1(&[c(3.0)]));
-        assert_eq!(value.right().backward(), &arr1(&[c(4.0)]));
+        assert_eq!(layers.len(), 1);
+        assert_eq!(first.len(), 1);
+
+        let value = &layers[0];
+
+        assert_eq!(value.left().forward(), &arr1(&[c(1.0)]),);
+
+        assert_eq!(value.left().backward(), &arr1(&[c(2.0)]),);
+
+        assert_eq!(value.right().forward(), &arr1(&[c(3.0)]),);
+
+        assert_eq!(value.right().backward(), &arr1(&[c(4.0)]),);
+
+        let derivative = &first[0];
+
+        assert_eq!(derivative.left().forward(), &arr1(&[c(11.0)]),);
+
+        assert_eq!(derivative.left().backward(), &arr1(&[c(12.0)]),);
+
+        assert_eq!(derivative.right().forward(), &arr1(&[c(13.0)]),);
+
+        assert_eq!(derivative.right().backward(), &arr1(&[c(14.0)]),);
+    }
+
+    #[test]
+    fn first_order_layers_can_be_assembled_with_exterior_derivatives() {
+        let generic = vec![LayerBoundaryWavesGeneric::new(
+            BidirectionalWavesGeneric::new(
+                ArrayJetFirst::from_parts(arr1(&[c(1.0)]), arr1(&[c(11.0)])),
+                ArrayJetFirst::from_parts(arr1(&[c(2.0)]), arr1(&[c(12.0)])),
+            ),
+            BidirectionalWavesGeneric::new(
+                ArrayJetFirst::from_parts(arr1(&[c(3.0)]), arr1(&[c(13.0)])),
+                ArrayJetFirst::from_parts(arr1(&[c(4.0)]), arr1(&[c(14.0)])),
+            ),
+        )];
+
+        let (layers, first_layers) = first_order_fields_from_generic(generic);
+
+        let exterior = exterior_values(1.0, 0.25, 0.75, 0.0);
+
+        let exterior_first = exterior_differential(0.0, 10.0, 20.0, 0.0);
+
+        let derivatives = PlaneWaveBoundaryWaveDerivatives::new(
+            DerivativeVariable::VacuumWavenumber,
+            exterior_first,
+            first_layers,
+        );
+
+        let fields = PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
 
         let derivatives = fields.derivatives().unwrap();
 
         assert_eq!(derivatives.variable(), DerivativeVariable::VacuumWavenumber,);
-        assert!(derivatives.second().is_none());
 
-        let first = derivatives.first_layer(0).unwrap();
+        assert!(derivatives.second_layers().is_none());
+        assert!(derivatives.exterior_second().is_none());
 
-        assert_eq!(first.left().forward(), &arr1(&[c(11.0)]),);
-        assert_eq!(first.left().backward(), &arr1(&[c(12.0)]),);
-        assert_eq!(first.right().forward(), &arr1(&[c(13.0)]),);
-        assert_eq!(first.right().backward(), &arr1(&[c(14.0)]),);
+        assert_eq!(
+            derivatives.exterior_first().left().forward(),
+            &arr1(&[c(0.0)]),
+        );
+
+        assert_eq!(
+            derivatives.exterior_first().left().backward(),
+            &arr1(&[c(10.0)]),
+        );
+
+        assert_eq!(
+            derivatives.exterior_first().right().forward(),
+            &arr1(&[c(20.0)]),
+        );
+
+        assert_eq!(
+            derivatives.first_layer(0).unwrap().left().forward(),
+            &arr1(&[c(11.0)]),
+        );
+
+        assert_eq!(
+            derivatives.first_layer(0).unwrap().right().backward(),
+            &arr1(&[c(14.0)]),
+        );
     }
 
     #[test]
@@ -967,32 +1120,108 @@ mod tests {
             BidirectionalWavesGeneric::new(jet(3.0, 13.0, 23.0), jet(4.0, 14.0, 24.0)),
         )];
 
-        let fields = second_order_fields_from_generic(generic, DerivativeVariable::Thickness(0));
+        let (layers, first, second) = second_order_fields_from_generic(generic);
 
-        let derivatives = fields.derivatives().unwrap();
+        assert_eq!(layers.len(), 1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
 
-        let first = derivatives.first_layer(0).unwrap();
-        let second = derivatives.second_layer(0).unwrap();
+        let value = &layers[0];
+
+        assert_eq!(value.left().forward(), &arr1(&[c(1.0)]),);
+
+        assert_eq!(value.right().backward(), &arr1(&[c(4.0)]),);
+
+        let first = &first[0];
 
         assert_eq!(first.left().forward(), &arr1(&[c(11.0)]),);
+
+        assert_eq!(first.left().backward(), &arr1(&[c(12.0)]),);
+
+        assert_eq!(first.right().forward(), &arr1(&[c(13.0)]),);
+
         assert_eq!(first.right().backward(), &arr1(&[c(14.0)]),);
 
+        let second = &second[0];
+
         assert_eq!(second.left().forward(), &arr1(&[c(21.0)]),);
+
         assert_eq!(second.left().backward(), &arr1(&[c(22.0)]),);
+
         assert_eq!(second.right().forward(), &arr1(&[c(23.0)]),);
+
         assert_eq!(second.right().backward(), &arr1(&[c(24.0)]),);
     }
 
     #[test]
-    fn empty_generic_fields_produce_empty_public_fields() {
+    fn second_order_layers_can_be_assembled_with_all_exterior_derivatives() {
+        fn jet(value: f64, first: f64, second: f64) -> ArrayJet<C, ndarray::Ix1> {
+            ArrayJet::from_parts(arr1(&[c(value)]), arr1(&[c(first)]), arr1(&[c(second)]))
+        }
+
+        let generic = vec![LayerBoundaryWavesGeneric::new(
+            BidirectionalWavesGeneric::new(jet(1.0, 11.0, 21.0), jet(2.0, 12.0, 22.0)),
+            BidirectionalWavesGeneric::new(jet(3.0, 13.0, 23.0), jet(4.0, 14.0, 24.0)),
+        )];
+
+        let (layers, first_layers, second_layers) = second_order_fields_from_generic(generic);
+
+        let exterior = exterior_values(1.0, 0.25, 0.75, 0.0);
+
+        let exterior_first = exterior_differential(0.0, 10.0, 20.0, 0.0);
+
+        let exterior_second = exterior_differential(0.0, 30.0, 40.0, 0.0);
+
+        let derivatives = PlaneWaveBoundaryWaveDerivatives::new(
+            DerivativeVariable::Thickness(0),
+            exterior_first,
+            first_layers,
+        )
+        .with_second(exterior_second, second_layers);
+
+        let fields = PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
+
+        let derivatives = fields.derivatives().unwrap();
+
+        assert_eq!(derivatives.variable(), DerivativeVariable::Thickness(0),);
+
+        assert_eq!(
+            derivatives.exterior_second().unwrap().left().backward(),
+            &arr1(&[c(30.0)]),
+        );
+
+        assert_eq!(
+            derivatives.exterior_second().unwrap().right().forward(),
+            &arr1(&[c(40.0)]),
+        );
+
+        assert_eq!(
+            derivatives.second_layer(0).unwrap().left().forward(),
+            &arr1(&[c(21.0)]),
+        );
+
+        assert_eq!(
+            derivatives.second_layer(0).unwrap().right().backward(),
+            &arr1(&[c(24.0)]),
+        );
+    }
+
+    #[test]
+    fn empty_generic_layers_can_be_assembled_with_exterior_waves() {
         let generic: Vec<LayerBoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, ndarray::Ix1>>> =
             Vec::new();
 
-        let fields = value_fields_from_generic(generic);
+        let layers = value_fields_from_generic(generic);
+
+        assert!(layers.is_empty());
+
+        let fields = PlaneWaveBoundaryWaves::new(exterior_values(1.0, 0.25, 0.75, 0.0), layers);
 
         assert!(fields.is_empty());
         assert_eq!(fields.len(), 0);
         assert!(fields.derivatives().is_none());
+
+        assert_eq!(fields.exterior().left().forward(), &arr1(&[c(1.0)]),);
     }
 
     #[test]
@@ -1008,9 +1237,12 @@ mod tests {
             ),
         ];
 
-        let fields = value_fields_from_generic(generic);
+        let layers = value_fields_from_generic(generic);
+
+        let fields = PlaneWaveBoundaryWaves::new(exterior_values(1.0, 0.0, 1.0, 0.0), layers);
 
         assert_eq!(fields.layer(0).unwrap().left().forward()[0], c(1.0),);
+
         assert_eq!(fields.layer(1).unwrap().left().forward()[0], c(3.0),);
     }
 }

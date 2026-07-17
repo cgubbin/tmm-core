@@ -224,7 +224,13 @@ mod tests {
     use super::*;
 
     use crate::{
-        backend::Polarisation,
+        backend::{
+            Polarisation,
+            derivative::{
+                DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
+            },
+            evaluator::RealAxis,
+        },
         material::{Constant, enums::IsotropicMaterial},
         stack::{Thickness, ValidationConfig},
     };
@@ -305,14 +311,19 @@ mod tests {
             .outgoing_mode_residual(&stack, &planar)
             .unwrap();
 
-        let matrix = Transfer2::new().evaluate(&stack, &planar).unwrap();
+        let matrix = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &planar)
+            .unwrap();
 
-        let left = -IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &planar).into_inner()
-            * C::i();
+        let left =
+            -IsotropicLayerAdmittance::evaluate_complex_plane(stack.left_exterior(), &planar)
+                .into_inner()
+                * C::i();
 
-        let right = -IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &planar)
-            .into_inner()
-            * C::i();
+        let right =
+            -IsotropicLayerAdmittance::evaluate_complex_plane(stack.right_exterior(), &planar)
+                .into_inner()
+                * C::i();
 
         let (a, b, c_, d) = matrix.into_parts();
 
@@ -328,10 +339,10 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let analytic = Transfer2::new()
-            .outgoing_mode_residual_first_derivative(
+            .outgoing_mode_residual_first_structural_derivative(
                 &one_layer_stack(thickness),
                 &input,
-                DerivativeVariable::Thickness(0),
+                StructuralDerivativeVariable::Thickness(0),
             )
             .unwrap();
 
@@ -355,10 +366,10 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let analytic = Transfer2::new()
-            .outgoing_mode_residual_second_derivative(
+            .outgoing_mode_residual_second_structural_derivative(
                 &one_layer_stack(thickness),
                 &input,
-                DerivativeVariable::Thickness(0),
+                StructuralDerivativeVariable::Thickness(0),
             )
             .unwrap();
 
@@ -393,10 +404,10 @@ mod tests {
         let input = make_input(vacuum_wavenumber, 0.4);
 
         let analytic = Transfer2::new()
-            .outgoing_mode_residual_first_derivative(
+            .outgoing_mode_residual_first_spectral_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
@@ -419,10 +430,10 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let residual = Transfer2::new()
-            .outgoing_mode_residual_first_derivative(
+            .outgoing_mode_residual_first_structural_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -441,10 +452,10 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let residual = Transfer2::new()
-            .outgoing_mode_residual_second_derivative(
+            .outgoing_mode_residual_second_structural_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 

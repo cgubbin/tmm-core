@@ -94,7 +94,7 @@ where
         Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
     }
 
-    fn solve_plane_wave_internal_fields_first_structural_derivative(
+    fn solve_plane_wave_internal_fields_structural_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
@@ -137,7 +137,7 @@ where
         Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
     }
 
-    fn solve_plane_wave_internal_fields_second_structural_derivative(
+    fn solve_plane_wave_internal_fields_structural_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
@@ -191,7 +191,7 @@ where
     D: Dimension,
     M: DifferentiableMaterial<Real = C::RealField>,
 {
-    fn solve_plane_wave_internal_fields_first_spectral_derivative(
+    fn solve_plane_wave_internal_fields_spectral_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -235,7 +235,7 @@ where
         Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
     }
 
-    fn solve_plane_wave_internal_fields_second_spectral_derivative(
+    fn solve_plane_wave_internal_fields_spectral_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -485,9 +485,9 @@ mod tests {
 
     use crate::{
         IncidentSide, Polarisation, ValidationConfig,
-        backend::{PlaneWaveBackend, field::PlaneWaveFieldBackend},
+        backend::{DifferentiablePlaneWaveBackend, PlaneWaveBackend, field::PlaneWaveFieldBackend},
         material::{Constant, IsotropicMaterial},
-        stack::{Layer, Thickness},
+        stack::Thickness,
     };
 
     type C = Complex64;
@@ -581,7 +581,7 @@ mod tests {
                 TOLERANCE,
             );
 
-            assert_eq!(field.fields().len(), stack.len(),);
+            assert_eq!(field.boundary_waves().len(), stack.len(),);
         }
     }
 
@@ -599,7 +599,7 @@ mod tests {
             .solve_plane_wave_internal_fields(&stack, &input)
             .unwrap();
 
-        let layer = result.fields().layer(0).unwrap();
+        let layer = result.boundary_waves().layer(0).unwrap();
 
         assert_complex_close(layer.left().forward()[()], C::one(), TOLERANCE);
 
@@ -628,7 +628,7 @@ mod tests {
             .solve_plane_wave_internal_fields(&stack, &input)
             .unwrap();
 
-        let layer = result.fields().layer(0).unwrap();
+        let layer = result.boundary_waves().layer(0).unwrap();
 
         assert_complex_close(layer.right().forward()[()], C::zero(), TOLERANCE);
 
@@ -652,8 +652,8 @@ mod tests {
             .solve_plane_wave_internal_fields(&stack, &input(IncidentSide::Left))
             .unwrap();
 
-        let first = result.fields().layer(0).unwrap();
-        let second = result.fields().layer(1).unwrap();
+        let first = result.boundary_waves().layer(0).unwrap();
+        let second = result.boundary_waves().layer(1).unwrap();
 
         let first_field = first.right().forward().clone() + first.right().backward();
 
@@ -673,8 +673,8 @@ mod tests {
             .solve_plane_wave_internal_fields(&stack, &input(IncidentSide::Left))
             .unwrap();
 
-        assert!(result.fields().is_empty());
-        assert!(result.fields().derivatives().is_none());
+        assert!(result.boundary_waves().is_empty());
+        assert!(result.boundary_waves().derivatives().is_none());
     }
 
     #[test]
@@ -684,14 +684,18 @@ mod tests {
         let input = input(IncidentSide::Left);
 
         let ordinary = backend
-            .solve_plane_wave_first_derivative(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .solve_plane_wave_spectral_first_derivative(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumber,
+            )
             .unwrap();
 
         let field = backend
-            .solve_plane_wave_internal_fields_first_derivative(
+            .solve_plane_wave_internal_fields_spectral_first_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
@@ -711,13 +715,13 @@ mod tests {
             TOLERANCE,
         );
 
-        let internal = field.fields().derivatives().unwrap();
+        let internal = field.boundary_waves().derivatives().unwrap();
 
         assert_eq!(internal.variable(), DerivativeVariable::VacuumWavenumber,);
 
-        assert_eq!(internal.first().len(), stack.len(),);
+        assert_eq!(internal.first_layers().len(), stack.len(),);
 
-        assert!(internal.second().is_none());
+        assert!(internal.second_layers().is_none());
     }
 
     #[test]
@@ -727,18 +731,18 @@ mod tests {
         let input = input(IncidentSide::Right);
 
         let ordinary = backend
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_structural_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumber,
+                StructuralDerivativeVariable::ParallelWavenumber,
             )
             .unwrap();
 
         let field = backend
-            .solve_plane_wave_internal_fields_second_derivative(
+            .solve_plane_wave_internal_fields_structural_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumber,
+                StructuralDerivativeVariable::ParallelWavenumber,
             )
             .unwrap();
 
@@ -774,11 +778,11 @@ mod tests {
             1e-9,
         );
 
-        let internal = field.fields().derivatives().unwrap();
+        let internal = field.boundary_waves().derivatives().unwrap();
 
-        assert_eq!(internal.first().len(), stack.len(),);
+        assert_eq!(internal.first_layers().len(), stack.len(),);
 
-        assert_eq!(internal.second().unwrap().len(), stack.len(),);
+        assert_eq!(internal.second_layers().unwrap().len(), stack.len(),);
     }
 
     #[test]
@@ -797,10 +801,10 @@ mod tests {
         };
 
         let analytic = backend
-            .solve_plane_wave_internal_fields_first_derivative(
+            .solve_plane_wave_internal_fields_spectral_first_derivative(
                 &stack,
                 &make_input(k0),
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
@@ -813,7 +817,7 @@ mod tests {
             .unwrap();
 
         let analytic_first = analytic
-            .fields()
+            .boundary_waves()
             .derivatives()
             .unwrap()
             .first_layer(0)
@@ -821,8 +825,8 @@ mod tests {
             .left()
             .forward()[()];
 
-        let expected = (plus.fields().layer(0).unwrap().left().forward()[()]
-            - minus.fields().layer(0).unwrap().left().forward()[()])
+        let expected = (plus.boundary_waves().layer(0).unwrap().left().forward()[()]
+            - minus.boundary_waves().layer(0).unwrap().left().forward()[()])
             / (2.0 * h);
 
         assert_complex_close(analytic_first, expected, 1e-6);
@@ -843,14 +847,14 @@ mod tests {
         );
 
         let result: PlaneWaveFieldResponse<C, _> = backend
-            .solve_plane_wave_internal_fields_second_derivative(
+            .solve_plane_wave_internal_fields_spectral_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
-        for layer in result.fields().layers() {
+        for layer in result.boundary_waves().layers() {
             assert_eq!(
                 layer.left().forward().raw_dim(),
                 input.planar().vacuum_wavenumber().raw_dim(),

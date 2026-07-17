@@ -18,7 +18,12 @@ mod tests {
     use crate::{
         DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse,
         Polarisation, Stack, Thickness, Transfer2, ValidationConfig,
-        backend::{OutgoingModeBackend, PlaneWaveBackend, scatter2::Scatter2},
+        backend::{
+            DifferentiablePlaneWaveBackend, OutgoingModeBackend, PlaneWaveBackend,
+            derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+            evaluator::RealAxis,
+            scatter2::Scatter2,
+        },
         material::{Constant, enums::IsotropicMaterial},
     };
 
@@ -129,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn first_derivatives_match_transfer_backend_from_both_sides() {
+    fn first_spectral_derivatives_match_transfer_backend_from_both_sides() {
         let stack = two_layer_stack(0.17, 0.29);
 
         for polarisation in [
@@ -140,19 +145,15 @@ mod tests {
                 let input = PlaneWaveInput::new(planar(3.0, 0.4, polarisation), side);
 
                 for variable in [
-                    DerivativeVariable::VacuumWavenumber,
-                    DerivativeVariable::VacuumWavenumberSquared,
-                    DerivativeVariable::ParallelWavenumber,
-                    DerivativeVariable::ParallelWavenumberSquared,
-                    DerivativeVariable::Thickness(0),
-                    DerivativeVariable::Thickness(1),
+                    SpectralDerivativeVariable::VacuumWavenumber,
+                    SpectralDerivativeVariable::VacuumWavenumberSquared,
                 ] {
                     let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
-                        .solve_plane_wave_first_derivative(&stack, &input, variable)
+                        .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
                         .unwrap();
 
                     let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-                        .solve_plane_wave_first_derivative(&stack, &input, variable)
+                        .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
                         .unwrap();
 
                     assert_array_close(scatter.reflection(), transfer.reflection(), 1e-11);
@@ -180,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn second_derivatives_match_transfer_backend_from_both_sides() {
+    fn first_structural_derivatives_match_transfer_backend_from_both_sides() {
         let stack = two_layer_stack(0.17, 0.29);
 
         for polarisation in [
@@ -191,19 +192,121 @@ mod tests {
                 let input = PlaneWaveInput::new(planar(3.0, 0.4, polarisation), side);
 
                 for variable in [
-                    DerivativeVariable::VacuumWavenumber,
-                    DerivativeVariable::VacuumWavenumberSquared,
-                    DerivativeVariable::ParallelWavenumber,
-                    DerivativeVariable::ParallelWavenumberSquared,
-                    DerivativeVariable::Thickness(0),
-                    DerivativeVariable::Thickness(1),
+                    StructuralDerivativeVariable::ParallelWavenumber,
+                    StructuralDerivativeVariable::ParallelWavenumberSquared,
+                    StructuralDerivativeVariable::Thickness(0),
+                    StructuralDerivativeVariable::Thickness(1),
                 ] {
                     let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
-                        .solve_plane_wave_second_derivative(&stack, &input, variable)
+                        .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
                         .unwrap();
 
                     let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-                        .solve_plane_wave_second_derivative(&stack, &input, variable)
+                        .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    assert_array_close(scatter.reflection(), transfer.reflection(), 1e-11);
+
+                    assert_array_close(scatter.transmission(), transfer.transmission(), 1e-11);
+
+                    let scatter_first = scatter.derivatives().unwrap().first();
+
+                    let transfer_first = transfer.derivatives().unwrap().first();
+
+                    assert_array_close(
+                        scatter_first.reflection(),
+                        transfer_first.reflection(),
+                        1e-9,
+                    );
+
+                    assert_array_close(
+                        scatter_first.transmission(),
+                        transfer_first.transmission(),
+                        1e-9,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn second_spectral_derivatives_match_transfer_backend_from_both_sides() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        for polarisation in [
+            Polarisation::TransverseElectric,
+            Polarisation::TransverseMagnetic,
+        ] {
+            for side in [IncidentSide::Left, IncidentSide::Right] {
+                let input = PlaneWaveInput::new(planar(3.0, 0.4, polarisation), side);
+
+                for variable in [
+                    SpectralDerivativeVariable::VacuumWavenumber,
+                    SpectralDerivativeVariable::VacuumWavenumberSquared,
+                ] {
+                    let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
+                        .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
+                        .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    let scatter_derivatives = scatter.derivatives().unwrap();
+
+                    let transfer_derivatives = transfer.derivatives().unwrap();
+
+                    assert_array_close(
+                        scatter_derivatives.first().reflection(),
+                        transfer_derivatives.first().reflection(),
+                        1e-9,
+                    );
+
+                    assert_array_close(
+                        scatter_derivatives.first().transmission(),
+                        transfer_derivatives.first().transmission(),
+                        1e-9,
+                    );
+
+                    assert_array_close(
+                        scatter_derivatives.second().unwrap().reflection(),
+                        transfer_derivatives.second().unwrap().reflection(),
+                        1e-8,
+                    );
+
+                    assert_array_close(
+                        scatter_derivatives.second().unwrap().transmission(),
+                        transfer_derivatives.second().unwrap().transmission(),
+                        1e-8,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn second_structural_derivatives_match_transfer_backend_from_both_sides() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        for polarisation in [
+            Polarisation::TransverseElectric,
+            Polarisation::TransverseMagnetic,
+        ] {
+            for side in [IncidentSide::Left, IncidentSide::Right] {
+                let input = PlaneWaveInput::new(planar(3.0, 0.4, polarisation), side);
+
+                for variable in [
+                    StructuralDerivativeVariable::ParallelWavenumber,
+                    StructuralDerivativeVariable::ParallelWavenumberSquared,
+                    StructuralDerivativeVariable::Thickness(0),
+                    StructuralDerivativeVariable::Thickness(1),
+                ] {
+                    let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
+                        .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
+                        .unwrap();
+
+                    let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
+                        .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
                         .unwrap();
 
                     let scatter_derivatives = scatter.derivatives().unwrap();
@@ -256,10 +359,10 @@ mod tests {
         );
 
         let response: PlaneWaveResponse<C, ndarray::Ix1> = Scatter2::new()
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_spectral_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 
@@ -300,6 +403,58 @@ mod tests {
     }
 
     #[test]
+    fn empty_stack_structural_derivatives_match_transfer_backend() {
+        let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(2.25, 1.0))
+            .validation(ValidationConfig::permissive())
+            .build()
+            .unwrap();
+
+        let input = PlaneWaveInput::new(
+            planar(3.0, 0.4, Polarisation::TransverseMagnetic),
+            IncidentSide::Left,
+        );
+
+        for variable in [
+            StructuralDerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
+        ] {
+            let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
+                .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
+                .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
+                .unwrap();
+
+            assert_eq!(scatter.reflection(), transfer.reflection(),);
+
+            assert_eq!(scatter.transmission(), transfer.transmission(),);
+
+            assert_array_close(
+                scatter.derivatives().unwrap().first().reflection(),
+                transfer.derivatives().unwrap().first().reflection(),
+                1e-10,
+            );
+
+            assert_array_close(
+                scatter
+                    .derivatives()
+                    .unwrap()
+                    .second()
+                    .unwrap()
+                    .reflection(),
+                transfer
+                    .derivatives()
+                    .unwrap()
+                    .second()
+                    .unwrap()
+                    .reflection(),
+                1e-9,
+            );
+        }
+    }
+
+    #[test]
     fn empty_stack_spectral_derivatives_match_transfer_backend() {
         let stack = Stack::builder(Constant::new(1.0, 1.0), Constant::new(2.25, 1.0))
             .validation(ValidationConfig::permissive())
@@ -312,17 +467,15 @@ mod tests {
         );
 
         for variable in [
-            DerivativeVariable::VacuumWavenumber,
-            DerivativeVariable::VacuumWavenumberSquared,
-            DerivativeVariable::ParallelWavenumber,
-            DerivativeVariable::ParallelWavenumberSquared,
+            SpectralDerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared,
         ] {
             let scatter: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
-                .solve_plane_wave_second_derivative(&stack, &input, variable)
+                .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
                 .unwrap();
 
             let transfer: PlaneWaveResponse<C, ndarray::Ix0> = Transfer2::new()
-                .solve_plane_wave_second_derivative(&stack, &input, variable)
+                .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
                 .unwrap();
 
             assert_eq!(scatter.reflection(), transfer.reflection(),);
@@ -363,7 +516,11 @@ mod tests {
         let input = PlanarInput::new(arr0(c(1.0)), arr0(c(2.0)), Polarisation::TransverseElectric);
 
         let error = Scatter2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(0),
+            )
             .unwrap_err();
 
         assert_eq!(

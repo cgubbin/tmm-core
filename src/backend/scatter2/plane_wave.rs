@@ -515,15 +515,21 @@ mod plane_wave_backend_tests {
 
         let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
+        let transfer = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &input).into_inner();
+        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+            .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &input).into_inner();
+        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+            .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -539,15 +545,21 @@ mod plane_wave_backend_tests {
 
         let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
+        let transfer = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &input).into_inner();
+        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+            .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &input).into_inner();
+        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+            .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -557,15 +569,21 @@ mod plane_wave_backend_tests {
         let stack = one_layer_stack(0.2);
         let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
+        let transfer = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &input).into_inner();
+        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+            .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &input).into_inner();
+        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+            .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -576,15 +594,21 @@ mod plane_wave_backend_tests {
 
         let input = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
-        let transfer = Transfer2::new().evaluate(&stack, &input).unwrap();
+        let transfer = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &input).into_inner();
+        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+            .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &input).into_inner();
+        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+            .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
 
-        let actual = Scatter2::new().evaluate(&stack, &input).unwrap();
+        let actual = Scatter2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         assert_matrix_close(&actual, &expected, 1e-11);
     }
@@ -595,11 +619,10 @@ mod plane_wave_backend_tests {
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
             let planar = planar(3.0, 0.4, Polarisation::TransverseElectric);
-            let c_planar = c_planar(3.0, 0.4, Polarisation::TransverseElectric);
 
             let input = PlaneWaveInput::new(planar.clone(), side);
 
-            let matrix = Scatter2::new().solve_matrix(&stack, &c_planar).unwrap();
+            let matrix = Scatter2::new().solve_matrix(&stack, &planar).unwrap();
 
             let response: PlaneWaveResponse<C, ndarray::Ix0> =
                 Scatter2::new().solve_plane_wave(&stack, &input).unwrap();
@@ -643,7 +666,7 @@ mod plane_wave_backend_tests {
     }
 
     #[test]
-    fn first_derivatives_match_transfer_backend() {
+    fn first_spectral_derivatives_match_transfer_backend() {
         let stack = two_layer_stack(0.17, 0.29);
 
         let input = PlaneWaveInput::new(
@@ -652,19 +675,15 @@ mod plane_wave_backend_tests {
         );
 
         for variable in [
-            DerivativeVariable::VacuumWavenumber,
-            DerivativeVariable::VacuumWavenumberSquared,
-            DerivativeVariable::ParallelWavenumber,
-            DerivativeVariable::ParallelWavenumberSquared,
-            DerivativeVariable::Thickness(0),
-            DerivativeVariable::Thickness(1),
+            SpectralDerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared,
         ] {
             let scatter = Scatter2::new()
-                .solve_plane_wave_first_derivative(&stack, &input, variable)
+                .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
                 .unwrap();
 
             let transfer = Transfer2::new()
-                .solve_plane_wave_first_derivative(&stack, &input, variable)
+                .solve_plane_wave_spectral_first_derivative(&stack, &input, variable)
                 .unwrap();
 
             let scatter_first = scatter.derivatives().unwrap().first();
@@ -686,7 +705,48 @@ mod plane_wave_backend_tests {
     }
 
     #[test]
-    fn second_derivatives_match_transfer_backend() {
+    fn first_structural_derivatives_match_transfer_backend() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        let input = PlaneWaveInput::new(
+            planar(3.0, 0.4, Polarisation::TransverseElectric),
+            IncidentSide::Left,
+        );
+
+        for variable in [
+            StructuralDerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(1),
+        ] {
+            let scatter = Scatter2::new()
+                .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let transfer = Transfer2::new()
+                .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let scatter_first = scatter.derivatives().unwrap().first();
+
+            let transfer_first = transfer.derivatives().unwrap().first();
+
+            assert_complex_close(
+                scatter_first.reflection()[()],
+                transfer_first.reflection()[()],
+                1e-9,
+            );
+
+            assert_complex_close(
+                scatter_first.transmission()[()],
+                transfer_first.transmission()[()],
+                1e-9,
+            );
+        }
+    }
+
+    #[test]
+    fn second_structural_derivatives_match_transfer_backend() {
         let stack = two_layer_stack(0.17, 0.29);
 
         let input = PlaneWaveInput::new(
@@ -695,19 +755,76 @@ mod plane_wave_backend_tests {
         );
 
         for variable in [
-            DerivativeVariable::VacuumWavenumber,
-            DerivativeVariable::VacuumWavenumberSquared,
-            DerivativeVariable::ParallelWavenumber,
-            DerivativeVariable::ParallelWavenumberSquared,
-            DerivativeVariable::Thickness(0),
-            DerivativeVariable::Thickness(1),
+            StructuralDerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::Thickness(0),
+            StructuralDerivativeVariable::Thickness(1),
         ] {
             let scatter = Scatter2::new()
-                .solve_plane_wave_second_derivative(&stack, &input, variable)
+                .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
                 .unwrap();
 
             let transfer = Transfer2::new()
-                .solve_plane_wave_second_derivative(&stack, &input, variable)
+                .solve_plane_wave_structural_second_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let scatter_derivatives = scatter.derivatives().unwrap();
+
+            let transfer_derivatives = transfer.derivatives().unwrap();
+
+            let scatter_first = scatter_derivatives.first();
+
+            let transfer_first = transfer_derivatives.first();
+
+            let scatter_second = scatter_derivatives.second().unwrap();
+
+            let transfer_second = transfer_derivatives.second().unwrap();
+
+            assert_complex_close(
+                scatter_first.reflection()[()],
+                transfer_first.reflection()[()],
+                1e-9,
+            );
+
+            assert_complex_close(
+                scatter_first.transmission()[()],
+                transfer_first.transmission()[()],
+                1e-9,
+            );
+
+            assert_complex_close(
+                scatter_second.reflection()[()],
+                transfer_second.reflection()[()],
+                1e-8,
+            );
+
+            assert_complex_close(
+                scatter_second.transmission()[()],
+                transfer_second.transmission()[()],
+                1e-8,
+            );
+        }
+    }
+
+    #[test]
+    fn second_spectral_derivatives_match_transfer_backend() {
+        let stack = two_layer_stack(0.17, 0.29);
+
+        let input = PlaneWaveInput::new(
+            planar(3.0, 0.4, Polarisation::TransverseMagnetic),
+            IncidentSide::Right,
+        );
+
+        for variable in [
+            SpectralDerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared,
+        ] {
+            let scatter = Scatter2::new()
+                .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
+                .unwrap();
+
+            let transfer = Transfer2::new()
+                .solve_plane_wave_spectral_second_derivative(&stack, &input, variable)
                 .unwrap();
 
             let scatter_derivatives = scatter.derivatives().unwrap();
@@ -757,15 +874,15 @@ mod plane_wave_backend_tests {
             IncidentSide::Left,
         );
 
-        let variable = DerivativeVariable::Thickness(0);
+        let variable = StructuralDerivativeVariable::Thickness(0);
 
         let response: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
-            .solve_plane_wave_first_derivative(&stack, &input, variable)
+            .solve_plane_wave_structural_first_derivative(&stack, &input, variable)
             .unwrap();
 
         let derivatives = response.derivatives().unwrap();
 
-        assert_eq!(derivatives.variable(), variable,);
+        assert_eq!(derivatives.variable(), variable.into(),);
 
         assert!(derivatives.second().is_none());
     }
@@ -780,10 +897,10 @@ mod plane_wave_backend_tests {
         );
 
         let response: PlaneWaveResponse<C, ndarray::Ix0> = Scatter2::new()
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_structural_second_derivative(
                 &stack,
                 &input,
-                DerivativeVariable::ParallelWavenumberSquared,
+                StructuralDerivativeVariable::ParallelWavenumberSquared,
             )
             .unwrap();
 
@@ -814,13 +931,17 @@ mod plane_wave_backend_tests {
 
             let input = PlaneWaveInput::new(planar.clone(), side);
 
-            let transfer_matrix = Transfer2::new().evaluate(&stack, &c_planar).unwrap();
+            let transfer_matrix = Transfer2::new()
+                .evaluate_with::<RealAxis, _, _, _>(&stack, &c_planar)
+                .unwrap();
 
             let left_admittance =
-                IsotropicLayerAdmittance::evaluate(stack.left_exterior(), &c_planar).into_inner();
+                IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar)
+                    .into_inner();
 
             let right_admittance =
-                IsotropicLayerAdmittance::evaluate(stack.right_exterior(), &c_planar).into_inner();
+                IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar)
+                    .into_inner();
 
             let equivalent_scatter =
                 transfer_to_scatter(transfer_matrix, &left_admittance, &right_admittance);
@@ -891,10 +1012,10 @@ mod plane_wave_backend_tests {
         };
 
         let analytic: PlaneWaveResponse<C, ndarray::Ix0> = backend
-            .solve_plane_wave_second_derivative(
+            .solve_plane_wave_spectral_second_derivative(
                 &stack,
                 &input(k0),
-                DerivativeVariable::VacuumWavenumber,
+                SpectralDerivativeVariable::VacuumWavenumber,
             )
             .unwrap();
 

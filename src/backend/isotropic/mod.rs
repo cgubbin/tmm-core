@@ -272,7 +272,7 @@ mod tests {
         let material = material(4.0, 1.0);
         let input = scalar_input(3.0, 2.0, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         let expected = c((4.0_f64 * 9.0 - 4.0).sqrt());
 
@@ -284,7 +284,7 @@ mod tests {
         let material = material(4.0, 2.0);
         let input = scalar_input(3.0, 1.0, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         assert_close(q.factor()[()], c(2.0));
     }
@@ -294,7 +294,7 @@ mod tests {
         let material = material(4.0, 2.0);
         let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         assert_close(q.factor()[()], c(4.0));
     }
@@ -304,7 +304,7 @@ mod tests {
         let material = material(1.0, 1.0);
         let input = scalar_input(1.0, 2.0, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         assert_relative_eq!(q.kappa()[()].re, 0.0, epsilon = 1e-12);
         assert!(q.kappa()[()].im > 0.0);
@@ -315,7 +315,7 @@ mod tests {
         let material = material(4.0, 2.0);
         let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
         let admittance = q.admittance();
 
         assert_close(admittance.value()[()], q.kappa()[()] / q.factor()[()]);
@@ -331,7 +331,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::new(&material, &input);
+        let q = IsotropicLayerQuantities::real_axis(&material, &input);
 
         assert_eq!(q.epsilon().raw_dim(), input.vacuum_wavenumber().raw_dim());
         assert_eq!(q.mu().raw_dim(), input.vacuum_wavenumber().raw_dim());

@@ -29,7 +29,7 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        DerivativeVariable, PlanarInput,
+        PlanarInput,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::{ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator},
         isotropic::{
@@ -41,7 +41,6 @@ use crate::{
             jet::{Transfer2Jet, Transfer2JetFirst},
         },
     },
-    material::Material,
     stack::{Layer, Stack},
 };
 
@@ -396,7 +395,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        backend::Polarisation,
+        backend::{Polarisation, evaluator::RealAxis},
         material::{Constant, enums::IsotropicMaterial},
         stack::{Thickness, ValidationConfig},
     };
@@ -487,7 +486,9 @@ mod tests {
             .unwrap();
         let input = make_input(3.0, 0.4);
 
-        let matrix = Transfer2::new().evaluate(&stack, &input).unwrap();
+        let matrix = Transfer2::new()
+            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+            .unwrap();
 
         let expected = Matrix2::identity_like(input.vacuum_wavenumber());
 
@@ -504,17 +505,21 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let jet = Transfer2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(0))
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(0),
+            )
             .unwrap();
 
         let (_, analytic) = jet.into_parts();
 
         let plus = Transfer2::new()
-            .evaluate(&two_layer_stack(d0 + h, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 + h, d1), &input)
             .unwrap();
 
         let minus = Transfer2::new()
-            .evaluate(&two_layer_stack(d0 - h, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 - h, d1), &input)
             .unwrap();
 
         let expected = finite_difference_first(&plus, &minus, h);
@@ -532,21 +537,25 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let jet = Transfer2::new()
-            .evaluate_second(&stack, &input, DerivativeVariable::Thickness(1))
+            .evaluate_structural_second_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(1),
+            )
             .unwrap();
 
         let (_, _, analytic) = jet.into_parts();
 
         let plus = Transfer2::new()
-            .evaluate(&two_layer_stack(d0, d1 + h), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 + h), &input)
             .unwrap();
 
         let zero = Transfer2::new()
-            .evaluate(&two_layer_stack(d0, d1), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1), &input)
             .unwrap();
 
         let minus = Transfer2::new()
-            .evaluate(&two_layer_stack(d0, d1 - h), &input)
+            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 - h), &input)
             .unwrap();
 
         let expected = finite_difference_second(&plus, &zero, &minus, h);
@@ -560,11 +569,19 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let squared = Transfer2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumberSquared)
+            .evaluate_spectral_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumberSquared,
+            )
             .unwrap();
 
         let linear = Transfer2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::VacuumWavenumber)
+            .evaluate_spectral_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                SpectralDerivativeVariable::VacuumWavenumber,
+            )
             .unwrap();
 
         let (_, squared_first) = squared.into_parts();
@@ -581,7 +598,11 @@ mod tests {
         let input = make_input(3.0, 0.4);
 
         let error = Transfer2::new()
-            .evaluate_first(&stack, &input, DerivativeVariable::Thickness(2))
+            .evaluate_structural_first_with::<RealAxis, _, _, _>(
+                &stack,
+                &input,
+                StructuralDerivativeVariable::Thickness(2),
+            )
             .unwrap_err();
 
         assert_eq!(

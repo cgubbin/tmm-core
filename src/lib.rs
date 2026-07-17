@@ -12,9 +12,9 @@ pub use backend::{
     Polarisation,
 };
 
-// pub use backend::transfer2::Transfer2;
+pub use backend::scatter2::Scatter2;
+pub use backend::transfer2::Transfer2;
 pub use material::{Material, Sampled};
 pub use scalar::ComplexScalar;
-// pub use backend::scatter2::Scatter2;
 
 pub use stack::{Layer, Stack, Thickness, ValidationConfig};

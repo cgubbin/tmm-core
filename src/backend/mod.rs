@@ -14,11 +14,15 @@ pub mod transfer2;
 
 pub use derivative::DerivativeVariable;
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
-pub use matrix::{MatrixEvaluation, RawMatrixBackend};
-pub use mode::{AnalyticResidual, OutgoingModeBackend};
+pub use matrix::{
+    ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,
+    ComplexMatrixStructuralDerivativeBackend, MatrixEvaluation, RawMatrixBackend,
+    RawMatrixSpectralDerivativeBackend, RawMatrixStructuralDerivativeBackend,
+};
+pub use mode::{AnalyticResidual, DifferentiableOutgoingModeBackend, OutgoingModeBackend};
 pub use plane_wave::{
-    PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveResponse, PlaneWaveResponseDerivatives,
-    PlaneWaveResponseDifferential,
+    DifferentiablePlaneWaveBackend, PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveResponse,
+    PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential,
 };
 
 use isotropic::IsotropicLayerQuantities;
