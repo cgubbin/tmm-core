@@ -111,7 +111,7 @@ impl Scatter2 {
         C::RealField: Copy,
         D: Dimension,
     {
-        self.evaluate_with::<ComplexPlane, _, _, _>(stack, &input)
+        self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)
     }
 
     pub(crate) fn evaluate_with<E, M, C, D>(
@@ -354,7 +354,7 @@ impl Scatter2 {
             primitive,
         );
 
-        for (_index, layer) in stack.iter().enumerate() {
+        for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let (kappa, layer_admittance) = medium_first_jets_spectral::<E, _, _, _>(
@@ -534,7 +534,7 @@ impl Scatter2 {
             primitive,
         );
 
-        for (_index, layer) in stack.iter().enumerate() {
+        for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let (kappa, layer_admittance) = medium_second_jets_spectral::<E, _, _, _>(

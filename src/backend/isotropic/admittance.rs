@@ -241,7 +241,7 @@ where
 
         let jet = ArrayJetFirst::from_parts(value, first);
 
-        match variable.chain_rule(&planar) {
+        match variable.chain_rule(planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }
@@ -295,7 +295,7 @@ where
 
         let jet = ArrayJetFirst::from_parts(value, first);
 
-        match variable.chain_rule(&planar) {
+        match variable.chain_rule(planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }
@@ -370,7 +370,7 @@ where
 
         let jet = ArrayJet::from_parts(value, first, second);
 
-        match variable.chain_rule(&planar) {
+        match variable.chain_rule(planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }
@@ -431,7 +431,7 @@ where
 
         let jet = ArrayJet::from_parts(value, first, second);
 
-        match variable.chain_rule(&planar) {
+        match variable.chain_rule(planar) {
             Some(rule) => jet.chain_rule(&rule),
             None => jet,
         }

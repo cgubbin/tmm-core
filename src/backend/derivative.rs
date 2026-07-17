@@ -29,12 +29,12 @@ pub enum StructuralDerivativeVariable {
     Thickness(usize),
 }
 
-impl Into<DerivativeVariable> for StructuralDerivativeVariable {
-    fn into(self) -> DerivativeVariable {
-        match self {
-            Self::ParallelWavenumber => DerivativeVariable::ParallelWavenumber,
-            Self::ParallelWavenumberSquared => DerivativeVariable::ParallelWavenumberSquared,
-            Self::Thickness(i) => DerivativeVariable::Thickness(i),
+impl From<StructuralDerivativeVariable> for DerivativeVariable {
+    fn from(val: StructuralDerivativeVariable) -> Self {
+        match val {
+            StructuralDerivativeVariable::ParallelWavenumber => DerivativeVariable::ParallelWavenumber,
+            StructuralDerivativeVariable::ParallelWavenumberSquared => DerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::Thickness(i) => DerivativeVariable::Thickness(i),
         }
     }
 }
@@ -96,11 +96,11 @@ pub enum SpectralDerivativeVariable {
     VacuumWavenumberSquared,
 }
 
-impl Into<DerivativeVariable> for SpectralDerivativeVariable {
-    fn into(self) -> DerivativeVariable {
-        match self {
-            Self::VacuumWavenumber => DerivativeVariable::VacuumWavenumber,
-            Self::VacuumWavenumberSquared => DerivativeVariable::VacuumWavenumberSquared,
+impl From<SpectralDerivativeVariable> for DerivativeVariable {
+    fn from(val: SpectralDerivativeVariable) -> Self {
+        match val {
+            SpectralDerivativeVariable::VacuumWavenumber => DerivativeVariable::VacuumWavenumber,
+            SpectralDerivativeVariable::VacuumWavenumberSquared => DerivativeVariable::VacuumWavenumberSquared,
         }
     }
 }

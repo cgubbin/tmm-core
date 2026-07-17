@@ -183,7 +183,7 @@ impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
         self.planar().map(|values| values.mapv(C::from_real))
     }
 
-    pub(crate) fn to_complex<C>(self) -> PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>
+    pub(crate) fn to_complex<C>(&self) -> PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>
     where
         C: ComplexScalar<RealField = R>,
         C::RealField: Copy,
@@ -197,7 +197,7 @@ impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
 }
 
 impl<R, D> PlanarInput<ArrayBase<OwnedRepr<R>, D>> {
-    pub(crate) fn to_complex<C>(self) -> PlanarInput<ArrayBase<OwnedRepr<C>, D>>
+    pub(crate) fn to_complex<C>(&self) -> PlanarInput<ArrayBase<OwnedRepr<C>, D>>
     where
         C: ComplexScalar<RealField = R>,
         C::RealField: Copy,

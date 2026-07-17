@@ -305,6 +305,7 @@ where
         .expect("LayerBoundaries was requested, so retained boundary waves must exist")
 }
 
+#[allow(clippy::type_complexity)]
 fn exterior_waves_from_first_jets<C, D>(
     reflection: ArrayJetFirst<C, D>,
     transmission: ArrayJetFirst<C, D>,
@@ -364,6 +365,7 @@ where
     )
 }
 
+#[allow(clippy::type_complexity)]
 fn exterior_waves_from_second_jets<C, D>(
     reflection: ArrayJet<C, D>,
     transmission: ArrayJet<C, D>,

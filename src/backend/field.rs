@@ -661,6 +661,7 @@ where
         .collect()
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn first_order_fields_from_generic<C, D>(
     layers: Vec<LayerBoundaryWavesGeneric<ArrayJetFirst<C, D>>>,
 ) -> (
@@ -702,6 +703,7 @@ where
     (values, first)
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn second_order_fields_from_generic<C, D>(
     layers: Vec<LayerBoundaryWavesGeneric<ArrayJet<C, D>>>,
 ) -> (

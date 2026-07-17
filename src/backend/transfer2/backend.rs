@@ -132,7 +132,7 @@ impl Transfer2 {
         let mut total =
             Transfer2JetFirst::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
-        for (_index, layer) in stack.iter().enumerate() {
+        for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let layer =
@@ -199,7 +199,7 @@ impl Transfer2 {
 
         let mut total = Transfer2Jet::constant(Matrix2::identity_like(input.vacuum_wavenumber()));
 
-        for (_index, layer) in stack.iter().enumerate() {
+        for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
             let layer =

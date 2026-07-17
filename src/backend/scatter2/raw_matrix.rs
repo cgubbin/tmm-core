@@ -240,7 +240,7 @@ where
         variable: crate::backend::derivative::StructuralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let entries =
-            self.evaluate_structural_first_with::<ComplexPlane, _, _, _>(stack, &input, variable)?;
+            self.evaluate_structural_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let (matrix, first) = entries.into_matrix_parts();
 
@@ -257,7 +257,7 @@ where
         variable: crate::backend::derivative::StructuralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let entries =
-            self.evaluate_structural_second_with::<ComplexPlane, _, _, _>(stack, &input, variable)?;
+            self.evaluate_structural_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
@@ -282,7 +282,7 @@ where
         variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let entries =
-            self.evaluate_spectral_first_with::<ComplexPlane, _, _, _>(stack, &input, variable)?;
+            self.evaluate_spectral_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let (matrix, first) = entries.into_matrix_parts();
 
@@ -299,7 +299,7 @@ where
         variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let entries =
-            self.evaluate_spectral_second_with::<ComplexPlane, _, _, _>(stack, &input, variable)?;
+            self.evaluate_spectral_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
