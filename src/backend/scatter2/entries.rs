@@ -22,6 +22,7 @@ use crate::{
         algebra::ScalarAlgebra,
         derivative::ChainRule,
         jet::{ArrayJet, ArrayJetFirst},
+        mode::OutgoingModeAmplitudes,
     },
 };
 
@@ -90,6 +91,25 @@ impl<A> ScatterEntries<A> {
 
             IncidentSide::Right => (self.s22, self.s12),
         }
+    }
+}
+
+impl<C> ScatterEntries<ndarray::Array0<C>>
+where
+    C: ComplexScalar,
+{
+    pub(crate) fn outgoing_mode_amplitudes(&self) -> OutgoingModeAmplitudes<C> {
+        let left_norm = self.s11[()].modulus_squared() + self.s21[()].modulus_squared();
+
+        let right_norm = self.s12[()].modulus_squared() + self.s22[()].modulus_squared();
+
+        let (left_outgoing, right_outgoing) = if left_norm >= right_norm {
+            (self.s11[()].clone(), self.s21[()].clone())
+        } else {
+            (self.s12[()].clone(), self.s22[()].clone())
+        };
+
+        OutgoingModeAmplitudes::normalised(left_outgoing, right_outgoing)
     }
 }
 

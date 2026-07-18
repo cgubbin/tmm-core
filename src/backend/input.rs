@@ -119,6 +119,17 @@ impl<R> PlanarInput<R> {
             self.polarisation(),
         )
     }
+
+    pub fn clone_map<J>(&self, mut map: impl FnMut(R) -> J) -> PlanarInput<J>
+    where
+        R: Clone,
+    {
+        PlanarInput::new(
+            map(self.vacuum_wavenumber().clone()),
+            map(self.parallel_wavenumber().clone()),
+            self.polarisation(),
+        )
+    }
 }
 
 /// Side from which a plane wave is incident on a planar stack.

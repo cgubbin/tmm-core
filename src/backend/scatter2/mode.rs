@@ -24,28 +24,120 @@
 //! Consequently, the two backends return the same residual normalisation, not
 //! merely residuals with the same zeros.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, IncidentSide,
     backend::{
-        AnalyticResidual, OutgoingModeBackend, PlanarInput,
+        AnalyticResidual, OutgoingModeResidualBackend, PlanarInput,
         algebra::ScalarAlgebra,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::ComplexPlane,
+        field::{
+            BoundaryWaveSolution, BoundaryWaves, ExteriorBoundaryWaves, InternalFieldRequest,
+            ModeFieldResponse, OutgoingModeFieldBackend, value_fields_from_generic,
+        },
         isotropic::{
             IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
             IsotropicLayerSecondDerivatives,
         },
         jet::{ArrayJet, ArrayJetFirst},
-        mode::{DifferentiableOutgoingModeBackend, ResidualDerivatives},
-        scatter2::{Scatter2, Scatter2Error, entries::ScatterEntries},
+        mode::{
+            DifferentiableOutgoingModeResidualBackend, OutgoingMode, OutgoingModeResponse,
+            OutgoingModeStateBackend, ResidualDerivatives,
+        },
+        scatter2::{
+            Scatter2, Scatter2Error, entries::ScatterEntries, fields::retained_boundary_waves,
+            workspace::ScatterWorkspace,
+        },
     },
     material::{EvaluateDifferentiableMeromorphicMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
 };
 
-impl<C, D, M> OutgoingModeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, D, M> OutgoingModeStateBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+{
+    fn outgoing_mode_state(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<Array0<C>>,
+    ) -> Result<OutgoingModeResponse<C>, Self::Error> {
+        let workspace = self.accumulate_with::<ComplexPlane, _, _, _>(
+            stack,
+            input,
+            InternalFieldRequest::None,
+        )?;
+
+        let entries = workspace.into_total();
+
+        let amplitudes = entries.outgoing_mode_amplitudes();
+        let admittance = left_admittance(stack, input);
+
+        let residual = outgoing_residual::<C, ndarray::Ix0, _>(entries, &admittance);
+
+        Ok(OutgoingModeResponse::new(
+            OutgoingMode::new(input.clone()),
+            residual[()],
+            amplitudes,
+        ))
+    }
+}
+
+impl<C, D, M> OutgoingModeFieldBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+{
+    fn outgoing_mode_internal_fields(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        mode: &OutgoingMode<C>,
+    ) -> Result<ModeFieldResponse<C>, Self::Error> {
+        let workspace: ScatterWorkspace<Array0<C>> = self
+            .accumulate_with::<ComplexPlane, _, _, _>(
+                stack,
+                mode.input(),
+                InternalFieldRequest::LayerBoundaries,
+            )?;
+
+        let total = workspace.total();
+
+        let admittance = left_admittance(stack, mode.input());
+
+        let residual = outgoing_residual::<C, ndarray::Ix0, _>(total.clone(), &admittance);
+
+        let amplitudes = total.outgoing_mode_amplitudes();
+
+        let extraction = total.outgoing_mode_extraction();
+        let generic_fields =
+            retained_outgoing_boundary_waves(&workspace, &extraction, mode.input());
+
+        let layers = value_fields_from_generic(generic_fields);
+
+        let exterior = ExteriorBoundaryWaves::from_outgoing_values(
+            amplitudes.left().clone(),
+            amplitudes.right().clone(),
+        );
+
+        let response = OutgoingModeResponse::new(mode.clone(), residual[()], amplitudes);
+
+        let boundary_waves = BoundaryWaves::new(exterior, layers);
+
+        Ok(ModeFieldResponse::new(
+            response,
+            BoundaryWaveSolution::Values(boundary_waves),
+        ))
+    }
+}
+
+impl<C, D, M> OutgoingModeResidualBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
@@ -133,7 +225,7 @@ where
     }
 }
 
-impl<C, D, M> DifferentiableOutgoingModeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, D, M> DifferentiableOutgoingModeResidualBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
@@ -372,6 +464,67 @@ where
             unreachable!("left_admittance_second requires a primitive variable")
         }
     }
+}
+
+pub(crate) struct OutgoingModeExtraction<A> {
+    pub(crate) incident_side: IncidentSide,
+    pub(crate) scale: A,
+    pub(crate) left_outgoing: A,
+    pub(crate) right_outgoing: A,
+}
+
+impl<C> ScatterEntries<Array0<C>>
+where
+    C: ComplexScalar,
+{
+    pub(crate) fn outgoing_mode_extraction(&self) -> OutgoingModeExtraction<Array0<C>> {
+        let left_column_norm_squared =
+            self.s11[()].modulus_squared() + self.s21[()].modulus_squared();
+
+        let right_column_norm_squared =
+            self.s12[()].modulus_squared() + self.s22[()].modulus_squared();
+
+        let (incident_side, left_outgoing, right_outgoing, norm_squared) =
+            if left_column_norm_squared >= right_column_norm_squared {
+                (
+                    IncidentSide::Left,
+                    self.s11.clone(),
+                    self.s21.clone(),
+                    left_column_norm_squared,
+                )
+            } else {
+                (
+                    IncidentSide::Right,
+                    self.s12.clone(),
+                    self.s22.clone(),
+                    right_column_norm_squared,
+                )
+            };
+
+        let norm = C::from_real(norm_squared).sqrt();
+        let scale = ndarray::arr0(norm.recip());
+
+        OutgoingModeExtraction {
+            incident_side,
+            left_outgoing: left_outgoing * scale.clone(),
+            right_outgoing: right_outgoing * scale.clone(),
+            scale,
+        }
+    }
+}
+
+fn retained_outgoing_boundary_waves<C>(
+    workspace: &ScatterWorkspace<Array0<C>>,
+    extraction: &OutgoingModeExtraction<Array0<C>>,
+    planar: &PlanarInput<Array0<C>>,
+) -> Vec<crate::backend::field::LayerBoundaryWavesGeneric<Array0<C>>>
+where
+    C: ComplexScalar,
+{
+    retained_boundary_waves(workspace, extraction.incident_side, planar)
+        .into_iter()
+        .map(|each| each.scale(extraction.scale.clone()))
+        .collect()
 }
 
 #[cfg(test)]

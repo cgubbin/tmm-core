@@ -27,7 +27,10 @@ pub use matrix::{
     ComplexMatrixStructuralDerivativeBackend, MatrixEvaluation, RawMatrixBackend,
     RawMatrixSpectralDerivativeBackend, RawMatrixStructuralDerivativeBackend,
 };
-pub use mode::{AnalyticResidual, DifferentiableOutgoingModeBackend, OutgoingModeBackend};
+pub use mode::{
+    AnalyticResidual, DifferentiableOutgoingModeResidualBackend, OutgoingModeResidualBackend,
+    OutgoingModeResponse, OutgoingModeStateBackend,
+};
 pub use plane_wave::{
     DifferentiablePlaneWaveBackend, PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveResponse,
     PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential,

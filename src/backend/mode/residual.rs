@@ -64,7 +64,7 @@ use crate::{
 /// The residual must not be rescaled independently at each sampled point for
 /// numerical convenience. Such rescaling generally destroys the analytic
 /// function required by contour-based mode solvers.
-pub trait OutgoingModeBackend<C, D, S>
+pub trait OutgoingModeResidualBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -98,7 +98,8 @@ where
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 }
 
-pub trait DifferentiableOutgoingModeBackend<C, D, S>: OutgoingModeBackend<C, D, S>
+pub trait DifferentiableOutgoingModeResidualBackend<C, D, S>:
+    OutgoingModeResidualBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,

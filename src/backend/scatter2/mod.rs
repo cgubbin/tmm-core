@@ -19,7 +19,7 @@ mod tests {
         IncidentSide, PlanarInput, PlaneWaveInput, PlaneWaveResponse, Polarisation, Stack,
         Thickness, Transfer2, ValidationConfig,
         backend::{
-            DifferentiablePlaneWaveBackend, OutgoingModeBackend, PlaneWaveBackend,
+            DifferentiablePlaneWaveBackend, OutgoingModeResidualBackend, PlaneWaveBackend,
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
             evaluator::RealAxis,
             scatter2::Scatter2,

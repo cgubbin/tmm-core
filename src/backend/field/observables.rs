@@ -1,6 +1,6 @@
 //! Physical field and power post-processing for isotropic plane-wave solutions.
 //!
-//! This module converts [`PlaneWaveBoundaryWaves`] into:
+//! This module converts [`BoundaryWaves`] into:
 //!
 //! - canonical tangential field states;
 //! - signed normal power flux;
@@ -64,7 +64,7 @@ use num_traits::Float;
 use crate::{
     ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Stack,
     backend::{
-        field::{BidirectionalWaves, LayerBoundaryWaves, PlaneWaveBoundaryWaves},
+        field::{BidirectionalWaves, BoundaryWaves, LayerBoundaryWaves},
         isotropic::IsotropicLayerQuantities,
     },
     material::EvaluateMaterial,
@@ -322,7 +322,7 @@ where
 pub fn sample_plane_wave_fields<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    waves: &PlaneWaveBoundaryWaves<C, D>,
+    waves: &BoundaryWaves<C, D>,
     positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
@@ -427,7 +427,7 @@ where
 pub fn sample_plane_wave_field_profile<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    waves: &PlaneWaveBoundaryWaves<C, D>,
+    waves: &BoundaryWaves<C, D>,
     sampling: &super::sampling::FieldSampling<C::RealField>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
@@ -455,7 +455,7 @@ where
 {
     let waves = solution.boundary_waves();
 
-    validate_layer_count(stack, waves)?;
+    validate_layer_count(stack, waves.values())?;
 
     let planar = complex_planar_input::<C, D>(input);
 
@@ -564,7 +564,7 @@ where
 
 fn validate_layer_count<C, D, M>(
     stack: &Stack<M, C::RealField>,
-    waves: &PlaneWaveBoundaryWaves<C, D>,
+    waves: &BoundaryWaves<C, D>,
 ) -> Result<(), PlaneWaveFieldError<C::RealField>>
 where
     C: ComplexScalar,
@@ -695,7 +695,7 @@ mod tests {
 
     use crate::{
         IncidentSide,
-        backend::field::{BidirectionalWaves, ExteriorBoundaryWaves, PlaneWaveBoundaryWaves},
+        backend::field::{BidirectionalWaves, BoundaryWaves, ExteriorBoundaryWaves},
     };
 
     use super::*;
@@ -1335,7 +1335,7 @@ mod tests {
     fn empty_boundary_wave_collection_retains_exterior_waves() {
         let exterior = exterior_waves(waves(&[r(1.0)], &[r(0.25)]), waves(&[r(0.75)], &[r(0.0)]));
 
-        let boundary_waves = PlaneWaveBoundaryWaves::new(exterior, Vec::new());
+        let boundary_waves = BoundaryWaves::new(exterior, Vec::new());
 
         assert_eq!(boundary_waves.len(), 0);
         assert!(boundary_waves.is_empty());

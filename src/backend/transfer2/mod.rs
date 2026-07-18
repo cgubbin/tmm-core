@@ -4,7 +4,7 @@
 //!
 //! - [`RawMatrixBackend`](crate::backend::RawMatrixBackend);
 //! - [`PlaneWaveBackend`](crate::backend::PlaneWaveBackend);
-//! - [`OutgoingModeBackend`](crate::backend::OutgoingModeBackend).
+//! - [`OutgoingModeResidualBackend`](crate::backend::OutgoingModeBackend).
 //!
 //! The backend is suitable for moderate optical thicknesses. For strongly
 //! evanescent or optically thick stacks, prefer the scattering-matrix backend.
@@ -208,8 +208,8 @@ mod interface_consistency_tests {
     use crate::{
         PlaneWaveResponse,
         backend::{
-            DerivativeVariable, OutgoingModeBackend, PlanarInput, PlaneWaveBackend, PlaneWaveInput,
-            Polarisation, RawMatrixBackend,
+            DerivativeVariable, OutgoingModeResidualBackend, PlanarInput, PlaneWaveBackend,
+            PlaneWaveInput, Polarisation, RawMatrixBackend,
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
             evaluator::ComplexPlane,
             input::IncidentSide,
@@ -219,7 +219,7 @@ mod interface_consistency_tests {
                 ComplexMatrixBackend, RawMatrixSpectralDerivativeBackend,
                 RawMatrixStructuralDerivativeBackend,
             },
-            mode::DifferentiableOutgoingModeBackend,
+            mode::DifferentiableOutgoingModeResidualBackend,
             plane_wave::DifferentiablePlaneWaveBackend,
             transfer2::{Matrix2, Transfer2, response::outgoing_residual},
         },

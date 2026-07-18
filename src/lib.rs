@@ -7,7 +7,7 @@ pub mod stack;
 mod tensor;
 
 pub use backend::{
-    DerivativeVariable, DifferentiablePlaneWaveBackend, IncidentSide, OutgoingModeBackend,
+    DerivativeVariable, DifferentiablePlaneWaveBackend, IncidentSide, OutgoingModeResidualBackend,
     PlanarInput, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse, PlaneWaveResponseDerivatives,
     PlaneWaveResponseDifferential, Polarisation, SpectralDerivativeVariable,
     StructuralDerivativeVariable,

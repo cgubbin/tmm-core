@@ -59,8 +59,8 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        AnalyticResidual, OutgoingModeBackend, PlanarInput, evaluator::ComplexPlane,
-        isotropic::IsotropicLayerAdmittance, mode::DifferentiableOutgoingModeBackend,
+        AnalyticResidual, OutgoingModeResidualBackend, PlanarInput, evaluator::ComplexPlane,
+        isotropic::IsotropicLayerAdmittance, mode::DifferentiableOutgoingModeResidualBackend,
     },
     material::{EvaluateDifferentiableMeromorphicMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
@@ -68,7 +68,7 @@ use crate::{
 
 use super::{Transfer2, Transfer2Error, response::outgoing_residual};
 
-impl<C, D, M> OutgoingModeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+impl<C, D, M> OutgoingModeResidualBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
     C: ComplexScalar,
     C::RealField: Copy,
@@ -153,7 +153,7 @@ where
     }
 }
 
-impl<C, D, M> DifferentiableOutgoingModeBackend<C, D, Stack<M, C::RealField>> for Transfer2
+impl<C, D, M> DifferentiableOutgoingModeResidualBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
     C: ComplexScalar,
     C::RealField: Copy,

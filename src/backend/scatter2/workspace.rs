@@ -168,7 +168,7 @@ impl<A> ScatterWorkspace<A> {
         }
     }
 
-    fn total(&self) -> &ScatterEntries<A> {
+    pub(crate) fn total(&self) -> &ScatterEntries<A> {
         &self.total
     }
 

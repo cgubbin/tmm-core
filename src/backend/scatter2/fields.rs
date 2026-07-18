@@ -25,10 +25,10 @@ use crate::{
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
         field::{
-            BidirectionalWaveDifferential, BidirectionalWaves, DifferentiablePlaneWaveFieldBackend,
+            BidirectionalWaveDifferential, BidirectionalWaves, BoundaryWaveDerivatives,
+            BoundaryWaveSolution, BoundaryWaves, DifferentiablePlaneWaveFieldBackend,
             ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves, InternalFieldRequest,
-            PlaneWaveBoundaryWaveDerivatives, PlaneWaveBoundaryWaves, PlaneWaveFieldBackend,
-            PlaneWaveFieldResponse, first_order_fields_from_generic,
+            PlaneWaveFieldBackend, PlaneWaveFieldResponse, first_order_fields_from_generic,
             second_order_fields_from_generic, value_fields_from_generic,
         },
         jet::{ArrayJet, ArrayJetFirst},
@@ -89,9 +89,12 @@ where
             input.incident_side(),
         );
 
-        let boundary_waves = PlaneWaveBoundaryWaves::new(exterior, layers);
+        let boundary_waves = BoundaryWaves::new(exterior, layers);
 
-        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+        Ok(PlaneWaveFieldResponse::new(
+            response,
+            BoundaryWaveSolution::Values(boundary_waves),
+        ))
     }
 
     fn solve_plane_wave_internal_fields_structural_first_derivative(
@@ -129,12 +132,12 @@ where
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
+            BoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
 
-        let boundary_waves =
-            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
-
-        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+        Ok(PlaneWaveFieldResponse::new(
+            response,
+            BoundaryWaveSolution::new_with_derivative(exterior, layers, derivatives),
+        ))
     }
 
     fn solve_plane_wave_internal_fields_structural_second_derivative(
@@ -174,13 +177,13 @@ where
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
+            BoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
                 .with_second(exterior_second, second_layers);
 
-        let boundary_waves =
-            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
-
-        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+        Ok(PlaneWaveFieldResponse::new(
+            response,
+            BoundaryWaveSolution::new_with_derivative(exterior, layers, derivatives),
+        ))
     }
 }
 
@@ -227,12 +230,12 @@ where
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
+            BoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers);
 
-        let boundary_waves =
-            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
-
-        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+        Ok(PlaneWaveFieldResponse::new(
+            response,
+            BoundaryWaveSolution::new_with_derivative(exterior, layers, derivatives),
+        ))
     }
 
     fn solve_plane_wave_internal_fields_spectral_second_derivative(
@@ -280,17 +283,17 @@ where
         );
 
         let derivatives =
-            PlaneWaveBoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
+            BoundaryWaveDerivatives::new(variable.into(), exterior_first, first_layers)
                 .with_second(exterior_second, second_layers);
 
-        let boundary_waves =
-            PlaneWaveBoundaryWaves::with_derivatives(exterior, layers, derivatives);
-
-        Ok(PlaneWaveFieldResponse::new(response, boundary_waves))
+        Ok(PlaneWaveFieldResponse::new(
+            response,
+            BoundaryWaveSolution::new_with_derivative(exterior, layers, derivatives),
+        ))
     }
 }
 
-fn retained_boundary_waves<C, D, A>(
+pub(crate) fn retained_boundary_waves<C, D, A>(
     workspace: &crate::backend::scatter2::workspace::ScatterWorkspace<A>,
     incident_side: IncidentSide,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
