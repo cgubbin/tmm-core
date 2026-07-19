@@ -9,19 +9,19 @@ use crate::{
         derivative::StructuralDerivativeVariable,
         evaluator::RealAxis,
         input::IncidentSide,
-        isotropic::IsotropicLayerAdmittance,
+        isotropic::IsotropicLayerQuantities,
         jet::{ArrayJet, ArrayJetFirst},
         plane_wave::DifferentiablePlaneWaveBackend,
         transfer2::{
-            jet::{Transfer2Jet, Transfer2JetFirst},
-            response::Matrix2Entries,
+            matrix::Matrix2Entries,
+            matrix::{Transfer2Jet, Transfer2JetFirst},
         },
     },
     material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
     stack::Stack,
 };
 
-use super::{Matrix2, Transfer2, Transfer2Error};
+use super::{Transfer2, Transfer2Error, TransferMatrix2};
 
 pub(super) fn amplitudes<C, D, A>(
     matrix: Matrix2Entries<A>,
@@ -78,7 +78,7 @@ where
     }
 }
 
-impl<C, D> Matrix2<C, D>
+impl<C, D> TransferMatrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -105,32 +105,13 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    pub(super) fn into_entries(self) -> Matrix2Entries<ArrayJetFirst<C, D>> {
-        let (value, first) = self.into_parts();
-
-        let (a, b, c, d) = value.into_parts();
-        let (da, db, dc, dd) = first.into_parts();
-
-        Matrix2Entries {
-            m11: ArrayJetFirst::from_parts(a, da),
-            m12: ArrayJetFirst::from_parts(b, db),
-            m21: ArrayJetFirst::from_parts(c, dc),
-            m22: ArrayJetFirst::from_parts(d, dd),
-        }
-    }
-
     pub(super) fn amplitude_jets(
         self,
         left_admittance: &ArrayJetFirst<C, D>,
         right_admittance: &ArrayJetFirst<C, D>,
         incident_side: IncidentSide,
     ) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>) {
-        amplitudes(
-            self.into_entries(),
-            left_admittance,
-            right_admittance,
-            incident_side,
-        )
+        amplitudes(self, left_admittance, right_admittance, incident_side)
     }
 }
 
@@ -139,33 +120,13 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    pub(super) fn into_entries(self) -> Matrix2Entries<ArrayJet<C, D>> {
-        let (value, first, second) = self.into_parts();
-
-        let (a, b, c, d) = value.into_parts();
-        let (da, db, dc, dd) = first.into_parts();
-        let (dda, ddb, ddc, ddd) = second.into_parts();
-
-        Matrix2Entries {
-            m11: ArrayJet::from_parts(a, da, dda),
-            m12: ArrayJet::from_parts(b, db, ddb),
-            m21: ArrayJet::from_parts(c, dc, ddc),
-            m22: ArrayJet::from_parts(d, dd, ddd),
-        }
-    }
-
     pub(super) fn amplitude_jets(
         self,
         left_admittance: &ArrayJet<C, D>,
         right_admittance: &ArrayJet<C, D>,
         incident_side: IncidentSide,
     ) -> (ArrayJet<C, D>, ArrayJet<C, D>) {
-        amplitudes(
-            self.into_entries(),
-            left_admittance,
-            right_admittance,
-            incident_side,
-        )
+        amplitudes(self, left_admittance, right_admittance, incident_side)
     }
 }
 
@@ -187,13 +148,13 @@ where
 
         let matrix = self.evaluate_with::<RealAxis, _, _, _>(stack, &planar)?;
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &planar)
-                .into_inner();
+        let left_admittance = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &planar)
+            .into_admittance()
+            .into_inner();
 
-        let right_admittance =
-            IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &planar)
-                .into_inner();
+        let right_admittance = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &planar)
+            .into_admittance()
+            .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitudes(&left_admittance, &right_admittance, input.incident_side());
@@ -223,17 +184,21 @@ where
         let matrix =
             self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+        let left_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+        let right_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -264,17 +229,21 @@ where
         let matrix =
             self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+        let left_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+        let right_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -313,17 +282,21 @@ where
         let matrix =
             self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+        let left_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+        let right_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -354,17 +327,21 @@ where
         let matrix =
             self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+        let left_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+        let right_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let (reflection, transmission) =
             matrix.amplitude_jets(&left_admittance, &right_admittance, input.incident_side());
@@ -422,15 +399,15 @@ mod tests {
         C::new(value, 0.0)
     }
 
-    fn scalar_matrix(m11: f64, m12: f64, m21: f64, m22: f64) -> Matrix2<C, Ix0> {
-        Matrix2::new(arr0(c(m11)), arr0(c(m12)), arr0(c(m21)), arr0(c(m22)))
+    fn scalar_matrix(m11: f64, m12: f64, m21: f64, m22: f64) -> TransferMatrix2<C, Ix0> {
+        TransferMatrix2::new(arr0(c(m11)), arr0(c(m12)), arr0(c(m21)), arr0(c(m22)))
     }
 
-    fn zero_matrix() -> Matrix2<C, Ix0> {
+    fn zero_matrix() -> TransferMatrix2<C, Ix0> {
         scalar_matrix(0.0, 0.0, 0.0, 0.0)
     }
 
-    fn identity_matrix() -> Matrix2<C, Ix0> {
+    fn identity_matrix() -> TransferMatrix2<C, Ix0> {
         scalar_matrix(1.0, 0.0, 0.0, 1.0)
     }
 
@@ -455,7 +432,7 @@ mod tests {
     }
 
     fn value_amplitudes(
-        matrix: Matrix2<C, Ix0>,
+        matrix: TransferMatrix2<C, Ix0>,
         left_admittance: f64,
         right_admittance: f64,
         incident_side: IncidentSide,
@@ -724,7 +701,7 @@ mod tests {
 
     #[test]
     fn first_order_amplitudes_match_finite_difference() {
-        fn parameters(x: f64) -> (Matrix2<C, Ix0>, f64, f64) {
+        fn parameters(x: f64) -> (TransferMatrix2<C, Ix0>, f64, f64) {
             let matrix = scalar_matrix(
                 1.2 + 0.10 * x,
                 0.3 - 0.04 * x,
@@ -771,7 +748,7 @@ mod tests {
 
     #[test]
     fn right_incidence_first_order_amplitudes_match_finite_difference() {
-        fn parameters(x: f64) -> (Matrix2<C, Ix0>, f64, f64) {
+        fn parameters(x: f64) -> (TransferMatrix2<C, Ix0>, f64, f64) {
             let matrix = scalar_matrix(
                 1.2 + 0.10 * x,
                 0.3 - 0.04 * x,
@@ -817,7 +794,7 @@ mod tests {
 
     #[test]
     fn second_order_amplitudes_match_finite_difference() {
-        fn parameters(x: f64) -> (Matrix2<C, Ix0>, f64, f64) {
+        fn parameters(x: f64) -> (TransferMatrix2<C, Ix0>, f64, f64) {
             let matrix = scalar_matrix(
                 1.2 + 0.10 * x + 0.015 * x * x,
                 0.3 - 0.04 * x + 0.010 * x * x,
@@ -872,7 +849,7 @@ mod tests {
 
     #[test]
     fn right_incidence_second_order_amplitudes_match_finite_difference() {
-        fn parameters(x: f64) -> (Matrix2<C, Ix0>, f64, f64) {
+        fn parameters(x: f64) -> (TransferMatrix2<C, Ix0>, f64, f64) {
             let matrix = scalar_matrix(
                 1.2 + 0.10 * x + 0.015 * x * x,
                 0.3 - 0.04 * x + 0.010 * x * x,
@@ -926,7 +903,7 @@ mod tests {
 
     #[test]
     fn sampled_value_amplitudes_preserve_shape() {
-        let matrix = Matrix2::new(
+        let matrix = TransferMatrix2::new(
             array![c(1.0), c(1.1), c(1.2)],
             array![c(0.1), c(0.2), c(0.3)],
             array![c(-0.2), c(-0.1), c(0.0)],
@@ -944,14 +921,14 @@ mod tests {
 
     #[test]
     fn sampled_first_order_amplitudes_preserve_shape() {
-        let value = Matrix2::new(
+        let value = TransferMatrix2::new(
             array![c(1.0), c(1.1)],
             array![c(0.1), c(0.2)],
             array![c(-0.2), c(-0.1)],
             array![c(0.9), c(1.0)],
         );
 
-        let first = Matrix2::new(
+        let first = TransferMatrix2::new(
             array![c(0.01), c(0.02)],
             array![c(0.03), c(0.04)],
             array![c(0.05), c(0.06)],
@@ -974,15 +951,15 @@ mod tests {
 
     #[test]
     fn sampled_second_order_amplitudes_preserve_shape() {
-        let value = Matrix2::new(
+        let value = TransferMatrix2::new(
             array![c(1.0), c(1.1)],
             array![c(0.1), c(0.2)],
             array![c(-0.2), c(-0.1)],
             array![c(0.9), c(1.0)],
         );
 
-        let first = Matrix2::zeros_like(value.m11());
-        let second = Matrix2::zeros_like(value.m11());
+        let first = TransferMatrix2::zeros_like(value.m11());
+        let second = TransferMatrix2::zeros_like(value.m11());
 
         let matrix = Transfer2Jet::from_parts(value, first, second);
 

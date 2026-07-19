@@ -134,7 +134,7 @@ where
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
     {
-        sample_plane_wave_field_profile(stack, input, self.boundary_waves().values(), sampling)
+        sample_plane_wave_field_profile(stack, input, self.boundary_waves(), sampling)
     }
 
     pub fn sample_field_positions<M>(
@@ -146,7 +146,7 @@ where
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
     {
-        sample_plane_wave_fields(stack, input, self.boundary_waves().values(), positions)
+        sample_plane_wave_fields(stack, input, self.boundary_waves(), positions)
     }
 
     pub fn power_balance<M>(

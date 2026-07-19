@@ -767,9 +767,9 @@ mod tests {
 
         let waves = waves_at_cut::<C, Ix0, _>(&left, &right, &left_incoming, &right_incoming);
 
-        let forward = waves.forward[()];
+        let forward = waves.forward()[()];
 
-        let backward = waves.backward[()];
+        let backward = waves.backward()[()];
 
         let expected_forward = left.s21[()] * left_incoming[()] + left.s22[()] * backward;
 
@@ -791,9 +791,9 @@ mod tests {
 
         let waves = waves_at_cut::<C, Ix0, _>(&left, &right, &left_incoming, &right_incoming);
 
-        assert_array_close(&waves.forward, &left_incoming, TOLERANCE);
+        assert_array_close(&waves.forward(), &left_incoming, TOLERANCE);
 
-        assert_array_close(&waves.backward, &right_incoming, TOLERANCE);
+        assert_array_close(&waves.backward(), &right_incoming, TOLERANCE);
     }
 
     #[test]
@@ -838,13 +838,13 @@ mod tests {
 
         let layer = &reconstructed[0];
 
-        assert_complex_close(layer.left.forward[()], C::one(), TOLERANCE);
+        assert_complex_close(layer.left().forward()[()], C::one(), TOLERANCE);
 
-        assert_complex_close(layer.left.backward[()], C::zero(), TOLERANCE);
+        assert_complex_close(layer.left().backward()[()], C::zero(), TOLERANCE);
 
-        assert_complex_close(layer.right.forward[()], phase, TOLERANCE);
+        assert_complex_close(layer.right().forward()[()], phase, TOLERANCE);
 
-        assert_complex_close(layer.right.backward[()], C::zero(), TOLERANCE);
+        assert_complex_close(layer.right().backward()[()], C::zero(), TOLERANCE);
     }
 
     #[test]
@@ -866,13 +866,13 @@ mod tests {
 
         let layer = &reconstructed[0];
 
-        assert_complex_close(layer.right.forward[()], C::zero(), TOLERANCE);
+        assert_complex_close(layer.right().forward()[()], C::zero(), TOLERANCE);
 
-        assert_complex_close(layer.right.backward[()], C::one(), TOLERANCE);
+        assert_complex_close(layer.right().backward()[()], C::one(), TOLERANCE);
 
-        assert_complex_close(layer.left.forward[()], C::zero(), TOLERANCE);
+        assert_complex_close(layer.left().forward()[()], C::zero(), TOLERANCE);
 
-        assert_complex_close(layer.left.backward[()], phase, TOLERANCE);
+        assert_complex_close(layer.left().backward()[()], phase, TOLERANCE);
     }
 
     #[test]
@@ -898,22 +898,22 @@ mod tests {
         let first = &reconstructed[0];
         let second = &reconstructed[1];
 
-        assert_complex_close(first.left.forward[()], C::one(), TOLERANCE);
+        assert_complex_close(first.left().forward()[()], C::one(), TOLERANCE);
 
-        assert_complex_close(first.right.forward[()], first_phase, TOLERANCE);
+        assert_complex_close(first.right().forward()[()], first_phase, TOLERANCE);
 
-        assert_complex_close(second.left.forward[()], first_phase, TOLERANCE);
+        assert_complex_close(second.left().forward()[()], first_phase, TOLERANCE);
 
         assert_complex_close(
-            second.right.forward[()],
+            second.right().forward()[()],
             first_phase * second_phase,
             TOLERANCE,
         );
 
         for layer in reconstructed {
-            assert_complex_close(layer.left.backward[()], C::zero(), TOLERANCE);
+            assert_complex_close(layer.left().backward()[()], C::zero(), TOLERANCE);
 
-            assert_complex_close(layer.right.backward[()], C::zero(), TOLERANCE);
+            assert_complex_close(layer.right().backward()[()], C::zero(), TOLERANCE);
         }
     }
 
@@ -956,12 +956,12 @@ mod tests {
         let suffixes = suffix_cascades::<C, Ix0, _>(&retained.components, &source());
 
         for (waves, cut) in [
-            (&layer.left, retained.layer_cuts[0].left()),
-            (&layer.right, retained.layer_cuts[0].right()),
+            (&layer.left(), retained.layer_cuts[0].left()),
+            (&layer.right(), retained.layer_cuts[0].right()),
         ] {
-            let forward = waves.forward[()];
+            let forward = waves.forward()[()];
 
-            let backward = waves.backward[()];
+            let backward = waves.backward()[()];
 
             let expected_forward = prefixes[cut].s21[()] + prefixes[cut].s22[()] * backward;
 

@@ -7,7 +7,7 @@ use crate::{
         PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
-        isotropic::IsotropicLayerAdmittance,
+        isotropic::{IsotropicLayerAdmittance, IsotropicLayerQuantities},
         jet::{ArrayJet, ArrayJetFirst},
         plane_wave::DifferentiablePlaneWaveBackend,
         scatter2::{Scatter2, Scatter2Error},
@@ -153,7 +153,7 @@ where
     }
 }
 
-pub(super) fn plane_wave_from_amplitudes<C, D, M>(
+pub(crate) fn plane_wave_from_amplitudes<C, D, M>(
     reflection: ArrayBase<OwnedRepr<C>, D>,
     transmission: ArrayBase<OwnedRepr<C>, D>,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -168,10 +168,10 @@ where
 {
     // Construct complex exterior admittances using the lifted input.
     let left_admittance =
-        IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), planar).into_inner();
+        IsotropicLayerQuantities::real_axis(stack.left_exterior(), planar).into_admittance();
 
     let right_admittance =
-        IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), planar).into_inner();
+        IsotropicLayerQuantities::real_axis(stack.right_exterior(), planar).into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -182,12 +182,12 @@ where
     PlaneWaveResponse::from_values(
         reflection,
         transmission,
-        incident_normalisation,
-        transmitted_normalisation,
+        incident_normalisation.into_inner(),
+        transmitted_normalisation.into_inner(),
     )
 }
 
-pub(super) fn plane_wave_from_first_jet_amplitudes_structural<C, D, M>(
+pub(crate) fn plane_wave_from_first_jet_amplitudes_structural<C, D, M>(
     reflection: ArrayJetFirst<C, D>,
     transmission: ArrayJetFirst<C, D>,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -202,17 +202,19 @@ where
     M: EvaluateMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+    let left_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
         stack.left_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
-    let right_admittance = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+    let right_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
         stack.right_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -223,13 +225,13 @@ where
     PlaneWaveResponse::from_first_jets(
         reflection,
         transmission,
-        incident_normalisation,
-        transmitted_normalisation,
+        incident_normalisation.into_inner(),
+        transmitted_normalisation.into_inner(),
         variable.into(),
     )
 }
 
-pub(super) fn plane_wave_from_first_jet_amplitudes_spectral<C, D, M>(
+pub(crate) fn plane_wave_from_first_jet_amplitudes_spectral<C, D, M>(
     reflection: ArrayJetFirst<C, D>,
     transmission: ArrayJetFirst<C, D>,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -244,17 +246,19 @@ where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+    let left_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
         stack.left_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
-    let right_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+    let right_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
         stack.right_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -265,13 +269,13 @@ where
     PlaneWaveResponse::from_first_jets(
         reflection,
         transmission,
-        incident_normalisation,
-        transmitted_normalisation,
+        incident_normalisation.into_inner(),
+        transmitted_normalisation.into_inner(),
         variable.into(),
     )
 }
 
-pub(super) fn plane_wave_from_second_jet_amplitudes_structural<C, D, M>(
+pub(crate) fn plane_wave_from_second_jet_amplitudes_structural<C, D, M>(
     reflection: ArrayJet<C, D>,
     transmission: ArrayJet<C, D>,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -286,17 +290,19 @@ where
     M: EvaluateMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+    let left_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
         stack.left_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
-    let right_admittance = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+    let right_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
         stack.right_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -307,13 +313,13 @@ where
     PlaneWaveResponse::from_second_jets(
         reflection,
         transmission,
-        incident_normalisation,
-        transmitted_normalisation,
+        incident_normalisation.into_inner(),
+        transmitted_normalisation.into_inner(),
         variable.into(),
     )
 }
 
-pub(super) fn plane_wave_from_second_jet_amplitudes_spectral<C, D, M>(
+pub(crate) fn plane_wave_from_second_jet_amplitudes_spectral<C, D, M>(
     reflection: ArrayJet<C, D>,
     transmission: ArrayJet<C, D>,
     planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -328,17 +334,19 @@ where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+    let left_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
         stack.left_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
-    let right_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_real_axis(
+    let right_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
         stack.right_exterior(),
         planar,
         variable,
-    );
+    )
+    .into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -349,8 +357,8 @@ where
     PlaneWaveResponse::from_second_jets(
         reflection,
         transmission,
-        incident_normalisation,
-        transmitted_normalisation,
+        incident_normalisation.into_inner(),
+        transmitted_normalisation.into_inner(),
         variable.into(),
     )
 }
@@ -519,10 +527,12 @@ mod plane_wave_backend_tests {
             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+        let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+        let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
@@ -549,10 +559,12 @@ mod plane_wave_backend_tests {
             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+        let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+        let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
@@ -573,10 +585,12 @@ mod plane_wave_backend_tests {
             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+        let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+        let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
@@ -598,10 +612,12 @@ mod plane_wave_backend_tests {
             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &input)
+        let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &input)
+        let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &input)
+            .into_admittance()
             .into_inner();
 
         let expected = transfer_to_scatter(transfer, &left, &right);
@@ -936,11 +952,13 @@ mod plane_wave_backend_tests {
                 .unwrap();
 
             let left_admittance =
-                IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar)
+                IsotropicLayerQuantities::real_axis(stack.left_exterior(), &c_planar)
+                    .into_admittance()
                     .into_inner();
 
             let right_admittance =
-                IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar)
+                IsotropicLayerQuantities::real_axis(stack.right_exterior(), &c_planar)
+                    .into_admittance()
                     .into_inner();
 
             let equivalent_scatter =

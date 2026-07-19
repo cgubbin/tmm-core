@@ -62,9 +62,11 @@ pub use boundary::{
 };
 
 pub(crate) use boundary::{
-    BidirectionalWavesGeneric, LayerBoundaryWavesGeneric, first_order_fields_from_generic,
-    second_order_fields_from_generic, value_fields_from_generic,
+    BidirectionalWavesGeneric, BoundaryWavesGeneric, LayerBoundaryWavesGeneric,
+    first_order_fields_from_generic, second_order_fields_from_generic, value_fields_from_generic,
 };
+
+pub(crate) use cartesian::CartesianVectorAlgebra;
 
 pub use error::PlaneWaveFieldError;
 

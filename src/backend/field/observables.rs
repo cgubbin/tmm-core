@@ -62,13 +62,20 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Stack,
+    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation, Stack,
     backend::{
+        algebra::ScalarAlgebra,
         field::{
-            BidirectionalWaves, BoundaryWaves, CartesianElectromagneticField, CartesianVector3,
-            IsotropicFieldState, LayerBoundaryWaves,
+            BidirectionalWaves, BoundaryWaveDerivatives, BoundaryWaveSolution, BoundaryWaves,
+            CartesianElectromagneticField, CartesianVector3, IsotropicFieldState,
+            LayerBoundaryWaves,
+            boundary::{
+                BoundaryWavesGeneric, generic_boundary_first, generic_boundary_second,
+                generic_boundary_values,
+            },
         },
         isotropic::IsotropicLayerQuantities,
+        jet::{ArrayJet, ArrayJetFirst},
     },
     material::EvaluateMaterial,
 };
@@ -101,8 +108,9 @@ where
     /// Left-exterior coordinates are negative.
     coordinate: C::RealField,
 
-    canonical: IsotropicFieldState<C, D>,
-    cartesian: CartesianElectromagneticField<C, D>,
+    canonical: IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
+
+    cartesian: CartesianElectromagneticField<CartesianVector3<C, D>>,
 }
 
 impl<C, D> PlaneWaveFieldSample<C, D>
@@ -113,8 +121,8 @@ where
     pub(crate) fn new(
         position: FieldPosition<C::RealField>,
         coordinate: C::RealField,
-        canonical: IsotropicFieldState<C, D>,
-        cartesian: CartesianElectromagneticField<C, D>,
+        canonical: IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
+        cartesian: CartesianElectromagneticField<CartesianVector3<C, D>>,
     ) -> Self
     where
         C::RealField: Float,
@@ -149,12 +157,12 @@ where
     }
 
     /// Return the canonical isotropic tangential field state.
-    pub fn canonical_state(&self) -> &IsotropicFieldState<C, D> {
+    pub fn canonical_state(&self) -> &IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>> {
         &self.canonical
     }
 
     /// Return the Cartesian electric and magnetic fields.
-    pub fn cartesian_fields(&self) -> &CartesianElectromagneticField<C, D> {
+    pub fn cartesian_fields(&self) -> &CartesianElectromagneticField<CartesianVector3<C, D>> {
         &self.cartesian
     }
 
@@ -181,8 +189,8 @@ where
     ) -> (
         FieldPosition<C::RealField>,
         C::RealField,
-        IsotropicFieldState<C, D>,
-        CartesianElectromagneticField<C, D>,
+        IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
+        super::cartesian::CartesianField<C, D>,
     ) {
         (
             self.position,
@@ -191,6 +199,19 @@ where
             self.cartesian,
         )
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct AlgebraicFieldSample<C, D, A>
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: ScalarAlgebra<C, D>,
+{
+    position: FieldPosition<C::RealField>,
+    coordinate: C::RealField,
+    canonical: IsotropicFieldState<A>,
+    cartesian: CartesianElectromagneticField<A::Vector>,
 }
 
 /// Fields sampled at a sequence of requested positions.
@@ -209,6 +230,10 @@ where
     D: Dimension,
 {
     pub(crate) fn new(samples: Vec<PlaneWaveFieldSample<C, D>>) -> Self {
+        Self { samples }
+    }
+
+    pub(crate) fn from_values(samples: Vec<PlaneWaveFieldSample<C, D>>) -> Self {
         Self { samples }
     }
 
@@ -296,7 +321,7 @@ where
 pub fn sample_plane_wave_fields<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    waves: &BoundaryWaves<C, D>,
+    waves: &BoundaryWaveSolution<C, D>,
     positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
@@ -305,111 +330,233 @@ where
     C::RealField: Copy + Float,
     D: Dimension,
 {
-    validate_layer_count(stack, waves)?;
+    let positions: Vec<_> = positions.into_iter().collect();
 
-    let mut layer_origins = Vec::with_capacity(stack.len());
+    match waves {
+        BoundaryWaveSolution::Values(values) => {
+            sample_value_fields(stack, input, values, positions)
+        }
 
-    let mut total_thickness = C::zero().real();
+        BoundaryWaveSolution::Differentiated(differentiated) => {
+            let values = differentiated.values();
+            let derivatives = differentiated.derivatives();
 
-    for layer in stack.layers_left_to_right() {
-        layer_origins.push(total_thickness);
-
-        total_thickness = total_thickness + layer.thickness().as_cm();
-    }
-
-    let planar = complex_planar_input::<C, D>(input);
-
-    let left_quantities = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &planar);
-
-    let right_quantities = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &planar);
-
-    let mut layer_data = Vec::with_capacity(stack.len());
-
-    for layer in stack.layers_left_to_right() {
-        let quantities = IsotropicLayerQuantities::real_axis(layer.material(), &planar);
-
-        layer_data.push((quantities, layer.thickness().as_cm()));
-    }
-
-    let mut samples = Vec::new();
-
-    for position in positions {
-        let (coordinate, state, cartesian) = match position {
-            FieldPosition::LeftExterior { distance } => {
-                validate_exterior_distance(distance)?;
-
-                let local = sample_left_exterior_waves(
-                    waves.exterior().left(),
-                    left_quantities.kappa(),
-                    distance,
-                );
-
-                let state =
-                    IsotropicFieldState::from_waves(&local, left_quantities.admittance().value());
-
-                let cartesian = state.cartesian_fields(&planar, &left_quantities);
-
-                (-distance, state, cartesian)
+            if derivatives.exterior_second().is_some() {
+                sample_second_order_fields(stack, input, values, derivatives, positions)
+            } else {
+                sample_first_order_fields(stack, input, values, derivatives, positions)
             }
-
-            FieldPosition::Layer { index, offset } => {
-                let Some((quantities, thickness)) = layer_data.get(index) else {
-                    return Err(PlaneWaveFieldError::LayerOutOfBounds {
-                        requested: index,
-                        layer_count: stack.len(),
-                    });
-                };
-
-                validate_layer_offset(index, offset, *thickness)?;
-
-                let boundary = waves
-                    .layer(index)
-                    .ok_or(PlaneWaveFieldError::LayerOutOfBounds {
-                        requested: index,
-                        layer_count: waves.len(),
-                    })?;
-
-                let local = sample_layer_waves(boundary, quantities.kappa(), offset, *thickness);
-
-                let state =
-                    IsotropicFieldState::from_waves(&local, quantities.admittance().value());
-
-                let cartesian = state.cartesian_fields(&planar, quantities);
-
-                (layer_origins[index] + offset, state, cartesian)
-            }
-
-            FieldPosition::RightExterior { distance } => {
-                validate_exterior_distance(distance)?;
-
-                let local = sample_right_exterior_waves(
-                    waves.exterior().right(),
-                    right_quantities.kappa(),
-                    distance,
-                );
-
-                let state =
-                    IsotropicFieldState::from_waves(&local, right_quantities.admittance().value());
-
-                let cartesian = state.cartesian_fields(&planar, &right_quantities);
-
-                (total_thickness + distance, state, cartesian)
-            }
-        };
-
-        samples.push(PlaneWaveFieldSample::new(
-            position, coordinate, state, cartesian,
-        ));
+        }
     }
-
-    Ok(PlaneWaveFields::new(samples))
 }
+
+fn sample_value_fields<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    waves: &BoundaryWaves<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let algebraic = generic_boundary_values(waves);
+
+    let samples = sample_plane_wave_fields_algebraic::<M, C, D, ArrayBase<OwnedRepr<C>, D>>(
+        stack, input, &algebraic, positions,
+    )?;
+
+    Ok(PlaneWaveFields::from_values(samples))
+}
+
+fn sample_first_order_fields<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    values: &BoundaryWaves<C, D>,
+    derivatives: &BoundaryWaveDerivatives<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let algebraic = generic_boundary_first(values, derivatives);
+
+    let samples = sample_plane_wave_fields_algebraic::<M, C, D, ArrayJetFirst<C, D>>(
+        stack, input, &algebraic, positions,
+    )?;
+
+    Ok(PlaneWaveFields::from_first_order(
+        derivatives.variable(),
+        samples,
+    ))
+}
+
+fn sample_second_order_fields<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    values: &BoundaryWaves<C, D>,
+    derivatives: &BoundaryWaveDerivatives<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let algebraic = generic_boundary_second(values, derivatives)
+        .expect("second-order path requires second derivatives");
+
+    let samples = sample_plane_wave_fields_algebraic::<M, C, D, ArrayJet<C, D>>(
+        stack, input, &algebraic, positions,
+    )?;
+
+    Ok(PlaneWaveFields::from_second_order(
+        derivatives.variable(),
+        samples,
+    ))
+}
+
+struct AlgebraicFieldContext<C, D, A>
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: ScalarAlgebra<C, D>,
+{
+    polarisation: Polarisation,
+    parallel_wavenumber: A,
+
+    left: IsotropicLayerQuantities<A>,
+    right: IsotropicLayerQuantities<A>,
+
+    layers: Vec<AlgebraicLayerFieldData<C::RealField, A>>,
+}
+
+fn sample_plane_wave_fields_algebraic<M, C, D, A>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    waves: &BoundaryWavesGeneric<A>,
+    positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+) -> Result<Vec<AlgebraicFieldSample<C, D, A>>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+    A: ScalarAlgebra<C, D>,
+{
+    todo!()
+}
+// validate_layer_count(stack, waves)?;
+
+// let mut layer_origins = Vec::with_capacity(stack.len());
+
+// let mut total_thickness = C::zero().real();
+
+// for layer in stack.layers_left_to_right() {
+//     layer_origins.push(total_thickness);
+
+//     total_thickness = total_thickness + layer.thickness().as_cm();
+// }
+
+// let planar = complex_planar_input::<C, D>(input);
+
+// let left_quantities = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &planar);
+
+// let right_quantities = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &planar);
+
+// let mut layer_data = Vec::with_capacity(stack.len());
+
+// for layer in stack.layers_left_to_right() {
+//     let quantities = IsotropicLayerQuantities::real_axis(layer.material(), &planar);
+
+//     layer_data.push((quantities, layer.thickness().as_cm()));
+// }
+
+// let mut samples = Vec::new();
+
+// for position in positions {
+//     let (coordinate, state, cartesian) = match position {
+//         FieldPosition::LeftExterior { distance } => {
+//             validate_exterior_distance(distance)?;
+
+//             let local = sample_left_exterior_waves(
+//                 waves.exterior().left(),
+//                 left_quantities.kappa(),
+//                 distance,
+//             );
+
+//             let state =
+//                 IsotropicFieldState::from_waves(&local, left_quantities.admittance().value());
+
+//             let cartesian = state.cartesian_fields(&planar, &left_quantities);
+
+//             (-distance, state, cartesian)
+//         }
+
+//         FieldPosition::Layer { index, offset } => {
+//             let Some((quantities, thickness)) = layer_data.get(index) else {
+//                 return Err(PlaneWaveFieldError::LayerOutOfBounds {
+//                     requested: index,
+//                     layer_count: stack.len(),
+//                 });
+//             };
+
+//             validate_layer_offset(index, offset, *thickness)?;
+
+//             let boundary = waves
+//                 .layer(index)
+//                 .ok_or(PlaneWaveFieldError::LayerOutOfBounds {
+//                     requested: index,
+//                     layer_count: waves.len(),
+//                 })?;
+
+//             let local = sample_layer_waves(boundary, quantities.kappa(), offset, *thickness);
+
+//             let state =
+//                 IsotropicFieldState::from_waves(&local, quantities.admittance().value());
+
+//             let cartesian = state.cartesian_fields(&planar, quantities);
+
+//             (layer_origins[index] + offset, state, cartesian)
+//         }
+
+//         FieldPosition::RightExterior { distance } => {
+//             validate_exterior_distance(distance)?;
+
+//             let local = sample_right_exterior_waves(
+//                 waves.exterior().right(),
+//                 right_quantities.kappa(),
+//                 distance,
+//             );
+
+//             let state =
+//                 IsotropicFieldState::from_waves(&local, right_quantities.admittance().value());
+
+//             let cartesian = state.cartesian_fields(&planar, &right_quantities);
+
+//             (total_thickness + distance, state, cartesian)
+//         }
+//     };
+
+//     samples.push(PlaneWaveFieldSample::new(
+//         position, coordinate, state, cartesian,
+//     ));
+// }
+
+// Ok(PlaneWaveFields::new(samples))
+// }
 
 /// Sample fields from a high-level spatial sampling specification.
 pub fn sample_plane_wave_field_profile<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    waves: &BoundaryWaves<C, D>,
+    waves: &BoundaryWaveSolution<C, D>,
     sampling: &super::sampling::FieldSampling<C::RealField>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
@@ -441,27 +588,27 @@ where
 
     let planar = complex_planar_input::<C, D>(input);
 
-    let left_quantities = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &planar);
+    let left_admittance = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &planar)
+        .into_admittance()
+        .into_inner();
 
-    let right_quantities = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &planar);
+    let right_admittance = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &planar)
+        .into_admittance()
+        .into_inner();
 
-    let left_exterior_state = IsotropicFieldState::from_waves(
-        waves.exterior().left(),
-        left_quantities.admittance().value(),
-    );
+    let left_exterior_state =
+        IsotropicFieldState::from_waves(waves.exterior().left(), left_admittance.clone());
 
-    let right_exterior_state = IsotropicFieldState::from_waves(
-        waves.exterior().right(),
-        right_quantities.admittance().value(),
-    );
+    let right_exterior_state =
+        IsotropicFieldState::from_waves(waves.exterior().right(), right_admittance.clone());
 
     let left_total_flux = left_exterior_state.normal_flux();
     let right_total_flux = right_exterior_state.normal_flux();
 
     let incident_flux = incident_flux_magnitude(
         input.incident_side(),
-        left_quantities.admittance().value(),
-        right_quantities.admittance().value(),
+        left_admittance.value(),
+        right_admittance.value(),
     )?;
 
     let response = solution.response();
@@ -473,7 +620,9 @@ where
     let mut layer_absorptance = Vec::with_capacity(stack.len());
 
     for (index, layer) in stack.layers_left_to_right().iter().enumerate() {
-        let quantities = IsotropicLayerQuantities::real_axis(layer.material(), &planar);
+        let admittance = IsotropicLayerQuantities::real_axis(layer.material(), &planar)
+            .into_admittance()
+            .into_inner();
 
         let boundary = waves
             .layer(index)
@@ -482,11 +631,9 @@ where
                 layer_count: waves.len(),
             })?;
 
-        let left_state =
-            IsotropicFieldState::from_waves(boundary.left(), quantities.admittance().value());
+        let left_state = IsotropicFieldState::from_waves(boundary.left(), admittance.clone());
 
-        let right_state =
-            IsotropicFieldState::from_waves(boundary.right(), quantities.admittance().value());
+        let right_state = IsotropicFieldState::from_waves(boundary.right(), admittance);
 
         let left_flux = left_state.normal_flux();
         let right_flux = right_state.normal_flux();

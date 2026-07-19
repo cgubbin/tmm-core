@@ -588,9 +588,53 @@ where
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct BoundaryWavesGeneric<A> {
+    exterior: ExteriorBoundaryWavesGeneric<A>,
+    layers: Vec<LayerBoundaryWavesGeneric<A>>,
+}
+
+impl<A> BoundaryWavesGeneric<A> {
+    pub(crate) fn new(
+        exterior: ExteriorBoundaryWavesGeneric<A>,
+        layers: Vec<LayerBoundaryWavesGeneric<A>>,
+    ) -> Self {
+        Self { exterior, layers }
+    }
+
+    pub(crate) fn exterior(&self) -> &ExteriorBoundaryWavesGeneric<A> {
+        &self.exterior
+    }
+
+    pub(crate) fn layers(&self) -> &[LayerBoundaryWavesGeneric<A>] {
+        &self.layers
+    }
+
+    pub(crate) fn layer(&self, index: usize) -> Option<&LayerBoundaryWavesGeneric<A>> {
+        self.layers.get(index)
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.layers.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.layers.is_empty()
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        ExteriorBoundaryWavesGeneric<A>,
+        Vec<LayerBoundaryWavesGeneric<A>>,
+    ) {
+        (self.exterior, self.layers)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct LayerBoundaryWavesGeneric<A> {
-    pub(crate) left: BidirectionalWavesGeneric<A>,
-    pub(crate) right: BidirectionalWavesGeneric<A>,
+    left: BidirectionalWavesGeneric<A>,
+    right: BidirectionalWavesGeneric<A>,
 }
 
 impl<A> LayerBoundaryWavesGeneric<A> {
@@ -599,6 +643,18 @@ impl<A> LayerBoundaryWavesGeneric<A> {
         right: BidirectionalWavesGeneric<A>,
     ) -> Self {
         Self { left, right }
+    }
+
+    pub(crate) fn left(&self) -> &BidirectionalWavesGeneric<A> {
+        &self.left
+    }
+
+    pub(crate) fn right(&self) -> &BidirectionalWavesGeneric<A> {
+        &self.right
+    }
+
+    pub(crate) fn into_parts(self) -> (BidirectionalWavesGeneric<A>, BidirectionalWavesGeneric<A>) {
+        (self.left, self.right)
     }
 }
 
@@ -734,14 +790,53 @@ where
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct ExteriorBoundaryWavesGeneric<A> {
+    left: BidirectionalWavesGeneric<A>,
+    right: BidirectionalWavesGeneric<A>,
+}
+
+impl<A> ExteriorBoundaryWavesGeneric<A> {
+    pub(crate) fn new(
+        left: BidirectionalWavesGeneric<A>,
+        right: BidirectionalWavesGeneric<A>,
+    ) -> Self {
+        Self { left, right }
+    }
+
+    pub(crate) fn left(&self) -> &BidirectionalWavesGeneric<A> {
+        &self.left
+    }
+
+    pub(crate) fn right(&self) -> &BidirectionalWavesGeneric<A> {
+        &self.right
+    }
+
+    pub(crate) fn into_parts(self) -> (BidirectionalWavesGeneric<A>, BidirectionalWavesGeneric<A>) {
+        (self.left, self.right)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct BidirectionalWavesGeneric<A> {
-    pub(crate) forward: A,
-    pub(crate) backward: A,
+    forward: A,
+    backward: A,
 }
 
 impl<A> BidirectionalWavesGeneric<A> {
     pub(crate) fn new(forward: A, backward: A) -> Self {
         Self { forward, backward }
+    }
+
+    pub(crate) fn forward(&self) -> &A {
+        &self.forward
+    }
+
+    pub(crate) fn backward(&self) -> &A {
+        &self.backward
+    }
+
+    pub(crate) fn into_parts(self) -> (A, A) {
+        (self.forward, self.backward)
     }
 }
 
@@ -785,6 +880,197 @@ where
     LayerBoundaryWaveDifferential::new(
         BidirectionalWaveDifferential::new(left_forward, left_backward),
         BidirectionalWaveDifferential::new(right_forward, right_backward),
+    )
+}
+
+pub(crate) fn generic_boundary_values<C, D>(
+    waves: &BoundaryWaves<C, D>,
+) -> BoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    BoundaryWavesGeneric::new(
+        generic_exterior_values(waves.exterior()),
+        waves.layers().iter().map(generic_layer_values).collect(),
+    )
+}
+
+fn generic_bidirectional_values<C, D>(
+    waves: &BidirectionalWaves<C, D>,
+) -> BidirectionalWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: Clone,
+    D: Dimension,
+{
+    BidirectionalWavesGeneric::new(waves.forward().clone(), waves.backward().clone())
+}
+
+fn generic_exterior_values<C, D>(
+    waves: &ExteriorBoundaryWaves<C, D>,
+) -> ExteriorBoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: Clone,
+    D: Dimension,
+{
+    ExteriorBoundaryWavesGeneric::new(
+        generic_bidirectional_values(waves.left()),
+        generic_bidirectional_values(waves.right()),
+    )
+}
+
+fn generic_layer_values<C, D>(
+    waves: &LayerBoundaryWaves<C, D>,
+) -> LayerBoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: Clone,
+    D: Dimension,
+{
+    LayerBoundaryWavesGeneric::new(
+        generic_bidirectional_values(waves.left()),
+        generic_bidirectional_values(waves.right()),
+    )
+}
+
+pub(crate) fn generic_boundary_first<C, D>(
+    values: &BoundaryWaves<C, D>,
+    derivatives: &BoundaryWaveDerivatives<C, D>,
+) -> BoundaryWavesGeneric<ArrayJetFirst<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    BoundaryWavesGeneric::new(
+        generic_exterior_first(values.exterior(), derivatives.exterior_first()),
+        values
+            .layers()
+            .iter()
+            .zip(derivatives.first_layers())
+            .map(|(value, first)| generic_layer_first(value, first))
+            .collect(),
+    )
+}
+
+fn generic_bidirectional_first<C, D>(
+    values: &BidirectionalWaves<C, D>,
+    first: &BidirectionalWaveDifferential<C, D>,
+) -> BidirectionalWavesGeneric<ArrayJetFirst<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    BidirectionalWavesGeneric::new(
+        ArrayJetFirst::from_parts(values.forward().clone(), first.forward().clone()),
+        ArrayJetFirst::from_parts(values.backward().clone(), first.backward().clone()),
+    )
+}
+
+fn generic_exterior_first<C, D>(
+    values: &ExteriorBoundaryWaves<C, D>,
+    first: &ExteriorBoundaryWaveDifferential<C, D>,
+) -> ExteriorBoundaryWavesGeneric<ArrayJetFirst<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    ExteriorBoundaryWavesGeneric::new(
+        generic_bidirectional_first(values.left(), first.left()),
+        generic_bidirectional_first(values.right(), first.left()),
+    )
+}
+
+fn generic_layer_first<C, D>(
+    values: &LayerBoundaryWaves<C, D>,
+    first: &LayerBoundaryWaveDifferential<C, D>,
+) -> LayerBoundaryWavesGeneric<ArrayJetFirst<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    LayerBoundaryWavesGeneric::new(
+        generic_bidirectional_first(values.left(), first.left()),
+        generic_bidirectional_first(values.right(), first.left()),
+    )
+}
+
+pub(crate) fn generic_boundary_second<C, D>(
+    values: &BoundaryWaves<C, D>,
+    derivatives: &BoundaryWaveDerivatives<C, D>,
+) -> Option<BoundaryWavesGeneric<ArrayJet<C, D>>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    let exterior_second = derivatives.exterior_second()?;
+
+    let second_layers = derivatives.second_layers()?;
+
+    Some(BoundaryWavesGeneric::new(
+        generic_exterior_second(
+            values.exterior(),
+            derivatives.exterior_first(),
+            exterior_second,
+        ),
+        values
+            .layers()
+            .iter()
+            .zip(derivatives.first_layers())
+            .zip(second_layers)
+            .map(|((value, first), second)| generic_layer_second(value, first, second))
+            .collect(),
+    ))
+}
+
+fn generic_bidirectional_second<C, D>(
+    values: &BidirectionalWaves<C, D>,
+    first: &BidirectionalWaveDifferential<C, D>,
+    second: &BidirectionalWaveDifferential<C, D>,
+) -> BidirectionalWavesGeneric<ArrayJet<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    BidirectionalWavesGeneric::new(
+        ArrayJet::from_parts(
+            values.forward().clone(),
+            first.forward().clone(),
+            second.forward().clone(),
+        ),
+        ArrayJet::from_parts(
+            values.backward().clone(),
+            first.backward().clone(),
+            second.backward().clone(),
+        ),
+    )
+}
+
+fn generic_exterior_second<C, D>(
+    values: &ExteriorBoundaryWaves<C, D>,
+    first: &ExteriorBoundaryWaveDifferential<C, D>,
+    second: &ExteriorBoundaryWaveDifferential<C, D>,
+) -> ExteriorBoundaryWavesGeneric<ArrayJet<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    ExteriorBoundaryWavesGeneric::new(
+        generic_bidirectional_second(values.left(), first.left(), second.left()),
+        generic_bidirectional_second(values.right(), first.left(), second.right()),
+    )
+}
+
+fn generic_layer_second<C, D>(
+    values: &LayerBoundaryWaves<C, D>,
+    first: &LayerBoundaryWaveDifferential<C, D>,
+    second: &LayerBoundaryWaveDifferential<C, D>,
+) -> LayerBoundaryWavesGeneric<ArrayJet<C, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    LayerBoundaryWavesGeneric::new(
+        generic_bidirectional_second(values.left(), first.left(), second.left()),
+        generic_bidirectional_second(values.right(), first.left(), second.right()),
     )
 }
 

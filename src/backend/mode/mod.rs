@@ -70,8 +70,8 @@ pub enum OutgoingModeKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OutgoingModeAmplitudes<C> {
-    left_outgoing: Array0<C>,
-    right_outgoing: Array0<C>,
+    pub(crate) left_outgoing: Array0<C>,
+    pub(crate) right_outgoing: Array0<C>,
 }
 
 impl<C: ComplexScalar> OutgoingModeAmplitudes<C> {

@@ -11,192 +11,17 @@
 
 mod backend;
 mod error;
-mod jet;
+mod fields;
 mod matrix;
 mod mode;
 mod plane_wave;
+mod raw_matrix;
 mod response;
+mod workspace;
 
 pub use backend::Transfer2;
 pub use error::Transfer2Error;
-pub use matrix::Matrix2;
-
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
-
-use crate::{
-    ComplexScalar,
-    backend::{
-        MatrixEvaluation, PlanarInput, RawMatrixBackend,
-        evaluator::{ComplexPlane, RealAxis},
-        matrix::{
-            ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,
-            ComplexMatrixStructuralDerivativeBackend, RawMatrixSpectralDerivativeBackend,
-            RawMatrixStructuralDerivativeBackend,
-        },
-    },
-    material::{
-        EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
-        EvaluateMaterial, EvaluateMeromorphicMaterial,
-    },
-    stack::Stack,
-};
-
-impl<C, D, M> RawMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    type Matrix = Matrix2<C, D>;
-    type Error = Transfer2Error;
-
-    fn solve_matrix(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let input = input.clone().to_complex();
-        self.evaluate_with::<RealAxis, _, _, _>(stack, &input)
-            .map(MatrixEvaluation::new)
-    }
-}
-
-impl<C, D, M> RawMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    fn solve_matrix_structural_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: super::derivative::StructuralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let input = input.clone().to_complex();
-        self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &input, variable)
-            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
-    }
-
-    fn solve_matrix_structural_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: super::derivative::StructuralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let input = input.clone().to_complex();
-        self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &input, variable)
-            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
-    }
-}
-
-impl<C, D, M> RawMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    fn solve_matrix_spectral_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: super::derivative::SpectralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let input = input.clone().to_complex();
-        self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &input, variable)
-            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
-    }
-
-    fn solve_matrix_spectral_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: super::derivative::SpectralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let input = input.clone().to_complex();
-        self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &input, variable)
-            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
-    }
-}
-
-impl<C, D, M> ComplexMatrixBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    type Matrix = Matrix2<C, D>;
-    type Error = Transfer2Error;
-
-    fn solve_analytic_matrix(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)
-            .map(MatrixEvaluation::new)
-    }
-}
-
-impl<C, D, M> ComplexMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    fn solve_complex_matrix_structural_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: super::derivative::StructuralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
-    }
-
-    fn solve_complex_matrix_structural_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: super::derivative::StructuralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
-    }
-}
-
-impl<C, D, M> ComplexMatrixSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> for Transfer2
-where
-    C: ComplexScalar,
-    D: Dimension,
-    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
-    C::RealField: Copy,
-{
-    fn solve_complex_matrix_spectral_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: super::derivative::SpectralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_first_jet(j, variable.into()))
-    }
-
-    fn solve_complex_matrix_spectral_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: super::derivative::SpectralDerivativeVariable,
-    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, input, variable)
-            .map(|j| MatrixEvaluation::from_second_jet(j, variable.into()))
-    }
-}
+pub use matrix::TransferMatrix2;
 
 #[cfg(test)]
 mod interface_consistency_tests {
@@ -213,7 +38,7 @@ mod interface_consistency_tests {
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
             evaluator::ComplexPlane,
             input::IncidentSide,
-            isotropic::IsotropicLayerAdmittance,
+            isotropic::IsotropicLayerQuantities,
             jet::{Jet, JetFirst},
             matrix::{
                 ComplexMatrixBackend, RawMatrixSpectralDerivativeBackend,
@@ -221,7 +46,7 @@ mod interface_consistency_tests {
             },
             mode::DifferentiableOutgoingModeResidualBackend,
             plane_wave::DifferentiablePlaneWaveBackend,
-            transfer2::{Matrix2, Transfer2, response::outgoing_residual},
+            transfer2::{Transfer2, TransferMatrix2, response::outgoing_residual},
         },
         material::Constant,
         stack::{Stack, Thickness, ValidationConfig},
@@ -230,7 +55,7 @@ mod interface_consistency_tests {
     type C = Complex64;
     type ScalarArray = Array0<C>;
     type RealScalarArray = Array0<f64>;
-    type ScalarMatrix = Matrix2<C, ndarray::Ix0>;
+    type ScalarMatrix = TransferMatrix2<C, ndarray::Ix0>;
 
     fn c(value: f64) -> C {
         C::new(value, 0.0)
@@ -307,10 +132,12 @@ mod interface_consistency_tests {
         stack: &Stack<Constant<f64>, f64>,
         planar: &PlanarInput<ScalarArray>,
     ) -> (ScalarArray, ScalarArray) {
-        let left = IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), planar)
+        let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), planar)
+            .into_admittance()
             .into_inner();
 
-        let right = IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), planar)
+        let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), planar)
+            .into_admittance()
             .into_inner();
 
         (left, right)
@@ -333,8 +160,8 @@ mod interface_consistency_tests {
     }
 
     fn assert_matrix_close(
-        actual: &Matrix2<C, ndarray::Ix0>,
-        expected: &Matrix2<C, ndarray::Ix0>,
+        actual: &TransferMatrix2<C, ndarray::Ix0>,
+        expected: &TransferMatrix2<C, ndarray::Ix0>,
         tolerance: f64,
     ) {
         assert_close(actual.m11()[()], expected.m11()[()], tolerance);
@@ -390,17 +217,19 @@ mod interface_consistency_tests {
 
         let matrix_jet = JetFirst::from_parts(matrix, derivatives.into_first());
 
-        let left = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+        let left = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
             stack.left_exterior(),
             planar,
             variable,
-        );
+        )
+        .into_admittance();
 
-        let right = IsotropicLayerAdmittance::evaluate_first_spectral_real_axis(
+        let right = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
             stack.right_exterior(),
             planar,
             variable,
-        );
+        )
+        .into_admittance();
 
         let (expected_r, expected_t) =
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
@@ -444,17 +273,19 @@ mod interface_consistency_tests {
 
         let matrix_jet = Jet::from_parts(matrix, first, second.unwrap());
 
-        let left = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+        let left = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
             stack.left_exterior(),
             input_cp.planar(),
             variable,
-        );
+        )
+        .into_admittance();
 
-        let right = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+        let right = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
             stack.right_exterior(),
             input_cp.planar(),
             variable,
-        );
+        )
+        .into_admittance();
 
         let (expected_r, expected_t) =
             matrix_jet.amplitude_jets(&left, &right, input.incident_side());
@@ -516,17 +347,19 @@ mod interface_consistency_tests {
             .evaluate_structural_first_with::<ComplexPlane, _, _, _>(&stack, &planar, variable)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
+        let left = IsotropicLayerQuantities::evaluate_first_structural_complex_plane(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance();
 
-        let right = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
+        let right = IsotropicLayerQuantities::evaluate_first_structural_complex_plane(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance();
 
         let expected = outgoing_residual(matrix.into_entries(), &left, &right);
 
@@ -555,17 +388,19 @@ mod interface_consistency_tests {
             .evaluate_spectral_second_with::<ComplexPlane, _, _, _>(&stack, &planar, variable)
             .unwrap();
 
-        let left = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
+        let left = IsotropicLayerQuantities::evaluate_second_spectral_complex_plane(
             stack.left_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance();
 
-        let right = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
+        let right = IsotropicLayerQuantities::evaluate_second_spectral_complex_plane(
             stack.right_exterior(),
             &planar,
             variable,
-        );
+        )
+        .into_admittance();
 
         let expected = outgoing_residual(matrix.into_entries(), &left, &right);
 
@@ -604,13 +439,13 @@ mod interface_consistency_tests {
                 let response: PlaneWaveResponse<C, ndarray::Ix0> =
                     backend.solve_plane_wave(&stack, &input).unwrap();
 
-                let left =
-                    IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar)
-                        .into_inner();
+                let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &c_planar)
+                    .into_admittance()
+                    .into_inner();
 
-                let right =
-                    IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar)
-                        .into_inner();
+                let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &c_planar)
+                    .into_admittance()
+                    .into_inner();
 
                 let yl = left[()];
                 let yr = right[()];
@@ -730,16 +565,16 @@ mod interface_consistency_tests {
             let response: PlaneWaveResponse<C, ndarray::Ix0> =
                 backend.solve_plane_wave(&stack, &input).unwrap();
 
-            let left =
-                IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar);
+            let left = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &c_planar)
+                .into_admittance();
 
-            let right =
-                IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar);
+            let right = IsotropicLayerQuantities::real_axis(stack.right_exterior(), &c_planar)
+                .into_admittance();
 
             let reflection = response.reflection()[()].modulus_squared();
 
-            let transmission = right.value()[()].real() / left.value()[()].real()
-                * response.transmission()[()].modulus_squared();
+            let transmission =
+                right[()].real() / left[()].real() * response.transmission()[()].modulus_squared();
 
             assert_relative_eq!(
                 reflection + transmission,
@@ -773,18 +608,19 @@ mod interface_consistency_tests {
             )
             .unwrap();
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_real_axis(stack.left_exterior(), &c_planar);
+        let left_admittance = IsotropicLayerQuantities::real_axis(stack.left_exterior(), &c_planar)
+            .into_admittance()
+            .into_inner();
 
         let right_admittance =
-            IsotropicLayerAdmittance::evaluate_real_axis(stack.right_exterior(), &c_planar);
+            IsotropicLayerQuantities::real_axis(stack.right_exterior(), &c_planar)
+                .into_admittance()
+                .into_inner();
 
-        let left_to_right = right_admittance.value()[()].real()
-            / left_admittance.value()[()].real()
+        let left_to_right = right_admittance[()].real() / left_admittance[()].real()
             * left_response.transmission()[()].modulus_squared();
 
-        let right_to_left = left_admittance.value()[()].real()
-            / right_admittance.value()[()].real()
+        let right_to_left = left_admittance[()].real() / right_admittance[()].real()
             * right_response.transmission()[()].modulus_squared();
 
         assert_relative_eq!(

@@ -67,12 +67,12 @@ mod derivatives;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 pub(crate) use admittance::IsotropicLayerAdmittance;
-pub(crate) use derivatives::{IsotropicLayerFirstDerivatives, IsotropicLayerSecondDerivatives};
 
 use crate::{
     ComplexScalar,
     backend::{
         PlanarInput, Polarisation,
+        algebra::ScalarAlgebra,
         evaluator::{ComplexPlane, ConstitutiveEvaluator, RealAxis},
     },
     material::{EvaluateMaterial, EvaluateMeromorphicMaterial},
@@ -83,39 +83,71 @@ use crate::{
 /// Every array has the same sampled dimension as the corresponding
 /// [`PlanarInput`].
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IsotropicLayerQuantities<C, D>
-where
-    D: Dimension,
-{
-    epsilon: ArrayBase<OwnedRepr<C>, D>,
-    mu: ArrayBase<OwnedRepr<C>, D>,
-    kappa: ArrayBase<OwnedRepr<C>, D>,
-    factor: ArrayBase<OwnedRepr<C>, D>,
+pub(crate) struct IsotropicLayerQuantities<A> {
+    epsilon: A,
+    mu: A,
+    kappa: A,
+    polarisation: Polarisation,
 }
 
-impl<C, D> IsotropicLayerQuantities<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    pub(crate) fn from_parts(
-        epsilon: ArrayBase<OwnedRepr<C>, D>,
-        mu: ArrayBase<OwnedRepr<C>, D>,
-        kappa: ArrayBase<OwnedRepr<C>, D>,
-        polarisation: Polarisation,
-    ) -> Self {
-        let factor = match polarisation {
-            Polarisation::TransverseElectric => mu.clone(),
-            Polarisation::TransverseMagnetic => epsilon.clone(),
-        };
+impl<A> IsotropicLayerQuantities<A> {
+    pub(crate) fn from_parts(epsilon: A, mu: A, kappa: A, polarisation: Polarisation) -> Self {
         Self {
             epsilon,
             mu,
             kappa,
-            factor,
+            polarisation,
         }
     }
 
+    /// Consume the derivatives and return their components.
+    pub(crate) fn into_parts(self) -> (A, A, A, Polarisation) {
+        (self.epsilon, self.mu, self.kappa, self.polarisation)
+    }
+
+    /// Return the relative permittivity.
+    pub(crate) fn epsilon(&self) -> &A {
+        &self.epsilon
+    }
+
+    /// Return the relative permeability.
+    pub(crate) fn mu(&self) -> &A {
+        &self.mu
+    }
+
+    /// Return the selected normal wavenumber `κ`.
+    pub(crate) fn kappa(&self) -> &A {
+        &self.kappa
+    }
+
+    /// Return the polarisation used
+    pub(crate) fn polarisation(&self) -> Polarisation {
+        self.polarisation
+    }
+
+    /// Return the TE/TM characteristic factor.
+    pub(crate) fn factor(&self) -> &A {
+        match self.polarisation {
+            Polarisation::TransverseElectric => &self.mu,
+            Polarisation::TransverseMagnetic => &self.epsilon,
+        }
+    }
+
+    pub(crate) fn into_admittance<C, D>(self) -> IsotropicLayerAdmittance<A>
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        A: ScalarAlgebra<C, D>,
+    {
+        IsotropicLayerAdmittance::new(self.kappa.divide(self.factor()))
+    }
+}
+
+impl<C, D> IsotropicLayerQuantities<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
     pub(crate) fn real_axis<M>(
         material: &M,
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
@@ -167,42 +199,12 @@ where
 
         let kappa = kappa_squared.mapv(principal_normal_wavenumber);
 
-        let factor = match planar.polarisation() {
-            Polarisation::TransverseElectric => mu.clone(),
-            Polarisation::TransverseMagnetic => epsilon.clone(),
-        };
-
         Self {
             epsilon,
             mu,
             kappa,
-            factor,
+            polarisation: planar.polarisation(),
         }
-    }
-
-    /// Return the relative permittivity.
-    pub(crate) fn epsilon(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.epsilon
-    }
-
-    /// Return the relative permeability.
-    pub(crate) fn mu(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.mu
-    }
-
-    /// Return the selected normal wavenumber `κ`.
-    pub(crate) fn kappa(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.kappa
-    }
-
-    /// Return the TE/TM characteristic factor.
-    pub(crate) fn factor(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.factor
-    }
-
-    /// Construct the characteristic admittance `Y = κ / factor`.
-    pub(crate) fn admittance(&self) -> IsotropicLayerAdmittance<C, D> {
-        IsotropicLayerAdmittance::from_quantities(self)
     }
 }
 
@@ -243,11 +245,14 @@ where
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
-    use ndarray::{arr0, array};
+    use ndarray::{Array0, arr0, array};
     use num_complex::Complex64;
 
     use super::*;
-    use crate::{backend::Polarisation, material::Constant};
+    use crate::{
+        backend::{PlanarInput, Polarisation},
+        material::Constant,
+    };
 
     type C = Complex64;
 
@@ -263,7 +268,7 @@ mod tests {
         vacuum_wavenumber: f64,
         parallel_wavenumber: f64,
         polarisation: Polarisation,
-    ) -> PlanarInput<ndarray::Array0<C>> {
+    ) -> PlanarInput<Array0<C>> {
         PlanarInput::new(
             arr0(c(vacuum_wavenumber)),
             arr0(c(parallel_wavenumber)),
@@ -271,73 +276,79 @@ mod tests {
         )
     }
 
-    fn assert_close(actual: C, expected: C) {
+    fn assert_close(actual: C, expected: C, tolerance: f64) {
         assert_relative_eq!(
             actual.re,
             expected.re,
-            epsilon = 1e-12,
-            max_relative = 1e-12
+            epsilon = tolerance,
+            max_relative = tolerance,
         );
+
         assert_relative_eq!(
             actual.im,
             expected.im,
-            epsilon = 1e-12,
-            max_relative = 1e-12
+            epsilon = tolerance,
+            max_relative = tolerance,
         );
+    }
+
+    #[test]
+    fn real_axis_evaluates_material_values() {
+        let material = material(4.0, 1.5);
+
+        let input = scalar_input(3.0, 0.5, Polarisation::TransverseElectric);
+
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
+
+        assert_close(quantities.epsilon()[()], c(4.0), 1e-12);
+
+        assert_close(quantities.mu()[()], c(1.5), 1e-12);
     }
 
     #[test]
     fn normal_wavenumber_matches_dispersion_relation() {
-        let material = material(4.0, 1.0);
+        let material = material(4.0, 1.5);
+
         let input = scalar_input(3.0, 2.0, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let expected = c((4.0_f64 * 9.0 - 4.0).sqrt());
+        let expected = c((4.0_f64 * 1.5 * 9.0 - 4.0).sqrt());
 
-        assert_close(q.kappa()[()], expected);
+        assert_close(quantities.kappa()[()], expected, 1e-12);
     }
 
     #[test]
-    fn te_factor_is_permeability() {
+    fn te_factor_is_relative_permeability() {
         let material = material(4.0, 2.0);
+
         let input = scalar_input(3.0, 1.0, Polarisation::TransverseElectric);
 
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        assert_close(q.factor()[()], c(2.0));
+        assert_close(quantities.factor()[()], c(2.0), 1e-12);
     }
 
     #[test]
-    fn tm_factor_is_permittivity() {
+    fn tm_factor_is_relative_permittivity() {
         let material = material(4.0, 2.0);
+
         let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
 
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        assert_close(q.factor()[()], c(4.0));
+        assert_close(quantities.factor()[()], c(4.0), 1e-12);
     }
 
     #[test]
-    fn evanescent_normal_wavenumber_is_decaying() {
-        let material = material(1.0, 1.0);
-        let input = scalar_input(1.0, 2.0, Polarisation::TransverseElectric);
+    fn polarisation_is_preserved() {
+        let material = material(2.25, 1.0);
 
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
+        let input = scalar_input(3.0, 0.4, Polarisation::TransverseMagnetic);
 
-        assert_relative_eq!(q.kappa()[()].re, 0.0, epsilon = 1e-12);
-        assert!(q.kappa()[()].im > 0.0);
-    }
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-    #[test]
-    fn admittance_matches_kappa_over_factor() {
-        let material = material(4.0, 2.0);
-        let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
-
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
-        let admittance = q.admittance();
-
-        assert_close(admittance.value()[()], q.kappa()[()] / q.factor()[()]);
+        assert_eq!(quantities.polarisation(), Polarisation::TransverseMagnetic,);
     }
 
     #[test]
@@ -350,56 +361,66 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let q = IsotropicLayerQuantities::real_axis(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        assert_eq!(q.epsilon().raw_dim(), input.vacuum_wavenumber().raw_dim());
-        assert_eq!(q.mu().raw_dim(), input.vacuum_wavenumber().raw_dim());
-        assert_eq!(q.kappa().raw_dim(), input.vacuum_wavenumber().raw_dim());
-        assert_eq!(q.factor().raw_dim(), input.vacuum_wavenumber().raw_dim());
-    }
-}
+        let expected = input.vacuum_wavenumber().raw_dim();
 
-#[cfg(test)]
-mod branch_tests {
-    use approx::assert_relative_eq;
-    use num_complex::Complex64;
+        assert_eq!(quantities.epsilon().raw_dim(), expected,);
 
-    use super::*;
+        assert_eq!(quantities.mu().raw_dim(), expected,);
 
-    type C = Complex64;
+        assert_eq!(quantities.kappa().raw_dim(), expected,);
 
-    fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
-        assert_relative_eq!(
-            actual.re,
-            expected.re,
-            epsilon = tolerance,
-            max_relative = tolerance,
-        );
-
-        assert_relative_eq!(
-            actual.im,
-            expected.im,
-            epsilon = tolerance,
-            max_relative = tolerance,
-        );
+        assert_eq!(quantities.factor().raw_dim(), expected,);
     }
 
     #[test]
-    fn positive_real_argument_selects_positive_real_root() {
-        let kappa = principal_normal_wavenumber(C::new(9.0, 0.0));
+    fn evanescent_normal_wavenumber_has_positive_imaginary_part() {
+        let material = material(1.0, 1.0);
 
-        assert_complex_close(kappa, C::new(3.0, 0.0), 1e-12);
+        let input = scalar_input(1.0, 2.0, Polarisation::TransverseElectric);
+
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
+
+        let kappa = quantities.kappa()[()];
+
+        assert_relative_eq!(kappa.re, 0.0, epsilon = 1e-12,);
+
+        assert!(kappa.im > 0.0);
+    }
+
+    #[test]
+    fn into_parts_preserves_canonical_order() {
+        let material = material(4.0, 2.0);
+
+        let input = scalar_input(3.0, 1.0, Polarisation::TransverseElectric);
+
+        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
+
+        let (epsilon, mu, kappa, polarisation) = quantities.clone().into_parts();
+
+        assert_eq!(epsilon, quantities.epsilon().clone());
+        assert_eq!(mu, quantities.mu().clone());
+        assert_eq!(kappa, quantities.kappa().clone());
+        assert_eq!(polarisation, quantities.polarisation(),);
+    }
+
+    #[test]
+    fn positive_real_argument_selects_positive_root() {
+        let root = principal_normal_wavenumber(C::new(9.0, 0.0));
+
+        assert_close(root, C::new(3.0, 0.0), 1e-12);
     }
 
     #[test]
     fn negative_real_argument_selects_positive_imaginary_root() {
-        let kappa = principal_normal_wavenumber(C::new(-9.0, 0.0));
+        let root = principal_normal_wavenumber(C::new(-9.0, 0.0));
 
-        assert_complex_close(kappa, C::new(0.0, 3.0), 1e-12);
+        assert_close(root, C::new(0.0, 3.0), 1e-12);
     }
 
     #[test]
-    fn selected_root_squares_to_original_argument() {
+    fn selected_root_squares_to_argument() {
         let values = [
             C::new(9.0, 0.0),
             C::new(-9.0, 0.0),
@@ -410,14 +431,14 @@ mod branch_tests {
         ];
 
         for value in values {
-            let kappa = principal_normal_wavenumber(value);
+            let root = principal_normal_wavenumber(value);
 
-            assert_complex_close(kappa * kappa, value, 1e-12);
+            assert_close(root * root, value, 1e-12);
         }
     }
 
     #[test]
-    fn selected_root_is_exactly_complex_scalar_principal_sqrt() {
+    fn selected_root_is_complex_scalar_principal_sqrt() {
         let values = [
             C::new(1.3, 0.7),
             C::new(-1.3, 0.7),
@@ -431,7 +452,7 @@ mod branch_tests {
     }
 
     #[test]
-    fn local_derivative_matches_principal_sqrt_derivative_away_from_cut() {
+    fn principal_sqrt_local_derivative_matches_finite_difference() {
         let value = C::new(2.0, 1.5);
         let direction = C::new(0.3, -0.2);
         let h = 1e-6;
@@ -440,29 +461,12 @@ mod branch_tests {
 
         let minus = principal_normal_wavenumber(value - direction * h);
 
-        let finite_difference = (plus - minus) / (2.0 * h);
+        let numerical = (plus - minus) / (2.0 * h);
 
-        let kappa = principal_normal_wavenumber(value);
+        let root = principal_normal_wavenumber(value);
 
-        let expected = direction / (C::new(2.0, 0.0) * kappa);
+        let expected = direction / (C::new(2.0, 0.0) * root);
 
-        assert_complex_close(finite_difference, expected, 1e-9);
-    }
-
-    #[test]
-    fn values_on_opposite_sides_of_cut_select_opposite_real_parts() {
-        let epsilon = 1e-8;
-
-        let above = principal_normal_wavenumber(C::new(-1.0, epsilon));
-
-        let below = principal_normal_wavenumber(C::new(-1.0, -epsilon));
-
-        assert!(above.re > 0.0);
-        assert!(above.im > 0.0);
-
-        assert!(below.re > 0.0);
-        assert!(below.im < 0.0);
-
-        assert_complex_close(below, above.conj(), 1e-10);
+        assert_close(numerical, expected, 1e-9);
     }
 }

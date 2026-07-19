@@ -102,6 +102,30 @@ pub(crate) trait JetField: JetBilinear {
     fn elementwise_reciprocal(&self) -> Self;
 }
 
+/// A bilinear cross product between values of the same type.
+///
+/// Implementations must be bilinear in both operands so that the ordinary
+/// first- and second-order product rules are valid.
+pub(crate) trait JetCrossProduct: Clone {
+    fn jet_cross(&self, rhs: &Self) -> Self;
+}
+
+pub(crate) trait JetHermitianProduct: Clone {
+    type Output;
+
+    fn jet_hermitian_product(&self, rhs: &Self) -> Self::Output;
+}
+
+pub(crate) trait JetConjugate {
+    fn jet_conjugate(&self) -> Self;
+}
+
+pub(crate) trait JetRealPart {
+    type RealOutput;
+
+    fn jet_real(&self) -> Self::RealOutput;
+}
+
 /// Operations required of a chain-rule coefficient.
 pub(crate) trait ChainRuleCoefficient: Clone {
     fn square(&self) -> Self;
@@ -243,6 +267,63 @@ where
     /// Divide two first-order jets elementwise.
     pub(crate) fn divide(&self, rhs: &Self) -> Self {
         self.multiply(&rhs.reciprocal())
+    }
+}
+
+impl<I> JetFirst<I>
+where
+    I: JetCrossProduct + JetAdditive,
+{
+    /// Compute the cross product of two first-order jets.
+    ///
+    /// The derivative is evaluated using the bilinear product rule.
+    pub(crate) fn cross(&self, rhs: &Self) -> Self {
+        let value = self.value.jet_cross(&rhs.value);
+
+        let first = self
+            .first
+            .jet_cross(&rhs.value)
+            .jet_add(&self.value.jet_cross(&rhs.first));
+
+        JetFirst::from_parts(value, first)
+    }
+}
+
+impl<I> JetFirst<I>
+where
+    I: JetHermitianProduct,
+    I::Output: JetAdditive,
+{
+    /// Compute the cross product of two first-order jets.
+    ///
+    /// The derivative is evaluated using the bilinear product rule.
+    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> JetFirst<I::Output> {
+        let value = self.value().jet_hermitian_product(rhs.value());
+
+        let first = self
+            .first()
+            .jet_hermitian_product(rhs.value())
+            .jet_add(&self.value().jet_hermitian_product(rhs.first()));
+
+        JetFirst::from_parts(value, first)
+    }
+}
+
+impl<I> JetFirst<I>
+where
+    I: JetConjugate,
+{
+    pub(crate) fn conjugated(&self) -> Self {
+        Self::from_parts(self.value.jet_conjugate(), self.first.jet_conjugate())
+    }
+}
+
+impl<I> JetFirst<I>
+where
+    I: JetRealPart,
+{
+    pub(crate) fn real(&self) -> JetFirst<I::RealOutput> {
+        JetFirst::from_parts(self.value.jet_real(), self.first.jet_real())
     }
 }
 
@@ -432,6 +513,90 @@ where
     }
 }
 
+impl<I> Jet<I>
+where
+    I: JetCrossProduct + JetAdditive,
+{
+    /// Compute the cross product of two first-order jets.
+    ///
+    /// The derivative is evaluated using the bilinear product rule.
+    pub(crate) fn cross(&self, rhs: &Self) -> Self {
+        let value = self.value.jet_cross(&rhs.value);
+
+        let first = self
+            .first
+            .jet_cross(&rhs.value)
+            .jet_add(&self.value.jet_cross(&rhs.first));
+
+        let mixed = self.first.jet_cross(&rhs.first);
+
+        let second = self
+            .second
+            .jet_cross(&rhs.value)
+            .jet_add(&mixed)
+            .jet_add(&mixed)
+            .jet_add(&self.value.jet_cross(&rhs.second));
+
+        Self::from_parts(value, first, second)
+    }
+}
+
+impl<I> Jet<I>
+where
+    I: JetHermitianProduct,
+    I::Output: JetAdditive,
+{
+    /// Compute the Hermitian product of two second-order jets.
+    ///
+    /// The first and second derivatives are evaluated using the bilinear
+    /// product rules.
+    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> Jet<I::Output> {
+        let value = self.value().jet_hermitian_product(rhs.value());
+
+        let first = self
+            .first()
+            .jet_hermitian_product(rhs.value())
+            .jet_add(&self.value().jet_hermitian_product(rhs.first()));
+
+        let mixed = self.first().jet_hermitian_product(rhs.first());
+
+        let second = self
+            .second()
+            .jet_hermitian_product(rhs.value())
+            .jet_add(&mixed)
+            .jet_add(&mixed)
+            .jet_add(&self.value().jet_hermitian_product(rhs.second()));
+
+        Jet::from_parts(value, first, second)
+    }
+}
+
+impl<I> Jet<I>
+where
+    I: JetConjugate,
+{
+    pub(crate) fn conjugated(&self) -> Self {
+        Self::from_parts(
+            self.value.jet_conjugate(),
+            self.first.jet_conjugate(),
+            self.second.jet_conjugate(),
+        )
+    }
+}
+
+impl<I> Jet<I>
+where
+    I: JetRealPart,
+{
+    pub(crate) fn real(&self) -> Jet<I::RealOutput> {
+        Jet::from_parts(
+            self.value.jet_real(),
+            self.first.jet_real(),
+            self.second.jet_real(),
+        )
+    }
+}
+
 impl<C, D> JetZeroLike for ArrayBase<OwnedRepr<C>, D>
 where
     C: ComplexScalar,
@@ -498,6 +663,28 @@ where
     }
 }
 
+impl<C, D> JetRealPart for ArrayBase<OwnedRepr<C>, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type RealOutput = ArrayBase<OwnedRepr<C::RealField>, D>;
+
+    fn jet_real(&self) -> Self::RealOutput {
+        self.mapv(|z| z.real())
+    }
+}
+
+impl<C, D> JetConjugate for ArrayBase<OwnedRepr<C>, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn jet_conjugate(&self) -> Self {
+        self.mapv(|z| z.conjugate())
+    }
+}
+
 impl<C, D> JetField for ArrayBase<OwnedRepr<C>, D>
 where
     C: ComplexScalar,
@@ -543,6 +730,30 @@ where
 
         Self::from_parts(exp, first, second)
     }
+
+    pub(crate) fn sin(self) -> Self {
+        let sin = self.value().mapv(|x| x.sin());
+
+        let cos = self.value().mapv(|x| x.cos());
+
+        let first = cos.clone() * self.first();
+
+        let second = -sin.clone() * self.first().square() + cos * self.second();
+
+        Self::from_parts(sin, first, second)
+    }
+
+    pub(crate) fn cos(self) -> Self {
+        let sin = self.value().mapv(|x| x.sin());
+
+        let cos = self.value().mapv(|x| x.cos());
+
+        let first = -sin.clone() * self.first();
+
+        let second = -cos.clone() * self.first().square() - sin * self.second();
+
+        Self::from_parts(cos, first, second)
+    }
 }
 
 impl<C, D> ArrayJetFirst<C, D>
@@ -556,6 +767,76 @@ where
         let first = exp.clone() * self.first().view();
 
         Self::from_parts(exp, first)
+    }
+
+    pub(crate) fn sin(self) -> Self {
+        let value = self.value().mapv(|x| x.sin());
+
+        let first = self.value().mapv(|x| x.cos()) * self.first();
+
+        Self::from_parts(value, first)
+    }
+
+    pub(crate) fn cos(self) -> Self {
+        let value = self.value().mapv(|x| x.cos());
+
+        let first = -self.value().mapv(|x| x.sin()) * self.first();
+
+        Self::from_parts(value, first)
+    }
+}
+
+impl<I> JetFirst<I> {
+    pub(crate) fn map<O, F>(self, mut f: F) -> JetFirst<O>
+    where
+        F: FnMut(I) -> O,
+    {
+        JetFirst::from_parts(f(self.value), f(self.first))
+    }
+}
+
+impl<I> Jet<I> {
+    pub(crate) fn map<O, F>(self, mut f: F) -> Jet<O>
+    where
+        F: FnMut(I) -> O,
+    {
+        Jet::from_parts(f(self.value), f(self.first), f(self.second))
+    }
+}
+
+impl<C, D> ArrayJetFirst<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    pub fn sqrt(self) -> Self {
+        let value = self.value.mapv(|x| x.sqrt());
+
+        let two = C::one() + C::one();
+
+        let first = self.first / value.mapv(|y| two * y);
+
+        Self { value, first }
+    }
+}
+
+impl<C, D> ArrayJet<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    pub fn sqrt(self) -> Self {
+        let value = self.value.mapv(|x| x.sqrt());
+
+        let two = C::one() + C::one();
+        let four = two + two;
+
+        let first = self.first.clone() / value.mapv(|y| two * y);
+
+        let second = self.second / value.mapv(|y| two * y)
+            - self.first.mapv(|x| x * x) / value.mapv(|y| four * y * y * y);
+
+        Self::from_parts(value, first, second)
     }
 }
 

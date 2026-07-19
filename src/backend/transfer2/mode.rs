@@ -1,72 +1,133 @@
-//! Outgoing-mode residual for the 2×2 transfer backend.
-//!
-//! For
-//!
-//! ```text
-//! M = [A B]
-//!     [C D]
-//! ```
-//!
-//! and exterior characteristic admittances `Y_L` and `Y_R`, a right-outgoing
-//! state is proportional to:
-//!
-//! ```text
-//! [1, -Y_R]ᵀ.
-//! ```
-//!
-//! Propagation through the finite stack gives:
-//!
-//! ```text
-//! u = A - B Y_R
-//! v = C - D Y_R.
-//! ```
-//!
-//! The left-outgoing condition is `v = Y_L u`, giving the characteristic
-//! residual:
-//!
-//! ```text
-//! f = Y_L u - v.
-//! ```
-//!
-//! This is also the common denominator of the transfer-backend plane-wave
-//! reflection and transmission amplitudes.
-//!
-//! # Residual normalisation
-//!
-//! For physical characteristic admittances
-//!
-//! ```text
-//! Y_j = κ_j / factor_j,
-//! ```
-//!
-//! define the transfer-state slopes
-//!
-//! ```text
-//! ξ_j = i Y_j.
-//! ```
-//!
-//! The outgoing-mode residual is
-//!
-//! ```text
-//! Δ = ξ_L (A - B ξ_R) - (C - D ξ_R).
-//! ```
-//!
-//! This is exactly the common denominator used by the transfer backend's
-//! reflection and transmission amplitudes.
-
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
     backend::{
-        AnalyticResidual, OutgoingModeResidualBackend, PlanarInput, evaluator::ComplexPlane,
-        isotropic::IsotropicLayerAdmittance, mode::DifferentiableOutgoingModeResidualBackend,
+        AnalyticResidual, OutgoingModeResidualBackend, PlanarInput,
+        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        evaluator::ComplexPlane,
+        field::{
+            BoundaryWaveSolution, BoundaryWaves, ExteriorBoundaryWaves, InternalFieldRequest,
+            ModeFieldResponse, OutgoingModeFieldBackend, value_fields_from_generic,
+        },
+        isotropic::IsotropicLayerQuantities,
+        mode::{
+            DifferentiableOutgoingModeResidualBackend, OutgoingMode, OutgoingModeResponse,
+            OutgoingModeStateBackend, ResidualDerivatives,
+        },
+        transfer2::workspace::{TransferWorkspace, right_outgoing_transfer_state},
     },
     material::{EvaluateDifferentiableMeromorphicMaterial, EvaluateMeromorphicMaterial},
     stack::Stack,
 };
 
 use super::{Transfer2, Transfer2Error, response::outgoing_residual};
+
+impl<C, M> OutgoingModeStateBackend<C, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+{
+    fn outgoing_mode_state(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<Array0<C>>,
+    ) -> Result<OutgoingModeResponse<C>, Self::Error> {
+        let workspace = self.accumulate_with::<ComplexPlane, _, _, _>(
+            stack,
+            input,
+            InternalFieldRequest::None,
+        )?;
+
+        let entries = workspace.into_total();
+
+        let left_admittance = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input)
+            .into_admittance()
+            .into_inner();
+
+        let right_admittance =
+            IsotropicLayerQuantities::complex_plane(stack.right_exterior(), input)
+                .into_admittance()
+                .into_inner();
+
+        let amplitudes = entries
+            .outgoing_mode_extraction(&right_admittance)
+            .amplitudes();
+
+        let residual =
+            outgoing_residual::<C, ndarray::Ix0, _>(&entries, &left_admittance, &right_admittance);
+
+        Ok(OutgoingModeResponse::new(
+            OutgoingMode::new(input.clone()),
+            residual[()],
+            amplitudes,
+        ))
+    }
+}
+
+impl<C, M> OutgoingModeFieldBackend<C, Stack<M, C::RealField>> for Transfer2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+{
+    fn outgoing_mode_internal_fields(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        mode: &OutgoingMode<C>,
+    ) -> Result<ModeFieldResponse<C>, Self::Error> {
+        let workspace: TransferWorkspace<Array0<C>> = self
+            .accumulate_with::<ComplexPlane, _, _, _>(
+                stack,
+                mode.input(),
+                InternalFieldRequest::LayerBoundaries,
+            )?;
+
+        let total = workspace.total();
+
+        let left_admittance =
+            IsotropicLayerQuantities::complex_plane(stack.left_exterior(), mode.input())
+                .into_admittance()
+                .into_inner();
+
+        let right_admittance =
+            IsotropicLayerQuantities::complex_plane(stack.right_exterior(), mode.input())
+                .into_admittance()
+                .into_inner();
+
+        let residual =
+            outgoing_residual::<C, ndarray::Ix0, _>(&total, &left_admittance, &right_admittance);
+
+        let extraction = total.outgoing_mode_extraction(&right_admittance);
+
+        let amplitudes = extraction.amplitudes();
+
+        let right_state = right_outgoing_transfer_state::<C, ndarray::Ix0, ndarray::Array0<C>>(
+            &amplitudes.right_outgoing,
+            &right_admittance,
+        );
+
+        let layer_waves =
+            workspace.reconstruct_layer_boundary_waves::<C, ndarray::Ix0>(right_state);
+
+        let layers = value_fields_from_generic(layer_waves);
+
+        let exterior = ExteriorBoundaryWaves::from_outgoing_values(
+            amplitudes.left().clone(),
+            amplitudes.right().clone(),
+        );
+
+        let response = OutgoingModeResponse::new(mode.clone(), residual[()], amplitudes);
+
+        let boundary_waves = BoundaryWaves::new(exterior, layers);
+
+        Ok(ModeFieldResponse::new(
+            response,
+            BoundaryWaveSolution::Values(boundary_waves),
+        ))
+    }
+}
 
 impl<C, D, M> OutgoingModeResidualBackend<C, D, Stack<M, C::RealField>> for Transfer2
 where
@@ -84,16 +145,18 @@ where
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
         let matrix = self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)?;
 
-        let left_admittance =
-            IsotropicLayerAdmittance::evaluate_complex_plane(stack.left_exterior(), input)
-                .into_inner();
+        let entries = matrix.into_entries();
+
+        let left_admittance = IsotropicLayerQuantities::complex_plane(stack.left_exterior(), input)
+            .into_admittance()
+            .into_inner();
 
         let right_admittance =
-            IsotropicLayerAdmittance::evaluate_complex_plane(stack.right_exterior(), input)
+            IsotropicLayerQuantities::complex_plane(stack.right_exterior(), input)
+                .into_admittance()
                 .into_inner();
 
-        let residual =
-            outgoing_residual(matrix.into_entries(), &left_admittance, &right_admittance);
+        let residual = outgoing_residual::<C, D, _>(&entries, &left_admittance, &right_admittance);
 
         Ok(AnalyticResidual::new(residual))
     }
@@ -102,54 +165,99 @@ where
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix =
+        /*
+         * evaluate_structural_first_with already:
+         *
+         * - evaluates the primitive derivative;
+         * - applies the requested coordinate chain rule.
+         *
+         * Both exterior admittances must undergo exactly the
+         * same transformation.
+         */
+        let entries =
             self.evaluate_structural_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
-            stack.left_exterior(),
-            input,
-            variable,
-        );
+        let primitive = variable.primitive();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_first_structural_complex_plane(
-            stack.right_exterior(),
-            input,
-            variable,
-        );
+        let mut left_admittance =
+            IsotropicLayerQuantities::evaluate_first_structural_complex_plane(
+                stack.left_exterior(),
+                input,
+                primitive,
+            )
+            .into_admittance()
+            .into_inner();
 
-        let residual =
-            outgoing_residual(matrix.into_entries(), &left_admittance, &right_admittance);
+        let mut right_admittance =
+            IsotropicLayerQuantities::evaluate_first_structural_complex_plane(
+                stack.right_exterior(),
+                input,
+                primitive,
+            )
+            .into_admittance()
+            .into_inner();
 
-        Ok(AnalyticResidual::from_first_jet(residual, variable.into()))
+        if let Some(rule) = variable.chain_rule(input) {
+            left_admittance = left_admittance.chain_rule(&rule);
+
+            right_admittance = right_admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(&entries, &left_admittance, &right_admittance);
+
+        let (value, first) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first),
+        ))
     }
 
     fn outgoing_mode_residual_second_structural_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        variable: StructuralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix =
+        let entries =
             self.evaluate_structural_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_second_structural_complex_plane(
-            stack.left_exterior(),
-            input,
-            variable,
-        );
+        let primitive = variable.primitive();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_second_structural_complex_plane(
-            stack.right_exterior(),
-            input,
-            variable,
-        );
+        let mut left_admittance =
+            IsotropicLayerQuantities::evaluate_second_structural_complex_plane(
+                stack.left_exterior(),
+                input,
+                primitive,
+            )
+            .into_admittance()
+            .into_inner();
 
-        let residual =
-            outgoing_residual(matrix.into_entries(), &left_admittance, &right_admittance);
+        let mut right_admittance =
+            IsotropicLayerQuantities::evaluate_second_structural_complex_plane(
+                stack.right_exterior(),
+                input,
+                primitive,
+            )
+            .into_admittance()
+            .into_inner();
 
-        Ok(AnalyticResidual::from_second_jet(residual, variable.into()))
+        if let Some(rule) = variable.chain_rule(input) {
+            left_admittance = left_admittance.chain_rule(&rule);
+
+            right_admittance = right_admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(&entries, &left_admittance, &right_admittance);
+
+        let (value, first, second) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first).with_second(second),
+        ))
     }
 }
 
@@ -164,54 +272,96 @@ where
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix =
+        /*
+         * evaluate_spectral_first_with already:
+         *
+         * - evaluates the primitive derivative;
+         * - applies the requested coordinate chain rule.
+         *
+         * Both exterior admittances must undergo exactly the
+         * same transformation.
+         */
+        let entries =
             self.evaluate_spectral_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_complex_plane(
+        let primitive = variable.primitive();
+
+        let mut left_admittance = IsotropicLayerQuantities::evaluate_first_spectral_complex_plane(
             stack.left_exterior(),
             input,
-            variable,
-        );
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_first_spectral_complex_plane(
+        let mut right_admittance = IsotropicLayerQuantities::evaluate_first_spectral_complex_plane(
             stack.right_exterior(),
             input,
-            variable,
-        );
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
-        let residual =
-            outgoing_residual(matrix.into_entries(), &left_admittance, &right_admittance);
+        if let Some(rule) = variable.chain_rule(input) {
+            left_admittance = left_admittance.chain_rule(&rule);
 
-        Ok(AnalyticResidual::from_first_jet(residual, variable.into()))
+            right_admittance = right_admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(&entries, &left_admittance, &right_admittance);
+
+        let (value, first) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first),
+        ))
     }
 
     fn outgoing_mode_residual_second_spectral_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
+        variable: SpectralDerivativeVariable,
     ) -> Result<AnalyticResidual<C, D>, Self::Error> {
-        let matrix =
+        let entries =
             self.evaluate_spectral_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
 
-        let left_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
+        let primitive = variable.primitive();
+
+        let mut left_admittance = IsotropicLayerQuantities::evaluate_second_spectral_complex_plane(
             stack.left_exterior(),
             input,
-            variable,
-        );
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
-        let right_admittance = IsotropicLayerAdmittance::evaluate_second_spectral_complex_plane(
-            stack.right_exterior(),
-            input,
-            variable,
-        );
+        let mut right_admittance =
+            IsotropicLayerQuantities::evaluate_second_spectral_complex_plane(
+                stack.right_exterior(),
+                input,
+                primitive,
+            )
+            .into_admittance()
+            .into_inner();
 
-        let residual =
-            outgoing_residual(matrix.into_entries(), &left_admittance, &right_admittance);
+        if let Some(rule) = variable.chain_rule(input) {
+            left_admittance = left_admittance.chain_rule(&rule);
 
-        Ok(AnalyticResidual::from_second_jet(residual, variable.into()))
+            right_admittance = right_admittance.chain_rule(&rule);
+        }
+
+        let residual = outgoing_residual::<C, D, _>(&entries, &left_admittance, &right_admittance);
+
+        let (value, first, second) = residual.into_parts();
+
+        Ok(AnalyticResidual::with_derivatives(
+            value,
+            ResidualDerivatives::new(variable.into(), first).with_second(second),
+        ))
     }
 }
 
@@ -315,15 +465,15 @@ mod tests {
             .evaluate_with::<RealAxis, _, _, _>(&stack, &planar)
             .unwrap();
 
-        let left =
-            -IsotropicLayerAdmittance::evaluate_complex_plane(stack.left_exterior(), &planar)
-                .into_inner()
-                * C::i();
+        let left = -IsotropicLayerQuantities::complex_plane(stack.left_exterior(), &planar)
+            .into_admittance()
+            .into_inner()
+            * C::i();
 
-        let right =
-            -IsotropicLayerAdmittance::evaluate_complex_plane(stack.right_exterior(), &planar)
-                .into_inner()
-                * C::i();
+        let right = -IsotropicLayerQuantities::complex_plane(stack.right_exterior(), &planar)
+            .into_admittance()
+            .into_inner()
+            * C::i();
 
         let (a, b, c_, d) = matrix.into_parts();
 

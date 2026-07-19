@@ -58,10 +58,7 @@ use crate::{
             ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
         },
         field::InternalFieldRequest,
-        isotropic::{
-            IsotropicLayerAdmittance, IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
-            IsotropicLayerSecondDerivatives,
-        },
+        isotropic::IsotropicLayerQuantities,
         jet::{ArrayJet, ArrayJetFirst},
         scatter2::{
             ScatterMatrix2,
@@ -187,19 +184,17 @@ impl Scatter2 {
 
         let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
 
-        let mut current_admittance = left_quantities.admittance().into_inner();
+        let mut current_admittance = left_quantities.into_admittance().into_inner();
 
         for layer in stack.iter() {
             let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
 
-            let layer_admittance = quantities.admittance().into_inner();
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
             let distance = C::from_real(layer.thickness().as_cm());
-
             let exponent = quantities.kappa().scale(C::i() * distance);
 
+            let layer_admittance = quantities.into_admittance().into_inner();
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
             workspace.append_layer::<C, D>(interface, propagation);
@@ -209,7 +204,7 @@ impl Scatter2 {
 
         let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
 
-        let right_admittance = right_quantities.admittance().into_inner();
+        let right_admittance = right_quantities.into_admittance().into_inner();
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -286,24 +281,27 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) = medium_first_jets_structural(&left_quantities, primitive);
+        let mut current_admittance = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
+            stack.left_exterior(),
+            input,
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
+            let quantities = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
+                layer.material(),
+                input,
+                primitive,
+            );
 
-            let (kappa, layer_admittance) = medium_first_jets_structural(&quantities, primitive);
+            let exponent =
+                first_propagation_exponent(&quantities, layer.thickness().as_cm(), variable, index);
+
+            let layer_admittance = quantities.into_admittance().into_inner();
 
             let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let exponent = first_propagation_exponent(
-                &quantities,
-                &kappa,
-                layer.thickness().as_cm(),
-                primitive,
-                index,
-            );
 
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
@@ -312,9 +310,13 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
-
-        let (_, right_admittance) = medium_first_jets_structural(&right_quantities, primitive);
+        let right_admittance = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
+            stack.right_exterior(),
+            input,
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -345,32 +347,28 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) = medium_first_jets_spectral::<E, _, _, _>(
+        let mut current_admittance = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
             stack.left_exterior(),
-            &left_quantities,
             input,
             primitive,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
-
-            let (kappa, layer_admittance) = medium_first_jets_spectral::<E, _, _, _>(
+            let quantities = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
                 layer.material(),
-                &quantities,
                 input,
                 primitive,
             );
 
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
             let distance = C::from_real(layer.thickness().as_cm());
-
             let coefficient = C::i() * distance;
+            let exponent = quantities.kappa().scale(coefficient);
 
-            let exponent = kappa.scale(coefficient);
+            let layer_admittance = quantities.into_admittance().into_inner();
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
@@ -379,14 +377,13 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
-
-        let (_, right_admittance) = medium_first_jets_spectral::<E, _, _, _>(
+        let right_admittance = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
             stack.right_exterior(),
-            &right_quantities,
             input,
             primitive,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -465,25 +462,31 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) =
-            medium_second_jets_structural(&left_quantities, primitive);
+        let mut current_admittance = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
+            stack.left_exterior(),
+            input,
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
         for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
-
-            let (kappa, layer_admittance) = medium_second_jets_structural(&quantities, primitive);
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
+            let quantities = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
+                layer.material(),
+                input,
+                primitive,
+            );
 
             let exponent = second_propagation_exponent(
                 &quantities,
-                &kappa,
                 layer.thickness().as_cm(),
-                primitive,
+                variable,
                 index,
             );
+
+            let layer_admittance = quantities.into_admittance().into_inner();
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
@@ -492,9 +495,13 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
-
-        let (_, right_admittance) = medium_second_jets_structural(&right_quantities, primitive);
+        let right_admittance = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
+            stack.right_exterior(),
+            input,
+            primitive,
+        )
+        .into_admittance()
+        .into_inner();
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -525,30 +532,28 @@ impl Scatter2 {
 
         let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
 
-        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
-
-        let (_, mut current_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+        let mut current_admittance = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
             stack.left_exterior(),
-            &left_quantities,
             input,
             primitive,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
-
-            let (kappa, layer_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+            let quantities = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
                 layer.material(),
-                &quantities,
                 input,
                 primitive,
             );
 
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
             let distance = C::from_real(layer.thickness().as_cm());
             let coefficient = C::i() * distance;
-            let exponent = kappa.scale(coefficient);
+            let exponent = quantities.kappa().scale(coefficient);
+
+            let layer_admittance = quantities.into_admittance().into_inner();
+
+            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
 
             let propagation = propagation_from_exponent::<C, D, _>(exponent);
 
@@ -557,14 +562,13 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
-
-        let (_, right_admittance) = medium_second_jets_spectral::<E, _, _, _>(
+        let right_admittance = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
             stack.right_exterior(),
-            &right_quantities,
             input,
             primitive,
-        );
+        )
+        .into_admittance()
+        .into_inner();
 
         let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
 
@@ -597,8 +601,7 @@ fn validate_derivative_variable<M, R>(
 }
 
 fn first_propagation_exponent<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    kappa: &ArrayJetFirst<C, D>,
+    quantities: &IsotropicLayerQuantities<ArrayJetFirst<C, D>>,
     thickness_cm: C::RealField,
     variable: StructuralDerivativeVariable,
     layer_index: usize,
@@ -608,27 +611,27 @@ where
     C::RealField: Copy,
     D: Dimension,
 {
-    let distance = C::from_real(thickness_cm);
+    let thickness = C::from_real(thickness_cm);
 
-    let coefficient = C::i() * distance;
-
-    if matches!(
+    let thickness = if matches!(
         variable,
-        StructuralDerivativeVariable::Thickness(requested)
-            if requested == layer_index
+        StructuralDerivativeVariable::Thickness(
+            requested
+        ) if requested == layer_index
     ) {
         ArrayJetFirst::from_parts(
-            quantities.kappa().clone() * coefficient,
-            quantities.kappa().mapv(|kappa| C::i() * kappa),
+            quantities.kappa().value().mapv(|_| thickness),
+            quantities.kappa().value().mapv(|_| C::one()),
         )
     } else {
-        kappa.scale(coefficient)
-    }
+        ArrayJetFirst::constant(quantities.kappa().value().mapv(|_| thickness))
+    };
+
+    quantities.kappa().multiply(&thickness).scale(C::i())
 }
 
 fn second_propagation_exponent<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    kappa: &ArrayJet<C, D>,
+    quantities: &IsotropicLayerQuantities<ArrayJet<C, D>>,
     thickness_cm: C::RealField,
     variable: StructuralDerivativeVariable,
     layer_index: usize,
@@ -638,189 +641,24 @@ where
     C::RealField: Copy,
     D: Dimension,
 {
-    let distance = C::from_real(thickness_cm);
+    let thickness = C::from_real(thickness_cm);
 
-    let coefficient = C::i() * distance;
-
-    if matches!(
+    let thickness = if matches!(
         variable,
-        StructuralDerivativeVariable::Thickness(requested)
-            if requested == layer_index
+        StructuralDerivativeVariable::Thickness(
+            requested
+        ) if requested == layer_index
     ) {
         ArrayJet::from_parts(
-            quantities.kappa().clone() * coefficient,
-            quantities.kappa().mapv(|kappa| C::i() * kappa),
-            quantities.kappa().mapv(|_| C::zero()),
+            quantities.kappa().value().mapv(|_| thickness),
+            quantities.kappa().value().mapv(|_| C::one()),
+            quantities.kappa().value().mapv(|_| C::zero()),
         )
     } else {
-        kappa.scale(coefficient)
-    }
-}
+        ArrayJet::constant(quantities.kappa().value().mapv(|_| thickness))
+    };
 
-/// Construct first-order normal-wavenumber and admittance jets for one medium.
-///
-/// `variable` must already be primitive. Thickness derivatives return constant
-/// medium jets because material and admittance values have no explicit
-/// thickness dependence.
-fn medium_first_jets_structural<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    variable: StructuralDerivativeVariable,
-) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
-where
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    match variable {
-        StructuralDerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(quantities);
-
-            let kappa =
-                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
-
-            let admittance =
-                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        StructuralDerivativeVariable::Thickness(_) => {
-            let kappa = ArrayJetFirst::constant(quantities.kappa().clone());
-
-            let admittance = ArrayJetFirst::constant(quantities.admittance().into_inner());
-
-            (kappa, admittance)
-        }
-
-        StructuralDerivativeVariable::ParallelWavenumber => {
-            unreachable!("primitive() returned a linear derivative variable")
-        }
-    }
-}
-
-/// Construct first-order normal-wavenumber and admittance jets for one medium.
-///
-/// `variable` must already be primitive. Thickness derivatives return constant
-/// medium jets because material and admittance values have no explicit
-/// thickness dependence.
-fn medium_first_jets_spectral<E, M, C, D>(
-    material: &M,
-    quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: SpectralDerivativeVariable,
-) -> (ArrayJetFirst<C, D>, ArrayJetFirst<C, D>)
-where
-    E: ConstitutiveDerivativeEvaluator<C, D, M>,
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    match variable {
-        SpectralDerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared::<E, _>(
-                material,
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let kappa =
-                ArrayJetFirst::from_parts(quantities.kappa().clone(), derivatives.dkappa().clone());
-
-            let admittance =
-                IsotropicLayerAdmittance::first_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        SpectralDerivativeVariable::VacuumWavenumber => {
-            unreachable!("primitive() returned a linear derivative variable")
-        }
-    }
-}
-
-/// Construct second-order normal-wavenumber and admittance jets for one medium.
-///
-/// `variable` must already be primitive.
-fn medium_second_jets_spectral<E, M, C, D>(
-    material: &M,
-    quantities: &IsotropicLayerQuantities<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    variable: SpectralDerivativeVariable,
-) -> (ArrayJet<C, D>, ArrayJet<C, D>)
-where
-    E: ConstitutiveDerivativeEvaluator<C, D, M>,
-    C: ComplexScalar,
-    D: Dimension,
-{
-    match variable {
-        SpectralDerivativeVariable::VacuumWavenumberSquared => {
-            let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared::<E, _>(
-                material,
-                quantities,
-                input.vacuum_wavenumber(),
-                input.polarisation(),
-            );
-
-            let kappa = ArrayJet::from_parts(
-                quantities.kappa().clone(),
-                derivatives.first().dkappa().clone(),
-                derivatives.ddkappa().clone(),
-            );
-
-            let admittance =
-                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        SpectralDerivativeVariable::VacuumWavenumber => {
-            unreachable!("primitive() returned a linear derivative variable")
-        }
-    }
-}
-
-/// Construct second-order normal-wavenumber and admittance jets for one medium.
-///
-/// `variable` must already be primitive.
-fn medium_second_jets_structural<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    variable: StructuralDerivativeVariable,
-) -> (ArrayJet<C, D>, ArrayJet<C, D>)
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    match variable {
-        StructuralDerivativeVariable::ParallelWavenumberSquared => {
-            let derivatives =
-                IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(quantities);
-
-            let kappa = ArrayJet::from_parts(
-                quantities.kappa().clone(),
-                derivatives.first().dkappa().clone(),
-                derivatives.ddkappa().clone(),
-            );
-
-            let admittance =
-                IsotropicLayerAdmittance::second_jet_from_quantities(quantities, &derivatives);
-
-            (kappa, admittance)
-        }
-
-        StructuralDerivativeVariable::Thickness(_) => {
-            let kappa = ArrayJet::constant(quantities.kappa().clone());
-
-            let admittance = ArrayJet::constant(quantities.admittance().into_inner());
-
-            (kappa, admittance)
-        }
-
-        StructuralDerivativeVariable::ParallelWavenumber => {
-            unreachable!("primitive() returned a linear derivative variable")
-        }
-    }
+    quantities.kappa().multiply(&thickness).scale(C::i())
 }
 
 #[cfg(test)]
@@ -828,6 +666,7 @@ mod tests {
     use approx::assert_relative_eq;
     use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr, arr0, array};
     use num_complex::Complex64;
+    use num_traits::Zero;
 
     use super::*;
 
@@ -1299,5 +1138,79 @@ mod tests {
             assert_eq!(entry.first().raw_dim(), expected);
             assert_eq!(entry.second().raw_dim(), expected);
         }
+    }
+
+    #[test]
+    fn first_thickness_exponent_has_expected_jet() {
+        let kappa = arr0(C::new(2.0, 0.3));
+
+        let quantities = IsotropicLayerQuantities::from_parts(
+            ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
+            ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
+            ArrayJetFirst::constant(kappa.clone()),
+            Polarisation::TransverseElectric,
+        );
+
+        let exponent = first_propagation_exponent(
+            &quantities,
+            0.4,
+            StructuralDerivativeVariable::Thickness(1),
+            1,
+        );
+
+        assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
+
+        assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
+    }
+
+    #[test]
+    fn second_thickness_exponent_has_zero_second_derivative() {
+        let kappa = arr0(C::new(2.0, 0.3));
+
+        let quantities = IsotropicLayerQuantities::from_parts(
+            ArrayJet::constant(arr0(C::new(1.0, 0.0))),
+            ArrayJet::constant(arr0(C::new(1.0, 0.0))),
+            ArrayJet::constant(kappa.clone()),
+            Polarisation::TransverseElectric,
+        );
+
+        let exponent = second_propagation_exponent(
+            &quantities,
+            0.4,
+            StructuralDerivativeVariable::Thickness(1),
+            1,
+        );
+
+        assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
+
+        assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
+
+        assert_complex_close(exponent.second()[()], C::zero(), 1e-12);
+    }
+
+    #[test]
+    fn thickness_propagation_second_derivative_is_generated_by_exp() {
+        let kappa = C::new(2.0, 0.3);
+        let distance = 0.4;
+
+        let exponent = ArrayJet::from_parts(
+            arr0(C::i() * kappa * distance),
+            arr0(C::i() * kappa),
+            arr0(C::zero()),
+        );
+
+        let propagation = propagation_from_exponent::<C, _, _>(exponent);
+
+        let expected_value = (C::i() * kappa * distance).exp();
+
+        let expected_first = expected_value * C::i() * kappa;
+
+        let expected_second = expected_value * (C::i() * kappa) * (C::i() * kappa);
+
+        assert_complex_close(propagation.s12.value()[()], expected_value, 1e-12);
+
+        assert_complex_close(propagation.s12.first()[()], expected_first, 1e-12);
+
+        assert_complex_close(propagation.s12.second()[()], expected_second, 1e-12);
     }
 }

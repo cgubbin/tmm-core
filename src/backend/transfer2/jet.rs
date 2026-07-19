@@ -1,6 +1,6 @@
 //! Differential algebra for the 2×2 transfer-matrix backend.
 //!
-//! This module connects [`Matrix2`] to the generic jet infrastructure.
+//! This module connects [`TransferMatrix2`] to the generic jet infrastructure.
 //! Ordinary transfer-matrix composition is bilinear, so first- and
 //! second-order matrix jets can use the standard product rules implemented by
 //! [`JetFirst`] and [`Jet`].
@@ -48,19 +48,19 @@ use crate::{
     ComplexScalar,
     backend::{
         jet::{ChainRuleScale, Jet, JetAdditive, JetBilinear, JetFirst, JetZeroLike},
-        transfer2::Matrix2,
+        transfer2::TransferMatrix2,
     },
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 /// Second order [`Jet`] of 2x2 transfer matrix
-pub(crate) type Transfer2Jet<C, D> = Jet<Matrix2<C, D>>;
+pub(crate) type Transfer2Jet<C, D> = Jet<TransferMatrix2<C, D>>;
 
 /// First order [`JetFirst`] of 2x2 transfer matrix
-pub(crate) type Transfer2JetFirst<C, D> = JetFirst<Matrix2<C, D>>;
+pub(crate) type Transfer2JetFirst<C, D> = JetFirst<TransferMatrix2<C, D>>;
 
-impl<C, D> JetZeroLike for Matrix2<C, D>
+impl<C, D> JetZeroLike for TransferMatrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -70,7 +70,7 @@ where
     }
 }
 
-impl<C, D> JetAdditive for Matrix2<C, D>
+impl<C, D> JetAdditive for TransferMatrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<C, D> JetBilinear for Matrix2<C, D>
+impl<C, D> JetBilinear for TransferMatrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -107,7 +107,7 @@ where
     }
 }
 
-impl<C, D> ChainRuleScale<ArrayBase<OwnedRepr<C>, D>> for Matrix2<C, D>
+impl<C, D> ChainRuleScale<ArrayBase<OwnedRepr<C>, D>> for TransferMatrix2<C, D>
 where
     C: ComplexScalar,
     D: Dimension,

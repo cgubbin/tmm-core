@@ -1,483 +1,70 @@
 //! Characteristic admittance for isotropic planar media.
 //!
-//! This module evaluates the characteristic admittance used by the isotropic
-//! transfer- and scattering-matrix backends.
-//!
-//! For an isotropic medium,
+//! For an isotropic medium, the characteristic admittance is
 //!
 //! ```text
 //! Y = κ / factor
 //! ```
 //!
-//! where:
+//! where
 //!
 //! ```text
 //! factor = μ    for TE
 //! factor = ε    for TM
 //! ```
 //!
-//! Value-only evaluation returns [`IsotropicLayerAdmittance`].
-//! First- and second-order evaluations return [`ArrayJetFirst`] and
-//! [`ArrayJet`] directly.
-//!
-//! Spectral derivatives are first evaluated with respect to the primitive
-//! squared coordinate and then transformed to the caller-requested coordinate
-//! using the shared jet chain rule.
-
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
-
-use crate::{
-    ComplexScalar,
-    backend::{
-        PlanarInput,
-        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        evaluator::{
-            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
-        },
-        isotropic::{
-            IsotropicLayerFirstDerivatives, IsotropicLayerQuantities,
-            IsotropicLayerSecondDerivatives,
-        },
-        jet::{ArrayJet, ArrayJetFirst},
-    },
-    material::{
-        EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
-        EvaluateMaterial, EvaluateMeromorphicMaterial,
-    },
-};
+//! The admittance is constructed from previously evaluated
+//! [`IsotropicLayerQuantities`]. The underlying representation may contain
+//! sampled values, first-order jets, or second-order jets; derivatives propagate
+//! through the scalar algebra automatically.
 
 /// Characteristic admittance of one isotropic medium.
 ///
-/// The admittance is:
-///
-/// ```text
-/// Y = κ / factor
-/// ```
-///
-/// and has the same sampled shape as the corresponding [`PlanarInput`].
+/// The contained representation has the same sampled shape and derivative order
+/// as the [`IsotropicLayerQuantities`] from which it was constructed.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IsotropicLayerAdmittance<C, D>
-where
-    D: Dimension,
-{
-    value: ArrayBase<OwnedRepr<C>, D>,
-}
+pub(crate) struct IsotropicLayerAdmittance<A>(A);
 
-impl<C, D> IsotropicLayerAdmittance<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    /// Construct an admittance from already evaluated isotropic quantities.
-    pub(crate) fn from_quantities(quantities: &IsotropicLayerQuantities<C, D>) -> Self {
-        Self {
-            value: quantities.kappa().clone() / quantities.factor().view(),
-        }
+impl<A> IsotropicLayerAdmittance<A> {
+    /// Wrap an already-computed characteristic admittance.
+    pub(crate) fn new(value: A) -> Self {
+        Self(value)
     }
 
-    /// Evaluate the admittance of a material at a sampled planar input.
-    ///
-    /// Prefer [`Self::from_quantities`] when the isotropic quantities have
-    /// already been evaluated.
-    pub(crate) fn evaluate_real_axis<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self
-    where
-        M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        let quantities = IsotropicLayerQuantities::real_axis(material, planar);
-
-        Self::from_quantities(&quantities)
-    }
-
-    /// Evaluate the admittance of a material at a sampled planar input.
-    ///
-    /// Prefer [`Self::from_quantities`] when the isotropic quantities have
-    /// already been evaluated.
-    pub(crate) fn evaluate_complex_plane<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self
-    where
-        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        let quantities = IsotropicLayerQuantities::complex_plane(material, planar);
-
-        Self::from_quantities(&quantities)
-    }
-
-    /// Return the sampled admittance.
-    pub(crate) fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.value
-    }
-
-    /// Consume the wrapper and return the sampled admittance.
-    pub(crate) fn into_inner(self) -> ArrayBase<OwnedRepr<C>, D> {
-        self.value
+    /// Consume the wrapper and return the characteristic admittance.
+    pub(crate) fn into_inner(self) -> A {
+        self.0
     }
 }
 
-/// Compute the first admittance derivative from derivatives of `κ` and
-/// `factor`.
-///
-/// For:
-///
-/// ```text
-/// Y = κ / f
-/// ```
-///
-/// ```text
-/// Y′ = κ′ / f - κ f′ / f²
-/// ```
-fn first_derivative<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    derivatives: &IsotropicLayerFirstDerivatives<C, D>,
-) -> ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    let factor_squared = quantities.factor().mapv(|value| value * value);
-
-    derivatives.dkappa().clone() / quantities.factor().view()
-        - quantities.kappa().clone() * derivatives.dfactor().view() / factor_squared
-}
-
-/// Compute the second admittance derivative from derivatives of `κ` and
-/// `factor`.
-///
-/// For:
-///
-/// ```text
-/// Y = κ / f
-/// ```
-///
-/// ```text
-/// Y″ = κ″/f
-///      - 2κ′f′/f²
-///      - κf″/f²
-///      + 2κ(f′)²/f³
-/// ```
-fn second_derivative<C, D>(
-    quantities: &IsotropicLayerQuantities<C, D>,
-    derivatives: &IsotropicLayerSecondDerivatives<C, D>,
-) -> ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    let two = C::one() + C::one();
-
-    let factor_squared = quantities.factor().mapv(|value| value * value);
-
-    let factor_cubed = quantities.factor().mapv(|value| value * value * value);
-
-    derivatives.ddkappa().clone() / quantities.factor().view()
-        - (derivatives.first().dkappa().clone() * derivatives.first().dfactor().view())
-            .mapv(|value| two * value)
-            / factor_squared.view()
-        - quantities.kappa().clone() * derivatives.ddfactor().view() / factor_squared
-        + (quantities.kappa().clone() * derivatives.first().dfactor().mapv(|value| value * value))
-            .mapv(|value| two * value)
-            / factor_cubed
-}
-
-impl<C, D> IsotropicLayerAdmittance<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    pub(crate) fn evaluate_first_structural_real_axis<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_first_structural::<RealAxis, _>(material, planar, variable)
-    }
-
-    pub(crate) fn evaluate_first_structural_complex_plane<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_first_structural::<ComplexPlane, _>(material, planar, variable)
-    }
-
-    /// Evaluate the admittance and its first derivative.
-    ///
-    /// Primitive squared-coordinate derivatives are transformed to the
-    /// requested linear coordinate when necessary.
-    fn evaluate_first_structural<E, M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-    {
-        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
-
-        let value = Self::from_quantities(&quantities).into_inner();
-
-        let first = match variable {
-            StructuralDerivativeVariable::ParallelWavenumberSquared
-            | StructuralDerivativeVariable::ParallelWavenumber => {
-                let derivatives =
-                    IsotropicLayerFirstDerivatives::parallel_wavenumber_squared(&quantities);
-
-                first_derivative(&quantities, &derivatives)
-            }
-
-            StructuralDerivativeVariable::Thickness(_) => value.mapv(|_| C::zero()),
-        };
-
-        let jet = ArrayJetFirst::from_parts(value, first);
-
-        match variable.chain_rule(planar) {
-            Some(rule) => jet.chain_rule(&rule),
-            None => jet,
-        }
-    }
-
-    pub(crate) fn evaluate_first_spectral_real_axis<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_first_spectral::<RealAxis, _>(material, planar, variable)
-    }
-
-    pub(crate) fn evaluate_first_spectral_complex_plane<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_first_spectral::<ComplexPlane, _>(material, planar, variable)
-    }
-
-    fn evaluate_first_spectral<E, M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJetFirst<C, D>
-    where
-        E: ConstitutiveEvaluator<C, D, M> + ConstitutiveDerivativeEvaluator<C, D, M>,
-        C::RealField: Copy,
-    {
-        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
-
-        let value = Self::from_quantities(&quantities).into_inner();
-
-        let derivatives = IsotropicLayerFirstDerivatives::vacuum_wavenumber_squared::<E, _>(
-            material,
-            &quantities,
-            planar.vacuum_wavenumber(),
-            planar.polarisation(),
-        );
-
-        let first = first_derivative(&quantities, &derivatives);
-
-        let jet = ArrayJetFirst::from_parts(value, first);
-
-        match variable.chain_rule(planar) {
-            Some(rule) => jet.chain_rule(&rule),
-            None => jet,
-        }
+impl<A> AsRef<A> for IsotropicLayerAdmittance<A> {
+    fn as_ref(&self) -> &A {
+        &self.0
     }
 }
 
-impl<C, D> IsotropicLayerAdmittance<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    pub(crate) fn evaluate_second_structural_real_axis<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_second_structural::<RealAxis, _>(material, planar, variable)
-    }
+impl<A> std::ops::Deref for IsotropicLayerAdmittance<A> {
+    type Target = A;
 
-    pub(crate) fn evaluate_second_structural_complex_plane<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_second_structural::<ComplexPlane, _>(material, planar, variable)
-    }
-
-    /// Evaluate the admittance and its first two derivatives.
-    ///
-    /// Primitive squared-coordinate derivatives are transformed to the
-    /// requested linear coordinate when necessary.
-    pub(crate) fn evaluate_second_structural<E, M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-        C::RealField: Copy,
-    {
-        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
-
-        let value = Self::from_quantities(&quantities).into_inner();
-
-        let primitive = variable.primitive();
-
-        let (first, second) = match primitive {
-            StructuralDerivativeVariable::ParallelWavenumberSquared
-            | StructuralDerivativeVariable::ParallelWavenumber => {
-                let derivatives =
-                    IsotropicLayerSecondDerivatives::parallel_wavenumber_squared(&quantities);
-
-                (
-                    first_derivative(&quantities, derivatives.first()),
-                    second_derivative(&quantities, &derivatives),
-                )
-            }
-            StructuralDerivativeVariable::Thickness(_) => {
-                let zero = value.mapv(|_| C::zero());
-
-                (zero.clone(), zero)
-            }
-        };
-
-        let jet = ArrayJet::from_parts(value, first, second);
-
-        match variable.chain_rule(planar) {
-            Some(rule) => jet.chain_rule(&rule),
-            None => jet,
-        }
-    }
-
-    pub(crate) fn evaluate_second_spectral_real_axis<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_second_spectral::<RealAxis, _>(material, planar, variable)
-    }
-
-    pub(crate) fn evaluate_second_spectral_complex_plane<M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
-        C::RealField: Copy,
-    {
-        Self::evaluate_second_spectral::<ComplexPlane, _>(material, planar, variable)
-    }
-
-    /// Evaluate the admittance and its first two derivatives.
-    ///
-    /// Primitive squared-coordinate derivatives are transformed to the
-    /// requested linear coordinate when necessary.
-    pub(crate) fn evaluate_second_spectral<E, M>(
-        material: &M,
-        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> ArrayJet<C, D>
-    where
-        E: ConstitutiveEvaluator<C, D, M> + ConstitutiveDerivativeEvaluator<C, D, M>,
-        C::RealField: Copy,
-    {
-        let quantities = IsotropicLayerQuantities::new::<E, _>(material, planar);
-
-        let value = Self::from_quantities(&quantities).into_inner();
-
-        let derivatives = IsotropicLayerSecondDerivatives::vacuum_wavenumber_squared::<E, _>(
-            material,
-            &quantities,
-            planar.vacuum_wavenumber(),
-            planar.polarisation(),
-        );
-
-        let (first, second) = (
-            first_derivative(&quantities, derivatives.first()),
-            second_derivative(&quantities, &derivatives),
-        );
-
-        let jet = ArrayJet::from_parts(value, first, second);
-
-        match variable.chain_rule(planar) {
-            Some(rule) => jet.chain_rule(&rule),
-            None => jet,
-        }
-    }
-}
-
-impl<C, D> IsotropicLayerAdmittance<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    /// Construct a first-order admittance jet from cached quantities.
-    pub(crate) fn first_jet_from_quantities(
-        quantities: &IsotropicLayerQuantities<C, D>,
-        derivatives: &IsotropicLayerFirstDerivatives<C, D>,
-    ) -> ArrayJetFirst<C, D> {
-        ArrayJetFirst::from_parts(
-            Self::from_quantities(quantities).into_inner(),
-            first_derivative(quantities, derivatives),
-        )
-    }
-
-    /// Construct a second-order admittance jet from cached quantities.
-    pub(crate) fn second_jet_from_quantities(
-        quantities: &IsotropicLayerQuantities<C, D>,
-        derivatives: &IsotropicLayerSecondDerivatives<C, D>,
-    ) -> ArrayJet<C, D> {
-        ArrayJet::from_parts(
-            Self::from_quantities(quantities).into_inner(),
-            first_derivative(quantities, derivatives.first()),
-            second_derivative(quantities, derivatives),
-        )
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
-    use ndarray::{Array0, arr0};
+    use ndarray::{Array0, arr0, array};
     use num_complex::Complex64;
 
-    use super::*;
-    use crate::{backend::Polarisation, material::Constant};
+    use crate::{
+        backend::{
+            PlanarInput, Polarisation,
+            isotropic::IsotropicLayerQuantities,
+            jet::{ArrayJet, ArrayJetFirst},
+        },
+        material::Constant,
+    };
 
     type C = Complex64;
 
@@ -489,7 +76,7 @@ mod tests {
         Constant::new(epsilon, mu)
     }
 
-    fn make_input(
+    fn scalar_input(
         vacuum_wavenumber: f64,
         parallel_wavenumber: f64,
         polarisation: Polarisation,
@@ -517,21 +104,171 @@ mod tests {
         );
     }
 
-    #[test]
-    fn value_matches_kappa_over_factor() {
-        let material = material(2.25, 1.4);
+    fn value_admittance_at_k0_squared(
+        material: &Constant<f64>,
+        k0_squared: f64,
+        parallel_wavenumber: f64,
+        polarisation: Polarisation,
+    ) -> C {
+        let input = scalar_input(k0_squared.sqrt(), parallel_wavenumber, polarisation);
 
-        let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
+        let quantities = IsotropicLayerQuantities::real_axis(material, &input);
+
+        quantities.into_admittance::<C, _>().into_inner()[()]
+    }
+
+    fn value_admittance_at_parallel_squared(
+        material: &Constant<f64>,
+        vacuum_wavenumber: f64,
+        parallel_squared: f64,
+        polarisation: Polarisation,
+    ) -> C {
+        let input = scalar_input(vacuum_wavenumber, parallel_squared.sqrt(), polarisation);
+
+        let quantities = IsotropicLayerQuantities::real_axis(material, &input);
+
+        quantities.into_admittance::<C, _>().into_inner()[()]
+    }
+
+    #[test]
+    fn value_admittance_is_kappa_over_factor() {
+        let material = material(4.0, 2.0);
+
+        let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
 
         let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
 
-        let admittance = IsotropicLayerAdmittance::from_quantities(&quantities);
+        let admittance = quantities.clone().into_admittance::<C, _>();
 
         assert_close(
-            admittance.value()[()],
+            admittance[()],
             quantities.kappa()[()] / quantities.factor()[()],
             1e-12,
         );
+    }
+
+    #[test]
+    fn te_and_tm_use_different_factors() {
+        let material = material(4.0, 2.0);
+
+        let te_input = scalar_input(3.0, 1.0, Polarisation::TransverseElectric);
+
+        let tm_input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
+
+        let te =
+            IsotropicLayerQuantities::real_axis(&material, &te_input).into_admittance::<C, _>();
+
+        let tm =
+            IsotropicLayerQuantities::real_axis(&material, &tm_input).into_admittance::<C, _>();
+
+        let kappa = c((4.0_f64 * 2.0 * 9.0 - 1.0).sqrt());
+
+        assert_close(te[()], kappa / c(2.0), 1e-12);
+
+        assert_close(tm[()], kappa / c(4.0), 1e-12);
+    }
+
+    #[test]
+    fn first_order_admittance_value_matches_value_path() {
+        let material = material(2.25, 1.4);
+
+        let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
+
+        let values =
+            IsotropicLayerQuantities::real_axis(&material, &input).into_admittance::<C, _>();
+
+        let differentiated =
+            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        assert_close(differentiated.value()[()], values[()], 1e-12);
+    }
+
+    #[test]
+    fn first_k0_squared_derivative_matches_finite_difference() {
+        let material = material(2.25, 1.4);
+
+        let k0_squared: f64 = 9.0;
+        let parallel = 0.7;
+        let h = 1e-5;
+
+        let input = scalar_input(
+            k0_squared.sqrt(),
+            parallel,
+            Polarisation::TransverseMagnetic,
+        );
+
+        let admittance =
+            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        let plus = value_admittance_at_k0_squared(
+            &material,
+            k0_squared + h,
+            parallel,
+            Polarisation::TransverseMagnetic,
+        );
+
+        let minus = value_admittance_at_k0_squared(
+            &material,
+            k0_squared - h,
+            parallel,
+            Polarisation::TransverseMagnetic,
+        );
+
+        let expected = (plus - minus) / (2.0 * h);
+
+        assert_close(admittance.first()[()], expected, 1e-8);
+    }
+
+    #[test]
+    fn second_k0_squared_derivative_matches_finite_difference() {
+        let material = material(2.25, 1.4);
+
+        let k0_squared: f64 = 9.0;
+        let parallel = 0.7;
+        let h = 2e-3;
+
+        let input = scalar_input(
+            k0_squared.sqrt(),
+            parallel,
+            Polarisation::TransverseElectric,
+        );
+
+        let admittance =
+            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        let plus = value_admittance_at_k0_squared(
+            &material,
+            k0_squared + h,
+            parallel,
+            Polarisation::TransverseElectric,
+        );
+
+        let centre = value_admittance_at_k0_squared(
+            &material,
+            k0_squared,
+            parallel,
+            Polarisation::TransverseElectric,
+        );
+
+        let minus = value_admittance_at_k0_squared(
+            &material,
+            k0_squared - h,
+            parallel,
+            Polarisation::TransverseElectric,
+        );
+
+        let expected = (plus - c(2.0) * centre + minus) / (h * h);
+
+        assert_close(admittance.second()[()], expected, 2e-6);
     }
 
     #[test]
@@ -542,37 +279,35 @@ mod tests {
         let parallel_squared: f64 = 0.49;
         let h = 1e-5;
 
-        let input = make_input(
+        let input = scalar_input(
             vacuum_wavenumber,
             parallel_squared.sqrt(),
             Polarisation::TransverseMagnetic,
         );
 
-        let jet = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
+        let admittance =
+            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::parallel_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        let plus = value_admittance_at_parallel_squared(
             &material,
-            &input,
-            StructuralDerivativeVariable::ParallelWavenumberSquared,
-        );
-
-        let plus = make_input(
             vacuum_wavenumber,
-            (parallel_squared + h).sqrt(),
+            parallel_squared + h,
             Polarisation::TransverseMagnetic,
         );
 
-        let minus = make_input(
+        let minus = value_admittance_at_parallel_squared(
+            &material,
             vacuum_wavenumber,
-            (parallel_squared - h).sqrt(),
+            parallel_squared - h,
             Polarisation::TransverseMagnetic,
         );
 
-        let plus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &plus);
+        let expected = (plus - minus) / (2.0 * h);
 
-        let minus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &minus);
-
-        let expected = (plus.value()[()] - minus.value()[()]) / (2.0 * h);
-
-        assert_close(jet.first()[()], expected, 1e-8);
+        assert_close(admittance.first()[()], expected, 1e-8);
     }
 
     #[test]
@@ -583,92 +318,105 @@ mod tests {
         let parallel_squared: f64 = 0.49;
         let h = 2e-3;
 
-        let input = make_input(
+        let input = scalar_input(
             vacuum_wavenumber,
             parallel_squared.sqrt(),
-            Polarisation::TransverseMagnetic,
+            Polarisation::TransverseElectric,
         );
 
-        let jet = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
+        let admittance =
+            IsotropicLayerQuantities::<ArrayJet<C, _>>::parallel_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        let plus = value_admittance_at_parallel_squared(
             &material,
-            &input,
-            StructuralDerivativeVariable::ParallelWavenumberSquared,
-        );
-
-        let plus_input = make_input(
             vacuum_wavenumber,
-            (parallel_squared + h).sqrt(),
-            Polarisation::TransverseMagnetic,
+            parallel_squared + h,
+            Polarisation::TransverseElectric,
         );
 
-        let zero_input = make_input(
+        let centre = value_admittance_at_parallel_squared(
+            &material,
             vacuum_wavenumber,
-            parallel_squared.sqrt(),
-            Polarisation::TransverseMagnetic,
+            parallel_squared,
+            Polarisation::TransverseElectric,
         );
 
-        let minus_input = make_input(
+        let minus = value_admittance_at_parallel_squared(
+            &material,
             vacuum_wavenumber,
-            (parallel_squared - h).sqrt(),
-            Polarisation::TransverseMagnetic,
+            parallel_squared - h,
+            Polarisation::TransverseElectric,
         );
 
-        let plus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &plus_input);
+        let expected = (plus - c(2.0) * centre + minus) / (h * h);
 
-        let zero = IsotropicLayerAdmittance::evaluate_real_axis(&material, &zero_input);
-
-        let minus = IsotropicLayerAdmittance::evaluate_real_axis(&material, &minus_input);
-
-        let expected = (plus.value()[()] - c(2.0) * zero.value()[()] + minus.value()[()]) / (h * h);
-
-        assert_close(jet.second()[()], expected, 2e-6);
+        assert_close(admittance.second()[()], expected, 2e-6);
     }
 
     #[test]
-    fn linear_parallel_derivative_applies_chain_rule() {
+    fn second_order_admittance_contains_first_order_result() {
         let material = material(2.25, 1.4);
 
-        let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
+        let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
-        let squared = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
-            &material,
-            &input,
-            StructuralDerivativeVariable::ParallelWavenumberSquared,
-        );
+        let first =
+            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
 
-        let linear = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
-            &material,
-            &input,
-            StructuralDerivativeVariable::ParallelWavenumber,
-        );
+        let second =
+            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
 
-        assert_close(
-            linear.first()[()],
-            c(2.0 * 0.7) * squared.first()[()],
-            1e-12,
-        );
+        assert_close(second.value()[()], first.value()[()], 1e-12);
+
+        assert_close(second.first()[()], first.first()[()], 1e-12);
     }
 
     #[test]
-    fn thickness_derivatives_are_zero() {
+    fn sampled_shape_is_preserved() {
         let material = material(2.25, 1.4);
 
-        let input = make_input(3.0, 0.7, Polarisation::TransverseElectric);
-
-        let first = IsotropicLayerAdmittance::evaluate_first_structural_real_axis(
-            &material,
-            &input,
-            StructuralDerivativeVariable::Thickness(0),
+        let input = PlanarInput::new(
+            array![c(2.0), c(2.5), c(3.0)],
+            array![c(0.3), c(0.4), c(0.5)],
+            Polarisation::TransverseMagnetic,
         );
 
-        let second = IsotropicLayerAdmittance::evaluate_second_structural_real_axis(
-            &material,
-            &input,
-            StructuralDerivativeVariable::Thickness(0),
+        let admittance =
+            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+                &material, &input,
+            )
+            .into_admittance::<C, _>();
+
+        let expected = input.vacuum_wavenumber().raw_dim();
+
+        assert_eq!(admittance.value().raw_dim(), expected,);
+
+        assert_eq!(admittance.first().raw_dim(), expected,);
+
+        assert_eq!(admittance.second().raw_dim(), expected,);
+    }
+
+    #[test]
+    fn into_inner_returns_wrapped_representation() {
+        let quantities = IsotropicLayerQuantities::from_parts(
+            arr0(c(4.0)),
+            arr0(c(2.0)),
+            arr0(c(6.0)),
+            Polarisation::TransverseElectric,
         );
 
-        assert_close(first.first()[()], c(0.0), 1e-12);
-        assert_close(second.first()[()], c(0.0), 1e-12);
-        assert_close(second.second()[()], c(0.0), 1e-12);
+        let admittance = quantities.into_admittance::<C, _>();
+
+        let inner = admittance.into_inner();
+
+        assert_close(inner[()], c(3.0), 1e-12);
     }
 }

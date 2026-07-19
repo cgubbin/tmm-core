@@ -1,7 +1,130 @@
+mod algebra;
+
+pub(crate) use algebra::CartesianVectorAlgebra;
+
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Zero;
 
-use crate::ComplexScalar;
+use crate::{
+    ComplexScalar,
+    backend::jet::{
+        Jet, JetAdditive, JetConjugate, JetCrossProduct, JetFirst, JetHermitianProduct,
+        JetRealPart, JetScaleBy,
+    },
+};
+
+pub(crate) type CartesianField<C, D> = CartesianElectromagneticField<CartesianVector3<C, D>>;
+
+type CartesianFieldFirst<C, D> = CartesianElectromagneticField<JetFirst<CartesianVector3<C, D>>>;
+
+type CartesianFieldSecond<C, D> = CartesianElectromagneticField<Jet<CartesianVector3<C, D>>>;
+
+/// Pointwise Cartesian electric and magnetic phasor fields.
+///
+/// The field uses the electromagnetic normalization chosen by the producing
+/// backend. The electric and magnetic vectors share the same ndarray sampling
+/// shape.
+///
+/// The complex Poynting vector uses:
+///
+/// ```text
+/// S = 1/2 E × H*
+/// ```
+///
+/// and the time-averaged Poynting vector is its real part.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CartesianElectromagneticField<V> {
+    electric: V,
+    magnetic: V,
+}
+
+impl<V> CartesianElectromagneticField<V> {
+    pub fn new(electric: V, magnetic: V) -> Self {
+        Self { electric, magnetic }
+    }
+
+    pub fn electric(&self) -> &V {
+        &self.electric
+    }
+
+    pub fn magnetic(&self) -> &V {
+        &self.magnetic
+    }
+
+    /// Return the pointwise squared electric-field magnitude.
+    pub fn electric_magnitude_squared<C, D>(&self) -> V::RealScalarField
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        V: CartesianVectorAlgebra<C, D>,
+    {
+        magnitude_squared(&self.electric)
+    }
+
+    /// Return the pointwise squared magnetic-field magnitude.
+    pub fn magnetic_magnitude_squared<C, D>(&self) -> V::RealScalarField
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        V: CartesianVectorAlgebra<C, D>,
+    {
+        magnitude_squared(&self.magnetic)
+    }
+
+    /// Return the pointwise complex Poynting vector.
+    ///
+    /// This evaluates `1/2 E × H*`.
+    pub fn complex_poynting_vector<C, D>(&self) -> V
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        V: CartesianVectorAlgebra<C, D>,
+    {
+        complex_poynting::<C, D, V>(&self.electric, &self.magnetic)
+    }
+
+    pub fn time_averaged_poynting_vector<C, D>(&self) -> V::RealVector
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        V: CartesianVectorAlgebra<C, D>,
+    {
+        time_averaged_poynting::<C, D, V>(&self.electric, &self.magnetic)
+    }
+
+    pub fn into_parts(self) -> (V, V) {
+        (self.electric, self.magnetic)
+    }
+}
+
+pub(crate) fn complex_poynting<C, D, A>(electric: &A, magnetic: &A) -> A
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: CartesianVectorAlgebra<C, D>,
+{
+    let half = C::one() / (C::one() + C::one());
+
+    electric.cross(&magnetic.conjugate()).scale_by(half)
+}
+
+pub(crate) fn time_averaged_poynting<C, D, A>(electric: &A, magnetic: &A) -> A::RealVector
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: CartesianVectorAlgebra<C, D>,
+{
+    complex_poynting::<C, D, A>(electric, magnetic).real_part()
+}
+
+pub(crate) fn magnitude_squared<C, D, A>(vector: &A) -> A::RealScalarField
+where
+    C: ComplexScalar,
+    D: Dimension,
+    A: CartesianVectorAlgebra<C, D>,
+{
+    A::scalar_real_part(vector.hermitian_dot(vector))
+}
 
 /// A pointwise Cartesian three-vector over an ndarray sampling domain.
 ///
@@ -177,6 +300,38 @@ where
     }
 }
 
+impl<C, D> std::ops::Sub<&CartesianVector3<C, D>> for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Output = CartesianVector3<C, D>;
+
+    fn sub(self, rhs: &Self) -> Self::Output {
+        CartesianVector3::new(
+            self.x - rhs.x.view(),
+            self.y - rhs.y.view(),
+            self.z - rhs.z.view(),
+        )
+    }
+}
+
+impl<C, D> std::ops::Sub for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Output = CartesianVector3<C, D>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(
+            self.x - rhs.x.view(),
+            self.y - rhs.y.view(),
+            self.z - rhs.z.view(),
+        )
+    }
+}
+
 impl<C, D> std::ops::Mul<ArrayBase<OwnedRepr<C>, D>> for CartesianVector3<C, D>
 where
     C: ComplexScalar,
@@ -227,80 +382,89 @@ where
     }
 }
 
-/// Pointwise Cartesian electric and magnetic phasor fields.
-///
-/// The field uses the electromagnetic normalization chosen by the producing
-/// backend. The electric and magnetic vectors share the same ndarray sampling
-/// shape.
-///
-/// The complex Poynting vector uses:
-///
-/// ```text
-/// S = 1/2 E × H*
-/// ```
-///
-/// and the time-averaged Poynting vector is its real part.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CartesianElectromagneticField<C, D>
+impl<C, D> std::ops::Neg for CartesianVector3<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
 {
-    electric: CartesianVector3<C, D>,
-    magnetic: CartesianVector3<C, D>,
+    type Output = CartesianVector3<C, D>;
+
+    fn neg(self) -> Self::Output {
+        Self::new(-self.x, -self.y, -self.z)
+    }
 }
 
-impl<C, D> CartesianElectromagneticField<C, D>
+impl<C, D> JetAdditive for CartesianVector3<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
 {
-    /// Construct an electromagnetic field from electric and magnetic vectors.
-    pub(crate) fn new(electric: CartesianVector3<C, D>, magnetic: CartesianVector3<C, D>) -> Self {
-        debug_assert_eq!(electric.x().raw_dim(), magnetic.x().raw_dim(),);
-
-        Self { electric, magnetic }
+    fn jet_add(&self, rhs: &Self) -> Self {
+        self.clone() + rhs
     }
 
-    /// Return the Cartesian electric field
-    pub fn electric(&self) -> &CartesianVector3<C, D> {
-        &self.electric
+    fn jet_subtract(&self, rhs: &Self) -> Self {
+        self.clone() - rhs
     }
 
-    /// Return the Cartesian magnetic field
-    pub fn magnetic(&self) -> &CartesianVector3<C, D> {
-        &self.magnetic
+    fn jet_negate(&self) -> Self {
+        -self.clone()
     }
+}
 
-    /// Return the pointwise complex Poynting vector.
-    ///
-    /// This evaluates `1/2 E × H*`.
-    pub fn complex_poynting_vector(&self) -> CartesianVector3<C, D> {
-        let half = C::one() / (C::one() + C::one());
+impl<C, D> JetScaleBy for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Scalar = C;
 
-        self.electric.cross(&self.magnetic.conjugate()) * half
+    fn jet_scale_by(&self, value: C) -> Self {
+        self.clone() * value
     }
+}
 
-    /// Return the pointwise time-averaged Poynting vector.
-    ///
-    /// This is the real part of [`Self::complex_poynting_vector`].
-    pub fn time_averaged_poynting_vector(&self) -> CartesianVector3<C::RealField, D> {
-        self.complex_poynting_vector().map(|value| value.real())
+impl<C, D> JetCrossProduct for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn jet_cross(&self, rhs: &Self) -> Self {
+        self.cross(rhs)
     }
+}
 
-    /// Return the pointwise squared electric-field magnitude.
-    pub fn electric_magnitude_squared(&self) -> ArrayBase<OwnedRepr<C::RealField>, D> {
-        self.electric.magnitude_squared()
+impl<C, D> JetHermitianProduct for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type Output = ArrayBase<OwnedRepr<C>, D>;
+
+    fn jet_hermitian_product(&self, rhs: &Self) -> Self::Output {
+        self.hermitian_dot(rhs)
     }
+}
 
-    /// Return the pointwise squared magnetic-field magnitude.
-    pub fn magnetic_magnitude_squared(&self) -> ArrayBase<OwnedRepr<C::RealField>, D> {
-        self.magnetic.magnitude_squared()
+impl<C, D> JetConjugate for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn jet_conjugate(&self) -> Self {
+        self.conjugate()
     }
+}
 
-    /// Consume the field and return `(electric, magnetic)`.
-    pub fn into_parts(self) -> (CartesianVector3<C, D>, CartesianVector3<C, D>) {
-        (self.electric, self.magnetic)
+impl<C, D> JetRealPart for CartesianVector3<C, D>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    type RealOutput = CartesianVector3<C::RealField, D>;
+
+    fn jet_real(&self) -> Self::RealOutput {
+        self.map(nalgebra::ComplexField::real)
     }
 }
 
@@ -437,6 +601,43 @@ mod tests {
         assert_eq!(sum.x(), &arr1(&[c(8.0, 10.0)]));
         assert_eq!(sum.y(), &arr1(&[c(12.0, 14.0)]));
         assert_eq!(sum.z(), &arr1(&[c(16.0, 18.0)]));
+    }
+
+    #[test]
+    fn subtraction_is_componentwise_for_owned_rhs() {
+        let lhs = vector(&[c(1.0, 2.0)], &[c(3.0, 4.0)], &[c(5.0, 6.0)]);
+
+        let rhs = vector(&[c(-7.0, -8.0)], &[c(-9.0, -10.0)], &[c(-11.0, -12.0)]);
+
+        let diff = lhs - rhs;
+
+        assert_eq!(diff.x(), &arr1(&[c(8.0, 10.0)]));
+        assert_eq!(diff.y(), &arr1(&[c(12.0, 14.0)]));
+        assert_eq!(diff.z(), &arr1(&[c(16.0, 18.0)]));
+    }
+
+    #[test]
+    fn subtraction_is_componentwise_for_borrowed_rhs() {
+        let lhs = vector(&[c(1.0, 2.0)], &[c(3.0, 4.0)], &[c(5.0, 6.0)]);
+
+        let rhs = vector(&[c(-7.0, -8.0)], &[c(-9.0, -10.0)], &[c(-11.0, -12.0)]);
+
+        let diff = lhs - &rhs;
+
+        assert_eq!(diff.x(), &arr1(&[c(8.0, 10.0)]));
+        assert_eq!(diff.y(), &arr1(&[c(12.0, 14.0)]));
+        assert_eq!(diff.z(), &arr1(&[c(16.0, 18.0)]));
+    }
+
+    #[test]
+    fn negation_produces_expected_output() {
+        let value = vector(&[c(1.0, 2.0)], &[c(3.0, 4.0)], &[c(5.0, 6.0)]);
+
+        let neg = -value.clone();
+
+        assert_eq!(neg.x(), -value.x());
+        assert_eq!(neg.y(), -value.y());
+        assert_eq!(neg.z(), -value.z());
     }
 
     #[test]

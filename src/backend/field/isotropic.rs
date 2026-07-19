@@ -31,14 +31,13 @@
 //! the plane-wave power coefficients, but is not necessarily expressed in SI
 //! power-density units.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr, Zip};
-use num_traits::Float;
+use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, PlanarInput, Polarisation,
+    ComplexScalar, Polarisation,
     backend::{
-        field::{BidirectionalWaves, CartesianElectromagneticField, CartesianVector3},
-        isotropic::IsotropicLayerQuantities,
+        algebra::ScalarAlgebra,
+        field::{BidirectionalWaves, BidirectionalWavesGeneric, CartesianElectromagneticField},
     },
 };
 
@@ -62,38 +61,13 @@ use crate::{
 /// Pz = 1/2 Re(primary · dual*)
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub struct IsotropicFieldState<C, D>
-where
-    D: Dimension,
-{
-    primary: ArrayBase<OwnedRepr<C>, D>,
-    dual: ArrayBase<OwnedRepr<C>, D>,
+pub struct IsotropicFieldState<A> {
+    primary: A,
+    dual: A,
 }
 
-impl<C, D> IsotropicFieldState<C, D>
-where
-    D: Dimension,
-{
-    pub(crate) fn from_waves(
-        waves: &BidirectionalWaves<C, D>,
-        admittance: &ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self
-    where
-        C: ComplexScalar,
-    {
-        let primary = waves.forward().clone() + waves.backward().view();
-
-        let dual = admittance.clone() * (waves.forward().clone() - waves.backward().view());
-
-        Self::new(primary, dual)
-    }
-
-    pub(crate) fn new(
-        primary: ArrayBase<OwnedRepr<C>, D>,
-        dual: ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self {
-        debug_assert_eq!(primary.raw_dim(), dual.raw_dim());
-
+impl<A> IsotropicFieldState<A> {
+    pub(crate) fn new(primary: A, dual: A) -> Self {
         Self { primary, dual }
     }
 
@@ -101,43 +75,57 @@ where
     ///
     /// This is the tangential electric field for TE and the tangential magnetic
     /// field for TM.
-    pub fn primary(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn primary(&self) -> &A {
         &self.primary
     }
 
     /// Return the signed dual tangential field.
     ///
     /// This is `-H_x` for TE polarisation and `E_x` for TM polarisation.
-    pub fn dual(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn dual(&self) -> &A {
         &self.dual
     }
 
-    /// Consume the state and return its canonical field pair.
-    pub fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
+    pub fn into_parts(self) -> (A, A) {
         (self.primary, self.dual)
     }
 
-    /// Return the squared modulus of the primary tangential field.
-    pub fn primary_magnitude_squared(&self) -> ArrayBase<OwnedRepr<C::RealField>, D>
+    pub(crate) fn from_waves<C, D>(waves: &BidirectionalWavesGeneric<A>, admittance: &A) -> Self
     where
         C: ComplexScalar,
+        D: Dimension,
+        A: ScalarAlgebra<C, D>,
     {
-        self.primary.mapv(|value| value.modulus_squared())
+        let primary = waves.forward().add(waves.backward());
+
+        let difference = waves.forward().subtract(waves.backward());
+
+        let dual = admittance.multiply(&difference);
+
+        Self::new(primary, dual)
     }
 
-    /// Return the signed normal time-averaged power flux.
-    ///
-    /// Positive values represent left-to-right flux.
-    pub fn normal_flux(&self) -> ArrayBase<OwnedRepr<C::RealField>, D>
+    pub fn primary_magnitude_squared<C, D>(&self) -> A::RealField
     where
         C: ComplexScalar,
-        C::RealField: Float,
+        D: Dimension,
+        A: ScalarAlgebra<C, D>,
     {
-        let half = C::one().real() / (C::one().real() + C::one().real());
+        self.primary.magnitude_squared()
+    }
 
-        Zip::from(&self.primary)
-            .and(&self.dual)
-            .map_collect(|&primary, &dual| half * (primary * dual.conjugate()).real())
+    pub fn normal_flux<C, D>(&self) -> A::RealField
+    where
+        C: ComplexScalar,
+        D: Dimension,
+        A: ScalarAlgebra<C, D>,
+    {
+        let half = C::one() / (C::one() + C::one());
+
+        self.primary
+            .multiply(&self.dual.conjugate())
+            .scale(half)
+            .real_part()
     }
 
     /// Reconstruct the Cartesian electric and magnetic fields.
@@ -145,79 +133,86 @@ where
     /// This is the single convention-sensitive conversion from the isotropic
     /// canonical state to Cartesian components. The signed linear parallel
     /// wavenumber from `input` determines the longitudinal field components.
-    pub(crate) fn cartesian_fields(
+    pub(crate) fn cartesian_fields<C, D>(
         &self,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        quantities: &IsotropicLayerQuantities<C, D>,
-    ) -> CartesianElectromagneticField<C, D>
+        polarisation: Polarisation,
+        parallel_wavenumber: &A,
+        epsilon: &A,
+        mu: &A,
+    ) -> CartesianElectromagneticField<A::Vector>
     where
         C: ComplexScalar,
+        D: Dimension,
+        A: ScalarAlgebra<C, D> + Clone,
     {
-        reconstruct_isotropic_cartesian_fields(self, input, quantities)
+        reconstruct_isotropic_cartesian_fields(self, polarisation, parallel_wavenumber, epsilon, mu)
     }
 }
 
-pub(crate) fn reconstruct_isotropic_cartesian_fields<C, D>(
-    state: &IsotropicFieldState<C, D>,
-    input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    quantities: &IsotropicLayerQuantities<C, D>,
-) -> CartesianElectromagneticField<C, D>
+pub(crate) fn reconstruct_isotropic_cartesian_fields<C, D, A>(
+    state: &IsotropicFieldState<A>,
+    polarisation: Polarisation,
+    parallel_wavenumber: &A,
+    epsilon: &A,
+    mu: &A,
+) -> CartesianElectromagneticField<A::Vector>
 where
     C: ComplexScalar,
     D: Dimension,
+    A: ScalarAlgebra<C, D> + Clone,
 {
-    let parallel_wavenumber = input.parallel_wavenumber();
-
-    match input.polarisation() {
+    match polarisation {
         Polarisation::TransverseElectric => {
-            reconstruct_te(state, parallel_wavenumber, quantities.mu())
+            reconstruct_te::<C, D, A>(state, parallel_wavenumber, mu)
         }
+
         Polarisation::TransverseMagnetic => {
-            reconstruct_tm(state, parallel_wavenumber, quantities.epsilon())
+            reconstruct_tm::<C, D, A>(state, parallel_wavenumber, epsilon)
         }
     }
 }
 
-fn reconstruct_te<C, D>(
-    state: &IsotropicFieldState<C, D>,
-    parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
-    mu: &ArrayBase<OwnedRepr<C>, D>,
-) -> CartesianElectromagneticField<C, D>
+fn reconstruct_te<C, D, A>(
+    state: &IsotropicFieldState<A>,
+    parallel_wavenumber: &A,
+    mu: &A,
+) -> CartesianElectromagneticField<A::Vector>
 where
     C: ComplexScalar,
     D: Dimension,
+    A: ScalarAlgebra<C, D> + Clone,
 {
-    let zero = state.primary().mapv(|_| C::zero());
+    let zero = mu.zero_like();
 
-    let electric = CartesianVector3::new(zero.clone(), state.primary().clone(), zero.clone());
+    let electric = A::into_cartesian_vector(zero.clone(), state.primary().clone(), zero.clone());
 
-    let magnetic = CartesianVector3::new(
-        state.dual().mapv(|value| -value),
-        zero,
-        parallel_wavenumber.clone() * state.primary().view() / mu.view(),
-    );
+    let longitudinal = parallel_wavenumber.multiply(state.primary()).divide(mu);
+
+    let magnetic = A::into_cartesian_vector(state.dual().negate(), zero.clone(), longitudinal);
 
     CartesianElectromagneticField::new(electric, magnetic)
 }
 
-fn reconstruct_tm<C, D>(
-    state: &IsotropicFieldState<C, D>,
-    parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
-    epsilon: &ArrayBase<OwnedRepr<C>, D>,
-) -> CartesianElectromagneticField<C, D>
+fn reconstruct_tm<C, D, A>(
+    state: &IsotropicFieldState<A>,
+    parallel_wavenumber: &A,
+    epsilon: &A,
+) -> CartesianElectromagneticField<A::Vector>
 where
     C: ComplexScalar,
     D: Dimension,
+    A: ScalarAlgebra<C, D> + Clone,
 {
-    let zero = state.primary().mapv(|_| C::zero());
+    let zero = epsilon.zero_like();
 
-    let electric = CartesianVector3::new(
-        state.dual().clone(),
-        zero.clone(),
-        -(parallel_wavenumber.clone() * state.primary().view() / epsilon.view()),
-    );
+    let longitudinal = parallel_wavenumber
+        .multiply(state.primary())
+        .divide(epsilon)
+        .negate();
 
-    let magnetic = CartesianVector3::new(zero.clone(), state.primary().clone(), zero);
+    let electric = A::into_cartesian_vector(state.dual().clone(), zero.clone(), longitudinal);
+
+    let magnetic = A::into_cartesian_vector(zero.clone(), state.primary().clone(), zero);
 
     CartesianElectromagneticField::new(electric, magnetic)
 }
