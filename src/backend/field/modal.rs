@@ -16,10 +16,9 @@ use ndarray::{Dimension, Ix0};
 /// The returned waves are not necessarily QNM-normalized. Normalization is a
 /// separate post-processing stage because it requires the reconstructed field,
 /// constitutive derivatives, and finite-domain boundary contributions.
-pub trait OutgoingModeFieldBackend<C, D, S>: OutgoingModeStateBackend<C, D, S>
+pub trait OutgoingModeFieldBackend<C, S>: OutgoingModeStateBackend<C, S>
 where
     C: ComplexScalar,
-    D: Dimension,
 {
     fn outgoing_mode_internal_fields(
         &self,
@@ -28,11 +27,15 @@ where
     ) -> Result<ModeFieldResponse<C>, Self::Error>;
 }
 
-/// Mode response together with its outgoing internal boundary waves.
+/// Modal response together with reconstructed outgoing boundary waves.
 ///
-/// The boundary waves retain the backend's raw mode scaling. QNM
-/// normalization and phase fixing are performed explicitly by later field
-/// post-processing.
+/// The exterior and finite-layer waves share one consistent backend-selected
+/// scale. This scale is suitable for relative field profiles, but is not a
+/// quasinormal-mode normalization and carries an arbitrary global phase.
+///
+/// Physical QNM normalization remains a separate post-processing operation
+/// involving the reconstructed field, constitutive derivatives, and any
+/// required exterior or surface contributions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModeFieldResponse<C>
 where
@@ -54,15 +57,18 @@ where
         }
     }
 
+    /// Return the reconstructed modal state and reevaluated residual.
     pub fn response(&self) -> &OutgoingModeResponse<C> {
-        &self.inner.response
+        self.inner.response()
     }
 
+    /// Return the exterior and finite-layer boundary waves.
     pub fn boundary_waves(&self) -> &BoundaryWaveSolution<C, Ix0> {
-        &self.inner.boundary_waves
+        self.inner.boundary_waves()
     }
 
+    /// Consume the result and return its response and boundary waves.
     pub fn into_parts(self) -> (OutgoingModeResponse<C>, BoundaryWaveSolution<C, Ix0>) {
-        (self.inner.response, self.inner.boundary_waves)
+        self.inner.into_parts()
     }
 }

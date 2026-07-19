@@ -55,11 +55,10 @@ use crate::{
     stack::Stack,
 };
 
-impl<C, D, M> OutgoingModeStateBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, M> OutgoingModeStateBackend<C, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
-    D: Dimension,
     M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn outgoing_mode_state(
@@ -88,11 +87,10 @@ where
     }
 }
 
-impl<C, D, M> OutgoingModeFieldBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, M> OutgoingModeFieldBackend<C, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
-    D: Dimension,
     M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
     fn outgoing_mode_internal_fields(

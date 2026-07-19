@@ -5,13 +5,24 @@ use crate::{
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
+/// Boundary-wave values returned by an internal-field solve.
+///
+/// Every solution contains the reconstructed boundary-wave values. A
+/// differentiated solve additionally contains first and optionally second
+/// derivatives of those amplitudes.
+///
+/// Accessing [`Self::values`] is therefore valid for every variant, while
+/// [`Self::derivatives`] returns `None` for an undifferentiated solve.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoundaryWaveSolution<C, D>
 where
     C: ComplexScalar,
     D: Dimension,
 {
+    /// Boundary-wave values without amplitude derivatives.
     Values(BoundaryWaves<C, D>),
+
+    /// Boundary-wave values and their derivatives.
     Differentiated(DifferentiatedBoundaryWaves<C, D>),
 }
 
@@ -83,21 +94,15 @@ where
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
+    pub fn into_values_and_derivatives(
         self,
-    ) -> (
-        ExteriorBoundaryWaves<C, D>,
-        Vec<LayerBoundaryWaves<C, D>>,
-        Option<BoundaryWaveDerivatives<C, D>>,
-    ) {
+    ) -> (BoundaryWaves<C, D>, Option<BoundaryWaveDerivatives<C, D>>) {
         match self {
-            Self::Values(boundary_waves) => (boundary_waves.exterior, boundary_waves.layers, None),
-            Self::Differentiated(differentiated) => (
-                differentiated.values.exterior,
-                differentiated.values.layers,
-                Some(differentiated.derivatives),
-            ),
+            Self::Values(values) => (values, None),
+            Self::Differentiated(differentiated) => {
+                let (values, derivatives) = differentiated.into_parts();
+                (values, Some(derivatives))
+            }
         }
     }
 }
@@ -159,10 +164,17 @@ where
     }
 }
 
-/// Modal amplitudes in the two semi-infinite exterior media.
-/// Directions are geometric:
-/// - forward propagates left to right;
-/// - backward propagates right to left.
+/// Forward and backward wave amplitudes in the two semi-infinite exterior
+/// media.
+///
+/// Directions are geometric and independent of the physical problem:
+///
+/// - `forward` propagates from left to right;
+/// - `backward` propagates from right to left.
+///
+/// For a driven solution, one exterior component represents the unit incident
+/// wave. For a source-free outgoing mode, both incoming exterior components
+/// are zero.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExteriorBoundaryWaves<C, D>
 where
@@ -232,12 +244,17 @@ where
     }
 }
 
-/// Forward and backward wave amplitudes at both boundaries of one finite layer.
-/// The left and right fields refer to geometric layer boundaries:
+/// Wave amplitudes immediately inside both boundaries of one finite layer.
+///
+/// The stored reference planes are:
+///
+/// ```text
 /// left boundary | finite layer | right boundary
-/// Both boundary values are retained explicitly. This avoids reconstructing one
-/// boundary by dividing by a potentially very small evanescent propagation
-/// factor.
+/// ```
+///
+/// Both forward and backward amplitudes are retained at both boundaries.
+/// Keeping both reference planes avoids reconstructing one boundary by
+/// dividing by a potentially very small evanescent propagation factor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerBoundaryWaves<C, D>
 where
@@ -259,18 +276,18 @@ where
         Self { left, right }
     }
 
-    /// Return waves immediately inside the layer at its left boundary.
-    pub(crate) fn left(&self) -> &BidirectionalWaves<C, D> {
+    /// Return the waves immediately inside the layer at its left boundary.
+    pub fn left(&self) -> &BidirectionalWaves<C, D> {
         &self.left
     }
 
-    /// Return waves immediately inside the layer at its right boundary.
-    pub(crate) fn right(&self) -> &BidirectionalWaves<C, D> {
+    /// Return the waves immediately inside the layer at its right boundary.
+    pub fn right(&self) -> &BidirectionalWaves<C, D> {
         &self.right
     }
 
-    /// Consume the layer response and return both boundary wave pairs.
-    pub(crate) fn into_parts(self) -> (BidirectionalWaves<C, D>, BidirectionalWaves<C, D>) {
+    /// Consume the value and return `(left, right)`.
+    pub fn into_parts(self) -> (BidirectionalWaves<C, D>, BidirectionalWaves<C, D>) {
         (self.left, self.right)
     }
 }
@@ -303,18 +320,18 @@ where
         Self { forward, backward }
     }
 
-    /// Return the left-to-right wave amplitude.
-    pub(crate) fn forward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    /// Return the wave amplitude propagating geometrically from left to right.
+    pub fn forward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.forward
     }
 
-    /// Return the right-to-left wave amplitude.
-    pub(crate) fn backward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    /// Return the wave amplitude propagating geometrically from right to left.
+    pub fn backward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.backward
     }
 
-    /// Consume the pair and return its amplitudes.
-    pub(crate) fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
+    /// Consume the pair and return `(forward, backward)`.
+    pub fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
         (self.forward, self.backward)
     }
 }
@@ -508,17 +525,17 @@ where
     }
 
     /// Return derivatives at the left boundary.
-    pub(crate) fn left(&self) -> &BidirectionalWaveDifferential<C, D> {
+    pub fn left(&self) -> &BidirectionalWaveDifferential<C, D> {
         &self.left
     }
 
     /// Return derivatives at the right boundary.
-    pub(crate) fn right(&self) -> &BidirectionalWaveDifferential<C, D> {
+    pub fn right(&self) -> &BidirectionalWaveDifferential<C, D> {
         &self.right
     }
 
     /// Consume the result and return both boundary differentials.
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
         BidirectionalWaveDifferential<C, D>,
@@ -530,7 +547,7 @@ where
 
 /// Derivatives of forward and backward wave amplitudes at one reference plane.
 /// The derivative variable and derivative order are recorded by the containing
-/// [PlaneWaveBoundaryWaveDerivatives] object.
+/// [BoundaryWaveDerivatives] object.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BidirectionalWaveDifferential<C, D>
 where
@@ -555,17 +572,17 @@ where
     }
 
     /// Return the derivative of the forward wave.
-    pub(crate) fn forward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn forward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.forward
     }
 
     /// Return the derivative of the backward wave.
-    pub(crate) fn backward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn backward(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         &self.backward
     }
 
     /// Consume the differential and return both arrays.
-    pub(crate) fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
+    pub fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
         (self.forward, self.backward)
     }
 }
@@ -769,4 +786,113 @@ where
         BidirectionalWaveDifferential::new(left_forward, left_backward),
         BidirectionalWaveDifferential::new(right_forward, right_backward),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use ndarray::{Array1, Ix1, arr1};
+    use num_complex::Complex64;
+
+    use super::*;
+
+    type C = Complex64;
+    type D = Ix1;
+
+    fn waves(forward: &[C], backward: &[C]) -> BidirectionalWaves<C, D> {
+        BidirectionalWaves::new(
+            Array1::from_vec(forward.to_vec()),
+            Array1::from_vec(backward.to_vec()),
+        )
+    }
+
+    #[test]
+    fn bidirectional_waves_preserve_geometric_components() {
+        let forward = arr1(&[C::new(1.0, 2.0)]);
+        let backward = arr1(&[C::new(3.0, 4.0)]);
+
+        let waves = BidirectionalWaves::new(forward.clone(), backward.clone());
+
+        assert_eq!(waves.forward(), &forward);
+        assert_eq!(waves.backward(), &backward);
+    }
+
+    #[test]
+    fn driven_left_incidence_sets_correct_exterior_components() {
+        let reflection = arr1(&[C::new(0.25, 0.5)]);
+        let transmission = arr1(&[C::new(0.75, -0.25)]);
+
+        let exterior = ExteriorBoundaryWaves::from_values(
+            reflection.clone(),
+            transmission.clone(),
+            IncidentSide::Left,
+        );
+
+        assert_eq!(exterior.left().forward(), &arr1(&[C::new(1.0, 0.0)]));
+        assert_eq!(exterior.left().backward(), &reflection);
+        assert_eq!(exterior.right().forward(), &transmission);
+        assert_eq!(exterior.right().backward(), &arr1(&[C::new(0.0, 0.0)]));
+    }
+
+    #[test]
+    fn driven_right_incidence_sets_correct_exterior_components() {
+        let reflection = arr1(&[C::new(0.25, 0.5)]);
+        let transmission = arr1(&[C::new(0.75, -0.25)]);
+
+        let exterior = ExteriorBoundaryWaves::from_values(
+            reflection.clone(),
+            transmission.clone(),
+            IncidentSide::Right,
+        );
+
+        assert_eq!(exterior.left().forward(), &arr1(&[C::new(0.0, 0.0)]));
+        assert_eq!(exterior.left().backward(), &transmission);
+        assert_eq!(exterior.right().forward(), &reflection);
+        assert_eq!(exterior.right().backward(), &arr1(&[C::new(1.0, 0.0)]));
+    }
+
+    #[test]
+    fn outgoing_exterior_has_no_incoming_components() {
+        let left_outgoing = arr1(&[C::new(2.0, 1.0)]);
+        let right_outgoing = arr1(&[C::new(-1.0, 3.0)]);
+
+        let exterior = ExteriorBoundaryWaves::from_outgoing_values(
+            left_outgoing.clone(),
+            right_outgoing.clone(),
+        );
+
+        assert_eq!(exterior.left().forward(), &arr1(&[C::new(0.0, 0.0)]));
+        assert_eq!(exterior.left().backward(), &left_outgoing);
+
+        assert_eq!(exterior.right().forward(), &right_outgoing);
+        assert_eq!(exterior.right().backward(), &arr1(&[C::new(0.0, 0.0)]));
+    }
+
+    #[test]
+    fn generic_layer_scaling_applies_to_every_component() {
+        let layer = LayerBoundaryWavesGeneric::new(
+            BidirectionalWavesGeneric::new(arr1(&[C::new(1.0, 0.0)]), arr1(&[C::new(2.0, 0.0)])),
+            BidirectionalWavesGeneric::new(arr1(&[C::new(3.0, 0.0)]), arr1(&[C::new(4.0, 0.0)])),
+        );
+
+        let scaled = layer.scale(arr1(&[C::new(0.5, 0.0)]));
+
+        assert_eq!(scaled.left.forward, arr1(&[C::new(0.5, 0.0)]));
+        assert_eq!(scaled.left.backward, arr1(&[C::new(1.0, 0.0)]));
+        assert_eq!(scaled.right.forward, arr1(&[C::new(1.5, 0.0)]));
+        assert_eq!(scaled.right.backward, arr1(&[C::new(2.0, 0.0)]));
+    }
+
+    #[test]
+    fn value_solution_exposes_values_without_derivatives() {
+        let exterior = ExteriorBoundaryWaves::new(
+            waves(&[C::new(1.0, 0.0)], &[C::new(2.0, 0.0)]),
+            waves(&[C::new(3.0, 0.0)], &[C::new(4.0, 0.0)]),
+        );
+
+        let solution = BoundaryWaveSolution::new(exterior, Vec::new());
+
+        assert!(solution.derivatives().is_none());
+        assert!(solution.is_empty());
+        assert_eq!(solution.values().len(), 0);
+    }
 }

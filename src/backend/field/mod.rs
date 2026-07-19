@@ -1,7 +1,55 @@
 //! Internal-wave reconstruction and spatial electromagnetic fields.
-
+//!
+//! This module represents fields in two stages:
+//!
+//! 1. backends reconstruct forward and backward wave amplitudes at exterior
+//!    and finite-layer boundaries;
+//! 2. backend-neutral post-processing propagates those amplitudes to requested
+//!    spatial positions and calculates physical field and power quantities.
+//!
+//! # Boundary-wave convention
+//!
+//! Directions are always geometric:
+//!
+//! - `forward` propagates from left to right;
+//! - `backward` propagates from right to left.
+//!
+//! The convention is unchanged by incidence side and applies equally to
+//! driven scattering solutions and source-free outgoing modes.
+//!
+//! Finite-layer waves are retained at both layer boundaries. This avoids
+//! reconstructing a boundary by dividing by a small evanescent propagation
+//! factor.
+//!
+//! # Driven fields
+//!
+//! [`PlaneWaveFieldBackend`] reconstructs boundary waves for driven
+//! plane-wave scattering. Differentiated solves may additionally return
+//! derivatives of every boundary-wave amplitude.
+//!
+//! [`PlaneWaveFieldResponse`] provides:
+//!
+//! - the usual reflection, transmission, and absorptance response;
+//! - reconstructed boundary waves;
+//! - spatial field sampling;
+//! - per-layer and whole-stack power balance.
+//!
+//! # Outgoing modes
+//!
+//! [`OutgoingModeFieldBackend`] reconstructs the source-free waves associated
+//! with a located mode. Incoming exterior amplitudes are zero. The returned
+//! amplitudes share a consistent backend-selected scale, but are not generally
+//! quasinormal-mode normalized.
+//!
+//! # Sampling and observables
+//!
+//! [`FieldSampling`] expands high-level profile requests into concrete
+//! [`FieldPosition`] values. The isotropic post-processing routines then
+//! calculate canonical tangential field states and signed normal power flux.
 mod boundary;
+mod cartesian;
 mod error;
+mod isotropic;
 mod modal;
 mod observables;
 mod plane_wave;
@@ -22,9 +70,13 @@ pub use error::PlaneWaveFieldError;
 
 pub use modal::{ModeFieldResponse, OutgoingModeFieldBackend};
 
+pub use isotropic::IsotropicFieldState;
+
+pub use cartesian::{CartesianElectromagneticField, CartesianVector3};
+
 pub use observables::{
-    IsotropicFieldState, PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance,
-    plane_wave_power_balance, sample_plane_wave_field_profile, sample_plane_wave_fields,
+    PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance, plane_wave_power_balance,
+    sample_plane_wave_field_profile, sample_plane_wave_fields,
 };
 
 pub use plane_wave::{

@@ -98,6 +98,24 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
+    pub(crate) fn from_parts(
+        epsilon: ArrayBase<OwnedRepr<C>, D>,
+        mu: ArrayBase<OwnedRepr<C>, D>,
+        kappa: ArrayBase<OwnedRepr<C>, D>,
+        polarisation: Polarisation,
+    ) -> Self {
+        let factor = match polarisation {
+            Polarisation::TransverseElectric => mu.clone(),
+            Polarisation::TransverseMagnetic => epsilon.clone(),
+        };
+        Self {
+            epsilon,
+            mu,
+            kappa,
+            factor,
+        }
+    }
+
     pub(crate) fn real_axis<M>(
         material: &M,
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,

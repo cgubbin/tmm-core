@@ -58,13 +58,16 @@
 //!
 //! Positive flux is directed from left to right.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr, Zip};
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
 use crate::{
     ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Stack,
     backend::{
-        field::{BidirectionalWaves, BoundaryWaves, LayerBoundaryWaves},
+        field::{
+            BidirectionalWaves, BoundaryWaves, CartesianElectromagneticField, CartesianVector3,
+            IsotropicFieldState, LayerBoundaryWaves,
+        },
         isotropic::IsotropicLayerQuantities,
     },
     material::EvaluateMaterial,
@@ -75,92 +78,16 @@ use super::{
     sampling::{validate_exterior_distance, validate_layer_offset},
 };
 
-/// Canonical tangential field pair at one spatial position.
+/// Electromagnetic fields sampled at one spatial position.
 ///
-/// The pair is selected so that the signed normal power flux is:
+/// The sample retains both:
 ///
-/// ```text
-/// Pz = 1/2 Re(primary * dual*).
-/// ```
-#[derive(Clone, Debug, PartialEq)]
-pub struct IsotropicFieldState<C, D>
-where
-    D: Dimension,
-{
-    primary: ArrayBase<OwnedRepr<C>, D>,
-    dual: ArrayBase<OwnedRepr<C>, D>,
-}
-
-impl<C, D> IsotropicFieldState<C, D>
-where
-    D: Dimension,
-{
-    pub(crate) fn from_waves(
-        waves: &BidirectionalWaves<C, D>,
-        admittance: &ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self
-    where
-        C: ComplexScalar,
-    {
-        let primary = waves.forward().clone() + waves.backward().view();
-
-        let dual = admittance.clone() * (waves.forward().clone() - waves.backward().view());
-
-        Self::new(primary, dual)
-    }
-
-    pub(crate) fn new(
-        primary: ArrayBase<OwnedRepr<C>, D>,
-        dual: ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self {
-        debug_assert_eq!(primary.raw_dim(), dual.raw_dim());
-
-        Self { primary, dual }
-    }
-
-    /// Return the primary tangential field.
-    ///
-    /// This is the tangential electric field for TE and the tangential magnetic
-    /// field for TM.
-    pub fn primary(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.primary
-    }
-
-    /// Return the signed dual tangential field.
-    pub fn dual(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        &self.dual
-    }
-
-    /// Consume the state and return its canonical field pair.
-    pub fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
-        (self.primary, self.dual)
-    }
-
-    /// Return the squared magnitude of the primary field.
-    pub fn primary_intensity(&self) -> ArrayBase<OwnedRepr<C::RealField>, D>
-    where
-        C: ComplexScalar,
-    {
-        self.primary.mapv(|value| value.modulus_squared())
-    }
-
-    /// Return the signed normal time-averaged power flux.
-    ///
-    /// Positive values represent left-to-right flux.
-    pub fn normal_flux(&self) -> ArrayBase<OwnedRepr<C::RealField>, D>
-    where
-        C: ComplexScalar,
-        C::RealField: Float,
-    {
-        let half = C::one().real() / (C::one().real() + C::one().real());
-
-        Zip::from(&self.primary)
-            .and(&self.dual)
-            .map_collect(|&primary, &dual| half * (primary * dual.conjugate()).real())
-    }
-}
-
-/// Field state and signed normal flux at one requested position.
+/// - the compact canonical tangential state used by the isotropic 2×2
+///   formulation;
+/// - the corresponding Cartesian electric and magnetic fields.
+///
+/// The Cartesian fields use the same normalization as the canonical solver
+/// state.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFieldSample<C, D>
 where
@@ -174,48 +101,95 @@ where
     /// Left-exterior coordinates are negative.
     coordinate: C::RealField,
 
-    state: IsotropicFieldState<C, D>,
-    normal_flux: ArrayBase<OwnedRepr<C::RealField>, D>,
+    canonical: IsotropicFieldState<C, D>,
+    cartesian: CartesianElectromagneticField<C, D>,
 }
 
 impl<C, D> PlaneWaveFieldSample<C, D>
 where
     C: ComplexScalar,
-    C::RealField: Copy,
     D: Dimension,
 {
     pub(crate) fn new(
         position: FieldPosition<C::RealField>,
         coordinate: C::RealField,
-        state: IsotropicFieldState<C, D>,
+        canonical: IsotropicFieldState<C, D>,
+        cartesian: CartesianElectromagneticField<C, D>,
     ) -> Self
     where
         C::RealField: Float,
     {
-        let normal_flux = state.normal_flux();
+        debug_assert_eq!(
+            canonical.primary().raw_dim(),
+            cartesian.electric().x().raw_dim(),
+        );
 
         Self {
             position,
             coordinate,
-            state,
-            normal_flux,
+            canonical,
+            cartesian,
         }
     }
 
-    pub fn position(&self) -> FieldPosition<C::RealField> {
+    /// Return the requested stack-relative position.
+    pub fn position(&self) -> FieldPosition<C::RealField>
+    where
+        C::RealField: Copy,
+    {
         self.position
     }
 
-    pub fn coordinate(&self) -> C::RealField {
+    /// Return the global coordinate measured along the layer-normal axis.
+    pub fn coordinate(&self) -> C::RealField
+    where
+        C::RealField: Copy,
+    {
         self.coordinate
     }
 
-    pub fn state(&self) -> &IsotropicFieldState<C, D> {
-        &self.state
+    /// Return the canonical isotropic tangential field state.
+    pub fn canonical_state(&self) -> &IsotropicFieldState<C, D> {
+        &self.canonical
     }
 
-    pub fn normal_flux(&self) -> &ArrayBase<OwnedRepr<C::RealField>, D> {
-        &self.normal_flux
+    /// Return the Cartesian electric and magnetic fields.
+    pub fn cartesian_fields(&self) -> &CartesianElectromagneticField<C, D> {
+        &self.cartesian
+    }
+
+    /// Return the Cartesian electric field.
+    pub fn electric(&self) -> &CartesianVector3<C, D> {
+        self.cartesian.electric()
+    }
+
+    /// Return the Cartesian magnetic field.
+    pub fn magnetic(&self) -> &CartesianVector3<C, D> {
+        self.cartesian.magnetic()
+    }
+
+    /// Return the signed normal time-averaged power flux.
+    ///
+    /// Positive values represent power flow from left to right.
+    pub fn normal_flux(&self) -> ArrayBase<OwnedRepr<C::RealField>, D> {
+        self.cartesian.time_averaged_poynting_vector().z().clone()
+    }
+
+    /// Consume the sample and return its constituent values.
+    pub fn into_parts(
+        self,
+    ) -> (
+        FieldPosition<C::RealField>,
+        C::RealField,
+        IsotropicFieldState<C, D>,
+        CartesianElectromagneticField<C, D>,
+    ) {
+        (
+            self.position,
+            self.coordinate,
+            self.canonical,
+            self.cartesian,
+        )
     }
 }
 
@@ -360,7 +334,7 @@ where
     let mut samples = Vec::new();
 
     for position in positions {
-        let (coordinate, state) = match position {
+        let (coordinate, state, cartesian) = match position {
             FieldPosition::LeftExterior { distance } => {
                 validate_exterior_distance(distance)?;
 
@@ -370,10 +344,12 @@ where
                     distance,
                 );
 
-                (
-                    -distance,
-                    IsotropicFieldState::from_waves(&local, left_quantities.admittance().value()),
-                )
+                let state =
+                    IsotropicFieldState::from_waves(&local, left_quantities.admittance().value());
+
+                let cartesian = state.cartesian_fields(&planar, &left_quantities);
+
+                (-distance, state, cartesian)
             }
 
             FieldPosition::Layer { index, offset } => {
@@ -395,10 +371,12 @@ where
 
                 let local = sample_layer_waves(boundary, quantities.kappa(), offset, *thickness);
 
-                (
-                    layer_origins[index] + offset,
-                    IsotropicFieldState::from_waves(&local, quantities.admittance().value()),
-                )
+                let state =
+                    IsotropicFieldState::from_waves(&local, quantities.admittance().value());
+
+                let cartesian = state.cartesian_fields(&planar, quantities);
+
+                (layer_origins[index] + offset, state, cartesian)
             }
 
             FieldPosition::RightExterior { distance } => {
@@ -410,14 +388,18 @@ where
                     distance,
                 );
 
-                (
-                    total_thickness + distance,
-                    IsotropicFieldState::from_waves(&local, right_quantities.admittance().value()),
-                )
+                let state =
+                    IsotropicFieldState::from_waves(&local, right_quantities.admittance().value());
+
+                let cartesian = state.cartesian_fields(&planar, &right_quantities);
+
+                (total_thickness + distance, state, cartesian)
             }
         };
 
-        samples.push(PlaneWaveFieldSample::new(position, coordinate, state));
+        samples.push(PlaneWaveFieldSample::new(
+            position, coordinate, state, cartesian,
+        ));
     }
 
     Ok(PlaneWaveFields::new(samples))
@@ -692,6 +674,7 @@ where
 mod tests {
     use ndarray::{Array1, Ix1, arr1};
     use num_complex::Complex64;
+    use num_traits::Zero;
 
     use crate::{
         IncidentSide,
@@ -800,7 +783,10 @@ mod tests {
             arr1(&[C::new(0.0, 0.0), C::new(0.0, 0.0), C::new(0.0, 0.0)]),
         );
 
-        assert_array_real_close(&state.primary_intensity(), &arr1(&[25.0, 169.0, 4.0]));
+        assert_array_real_close(
+            &state.primary_magnitude_squared(),
+            &arr1(&[25.0, 169.0, 4.0]),
+        );
     }
 
     #[test]
@@ -1208,11 +1194,44 @@ mod tests {
     // Field containers
     // ---------------------------------------------------------------------
 
+    fn cartesian_from_canonical(
+        state: &IsotropicFieldState<C, D>,
+    ) -> CartesianElectromagneticField<C, D> {
+        let zero = state.primary().mapv(|_| C::zero());
+
+        // Use a TE-like mapping:
+        //
+        //   Ey = primary
+        //   Hx = -dual
+        //
+        // This guarantees:
+        //
+        //   1/2 Re((E × H*)z)
+        //     = 1/2 Re(primary * dual*)
+        //
+        // The longitudinal components are irrelevant to these container tests.
+        let electric = CartesianVector3::new(zero.clone(), state.primary().clone(), zero.clone());
+
+        let magnetic = CartesianVector3::new(state.dual().mapv(|value| -value), zero.clone(), zero);
+
+        CartesianElectromagneticField::new(electric, magnetic)
+    }
+
+    fn field_sample(
+        position: FieldPosition<f64>,
+        coordinate: f64,
+        state: IsotropicFieldState<C, D>,
+    ) -> PlaneWaveFieldSample<C, D> {
+        let cartesian = cartesian_from_canonical(&state);
+
+        PlaneWaveFieldSample::new(position, coordinate, state, cartesian)
+    }
+
     #[test]
-    fn field_sample_caches_normal_flux() {
+    fn field_sample_derives_normal_flux_from_cartesian_fields() {
         let state = IsotropicFieldState::new(arr1(&[r(2.0)]), arr1(&[r(6.0)]));
 
-        let sample = PlaneWaveFieldSample::new(
+        let sample = field_sample(
             FieldPosition::Layer {
                 index: 3,
                 offset: 0.25,
@@ -1229,18 +1248,41 @@ mod tests {
             },
         );
 
+        assert_real_close(sample.coordinate(), 0.5);
         assert_real_close(sample.normal_flux()[0], 6.0);
     }
 
     #[test]
+    fn field_sample_preserves_canonical_and_cartesian_fields() {
+        let state = IsotropicFieldState::new(arr1(&[r(2.0)]), arr1(&[r(6.0)]));
+
+        let cartesian = cartesian_from_canonical(&state);
+
+        let sample = PlaneWaveFieldSample::new(
+            FieldPosition::Layer {
+                index: 3,
+                offset: 0.25,
+            },
+            0.5,
+            state.clone(),
+            cartesian.clone(),
+        );
+
+        assert_eq!(sample.canonical_state(), &state);
+        assert_eq!(sample.cartesian_fields(), &cartesian);
+        assert_eq!(sample.electric(), cartesian.electric());
+        assert_eq!(sample.magnetic(), cartesian.magnetic());
+    }
+
+    #[test]
     fn plane_wave_fields_preserves_sample_order() {
-        let first = PlaneWaveFieldSample::new(
+        let first = field_sample(
             FieldPosition::LeftExterior { distance: 0.5 },
             -0.5,
             IsotropicFieldState::new(arr1(&[r(1.0)]), arr1(&[r(2.0)])),
         );
 
-        let second = PlaneWaveFieldSample::new(
+        let second = field_sample(
             FieldPosition::RightExterior { distance: 0.75 },
             0.75,
             IsotropicFieldState::new(arr1(&[r(3.0)]), arr1(&[r(4.0)])),
@@ -1275,7 +1317,7 @@ mod tests {
 
     #[test]
     fn into_samples_returns_owned_samples() {
-        let sample = PlaneWaveFieldSample::new(
+        let sample = field_sample(
             FieldPosition::LeftExterior { distance: 0.0 },
             0.0,
             IsotropicFieldState::new(arr1(&[r(1.0)]), arr1(&[r(2.0)])),
@@ -1291,6 +1333,33 @@ mod tests {
             samples[0].position(),
             FieldPosition::LeftExterior { distance: 0.0 },
         );
+
+        assert_real_close(samples[0].coordinate(), 0.0);
+    }
+
+    #[test]
+    fn field_sample_into_parts_returns_all_stored_values() {
+        let position = FieldPosition::Layer {
+            index: 2,
+            offset: 0.4,
+        };
+
+        let coordinate = 1.25;
+
+        let canonical = IsotropicFieldState::new(arr1(&[r(3.0)]), arr1(&[r(5.0)]));
+
+        let cartesian = cartesian_from_canonical(&canonical);
+
+        let sample =
+            PlaneWaveFieldSample::new(position, coordinate, canonical.clone(), cartesian.clone());
+
+        let (actual_position, actual_coordinate, actual_canonical, actual_cartesian) =
+            sample.into_parts();
+
+        assert_eq!(actual_position, position);
+        assert_real_close(actual_coordinate, coordinate);
+        assert_eq!(actual_canonical, canonical);
+        assert_eq!(actual_cartesian, cartesian);
     }
 
     // ---------------------------------------------------------------------

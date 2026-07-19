@@ -84,6 +84,7 @@ pub struct FieldSampling<R> {
     regions: Vec<FieldSamplingRegion<R>>,
 }
 
+/// One high-level spatial region included in a [`FieldSampling`] request.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FieldSamplingRegion<R> {
     LeftExterior(ExteriorSampling<R>),
@@ -100,6 +101,10 @@ pub enum FieldSamplingRegion<R> {
     LayerInterfaces,
 }
 
+/// Sampling pattern within one finite layer.
+///
+/// Layer coordinates are offsets measured rightward from the layer's left
+/// boundary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayerSampling<R> {
     /// One point.
@@ -125,6 +130,11 @@ impl<R> LayerSampling<R> {
         Self::Offsets(offsets)
     }
 
+    /// Uniformly sample a finite layer.
+    ///
+    /// By default, the left boundary is included and the right boundary is
+    /// excluded. This is convenient for profiles spanning consecutive layers
+    /// because it avoids duplicate coordinates at ordinary interfaces.
     pub fn uniform(points: usize) -> Self {
         Self::Uniform {
             points,
@@ -134,6 +144,10 @@ impl<R> LayerSampling<R> {
     }
 }
 
+/// Sampling pattern in one semi-infinite exterior medium.
+///
+/// Distances are non-negative and measured outward from the adjacent stack
+/// boundary.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExteriorSampling<R> {
     Point(R),
@@ -625,6 +639,61 @@ mod tests {
                 },
                 FieldSamplingRegion::RightExterior(ExteriorSampling::Point(2.0,),),
             ],
+        );
+    }
+
+    #[test]
+    fn negative_exterior_distance_is_rejected() {
+        let mut positions = Vec::new();
+
+        let error =
+            expand_right_exterior(&ExteriorSampling::Point(-1.0), &mut positions).unwrap_err();
+
+        assert_eq!(
+            error,
+            PlaneWaveFieldError::InvalidExteriorDistance { distance: -1.0 }
+        );
+    }
+
+    #[test]
+    fn non_finite_exterior_distance_is_rejected() {
+        let mut positions = Vec::new();
+
+        assert!(matches!(
+            expand_left_exterior(&ExteriorSampling::Point(f64::NAN), &mut positions,),
+            Err(PlaneWaveFieldError::InvalidExteriorDistance { .. })
+        ));
+    }
+
+    #[test]
+    fn negative_layer_offset_is_rejected() {
+        let mut positions = Vec::new();
+
+        let error = expand_layer(2, 10.0, &LayerSampling::Point(-1.0), &mut positions).unwrap_err();
+
+        assert_eq!(
+            error,
+            PlaneWaveFieldError::InvalidLayerOffset {
+                layer: 2,
+                offset: -1.0,
+                thickness: 10.0,
+            }
+        );
+    }
+
+    #[test]
+    fn layer_offset_above_thickness_is_rejected() {
+        let mut positions = Vec::new();
+
+        let error = expand_layer(2, 10.0, &LayerSampling::Point(11.0), &mut positions).unwrap_err();
+
+        assert_eq!(
+            error,
+            PlaneWaveFieldError::InvalidLayerOffset {
+                layer: 2,
+                offset: 11.0,
+                thickness: 10.0,
+            }
         );
     }
 }

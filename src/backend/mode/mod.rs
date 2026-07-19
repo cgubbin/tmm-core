@@ -8,7 +8,7 @@ pub use residual::{
 use crate::{ComplexScalar, PlanarInput};
 
 use nalgebra::ComplexField;
-use ndarray::{Array0, Dimension, arr0};
+use ndarray::{Array0, Ix0, arr0};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OutgoingModeResponse<C>
@@ -142,10 +142,9 @@ where
     }
 }
 
-pub trait OutgoingModeStateBackend<C, D, S>: OutgoingModeResidualBackend<C, D, S>
+pub trait OutgoingModeStateBackend<C, S>: OutgoingModeResidualBackend<C, Ix0, S>
 where
     C: ComplexScalar,
-    D: Dimension,
 {
     fn outgoing_mode_state(
         &self,
