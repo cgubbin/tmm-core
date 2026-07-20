@@ -8,17 +8,19 @@ use crate::{
     },
 };
 
-pub(crate) trait ScalarAlgebra<C, D>: Sized
+pub(crate) trait ScalarAlgebra<T, D>: Sized
 where
     D: Dimension,
-    C: ComplexScalar,
 {
     type RealField;
-    type Vector: CartesianVectorAlgebra<C, D>;
+    type Vector: CartesianVectorAlgebra<T, D>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 
-    fn value(&self) -> &ArrayBase<OwnedRepr<C>, D>;
+    fn value(&self) -> &ArrayBase<OwnedRepr<T>, D>;
+
+    fn from_value(source: ArrayBase<OwnedRepr<T>, D>) -> Self;
+
     fn conjugate(&self) -> Self;
     fn real_part(&self) -> Self::RealField;
     fn magnitude_squared(&self) -> Self::RealField;
@@ -27,7 +29,7 @@ where
     fn sin(&self) -> Self;
     fn cos(&self) -> Self;
 
-    fn constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self;
+    fn constant_like(source: &ArrayBase<OwnedRepr<T>, D>, value: T) -> Self;
 
     fn zero_like(&self) -> Self;
 
@@ -44,7 +46,7 @@ where
     fn sqrt(&self) -> Self;
 
     /// Multiply the value and all derivative components by one constant.
-    fn scale(&self, coefficient: C) -> Self;
+    fn scale(&self, coefficient: T) -> Self;
 
     fn divide(&self, rhs: &Self) -> Self {
         self.multiply(&rhs.reciprocal())
@@ -61,6 +63,10 @@ where
 
     fn value(&self) -> &Self {
         self
+    }
+
+    fn from_value(source: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        source
     }
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
@@ -138,6 +144,11 @@ where
 
     fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         ArrayJetFirst::value(self)
+    }
+
+    fn from_value(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        let zero = value.mapv(|_| C::zero());
+        ArrayJetFirst::from_parts(value, zero)
     }
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
@@ -219,6 +230,11 @@ where
 
     fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
         ArrayJet::value(self)
+    }
+
+    fn from_value(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        let zero = value.mapv(|_| C::zero());
+        ArrayJet::from_parts(value, zero.clone(), zero)
     }
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {

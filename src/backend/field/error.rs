@@ -27,4 +27,16 @@ pub enum PlaneWaveFieldError<R> {
 
     #[error("incident power flux is zero, negative, or non-finite")]
     InvalidIncidentFlux,
+
+    #[error("spectral derivative function called, but no spectral derivative data found")]
+    ExpectedSpectralDerivatives,
+
+    #[error("structural derivative function called, but no structural derivative data found")]
+    ExpectedStructuralDerivatives,
+
+    #[error("second derivative method called with no second derivative information")]
+    MissingSecondDerivatives,
+
+    #[error("power derivatives required but not supplied")]
+    MissingPowerDerivatives,
 }

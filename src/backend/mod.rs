@@ -18,8 +18,7 @@ pub use derivative::{
 pub use field::{
     ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, IsotropicFieldState,
     LayerSampling, PlaneWaveFieldError, PlaneWaveFieldResponse, PlaneWaveFieldSample,
-    PlaneWaveFields, PlaneWavePowerBalance, plane_wave_power_balance,
-    sample_plane_wave_field_profile, sample_plane_wave_fields,
+    PlaneWaveFields, PlaneWavePowerBalance,
 };
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
 pub use matrix::{

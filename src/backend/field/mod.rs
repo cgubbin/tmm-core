@@ -58,12 +58,12 @@ mod sampling;
 pub use boundary::{
     BidirectionalWaveDifferential, BidirectionalWaves, BoundaryWaveDerivatives,
     BoundaryWaveSolution, BoundaryWaves, ExteriorBoundaryWaveDifferential, ExteriorBoundaryWaves,
-    LayerBoundaryWaveDifferential, LayerBoundaryWaves,
+    LayerBoundaryWaves,
 };
 
 pub(crate) use boundary::{
-    BidirectionalWavesGeneric, BoundaryWavesGeneric, LayerBoundaryWavesGeneric,
-    first_order_fields_from_generic, second_order_fields_from_generic, value_fields_from_generic,
+    BidirectionalWavesGeneric, LayerBoundaryWavesGeneric, first_order_fields_from_generic,
+    second_order_fields_from_generic, value_fields_from_generic,
 };
 
 pub(crate) use cartesian::CartesianVectorAlgebra;
@@ -76,10 +76,7 @@ pub use isotropic::IsotropicFieldState;
 
 pub use cartesian::{CartesianElectromagneticField, CartesianVector3};
 
-pub use observables::{
-    PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance, plane_wave_power_balance,
-    sample_plane_wave_field_profile, sample_plane_wave_fields,
-};
+pub use observables::{PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance};
 
 pub use plane_wave::{
     DifferentiablePlaneWaveFieldBackend, PlaneWaveFieldBackend, PlaneWaveFieldResponse,

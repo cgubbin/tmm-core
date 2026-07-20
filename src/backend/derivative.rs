@@ -32,8 +32,12 @@ pub enum StructuralDerivativeVariable {
 impl From<StructuralDerivativeVariable> for DerivativeVariable {
     fn from(val: StructuralDerivativeVariable) -> Self {
         match val {
-            StructuralDerivativeVariable::ParallelWavenumber => DerivativeVariable::ParallelWavenumber,
-            StructuralDerivativeVariable::ParallelWavenumberSquared => DerivativeVariable::ParallelWavenumberSquared,
+            StructuralDerivativeVariable::ParallelWavenumber => {
+                DerivativeVariable::ParallelWavenumber
+            }
+            StructuralDerivativeVariable::ParallelWavenumberSquared => {
+                DerivativeVariable::ParallelWavenumberSquared
+            }
             StructuralDerivativeVariable::Thickness(i) => DerivativeVariable::Thickness(i),
         }
     }
@@ -100,7 +104,9 @@ impl From<SpectralDerivativeVariable> for DerivativeVariable {
     fn from(val: SpectralDerivativeVariable) -> Self {
         match val {
             SpectralDerivativeVariable::VacuumWavenumber => DerivativeVariable::VacuumWavenumber,
-            SpectralDerivativeVariable::VacuumWavenumberSquared => DerivativeVariable::VacuumWavenumberSquared,
+            SpectralDerivativeVariable::VacuumWavenumberSquared => {
+                DerivativeVariable::VacuumWavenumberSquared
+            }
         }
     }
 }
@@ -245,6 +251,14 @@ impl DerivativeVariable {
     /// isotropic derivative kernel.
     pub fn is_primitive(self) -> bool {
         self == self.primitive()
+    }
+
+    pub fn is_spectral(self) -> bool {
+        SpectralDerivativeVariable::try_from(self).is_ok()
+    }
+
+    pub fn is_structural(self) -> bool {
+        StructuralDerivativeVariable::try_from(self).is_ok()
     }
 
     /// Construct the chain-rule coefficients needed to transform derivatives

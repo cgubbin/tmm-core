@@ -46,7 +46,11 @@ mod interface_consistency_tests {
             },
             mode::DifferentiableOutgoingModeResidualBackend,
             plane_wave::DifferentiablePlaneWaveBackend,
-            transfer2::{Transfer2, TransferMatrix2, response::outgoing_residual},
+            transfer2::{
+                Transfer2, TransferMatrix2,
+                matrix::{Transfer2Jet, Transfer2JetFirst},
+                response::outgoing_residual,
+            },
         },
         material::Constant,
         stack::{Stack, Thickness, ValidationConfig},
@@ -215,7 +219,7 @@ mod interface_consistency_tests {
         let (matrix, derivatives) = raw.into_parts();
         let derivatives = derivatives.unwrap();
 
-        let matrix_jet = JetFirst::from_parts(matrix, derivatives.into_first());
+        let matrix_jet = Transfer2JetFirst::from_parts(matrix, derivatives.into_first());
 
         let left = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
             stack.left_exterior(),
@@ -271,7 +275,7 @@ mod interface_consistency_tests {
             DerivativeVariable::ParallelWavenumberSquared
         );
 
-        let matrix_jet = Jet::from_parts(matrix, first, second.unwrap());
+        let matrix_jet = Transfer2Jet::from_parts(matrix, first, second.unwrap());
 
         let left = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
             stack.left_exterior(),
@@ -328,7 +332,7 @@ mod interface_consistency_tests {
 
         let (left, right) = exterior_admittances(&stack, &planar);
 
-        let expected = outgoing_residual(matrix.into_entries(), &left, &right);
+        let expected = outgoing_residual(&matrix.into_entries(), &left, &right);
 
         let actual = backend.outgoing_mode_residual(&stack, &planar).unwrap();
 
@@ -352,16 +356,18 @@ mod interface_consistency_tests {
             &planar,
             variable,
         )
-        .into_admittance();
+        .into_admittance()
+        .into_inner();
 
         let right = IsotropicLayerQuantities::evaluate_first_structural_complex_plane(
             stack.right_exterior(),
             &planar,
             variable,
         )
-        .into_admittance();
+        .into_admittance()
+        .into_inner();
 
-        let expected = outgoing_residual(matrix.into_entries(), &left, &right);
+        let expected = outgoing_residual(&matrix, &left, &right);
 
         let actual = backend
             .outgoing_mode_residual_first_structural_derivative(&stack, &planar, variable)
@@ -393,16 +399,18 @@ mod interface_consistency_tests {
             &planar,
             variable,
         )
-        .into_admittance();
+        .into_admittance()
+        .into_inner();
 
         let right = IsotropicLayerQuantities::evaluate_second_spectral_complex_plane(
             stack.right_exterior(),
             &planar,
             variable,
         )
-        .into_admittance();
+        .into_admittance()
+        .into_inner();
 
-        let expected = outgoing_residual(matrix.into_entries(), &left, &right);
+        let expected = outgoing_residual(&matrix, &left, &right);
 
         let actual = backend
             .outgoing_mode_residual_second_spectral_derivative(&stack, &planar, variable)

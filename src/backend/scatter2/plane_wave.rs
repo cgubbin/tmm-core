@@ -375,9 +375,8 @@ mod plane_wave_backend_tests {
         IncidentSide, PlanarInput, Polarisation, Thickness, ValidationConfig,
         backend::{
             RawMatrixBackend,
-            isotropic::IsotropicLayerAdmittance,
             scatter2::ScatterMatrix2,
-            transfer2::{Matrix2, Transfer2},
+            transfer2::{Transfer2, TransferMatrix2},
         },
         material::Constant,
     };
@@ -467,7 +466,7 @@ mod plane_wave_backend_tests {
     }
 
     fn transfer_to_scatter<C, D>(
-        matrix: Matrix2<C, D>,
+        matrix: TransferMatrix2<C, D>,
         left_admittance: &ArrayBase<OwnedRepr<C>, D>,
         right_admittance: &ArrayBase<OwnedRepr<C>, D>,
     ) -> ScatterMatrix2<C, D>
@@ -499,7 +498,7 @@ mod plane_wave_backend_tests {
 
         let s21 = left_slope.mapv(|x| two * x) / denominator.view();
 
-        let s22 = (q - left_slope * p) / denominator.view();
+        let s22 = (&q - &left_slope * &p) / &denominator;
 
         let s12 = right_slope.mapv(|x| two * x) * determinant / denominator;
 

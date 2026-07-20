@@ -682,7 +682,12 @@ mod tests {
             )
             .unwrap();
 
-        let (_, analytic) = jet.into_parts();
+        let (m11, m12, m21, m22) = jet.into_parts();
+        let (_, m11) = m11.into_parts();
+        let (_, m12) = m12.into_parts();
+        let (_, m21) = m21.into_parts();
+        let (_, m22) = m22.into_parts();
+        let analytic = TransferMatrix2::new(m11, m12, m21, m22);
 
         let plus = Transfer2::new()
             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 + h, d1), &input)
@@ -714,7 +719,13 @@ mod tests {
             )
             .unwrap();
 
-        let (_, _, analytic) = jet.into_parts();
+        let (m11, m12, m21, m22) = jet.into_parts();
+
+        let (_, _, m11) = m11.into_parts();
+        let (_, _, m12) = m12.into_parts();
+        let (_, _, m21) = m21.into_parts();
+        let (_, _, m22) = m22.into_parts();
+        let analytic = TransferMatrix2::new(m11, m12, m21, m22);
 
         let plus = Transfer2::new()
             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 + h), &input)
@@ -754,12 +765,27 @@ mod tests {
             )
             .unwrap();
 
-        let (_, squared_first) = squared.into_parts();
-        let (_, linear_first) = linear.into_parts();
+        let (m11, m12, m21, m22) = squared.into_parts();
+        let (_, m11_squared_first) = m11.into_parts();
+        let (_, m12_squared_first) = m12.into_parts();
+        let (_, m21_squared_first) = m21.into_parts();
+        let (_, m22_squared_first) = m22.into_parts();
 
-        let expected = &squared_first * c(2.0 * 3.0);
+        let (m11, m12, m21, m22) = linear.into_parts();
+        let (_, m11_linear_first) = m11.into_parts();
+        let (_, m12_linear_first) = m12.into_parts();
+        let (_, m21_linear_first) = m21.into_parts();
+        let (_, m22_linear_first) = m22.into_parts();
 
-        assert_matrix_close(&linear_first, &expected, 1e-12);
+        let m11_expected = m11_squared_first * c(2.0 * 3.0);
+        let m12_expected = m12_squared_first * c(2.0 * 3.0);
+        let m21_expected = m21_squared_first * c(2.0 * 3.0);
+        let m22_expected = m22_squared_first * c(2.0 * 3.0);
+
+        assert_close(m11_linear_first[()], m11_expected[()], 1e-12);
+        assert_close(m12_linear_first[()], m12_expected[()], 1e-12);
+        assert_close(m21_linear_first[()], m21_expected[()], 1e-12);
+        assert_close(m22_linear_first[()], m22_expected[()], 1e-12);
     }
 
     #[test]

@@ -15,9 +15,51 @@ use crate::{
 
 pub(crate) type CartesianField<C, D> = CartesianElectromagneticField<CartesianVector3<C, D>>;
 
-type CartesianFieldFirst<C, D> = CartesianElectromagneticField<JetFirst<CartesianVector3<C, D>>>;
+pub(super) type CartesianFieldFirst<C, D> =
+    CartesianElectromagneticField<JetFirst<CartesianVector3<C, D>>>;
+
+impl<C, D> CartesianFieldFirst<C, D>
+where
+    D: Dimension,
+{
+    pub(super) fn split(self) -> (CartesianField<C, D>, CartesianField<C, D>) {
+        let (electric, magnetic) = self.into_parts();
+
+        let (electric, electric_first) = electric.into_parts();
+        let (magnetic, magnetic_first) = magnetic.into_parts();
+
+        (
+            CartesianField::new(electric, magnetic),
+            CartesianField::new(electric_first, magnetic_first),
+        )
+    }
+}
 
 type CartesianFieldSecond<C, D> = CartesianElectromagneticField<Jet<CartesianVector3<C, D>>>;
+
+impl<C, D> CartesianFieldSecond<C, D>
+where
+    D: Dimension,
+{
+    pub(super) fn split(
+        self,
+    ) -> (
+        CartesianField<C, D>,
+        CartesianField<C, D>,
+        CartesianField<C, D>,
+    ) {
+        let (electric, magnetic) = self.into_parts();
+
+        let (electric, electric_first, electric_second) = electric.into_parts();
+        let (magnetic, magnetic_first, magnetic_second) = magnetic.into_parts();
+
+        (
+            CartesianField::new(electric, magnetic),
+            CartesianField::new(electric_first, magnetic_first),
+            CartesianField::new(electric_second, magnetic_second),
+        )
+    }
+}
 
 /// Pointwise Cartesian electric and magnetic phasor fields.
 ///

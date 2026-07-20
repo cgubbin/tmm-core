@@ -1,7 +1,6 @@
 use super::{
-    BoundaryWaveSolution, BoundaryWaves, FieldPosition, FieldResponse, FieldSampling,
-    PlaneWaveFieldError, PlaneWaveFields, PlaneWavePowerBalance, plane_wave_power_balance,
-    sample_plane_wave_field_profile, sample_plane_wave_fields,
+    BoundaryWaveSolution, FieldPosition, FieldResponse, FieldSampling, PlaneWaveFieldError,
+    PlaneWaveFields, PlaneWavePowerBalance,
 };
 
 use crate::{
@@ -10,6 +9,9 @@ use crate::{
     backend::{
         PlaneWaveAmplitudes,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
+        field::observables::{
+            plane_wave_power_balance_values, sample_plane_wave_field_profile, sample_value_fields,
+        },
         plane_wave::PlaneWavePower,
     },
     material::EvaluateMaterial,
@@ -146,7 +148,12 @@ where
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
     {
-        sample_plane_wave_fields(stack, input, self.boundary_waves(), positions)
+        sample_value_fields(
+            stack,
+            input,
+            self.boundary_waves().values(),
+            positions.into_iter().collect(),
+        )
     }
 
     pub fn power_balance<M>(
@@ -156,7 +163,8 @@ where
     ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexScalar,
     {
-        plane_wave_power_balance(stack, input, self)
+        plane_wave_power_balance_values(stack, input, self)
     }
 }

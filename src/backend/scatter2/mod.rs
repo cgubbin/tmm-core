@@ -5,7 +5,7 @@ mod error;
 mod fields;
 mod matrix;
 mod mode;
-mod plane_wave;
+pub(super) mod plane_wave; // TODO: Move these
 mod raw_matrix;
 mod workspace;
 

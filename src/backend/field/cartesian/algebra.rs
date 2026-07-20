@@ -8,9 +8,8 @@ use crate::{
     },
 };
 
-pub(crate) trait CartesianVectorAlgebra<C, D>: Clone
+pub(crate) trait CartesianVectorAlgebra<T, D>: Clone
 where
-    C: ComplexScalar,
     D: Dimension,
 {
     type RealVector;
@@ -21,7 +20,7 @@ where
 
     fn conjugate(&self) -> Self;
 
-    fn scale_by(&self, factor: C) -> Self;
+    fn scale_by(&self, factor: T) -> Self;
 
     fn real_part(&self) -> Self::RealVector;
 

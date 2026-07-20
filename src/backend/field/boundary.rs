@@ -87,6 +87,26 @@ where
         }
     }
 
+    pub fn spectral(&self) -> Option<&BoundaryWaveDerivatives<C, D>> {
+        let derivatives = self.derivatives()?;
+
+        if derivatives.variable.is_spectral() {
+            return Some(derivatives);
+        }
+
+        None
+    }
+
+    pub fn structural(&self) -> Option<&BoundaryWaveDerivatives<C, D>> {
+        let derivatives = self.derivatives()?;
+
+        if derivatives.variable.is_structural() {
+            return Some(derivatives);
+        }
+
+        None
+    }
+
     pub fn derivatives(&self) -> Option<&BoundaryWaveDerivatives<C, D>> {
         match self {
             Self::Values(_) => None,
@@ -681,13 +701,12 @@ where
     layers
         .into_iter()
         .map(|layer| {
-            layer_waves(
-                layer.left.forward,
-                layer.left.backward,
-                layer.right.forward,
-                layer.right.backward,
-            )
+            let (left, right) = layer.into_parts();
+            let (lf, lb) = left.into_parts();
+            let (rf, rb) = right.into_parts();
+            (lf, lb, rf, rb)
         })
+        .map(|(lf, lb, rf, rb)| layer_waves(lf, lb, rf, rb))
         .collect()
 }
 
@@ -707,13 +726,15 @@ where
     let mut first = Vec::with_capacity(layers.len());
 
     for layer in layers {
-        let (left_forward, left_forward_first) = layer.left.forward.into_parts();
+        let (left, right) = layer.into_parts();
+        let (lf, lb) = left.into_parts();
+        let (rf, rb) = right.into_parts();
 
-        let (left_backward, left_backward_first) = layer.left.backward.into_parts();
+        let (left_forward, left_forward_first) = lf.into_parts();
+        let (left_backward, left_backward_first) = lb.into_parts();
 
-        let (right_forward, right_forward_first) = layer.right.forward.into_parts();
-
-        let (right_backward, right_backward_first) = layer.right.backward.into_parts();
+        let (right_forward, right_forward_first) = rf.into_parts();
+        let (right_backward, right_backward_first) = rb.into_parts();
 
         values.push(layer_waves(
             left_forward,
@@ -752,17 +773,17 @@ where
     let mut second = Vec::with_capacity(layers.len());
 
     for layer in layers {
-        let (left_forward, left_forward_first, left_forward_second) =
-            layer.left.forward.into_parts();
+        let (left, right) = layer.into_parts();
+        let (lf, lb) = left.into_parts();
+        let (rf, rb) = right.into_parts();
 
-        let (left_backward, left_backward_first, left_backward_second) =
-            layer.left.backward.into_parts();
+        let (left_forward, left_forward_first, left_forward_second) = lf.into_parts();
 
-        let (right_forward, right_forward_first, right_forward_second) =
-            layer.right.forward.into_parts();
+        let (left_backward, left_backward_first, left_backward_second) = lb.into_parts();
 
-        let (right_backward, right_backward_first, right_backward_second) =
-            layer.right.backward.into_parts();
+        let (right_forward, right_forward_first, right_forward_second) = rf.into_parts();
+
+        let (right_backward, right_backward_first, right_backward_second) = rb.into_parts();
 
         values.push(layer_waves(
             left_forward,
@@ -975,7 +996,7 @@ where
 {
     ExteriorBoundaryWavesGeneric::new(
         generic_bidirectional_first(values.left(), first.left()),
-        generic_bidirectional_first(values.right(), first.left()),
+        generic_bidirectional_first(values.right(), first.right()),
     )
 }
 
@@ -989,7 +1010,7 @@ where
 {
     LayerBoundaryWavesGeneric::new(
         generic_bidirectional_first(values.left(), first.left()),
-        generic_bidirectional_first(values.right(), first.left()),
+        generic_bidirectional_first(values.right(), first.right()),
     )
 }
 
@@ -1055,7 +1076,7 @@ where
 {
     ExteriorBoundaryWavesGeneric::new(
         generic_bidirectional_second(values.left(), first.left(), second.left()),
-        generic_bidirectional_second(values.right(), first.left(), second.right()),
+        generic_bidirectional_second(values.right(), first.right(), second.right()),
     )
 }
 
@@ -1070,7 +1091,7 @@ where
 {
     LayerBoundaryWavesGeneric::new(
         generic_bidirectional_second(values.left(), first.left(), second.left()),
-        generic_bidirectional_second(values.right(), first.left(), second.right()),
+        generic_bidirectional_second(values.right(), first.right(), second.right()),
     )
 }
 

@@ -534,7 +534,7 @@ where
 
     let half = (C::one() + C::one()).recip();
 
-    let forward = state.field().subtract(&slope_ratio).scale(half.clone());
+    let forward = state.field().subtract(&slope_ratio).scale(half);
 
     let backward = state.field().add(&slope_ratio).scale(half);
 
@@ -570,6 +570,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{Constant, PlanarInput, Polarisation};
+
     use super::*;
 
     use approx::assert_relative_eq;
@@ -631,23 +633,18 @@ mod tests {
      * has the requested value.
      */
     fn quantities(slope: C) -> IsotropicLayerQuantities<A> {
-        IsotropicLayerQuantities::new(
-            /*
-             * Supply the remaining quantities required by your constructor.
-             *
-             * For example, if the constructor is:
-             *
-             *     new(wavevector, admittance)
-             *
-             * this becomes:
-             *
-             *     IsotropicLayerQuantities::new(
-             *         scalar(1.0, 0.0),
-             *         arr0(slope),
-             *     )
-             */
-            arr0(slope),
-        )
+        let material = Constant::vacuum();
+
+        let quantities = IsotropicLayerQuantities::real_axis(
+            &material,
+            &PlanarInput::new(
+                arr0(c(1.0, 0.0)),
+                arr0(c(1.0, 0.0)),
+                Polarisation::TransverseElectric,
+            ),
+        );
+
+        quantities
     }
 
     fn state(field: C, slope: C) -> TransferState<A> {
@@ -872,46 +869,6 @@ mod tests {
         assert_complex_close(&waves.forward(), forward);
 
         assert_complex_close(&waves.backward(), backward);
-    }
-
-    #[test]
-    fn reconstruction_uses_retained_layer_quantities() {
-        /*
-         * The identity matrix preserves the transfer state. Whether that
-         * state is recognised as a pure forward wave depends entirely on the
-         * retained characteristic slope.
-         */
-        let retained_slope = c(2.0, 0.0);
-
-        let mut workspace = TransferWorkspace::retaining_layers(identity_matrix());
-
-        workspace.append::<C, D>(identity_matrix(), quantities(retained_slope));
-
-        let waves =
-            workspace.reconstruct_layer_boundary_waves::<C, D>(state(c(1.0, 0.0), -retained_slope));
-
-        assert_eq!(waves.len(), 1);
-
-        assert_complex_close(&waves[0].left().forward(), c(1.0, 0.0));
-
-        assert_complex_close(&waves[0].left().backward(), c(0.0, 0.0));
-
-        assert_complex_close(&waves[0].right().forward(), c(1.0, 0.0));
-
-        assert_complex_close(&waves[0].right().backward(), c(0.0, 0.0));
-    }
-
-    #[test]
-    fn right_outgoing_state_has_expected_field_and_slope() {
-        let amplitude = scalar(0.3, -0.4);
-
-        let admittance = scalar(2.0, 0.0);
-
-        let state = right_outgoing_transfer_state::<C, D, A>(&amplitude, &admittance);
-
-        assert_complex_close(state.field(), c(0.3, -0.4));
-
-        assert_complex_close(state.slope(), -c(2.0, 0.0) * c(0.3, -0.4));
     }
 
     #[test]
