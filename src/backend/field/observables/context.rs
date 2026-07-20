@@ -9,6 +9,7 @@ use crate::{
     material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
 };
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 #[derive(Clone, Debug)]
@@ -21,7 +22,7 @@ pub(super) struct AlgebraicLayerFieldData<R, A> {
 #[derive(Clone, Debug)]
 pub(super) struct AlgebraicFieldContext<C, D, A>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
     A: ScalarAlgebra<C, D>,
 {
@@ -35,7 +36,7 @@ where
 
 impl<C, D, A> AlgebraicFieldContext<C, D, A>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     C::RealField: Copy,
     D: Dimension,
     A: ScalarAlgebra<C, D>,
@@ -183,7 +184,7 @@ impl<A> AlgebraicPowerBalanceContext<A> {
         mut evaluate: F,
     ) -> Self
     where
-        C: ComplexScalar,
+        C: ComplexField,
         C::RealField: Copy,
         D: Dimension,
         F: FnMut(&M, &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> IsotropicLayerAdmittance<A>,

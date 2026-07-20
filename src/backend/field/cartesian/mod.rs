@@ -2,15 +2,13 @@ mod algebra;
 
 pub(crate) use algebra::CartesianVectorAlgebra;
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Zero;
 
-use crate::{
-    ComplexScalar,
-    backend::jet::{
-        Jet, JetAdditive, JetConjugate, JetCrossProduct, JetFirst, JetHermitianProduct,
-        JetRealPart, JetScaleBy,
-    },
+use crate::backend::jet::{
+    Jet, JetAdditive, JetConjugate, JetCrossProduct, JetFirst, JetHermitianProduct, JetRealPart,
+    JetScaleBy,
 };
 
 pub(crate) type CartesianField<C, D> = CartesianElectromagneticField<CartesianVector3<C, D>>;
@@ -96,7 +94,7 @@ impl<V> CartesianElectromagneticField<V> {
     /// Return the pointwise squared electric-field magnitude.
     pub fn electric_magnitude_squared<C, D>(&self) -> V::RealScalarField
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
         V: CartesianVectorAlgebra<C, D>,
     {
@@ -106,7 +104,7 @@ impl<V> CartesianElectromagneticField<V> {
     /// Return the pointwise squared magnetic-field magnitude.
     pub fn magnetic_magnitude_squared<C, D>(&self) -> V::RealScalarField
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
         V: CartesianVectorAlgebra<C, D>,
     {
@@ -118,7 +116,7 @@ impl<V> CartesianElectromagneticField<V> {
     /// This evaluates `1/2 E × H*`.
     pub fn complex_poynting_vector<C, D>(&self) -> V
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
         V: CartesianVectorAlgebra<C, D>,
     {
@@ -127,7 +125,7 @@ impl<V> CartesianElectromagneticField<V> {
 
     pub fn time_averaged_poynting_vector<C, D>(&self) -> V::RealVector
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
         V: CartesianVectorAlgebra<C, D>,
     {
@@ -141,7 +139,7 @@ impl<V> CartesianElectromagneticField<V> {
 
 pub(crate) fn complex_poynting<C, D, A>(electric: &A, magnetic: &A) -> A
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
     A: CartesianVectorAlgebra<C, D>,
 {
@@ -152,7 +150,7 @@ where
 
 pub(crate) fn time_averaged_poynting<C, D, A>(electric: &A, magnetic: &A) -> A::RealVector
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
     A: CartesianVectorAlgebra<C, D>,
 {
@@ -161,7 +159,7 @@ where
 
 pub(crate) fn magnitude_squared<C, D, A>(vector: &A) -> A::RealScalarField
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
     A: CartesianVectorAlgebra<C, D>,
 {
@@ -247,7 +245,7 @@ where
     /// Return the pointwise complex conjugate
     pub fn conjugate(&self) -> Self
     where
-        T: ComplexScalar,
+        T: ComplexField + Copy,
     {
         self.map(|value| value.conjugate())
     }
@@ -258,7 +256,7 @@ where
     /// product
     pub fn dot(&self, rhs: &Self) -> ArrayBase<OwnedRepr<T>, D>
     where
-        T: ComplexScalar,
+        T: ComplexField + Copy,
     {
         self.x.clone() * rhs.x.view()
             + self.y.clone() * rhs.y.view()
@@ -274,7 +272,7 @@ where
     /// ```
     pub fn hermitian_dot(&self, rhs: &Self) -> ArrayBase<OwnedRepr<T>, D>
     where
-        T: ComplexScalar,
+        T: ComplexField + Copy,
     {
         self.dot(&rhs.conjugate())
     }
@@ -284,7 +282,7 @@ where
     /// Complex conjugation is not applied.
     pub fn cross(&self, rhs: &Self) -> Self
     where
-        T: ComplexScalar,
+        T: ComplexField + Copy,
     {
         Self::new(
             self.y.clone() * rhs.z.view() - self.z.clone() * rhs.y.view(),
@@ -302,7 +300,7 @@ where
     /// ```
     pub fn magnitude_squared(&self) -> ArrayBase<OwnedRepr<T::RealField>, D>
     where
-        T: ComplexScalar,
+        T: ComplexField + Copy,
     {
         self.x.mapv(|value| value.modulus_squared())
             + self.y.mapv(|value| value.modulus_squared())
@@ -312,7 +310,7 @@ where
 
 impl<C, D> std::ops::Add<&CartesianVector3<C, D>> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -328,7 +326,7 @@ where
 
 impl<C, D> std::ops::Add for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -344,7 +342,7 @@ where
 
 impl<C, D> std::ops::Sub<&CartesianVector3<C, D>> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -360,7 +358,7 @@ where
 
 impl<C, D> std::ops::Sub for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -376,7 +374,7 @@ where
 
 impl<C, D> std::ops::Mul<ArrayBase<OwnedRepr<C>, D>> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -393,7 +391,7 @@ where
 
 impl<C, D> std::ops::Mul<&ArrayBase<OwnedRepr<C>, D>> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -410,7 +408,7 @@ where
 
 impl<C, D> std::ops::Mul<C> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -426,7 +424,7 @@ where
 
 impl<C, D> std::ops::Neg for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = CartesianVector3<C, D>;
@@ -438,7 +436,7 @@ where
 
 impl<C, D> JetAdditive for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_add(&self, rhs: &Self) -> Self {
@@ -456,7 +454,7 @@ where
 
 impl<C, D> JetScaleBy for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Scalar = C;
@@ -468,7 +466,7 @@ where
 
 impl<C, D> JetCrossProduct for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_cross(&self, rhs: &Self) -> Self {
@@ -478,7 +476,7 @@ where
 
 impl<C, D> JetHermitianProduct for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Output = ArrayBase<OwnedRepr<C>, D>;
@@ -490,7 +488,7 @@ where
 
 impl<C, D> JetConjugate for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_conjugate(&self) -> Self {
@@ -500,7 +498,7 @@ where
 
 impl<C, D> JetRealPart for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealOutput = CartesianVector3<C::RealField, D>;

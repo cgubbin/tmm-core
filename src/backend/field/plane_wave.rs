@@ -17,6 +17,7 @@ use crate::{
     material::EvaluateMaterial,
 };
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
@@ -76,7 +77,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFieldResponse<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     inner: FieldResponse<PlaneWaveResponse<C, D>, BoundaryWaveSolution<C, D>>,
@@ -84,7 +85,7 @@ where
 
 impl<C, D> PlaneWaveFieldResponse<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -124,7 +125,7 @@ where
 impl<C, D> PlaneWaveFieldResponse<C, D>
 where
     C: ComplexScalar,
-    C::RealField: Copy + Float,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     pub fn sample_fields<M>(
@@ -135,6 +136,7 @@ where
     ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
     {
         sample_plane_wave_field_profile(stack, input, self.boundary_waves(), sampling)
     }
@@ -147,6 +149,7 @@ where
     ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
     {
         sample_value_fields(
             stack,
@@ -163,7 +166,7 @@ where
     ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: ComplexScalar,
+        C::RealField: ComplexField,
     {
         plane_wave_power_balance_values(stack, input, self)
     }

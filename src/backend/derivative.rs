@@ -18,9 +18,10 @@
 //! Derivative order is not represented in this module. It is selected by the
 //! backend method called and encoded by the resulting value type.
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{ComplexScalar, backend::PlanarInput};
+use crate::backend::PlanarInput;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StructuralDerivativeVariable {
@@ -78,7 +79,7 @@ impl StructuralDerivativeVariable {
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Option<ChainRule<ArrayBase<OwnedRepr<C>, D>>>
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
     {
         let two = C::one() + C::one();
@@ -146,7 +147,7 @@ impl SpectralDerivativeVariable {
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Option<ChainRule<ArrayBase<OwnedRepr<C>, D>>>
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
     {
         let two = C::one() + C::one();
@@ -277,7 +278,7 @@ impl DerivativeVariable {
         planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Option<ChainRule<ArrayBase<OwnedRepr<C>, D>>>
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
         D: Dimension,
     {
         let two = C::one() + C::one();

@@ -13,7 +13,7 @@ use ndarray::{Array0, Ix0, arr0};
 #[derive(Clone, Debug, PartialEq)]
 pub struct OutgoingModeResponse<C>
 where
-    C: ComplexScalar,
+    C: ComplexField,
 {
     mode: OutgoingMode<C>,
     residual: C,
@@ -22,7 +22,7 @@ where
 
 impl<C> OutgoingModeResponse<C>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
 {
     pub(crate) fn new(
         mode: OutgoingMode<C>,
@@ -56,7 +56,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct OutgoingMode<C>
 where
-    C: ComplexScalar,
+    C: ComplexField,
 {
     input: PlanarInput<Array0<C>>,
     kind: OutgoingModeKind,
@@ -118,7 +118,7 @@ impl<C: ComplexScalar> OutgoingModeAmplitudes<C> {
 
 impl<C> OutgoingMode<C>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
 {
     pub fn new(input: PlanarInput<Array0<C>>) -> Self {
         let kind = match (

@@ -13,8 +13,8 @@ use either::Either;
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, IncidentSide,
-    MeromorphicMaterial,
+    ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, EvaluateMaterial,
+    IncidentSide, MeromorphicMaterial,
     material::{
         AnalyticalMaterialHandle, DifferentiableMaterialHandle, Material, MaterialHandle,
         MeromorphicMaterialHandle, sample::Sampled,
@@ -105,7 +105,7 @@ where
     R: Copy + 'static,
     C: ComplexScalar<RealField = R> + Copy + 'static,
 {
-    pub fn from_analytical_materials<L, U>(
+    pub fn from_differentiable_materials<L, U>(
         left_exterior: L,
         right_exterior: U,
     ) -> StackBuilder<DifferentiableMaterialHandle<R, C>, F>
@@ -201,11 +201,73 @@ impl<M, F> Stack<M, F> {
     where
         C: ComplexScalar<RealField = M::Real> + Copy,
         I: Sampled<Elem = M::Real>,
-        M: Material,
+        M: EvaluateMaterial<C>,
     {
         let direction = side.propagation_direction();
         let material = self.entrance_exterior(direction);
 
-        material.relative_permittivity(vacuum_wavenumber)
+        material.evaluate_relative_permittivity(vacuum_wavenumber)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        ComplexScalar, Constant, Material, Sampled, Thickness, material::MaterialHandle,
+        stack::StackBuilder,
+    };
+
+    #[derive(Clone, Debug)]
+    struct TestMaterial {
+        relative_permittivity: f64,
+    }
+
+    impl Material for TestMaterial {
+        type Real = f64;
+
+        fn relative_permeability<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+        where
+            I: Sampled<Elem = Self::Real>,
+            C: ComplexScalar<RealField = Self::Real> + Copy,
+        {
+            vacuum_wavenumber.map(|_| C::one())
+        }
+
+        fn relative_permittivity<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+        where
+            I: Sampled<Elem = Self::Real>,
+            C: ComplexScalar<RealField = Self::Real> + Copy,
+        {
+            let epsilon = C::from_real(self.relative_permittivity);
+
+            vacuum_wavenumber.map(|_| epsilon)
+        }
+    }
+
+    #[test]
+    fn material_handle_supports_heterogeneous_core_materials() {
+        type C = num_complex::Complex64;
+        type Handle = MaterialHandle<f64, C>;
+
+        let stack = StackBuilder::<Handle, f64>::from_materials(
+            Constant::dielectric(1.0),
+            TestMaterial {
+                relative_permittivity: 2.25,
+            },
+        )
+        .material_layer(
+            Constant::dielectric(4.0),
+            Thickness::from_cm(100.0).unwrap(),
+        )
+        .material_layer(
+            TestMaterial {
+                relative_permittivity: 6.25,
+            },
+            Thickness::from_cm(200.0).unwrap(),
+        )
+        .build()
+        .unwrap();
+
+        assert_eq!(stack.layers_left_to_right().len(), 2);
     }
 }

@@ -33,7 +33,7 @@
 //! κ = sqrt(ε μ k₀² - k∥²)
 //! ```
 //!
-//! using the principal complex square root supplied by [`ComplexScalar`].
+//! using the principal complex square root supplied by [`ComplexField`].
 //! No additional pointwise sign correction is applied.
 //!
 //! The principal square root is analytic away from its branch cut and branch
@@ -64,6 +64,7 @@
 mod admittance;
 mod derivatives;
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 pub(crate) use admittance::IsotropicLayerAdmittance;
@@ -135,7 +136,7 @@ impl<A> IsotropicLayerQuantities<A> {
 
     pub(crate) fn into_admittance<C, D>(self) -> IsotropicLayerAdmittance<A>
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
         A: ScalarAlgebra<C, D>,
     {
@@ -218,7 +219,7 @@ where
 // /// - when `Im(κ) == 0`, propagating waves satisfy `Re(κ) >= 0`.
 // fn outgoing_normal_wavenumber<C>(kappa_squared: C) -> C
 // where
-//     C: ComplexScalar,
+//     C: ComplexField,
 // {
 //     let kappa = kappa_squared.sqrt();
 
@@ -237,7 +238,7 @@ where
 /// No pointwise sign correction is applied.
 fn principal_normal_wavenumber<C>(squared: C) -> C
 where
-    C: ComplexScalar,
+    C: ComplexField,
 {
     squared.sqrt()
 }

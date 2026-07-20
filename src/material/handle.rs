@@ -6,8 +6,10 @@
 
 use std::{any::type_name, fmt, sync::Arc};
 
+use crate::ComplexScalar;
+
 use super::{
-    ComplexScalar, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
+    DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
     EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled, SpectralVariable,
     erased::{
@@ -20,7 +22,7 @@ use super::{
 #[derive(Clone)]
 pub struct MaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type_name: &'static str,
     inner: Arc<dyn MaterialPoint<R, C>>,
@@ -30,7 +32,7 @@ impl<M, R, C> From<M> for MaterialHandle<R, C>
 where
     M: Material<Real = R> + Send + Sync + 'static,
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     fn from(material: M) -> Self {
         Self::new(material)
@@ -40,7 +42,7 @@ where
 impl<R, C> MaterialHandle<R, C>
 where
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     /// Erase a concrete real-axis material.
     pub fn new<M>(material: M) -> Self
@@ -61,7 +63,7 @@ where
 
 impl<R, C> fmt::Debug for MaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -74,7 +76,7 @@ where
 impl<R, C> EvaluateMaterial<C> for MaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type Real = R;
 
@@ -97,7 +99,7 @@ where
 #[derive(Clone)]
 pub struct DifferentiableMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type_name: &'static str,
     inner: Arc<dyn DifferentiableMaterialPoint<R, C>>,
@@ -106,7 +108,7 @@ where
 impl<R, C> DifferentiableMaterialHandle<R, C>
 where
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     /// Erase a concrete differentiable material.
     pub fn new<M>(material: M) -> Self
@@ -129,7 +131,7 @@ impl<M, R, C> From<M> for DifferentiableMaterialHandle<R, C>
 where
     M: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     fn from(material: M) -> Self {
         Self::new(material)
@@ -138,7 +140,7 @@ where
 
 impl<R, C> fmt::Debug for DifferentiableMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -151,7 +153,7 @@ where
 impl<R, C> EvaluateMaterial<C> for DifferentiableMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type Real = R;
 
@@ -173,7 +175,7 @@ where
 impl<R, C> EvaluateDifferentiableMaterial<C> for DifferentiableMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn evaluate_relative_permittivity_derivative<I>(
         &self,
@@ -210,7 +212,7 @@ where
 #[derive(Clone)]
 pub struct MeromorphicMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type_name: &'static str,
     inner: Arc<dyn MeromorphicMaterialPoint<R, C>>,
@@ -219,7 +221,7 @@ where
 impl<R, C> MeromorphicMaterialHandle<R, C>
 where
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     /// Erase a concrete meromorphic material.
     pub fn new<M>(material: M) -> Self
@@ -242,7 +244,7 @@ impl<M, R, C> From<M> for MeromorphicMaterialHandle<R, C>
 where
     M: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     fn from(material: M) -> Self {
         Self::new(material)
@@ -251,7 +253,7 @@ where
 
 impl<R, C> fmt::Debug for MeromorphicMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -264,7 +266,7 @@ where
 impl<R, C> EvaluateMaterial<C> for MeromorphicMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type Real = R;
 
@@ -286,7 +288,7 @@ where
 impl<R, C> EvaluateMeromorphicMaterial<C> for MeromorphicMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn evaluate_relative_permittivity_complex<I>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
@@ -308,7 +310,7 @@ where
 #[derive(Clone)]
 pub struct AnalyticalMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type_name: &'static str,
     inner: Arc<dyn DifferentiableMeromorphicMaterialPoint<R, C>>,
@@ -318,7 +320,7 @@ impl<M, R, C> From<M> for AnalyticalMaterialHandle<R, C>
 where
     M: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     fn from(material: M) -> Self {
         Self::new(material)
@@ -328,7 +330,7 @@ where
 impl<R, C> AnalyticalMaterialHandle<R, C>
 where
     R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar<RealField = R> + 'static,
 {
     /// Erase a fully analytical material.
     pub fn new<M>(material: M) -> Self
@@ -349,7 +351,7 @@ where
 
 impl<R, C> fmt::Debug for AnalyticalMaterialHandle<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -362,7 +364,7 @@ where
 impl<R, C> EvaluateMaterial<C> for AnalyticalMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     type Real = R;
 
@@ -384,7 +386,7 @@ where
 impl<R, C> EvaluateDifferentiableMaterial<C> for AnalyticalMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn evaluate_relative_permittivity_derivative<I>(
         &self,
@@ -420,7 +422,7 @@ where
 impl<R, C> EvaluateMeromorphicMaterial<C> for AnalyticalMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn evaluate_relative_permittivity_complex<I>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
@@ -440,7 +442,7 @@ where
 impl<R, C> EvaluateDifferentiableMeromorphicMaterial<C> for AnalyticalMaterialHandle<R, C>
 where
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn evaluate_relative_permittivity_complex_derivative<I>(
         &self,

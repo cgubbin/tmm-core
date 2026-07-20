@@ -1,11 +1,9 @@
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{
-    ComplexScalar,
-    backend::{
-        field::CartesianVector3,
-        jet::{Jet, JetFirst},
-    },
+use crate::backend::{
+    field::CartesianVector3,
+    jet::{Jet, JetFirst},
 };
 
 pub(crate) trait CartesianVectorAlgebra<T, D>: Clone
@@ -31,7 +29,7 @@ where
 
 impl<C, D> CartesianVectorAlgebra<C, D> for CartesianVector3<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealVector = CartesianVector3<C::RealField, D>;
@@ -67,7 +65,7 @@ where
 
 impl<C, D> CartesianVectorAlgebra<C, D> for JetFirst<CartesianVector3<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealVector = JetFirst<CartesianVector3<C::RealField, D>>;
@@ -103,7 +101,7 @@ where
 
 impl<C, D> CartesianVectorAlgebra<C, D> for Jet<CartesianVector3<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealVector = Jet<CartesianVector3<C::RealField, D>>;

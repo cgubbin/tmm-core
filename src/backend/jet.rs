@@ -33,9 +33,10 @@
 //! [`JetFirst`] and [`Jet`] are reserved for calculations that actually
 //! request derivatives.
 
+use nalgebra::ComplexField;
 use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 
-use crate::{ComplexScalar, backend::derivative::ChainRule};
+use crate::backend::derivative::ChainRule;
 
 pub(crate) type ArrayJet<C, D> = Jet<ArrayBase<OwnedRepr<C>, D>>;
 pub(crate) type ArrayJetFirst<C, D> = JetFirst<ArrayBase<OwnedRepr<C>, D>>;
@@ -599,7 +600,7 @@ where
 
 impl<C, D> JetZeroLike for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_zeros_like(shape_source: &Self) -> Self {
@@ -609,7 +610,7 @@ where
 
 impl<C, D> JetAdditive for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_add(&self, rhs: &Self) -> Self {
@@ -627,7 +628,7 @@ where
 
 impl<C, D> JetBilinear for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_multiply(&self, rhs: &Self) -> Self {
@@ -641,7 +642,7 @@ where
 
 impl<C, D> JetScaleBy for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Scalar = C;
@@ -653,7 +654,7 @@ where
 
 impl<C, D> JetConstant for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type Scalar = C;
@@ -665,7 +666,7 @@ where
 
 impl<C, D> JetRealPart for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealOutput = ArrayBase<OwnedRepr<C::RealField>, D>;
@@ -677,7 +678,7 @@ where
 
 impl<C, D> JetConjugate for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn jet_conjugate(&self) -> Self {
@@ -687,7 +688,7 @@ where
 
 impl<C, D> JetField for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn elementwise_reciprocal(&self) -> Self {
@@ -697,7 +698,7 @@ where
 
 impl<C, D> ChainRuleScale<ArrayBase<OwnedRepr<C>, D>> for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn scale_by(&self, rhs: &ArrayBase<OwnedRepr<C>, D>) -> Self {
@@ -707,7 +708,7 @@ where
 
 impl<C, D> ChainRuleCoefficient for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn square(&self) -> Self {
@@ -717,7 +718,7 @@ where
 
 impl<C, D> ArrayJet<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     pub(crate) fn exp(self) -> Self {
@@ -758,7 +759,7 @@ where
 
 impl<C, D> ArrayJetFirst<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     pub(crate) fn exp(self) -> Self {
@@ -806,7 +807,7 @@ impl<I> Jet<I> {
 
 impl<C, D> ArrayJetFirst<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     pub fn sqrt(self) -> Self {
@@ -822,7 +823,7 @@ where
 
 impl<C, D> ArrayJet<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     pub fn sqrt(self) -> Self {

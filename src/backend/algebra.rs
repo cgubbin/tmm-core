@@ -1,11 +1,9 @@
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{
-    ComplexScalar,
-    backend::{
-        field::{CartesianVector3, CartesianVectorAlgebra},
-        jet::{ArrayJet, ArrayJetFirst, Jet, JetFirst},
-    },
+use crate::backend::{
+    field::{CartesianVector3, CartesianVectorAlgebra},
+    jet::{ArrayJet, ArrayJetFirst, Jet, JetFirst},
 };
 
 pub(crate) trait ScalarAlgebra<T, D>: Sized
@@ -55,7 +53,7 @@ where
 
 impl<C, D> ScalarAlgebra<C, D> for ArrayBase<OwnedRepr<C>, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealField = ArrayBase<OwnedRepr<C::RealField>, D>;
@@ -136,7 +134,7 @@ where
 
 impl<C, D> ScalarAlgebra<C, D> for ArrayJetFirst<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealField = ArrayJetFirst<C::RealField, D>;
@@ -222,7 +220,7 @@ where
 
 impl<C, D> ScalarAlgebra<C, D> for ArrayJet<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     type RealField = ArrayJet<C::RealField, D>;

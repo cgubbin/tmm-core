@@ -1,8 +1,9 @@
 use crate::{
-    ComplexScalar, DerivativeVariable, IncidentSide,
+    DerivativeVariable, IncidentSide,
     backend::jet::{ArrayJet, ArrayJetFirst},
 };
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 /// Boundary-wave values returned by an internal-field solve.
@@ -16,7 +17,7 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoundaryWaveSolution<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     /// Boundary-wave values without amplitude derivatives.
@@ -28,7 +29,7 @@ where
 
 impl<C, D> BoundaryWaveSolution<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -139,7 +140,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundaryWaves<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     exterior: ExteriorBoundaryWaves<C, D>,
@@ -148,7 +149,7 @@ where
 
 impl<C, D> BoundaryWaves<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -218,7 +219,7 @@ where
         incident_side: IncidentSide,
     ) -> ExteriorBoundaryWaves<C, D>
     where
-        C: ComplexScalar,
+        C: ComplexField,
     {
         let one = reflection.mapv(|_| C::one());
         let zero = reflection.mapv(|_| C::zero());
@@ -241,7 +242,7 @@ where
         right_outgoing: ArrayBase<OwnedRepr<C>, D>,
     ) -> Self
     where
-        C: ComplexScalar,
+        C: ComplexField,
     {
         let zero = left_outgoing.mapv(|_| C::zero());
 
@@ -360,7 +361,7 @@ where
 pub struct DifferentiatedBoundaryWaves<C, D>
 where
     D: Dimension,
-    C: ComplexScalar,
+    C: ComplexField,
 {
     values: BoundaryWaves<C, D>,
     derivatives: BoundaryWaveDerivatives<C, D>,
@@ -368,7 +369,7 @@ where
 
 impl<C, D> DifferentiatedBoundaryWaves<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -407,7 +408,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundaryWaveDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     variable: DerivativeVariable,
@@ -421,7 +422,7 @@ where
 
 impl<C, D> BoundaryWaveDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -680,7 +681,7 @@ impl<A> LayerBoundaryWavesGeneric<A> {
 
 impl<C, D> LayerBoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn scale(self, factor: ArrayBase<OwnedRepr<C>, D>) -> Self {
@@ -695,7 +696,7 @@ pub(crate) fn value_fields_from_generic<C, D>(
     layers: Vec<LayerBoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>>,
 ) -> Vec<LayerBoundaryWaves<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     layers
@@ -718,7 +719,7 @@ pub(crate) fn first_order_fields_from_generic<C, D>(
     Vec<LayerBoundaryWaveDifferential<C, D>>,
 )
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     let mut values = Vec::with_capacity(layers.len());
@@ -763,7 +764,7 @@ pub(crate) fn second_order_fields_from_generic<C, D>(
     Vec<LayerBoundaryWaveDifferential<C, D>>,
 )
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     let mut values = Vec::with_capacity(layers.len());
@@ -863,7 +864,7 @@ impl<A> BidirectionalWavesGeneric<A> {
 
 impl<C, D> BidirectionalWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn scale(self, factor: ArrayBase<OwnedRepr<C>, D>) -> Self {
@@ -908,7 +909,7 @@ pub(crate) fn generic_boundary_values<C, D>(
     waves: &BoundaryWaves<C, D>,
 ) -> BoundaryWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     BoundaryWavesGeneric::new(
@@ -958,7 +959,7 @@ pub(crate) fn generic_boundary_first<C, D>(
     derivatives: &BoundaryWaveDerivatives<C, D>,
 ) -> BoundaryWavesGeneric<ArrayJetFirst<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     BoundaryWavesGeneric::new(
@@ -977,7 +978,7 @@ fn generic_bidirectional_first<C, D>(
     first: &BidirectionalWaveDifferential<C, D>,
 ) -> BidirectionalWavesGeneric<ArrayJetFirst<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     BidirectionalWavesGeneric::new(
@@ -991,7 +992,7 @@ fn generic_exterior_first<C, D>(
     first: &ExteriorBoundaryWaveDifferential<C, D>,
 ) -> ExteriorBoundaryWavesGeneric<ArrayJetFirst<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     ExteriorBoundaryWavesGeneric::new(
@@ -1005,7 +1006,7 @@ fn generic_layer_first<C, D>(
     first: &LayerBoundaryWaveDifferential<C, D>,
 ) -> LayerBoundaryWavesGeneric<ArrayJetFirst<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     LayerBoundaryWavesGeneric::new(
@@ -1019,7 +1020,7 @@ pub(crate) fn generic_boundary_second<C, D>(
     derivatives: &BoundaryWaveDerivatives<C, D>,
 ) -> Option<BoundaryWavesGeneric<ArrayJet<C, D>>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     let exterior_second = derivatives.exterior_second()?;
@@ -1048,7 +1049,7 @@ fn generic_bidirectional_second<C, D>(
     second: &BidirectionalWaveDifferential<C, D>,
 ) -> BidirectionalWavesGeneric<ArrayJet<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     BidirectionalWavesGeneric::new(
@@ -1071,7 +1072,7 @@ fn generic_exterior_second<C, D>(
     second: &ExteriorBoundaryWaveDifferential<C, D>,
 ) -> ExteriorBoundaryWavesGeneric<ArrayJet<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     ExteriorBoundaryWavesGeneric::new(
@@ -1086,7 +1087,7 @@ fn generic_layer_second<C, D>(
     second: &LayerBoundaryWaveDifferential<C, D>,
 ) -> LayerBoundaryWavesGeneric<ArrayJet<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     LayerBoundaryWavesGeneric::new(

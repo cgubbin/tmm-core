@@ -18,6 +18,7 @@
 //!
 //!
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
@@ -213,7 +214,7 @@ where
     /// Returns `None` when the residual was evaluated without derivatives.
     pub fn logarithmic_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>>
     where
-        C: ComplexScalar,
+        C: ComplexField,
     {
         Some(self.derivatives()?.first().clone() / self.value.view())
     }
@@ -227,7 +228,7 @@ where
     /// Returns `None` unless second derivatives are available.
     pub fn logarithmic_second_derivative(&self) -> Option<ArrayBase<OwnedRepr<C>, D>>
     where
-        C: ComplexScalar,
+        C: ComplexField + Copy,
     {
         let first = self.derivatives()?.first();
         let second = self.derivatives()?.second()?;

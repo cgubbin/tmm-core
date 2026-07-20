@@ -31,10 +31,11 @@
 //! the plane-wave power coefficients, but is not necessarily expressed in SI
 //! power-density units.
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
-    ComplexScalar, Polarisation,
+    Polarisation,
     backend::{
         algebra::ScalarAlgebra,
         field::{BidirectionalWavesGeneric, CartesianElectromagneticField},
@@ -93,7 +94,7 @@ impl<A> IsotropicFieldState<A> {
 
     pub(crate) fn from_waves<C, D>(waves: &BidirectionalWavesGeneric<A>, admittance: &A) -> Self
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
         A: ScalarAlgebra<C, D>,
     {
@@ -108,7 +109,7 @@ impl<A> IsotropicFieldState<A> {
 
     pub fn primary_magnitude_squared<C, D>(&self) -> A::RealField
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
         A: ScalarAlgebra<C, D>,
     {
@@ -117,7 +118,7 @@ impl<A> IsotropicFieldState<A> {
 
     pub fn normal_flux<C, D>(&self) -> A::RealField
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
         A: ScalarAlgebra<C, D>,
     {
@@ -142,7 +143,7 @@ impl<A> IsotropicFieldState<A> {
         mu: &A,
     ) -> CartesianElectromagneticField<A::Vector>
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
         A: ScalarAlgebra<C, D> + Clone,
     {
@@ -158,7 +159,7 @@ impl<C, D> IsotropicFieldState<ArrayJetFirst<C, D>> {
         IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
     )
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
     {
         let (primary, dual) = self.into_parts();
@@ -182,7 +183,7 @@ impl<C, D> IsotropicFieldState<ArrayJet<C, D>> {
         IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
     )
     where
-        C: ComplexScalar,
+        C: ComplexField,
         D: Dimension,
     {
         let (primary, dual) = self.into_parts();
@@ -206,7 +207,7 @@ pub(crate) fn reconstruct_isotropic_cartesian_fields<C, D, A>(
     mu: &A,
 ) -> CartesianElectromagneticField<A::Vector>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {
@@ -227,7 +228,7 @@ fn reconstruct_te<C, D, A>(
     mu: &A,
 ) -> CartesianElectromagneticField<A::Vector>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {
@@ -250,7 +251,7 @@ fn reconstruct_tm<C, D, A>(
     epsilon: &A,
 ) -> CartesianElectromagneticField<A::Vector>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {

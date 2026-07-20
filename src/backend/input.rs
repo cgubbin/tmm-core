@@ -12,7 +12,7 @@
 //! the same inverse-length unit. The backend does not perform unit conversion
 //! or implicit broadcasting.
 
-use crate::ComplexScalar;
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 /// Polarisation supported by isotropic planar backends.
@@ -187,7 +187,7 @@ impl<I> PlaneWaveInput<I> {
 impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
     pub(crate) fn complex_planar_input<C>(&self) -> PlanarInput<ArrayBase<OwnedRepr<C>, D>>
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         C::RealField: Copy,
         D: Dimension,
     {
@@ -196,7 +196,7 @@ impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
 
     pub(crate) fn to_complex<C>(&self) -> PlaneWaveInput<ArrayBase<OwnedRepr<C>, D>>
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         C::RealField: Copy,
         D: Dimension,
     {
@@ -210,7 +210,7 @@ impl<R, D> PlaneWaveInput<ArrayBase<OwnedRepr<R>, D>> {
 impl<R, D> PlanarInput<ArrayBase<OwnedRepr<R>, D>> {
     pub(crate) fn to_complex<C>(&self) -> PlanarInput<ArrayBase<OwnedRepr<C>, D>>
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         C::RealField: Copy,
         D: Dimension,
     {

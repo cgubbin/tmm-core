@@ -8,7 +8,8 @@ use crate::{
     },
 };
 
-use ndarray::{Dimension, Ix0};
+use nalgebra::ComplexField;
+use ndarray::Ix0;
 
 /// Backend capable of reconstructing the outgoing internal waves associated
 /// with a source-free mode.
@@ -39,14 +40,14 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModeFieldResponse<C>
 where
-    C: ComplexScalar,
+    C: ComplexField,
 {
     inner: FieldResponse<OutgoingModeResponse<C>, BoundaryWaveSolution<C, Ix0>>,
 }
 
 impl<C> ModeFieldResponse<C>
 where
-    C: ComplexScalar,
+    C: ComplexField,
 {
     pub(crate) fn new(
         response: OutgoingModeResponse<C>,

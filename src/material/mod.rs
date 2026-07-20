@@ -160,9 +160,9 @@ pub use sample::Scalar;
 pub use sample::{Sampled, TensorSampled};
 // use tensor::{DiagonalTensorMaterial, TensorMaterial};
 
-use crate::ComplexScalar;
-
 use num_traits::{One, Zero};
+
+use crate::ComplexScalar;
 
 /// Differentiation variable for material response functions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -225,7 +225,7 @@ pub trait Material {
     /// Return the relative permittivity.
     fn relative_permittivity<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>;
 
     /// Return the relative permeability.
@@ -233,7 +233,7 @@ pub trait Material {
     /// The default implementation represents a non-magnetic material.
     fn relative_permeability<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>,
     {
         vacuum_wavenumber.map(|_| C::from_real(Self::Real::one()))
@@ -276,7 +276,7 @@ pub trait DifferentiableMaterial: Material {
         variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>;
 
     /// Return a derivative of the relative permeability.
@@ -289,7 +289,7 @@ pub trait DifferentiableMaterial: Material {
         _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>,
     {
         vacuum_wavenumber.map(|_| C::from_real(Self::Real::zero()))
@@ -328,13 +328,13 @@ pub trait MeromorphicMaterial: Material {
     /// Return the complex relative permittivity.
     fn relative_permittivity_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>;
 
     /// Return the complex relative permeability.
     fn relative_permeability_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>;
 }
 
@@ -365,7 +365,7 @@ pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + Differentiabl
         variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>;
 
     /// Return a complex derivative of the relative permeability.
@@ -376,7 +376,7 @@ pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + Differentiabl
         _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
-        C: ComplexScalar<RealField = Self::Real> + Copy,
+        C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>,
     {
         vacuum_wavenumber.map(|_| C::from_real(Self::Real::zero()))

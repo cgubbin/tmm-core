@@ -8,9 +8,10 @@
 //! preserving static dispatch for homogeneous stacks.
 
 use super::{
-    ComplexScalar, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
-    Material, MeromorphicMaterial, Sampled, SpectralVariable,
+    DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
+    MeromorphicMaterial, Sampled, SpectralVariable,
 };
+use crate::ComplexScalar;
 
 /// Real-axis evaluation of an isotropic material using a fixed complex scalar.
 ///
@@ -19,7 +20,7 @@ use super::{
 /// implementation.
 pub trait EvaluateMaterial<C>
 where
-    C: ComplexScalar<RealField = Self::Real> + Copy,
+    C: ComplexScalar<RealField = Self::Real>,
 {
     /// Real scalar used for the spectral coordinate.
     type Real: Copy;
@@ -39,7 +40,7 @@ impl<M, C> EvaluateMaterial<C> for M
 where
     M: Material,
     M::Real: Copy,
-    C: ComplexScalar<RealField = M::Real> + Copy,
+    C: ComplexScalar<RealField = M::Real>,
 {
     type Real = M::Real;
 
@@ -61,7 +62,7 @@ where
 /// Real-axis material derivatives using a fixed complex scalar.
 pub trait EvaluateDifferentiableMaterial<C>: EvaluateMaterial<C>
 where
-    C: ComplexScalar<RealField = Self::Real> + Copy,
+    C: ComplexScalar<RealField = Self::Real>,
 {
     /// Evaluate a derivative of relative permittivity.
     fn evaluate_relative_permittivity_derivative<I>(
@@ -87,7 +88,7 @@ impl<M, C> EvaluateDifferentiableMaterial<C> for M
 where
     M: DifferentiableMaterial,
     M::Real: Copy,
-    C: ComplexScalar<RealField = M::Real> + Copy,
+    C: ComplexScalar<RealField = M::Real>,
 {
     fn evaluate_relative_permittivity_derivative<I>(
         &self,
@@ -117,7 +118,7 @@ where
 /// Complex-frequency constitutive evaluation using a fixed complex scalar.
 pub trait EvaluateMeromorphicMaterial<C>: EvaluateMaterial<C>
 where
-    C: ComplexScalar<RealField = Self::Real> + Copy,
+    C: ComplexScalar<RealField = Self::Real>,
 {
     /// Evaluate relative permittivity at complex vacuum wavenumber.
     fn evaluate_relative_permittivity_complex<I>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
@@ -133,7 +134,7 @@ impl<M, C> EvaluateMeromorphicMaterial<C> for M
 where
     M: MeromorphicMaterial,
     M::Real: Copy,
-    C: ComplexScalar<RealField = M::Real> + Copy,
+    C: ComplexScalar<RealField = M::Real>,
 {
     fn evaluate_relative_permittivity_complex<I>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
     where
@@ -154,7 +155,7 @@ where
 pub trait EvaluateDifferentiableMeromorphicMaterial<C>:
     EvaluateDifferentiableMaterial<C> + EvaluateMeromorphicMaterial<C>
 where
-    C: ComplexScalar<RealField = Self::Real> + Copy,
+    C: ComplexScalar<RealField = Self::Real>,
 {
     /// Evaluate a derivative of relative permittivity at complex vacuum
     /// wavenumber.
@@ -181,7 +182,7 @@ impl<M, C> EvaluateDifferentiableMeromorphicMaterial<C> for M
 where
     M: DifferentiableMeromorphicMaterial,
     M::Real: Copy,
-    C: ComplexScalar<RealField = M::Real> + Copy,
+    C: ComplexScalar<RealField = M::Real>,
 {
     fn evaluate_relative_permittivity_complex_derivative<I>(
         &self,

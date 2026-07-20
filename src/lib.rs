@@ -16,9 +16,13 @@ pub use backend::{
 pub use backend::scatter2::Scatter2;
 pub use backend::transfer2::Transfer2;
 pub use material::{
-    Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
-    MeromorphicMaterial, Sampled, Scalar, SpectralVariable,
+    Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
+    EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
+    EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled, Scalar, SpectralVariable,
 };
+
 pub use scalar::ComplexScalar;
 
-pub use stack::{Layer, Stack, Thickness, ValidationConfig};
+pub use stack::{
+    DifferentiableMaterialStack, Layer, MaterialStack, Stack, Thickness, ValidationConfig,
+};

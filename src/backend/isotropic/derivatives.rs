@@ -30,6 +30,7 @@
 //! Derivatives with respect to linear `k₀` and `k∥` are obtained later using
 //! the shared jet chain-rule transformation.
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{

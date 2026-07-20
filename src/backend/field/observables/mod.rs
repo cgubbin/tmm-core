@@ -82,7 +82,7 @@ mod tests {
 
     use crate::backend::{
         IsotropicFieldState,
-        field::{BidirectionalWavesGeneric, LayerBoundaryWavesGeneric},
+        field::{BidirectionalWaves, BidirectionalWavesGeneric, LayerBoundaryWavesGeneric},
     };
 
     use super::*;

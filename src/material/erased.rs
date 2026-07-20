@@ -5,13 +5,14 @@
 //! implementations.
 
 use super::{
-    ComplexScalar, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
-    Material, MeromorphicMaterial, Scalar, SpectralVariable,
+    DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
+    MeromorphicMaterial, Scalar, SpectralVariable,
 };
+use crate::ComplexScalar;
 
 pub(crate) trait MaterialPoint<R, C>: Send + Sync
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permeability_at(&self, vacuum_wavenumber: R) -> C;
 
@@ -22,7 +23,7 @@ impl<M, R, C> MaterialPoint<R, C> for M
 where
     M: Material<Real = R> + Send + Sync,
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permeability_at(&self, vacuum_wavenumber: R) -> C {
         self.relative_permeability::<_, C>(Scalar(vacuum_wavenumber))
@@ -35,7 +36,7 @@ where
 
 pub(crate) trait DifferentiableMaterialPoint<R, C>: MaterialPoint<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_derivative_at(
         &self,
@@ -56,7 +57,7 @@ impl<M, R, C> DifferentiableMaterialPoint<R, C> for M
 where
     M: DifferentiableMaterial<Real = R> + Send + Sync,
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_derivative_at(
         &self,
@@ -79,7 +80,7 @@ where
 
 pub(crate) trait MeromorphicMaterialPoint<R, C>: MaterialPoint<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_complex_at(&self, vacuum_wavenumber: C) -> C;
     fn relative_permeability_complex_at(&self, vacuum_wavenumber: C) -> C;
@@ -89,7 +90,7 @@ impl<M, R, C> MeromorphicMaterialPoint<R, C> for M
 where
     M: MeromorphicMaterial<Real = R> + Send + Sync,
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_complex_at(&self, vacuum_wavenumber: C) -> C {
         self.relative_permittivity_complex(Scalar(vacuum_wavenumber))
@@ -103,7 +104,7 @@ where
 pub(crate) trait DifferentiableMeromorphicMaterialPoint<R, C>:
     DifferentiableMaterialPoint<R, C> + MeromorphicMaterialPoint<R, C>
 where
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_complex_derivative_at(
         &self,
@@ -124,7 +125,7 @@ impl<M, R, C> DifferentiableMeromorphicMaterialPoint<R, C> for M
 where
     M: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync,
     R: Copy,
-    C: ComplexScalar<RealField = R> + Copy,
+    C: ComplexScalar<RealField = R>,
 {
     fn relative_permittivity_complex_derivative_at(
         &self,

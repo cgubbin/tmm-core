@@ -1,3 +1,4 @@
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
@@ -48,11 +49,7 @@ where
 {
     pub(crate) fn from_values(
         balance: AlgebraicPlaneWavePowerBalance<ArrayBase<OwnedRepr<R>, D>>,
-    ) -> Self
-    where
-        R: ComplexScalar,
-        D: Dimension,
-    {
+    ) -> Self {
         Self {
             incident_flux: balance.incident_flux,
             reflected_flux: balance.reflected_flux,
@@ -67,11 +64,7 @@ where
     pub(crate) fn from_first_order(
         variable: DerivativeVariable,
         balance: AlgebraicPlaneWavePowerBalance<ArrayJetFirst<R, D>>,
-    ) -> Self
-    where
-        R: ComplexScalar,
-        D: Dimension,
-    {
+    ) -> Self {
         let (incident_flux, incident_flux_first) = balance.incident_flux.into_parts();
 
         let (reflected_flux, reflected_flux_first) = balance.reflected_flux.into_parts();
@@ -118,11 +111,7 @@ where
     pub(crate) fn from_second_order(
         variable: DerivativeVariable,
         balance: AlgebraicPlaneWavePowerBalance<ArrayJet<R, D>>,
-    ) -> Self
-    where
-        R: ComplexScalar,
-        D: Dimension,
-    {
+    ) -> Self {
         let (incident_flux, incident_flux_first, incident_flux_second) =
             balance.incident_flux.into_parts();
 
@@ -308,6 +297,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub(super) struct AlgebraicPlaneWavePowerBalance<A> {
     pub(super) incident_flux: A,
     pub(super) reflected_flux: A,
@@ -328,7 +318,7 @@ where
 {
     fn from_values<C>(response: &PlaneWaveFieldResponse<C, D>) -> Self
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         R: Clone,
     {
         Self {
@@ -346,7 +336,7 @@ where
         response: &PlaneWaveFieldResponse<C, D>,
     ) -> Result<Self, PlaneWaveFieldError<R>>
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         R: Clone,
     {
         let derivatives = response
@@ -375,7 +365,7 @@ where
         response: &PlaneWaveFieldResponse<C, D>,
     ) -> Result<Self, PlaneWaveFieldError<C::RealField>>
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         R: Clone,
     {
         let first = response
@@ -411,7 +401,7 @@ pub(crate) fn plane_wave_power_balance_values<M, C, D>(
 where
     M: EvaluateMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
-    C::RealField: Copy + ComplexScalar,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     let context = power_balance_value_context(stack, input);
@@ -432,7 +422,7 @@ pub(super) fn plane_wave_power_balance_structural_first<M, C, D>(
 where
     M: EvaluateMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
-    C::RealField: Copy + ComplexScalar,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     let differentiated = response
@@ -466,7 +456,7 @@ pub(super) fn plane_wave_power_balance_structural_second<M, C, D>(
 where
     M: EvaluateMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
-    C::RealField: Copy + ComplexScalar,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     let differentiated = response
@@ -502,7 +492,7 @@ pub(super) fn plane_wave_power_balance_spectral_first<M, C, D>(
 where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
-    C::RealField: Copy + ComplexScalar,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     let differentiated = response
@@ -536,7 +526,7 @@ pub(super) fn plane_wave_power_balance_spectral_second<M, C, D>(
 where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
-    C::RealField: Copy + ComplexScalar,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
 {
     let differentiated = response
@@ -573,6 +563,7 @@ where
     A: ScalarAlgebra<C, D> + Clone,
     A::RealField: ScalarAlgebra<C::RealField, D> + Clone,
     C: ComplexScalar,
+    C::RealField: ComplexField,
     D: Dimension,
 {
     validate_generic_layer_count(context.layers.len(), waves)?;
@@ -676,3 +667,410 @@ where
 
     Ok(incident)
 }
+
+// #[cfg(test)]
+// mod tests {
+
+//     use super::*;
+//     use crate::{
+//         IncidentSide,
+//         backend::{
+//             field::{BidirectionalWavesGeneric, LayerBoundaryWavesGeneric},
+//             isotropic::IsotropicLayerAdmittance,
+//         },
+//     };
+
+//     use approx::assert_relative_eq;
+//     use ndarray::{Array0, Ix0};
+//     use num_complex::Complex64;
+
+//     type C = Complex64;
+//     type D = Ix0;
+//     type A = Array0<C>;
+
+//     const TOLERANCE: f64 = 1.0e-12;
+
+//     fn c(re: f64, im: f64) -> C {
+//         C::new(re, im)
+//     }
+
+//     fn scalar(re: f64, im: f64) -> A {
+//         Array0::from_elem((), c(re, im))
+//     }
+
+//     fn real_scalar(value: f64) -> Array0<f64> {
+//         Array0::from_elem((), value)
+//     }
+
+//     fn assert_complex_close(actual: &A, expected: C) {
+//         assert_relative_eq!(actual[()].re, expected.re, epsilon = TOLERANCE);
+
+//         assert_relative_eq!(actual[()].im, expected.im, epsilon = TOLERANCE);
+//     }
+
+//     fn assert_real_close(actual: &Array0<f64>, expected: f64) {
+//         assert_relative_eq!(actual[()], expected, epsilon = TOLERANCE);
+//     }
+
+//     fn power_context(
+//         incident_side: IncidentSide,
+//         exterior_admittance: f64,
+//         layer_admittances: &[f64],
+//     ) -> AlgebraicPowerBalanceContext<A> {
+//         AlgebraicPowerBalanceContext {
+//             incident_side,
+
+//             left_admittance: IsotropicLayerAdmittance::new(scalar(exterior_admittance, 0.0)),
+
+//             right_admittance: IsotropicLayerAdmittance::new(scalar(exterior_admittance, 0.0)),
+
+//             layers: layer_admittances
+//                 .iter()
+//                 .map(|value| IsotropicLayerAdmittance::new(scalar(*value, 0.0)))
+//                 .collect(),
+//         }
+//     }
+
+//     #[test]
+//     fn empty_lossless_stack_has_zero_absorption_and_residual() {
+//         let context = power_context(IncidentSide::Left, 2.0, &[]);
+
+//         let waves = boundary_waves_without_layers(
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//         );
+
+//         let reflectance = Array0::from_elem((), 0.0);
+//         let transmittance = Array0::from_elem((), 1.0);
+
+//         let response = AlgebraicPowerResponse {
+//             reflectance,
+//             transmittance,
+//         };
+
+//         let result = plane_wave_power_balance_algebraic(&context, &waves, &response).unwrap();
+
+//         assert_real_close(&result.incident_flux, 1.0);
+//         assert_real_close(&result.reflected_flux, 0.0);
+//         assert_real_close(&result.transmitted_flux, 1.0);
+//         assert!(result.layer_absorptance.is_empty());
+//         assert_real_close(&result.total_layer_absorptance, 0.0);
+//         assert_real_close(&result.balance_residual, 0.0);
+//     }
+
+//     #[test]
+//     fn reflected_and_transmitted_flux_are_scaled_by_incident_flux() {
+//         let context = power_context(IncidentSide::Left, 4.0, &[]);
+
+//         let waves = boundary_waves_without_layers(
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//         );
+
+//         let result = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.25),
+//                 transmittance: Array0::from_elem((), 0.50),
+//             },
+//         )
+//         .unwrap();
+
+//         assert_real_close(&result.incident_flux, 2.0);
+//         assert_real_close(&result.reflected_flux, 0.5);
+//         assert_real_close(&result.transmitted_flux, 1.0);
+
+//         assert_real_close(&result.balance_residual, 0.25);
+//     }
+
+//     #[test]
+//     fn lossless_layer_with_equal_boundary_flux_has_zero_absorptance() {
+//         let context = power_context(IncidentSide::Left, 2.0, &[2.0]);
+
+//         let layer = LayerBoundaryWavesGeneric::new(
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//         );
+
+//         let waves = boundary_waves_with_layers(vec![layer]);
+
+//         let result = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.0),
+//                 transmittance: Array0::from_elem((), 1.0),
+//             },
+//         )
+//         .unwrap();
+
+//         assert_real_close(&result.layer_absorptance[0], 0.0);
+//         assert_real_close(&result.total_layer_absorptance, 0.0);
+//         assert_real_close(&result.balance_residual, 0.0);
+//     }
+
+//     #[test]
+//     fn layer_absorptance_is_normalised_flux_drop() {
+//         let context = power_context(IncidentSide::Left, 2.0, &[2.0]);
+
+//         let layer = LayerBoundaryWavesGeneric::new(
+//             BidirectionalWavesGeneric::new(scalar(1.0, 0.0), scalar(0.0, 0.0)),
+//             BidirectionalWavesGeneric::new(scalar(0.6_f64.sqrt(), 0.0), scalar(0.0, 0.0)),
+//         );
+
+//         let waves = boundary_waves_with_layers(vec![layer]);
+
+//         let result = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.1),
+//                 transmittance: Array0::from_elem((), 0.5),
+//             },
+//         )
+//         .unwrap();
+
+//         assert_real_close(&result.layer_absorptance[0], 0.4);
+//         assert_real_close(&result.total_layer_absorptance, 0.4);
+//         assert_real_close(&result.balance_residual, 0.0);
+//     }
+
+//     #[test]
+//     fn total_layer_absorptance_is_sum_of_layer_absorptances() {
+//         let context = power_context(IncidentSide::Left, 2.0, &[2.0, 2.0]);
+
+//         let first = layer_with_forward_fluxes(1.0, 0.8);
+//         let second = layer_with_forward_fluxes(0.8, 0.5);
+
+//         let waves = boundary_waves_with_layers(vec![first, second]);
+
+//         let result = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.1),
+//                 transmittance: Array0::from_elem((), 0.4),
+//             },
+//         )
+//         .unwrap();
+
+//         assert_real_close(&result.layer_absorptance[0], 0.2);
+//         assert_real_close(&result.layer_absorptance[1], 0.3);
+//         assert_real_close(&result.total_layer_absorptance, 0.5);
+//         assert_real_close(&result.balance_residual, 0.0);
+//     }
+
+//     #[test]
+//     fn right_incidence_uses_signed_flux_consistently() {
+//         let context = power_context(IncidentSide::Right, 2.0, &[2.0]);
+
+//         /*
+//          * Right boundary incident flux: -1.0.
+//          * Left boundary exiting flux:  -0.7.
+//          *
+//          * left_flux - right_flux = -0.7 - (-1.0) = 0.3.
+//          */
+//         let layer = LayerBoundaryWavesGeneric::new(
+//             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), scalar(0.7_f64.sqrt(), 0.0)),
+//             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), scalar(1.0, 0.0)),
+//         );
+
+//         let waves = boundary_waves_with_layers(vec![layer]);
+
+//         let result = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.1),
+//                 transmittance: Array0::from_elem((), 0.6),
+//             },
+//         )
+//         .unwrap();
+
+//         assert_real_close(&result.incident_flux, 1.0);
+//         assert_real_close(&result.layer_absorptance[0], 0.3);
+//         assert_real_close(&result.balance_residual, 0.0);
+//     }
+
+//     #[test]
+//     fn power_balance_rejects_layer_count_mismatch() {
+//         let context = power_context(IncidentSide::Left, 2.0, &[2.0, 2.0]);
+
+//         let waves = boundary_waves_with_layers(vec![layer_with_forward_fluxes(1.0, 0.8)]);
+
+//         let error = plane_wave_power_balance_algebraic(
+//             &context,
+//             &waves,
+//             &AlgebraicPowerResponse {
+//                 reflectance: Array0::from_elem((), 0.0),
+//                 transmittance: Array0::from_elem((), 1.0),
+//             },
+//         )
+//         .unwrap_err();
+
+//         assert!(matches!(
+//             error,
+//             PlaneWaveFieldError::LayerCountMismatch {
+//                 expected: 2,
+//                 actual: 1,
+//             }
+//         ));
+//     }
+
+//     #[test]
+//     fn first_order_power_balance_is_split_correctly() {
+//         let balance = AlgebraicPlaneWavePowerBalance {
+//             incident_flux: real_first_jet(1.0, 11.0),
+//             reflected_flux: real_first_jet(2.0, 12.0),
+//             transmitted_flux: real_first_jet(3.0, 13.0),
+
+//             layer_absorptance: vec![real_first_jet(4.0, 14.0), real_first_jet(5.0, 15.0)],
+
+//             total_layer_absorptance: real_first_jet(6.0, 16.0),
+//             balance_residual: real_first_jet(7.0, 17.0),
+//         };
+
+//         let result =
+//             PlaneWavePowerBalance::from_first_order(DerivativeVariable::Thickness(0), balance);
+
+//         assert_real_close(result.incident_flux(), 1.0);
+//         assert_real_close(result.reflected_flux(), 2.0);
+//         assert_real_close(result.transmitted_flux(), 3.0);
+
+//         assert_real_close(&result.layer_absorptance()[0], 4.0);
+//         assert_real_close(&result.layer_absorptance()[1], 5.0);
+
+//         assert_real_close(result.total_layer_absorptance(), 6.0);
+//         assert_real_close(result.balance_residual(), 7.0);
+
+//         let derivatives = result.derivatives().unwrap();
+
+//         assert_eq!(derivatives.variable(), DerivativeVariable::Thickness(0),);
+
+//         let first = derivatives.first();
+
+//         assert_real_close(first.incident_flux(), 11.0);
+//         assert_real_close(first.reflected_flux(), 12.0);
+//         assert_real_close(first.transmitted_flux(), 13.0);
+
+//         assert_real_close(&first.layer_absorptance()[0], 14.0);
+//         assert_real_close(&first.layer_absorptance()[1], 15.0);
+
+//         assert_real_close(first.total_layer_absorptance(), 16.0);
+//         assert_real_close(first.balance_residual(), 17.0);
+
+//         assert!(derivatives.second().is_none());
+//     }
+
+//     fn real_first_jet(value: f64, first: f64) -> ArrayJetFirst<f64, Ix0> {
+//         ArrayJetFirst::from_parts(Array0::from_elem((), value), Array0::from_elem((), first))
+//     }
+
+//     #[test]
+//     fn second_order_power_balance_is_split_correctly() {
+//         let balance = AlgebraicPlaneWavePowerBalance {
+//             incident_flux: real_second_jet(1.0, 11.0, 21.0),
+//             reflected_flux: real_second_jet(2.0, 12.0, 22.0),
+//             transmitted_flux: real_second_jet(3.0, 13.0, 23.0),
+
+//             layer_absorptance: vec![
+//                 real_second_jet(4.0, 14.0, 24.0),
+//                 real_second_jet(5.0, 15.0, 25.0),
+//             ],
+
+//             total_layer_absorptance: real_second_jet(6.0, 16.0, 26.0),
+
+//             balance_residual: real_second_jet(7.0, 17.0, 27.0),
+//         };
+
+//         let result =
+//             PlaneWavePowerBalance::from_second_order(DerivativeVariable::Thickness(0), balance);
+
+//         let derivatives = result.derivatives().unwrap();
+//         let first = derivatives.first();
+//         let second = derivatives.second().unwrap();
+
+//         assert_real_close(first.incident_flux(), 11.0);
+//         assert_real_close(second.incident_flux(), 21.0);
+
+//         assert_real_close(first.reflected_flux(), 12.0);
+//         assert_real_close(second.reflected_flux(), 22.0);
+
+//         assert_real_close(first.transmitted_flux(), 13.0);
+//         assert_real_close(second.transmitted_flux(), 23.0);
+
+//         assert_real_close(&first.layer_absorptance()[0], 14.0);
+//         assert_real_close(&second.layer_absorptance()[0], 24.0);
+
+//         assert_real_close(first.total_layer_absorptance(), 16.0);
+//         assert_real_close(second.total_layer_absorptance(), 26.0);
+
+//         assert_real_close(first.balance_residual(), 17.0);
+//         assert_real_close(second.balance_residual(), 27.0);
+//     }
+
+//     fn real_second_jet(value: f64, first: f64, second: f64) -> ArrayJet<f64, Ix0> {
+//         ArrayJet::from_parts(
+//             Array0::from_elem((), value),
+//             Array0::from_elem((), first),
+//             Array0::from_elem((), second),
+//         )
+//     }
+
+//     #[test]
+//     fn first_order_balance_derivative_obeys_conservation_expression() {
+//         type J = ArrayJetFirst<C, Ix0>;
+
+//         let context = power_balance_spectral_first_context(
+//             IncidentSide::Left,
+//             /* Y = */ 2.0,
+//             /* Y' = */ 0.0,
+//             &[],
+//         );
+
+//         let waves = first_order_boundary_waves_without_layers();
+
+//         let reflectance = real_first_jet(0.2, 0.03);
+//         let transmittance = real_first_jet(0.7, -0.01);
+
+//         let result = plane_wave_power_balance_algebraic::<C, D, J>(
+//             &context,
+//             &waves,
+//             &reflectance,
+//             &transmittance,
+//         )
+//         .unwrap();
+
+//         let (residual, residual_first) = result.balance_residual.into_parts();
+
+//         assert_real_close(&residual, 0.1);
+//         assert_real_close(&residual_first, -0.02);
+//     }
+
+//     #[test]
+//     fn second_order_balance_derivative_obeys_conservation_expression() {
+//         type J = ArrayJet<C, Ix0>;
+
+//         let context = second_order_power_context(IncidentSide::Left, 2.0, 0.0, 0.0, &[]);
+
+//         let waves = second_order_boundary_waves_without_layers();
+
+//         let reflectance = real_second_jet(0.2, 0.03, 0.04);
+//         let transmittance = real_second_jet(0.7, -0.01, -0.02);
+
+//         let result = plane_wave_power_balance_algebraic::<C, D, J>(
+//             &context,
+//             &waves,
+//             &reflectance,
+//             &transmittance,
+//         )
+//         .unwrap();
+
+//         let (residual, first, second) = result.balance_residual.into_parts();
+
+//         assert_real_close(&residual, 0.1);
+//         assert_real_close(&first, -0.02);
+//         assert_real_close(&second, -0.02);
+//     }
+// }

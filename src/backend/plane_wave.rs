@@ -16,6 +16,7 @@
 //! spectral evaluation remains available through the raw-matrix and
 //! outgoing-mode backend capabilities.
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr, Zip};
 use num_traits::Float;
 
@@ -108,7 +109,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveResponse<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     amplitudes: PlaneWaveAmplitudes<C, D>,
@@ -118,7 +119,7 @@ where
 
 impl<C, D> PlaneWaveResponse<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     /// Construct a value-only physical plane-wave response.
@@ -215,7 +216,7 @@ where
 
 impl<C, D> PlaneWaveResponse<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     C::RealField: Float,
     D: Dimension,
 {
@@ -246,7 +247,10 @@ where
         incident_normalisation: ArrayJetFirst<C, D>,
         transmitted_normalisation: ArrayJetFirst<C, D>,
         variable: DerivativeVariable,
-    ) -> Self {
+    ) -> Self
+    where
+        C: Copy,
+    {
         let (reflection, d_reflection) = reflection.into_parts();
 
         let (transmission, d_transmission) = transmission.into_parts();
@@ -291,7 +295,10 @@ where
         incident_normalisation: ArrayJet<C, D>,
         transmitted_normalisation: ArrayJet<C, D>,
         variable: DerivativeVariable,
-    ) -> Self {
+    ) -> Self
+    where
+        C: Copy,
+    {
         let (reflection, d_reflection, dd_reflection) = reflection.into_parts();
 
         let (transmission, d_transmission, dd_transmission) = transmission.into_parts();
@@ -445,7 +452,7 @@ where
         transmitted_normalisation: &ArrayBase<OwnedRepr<C>, D>,
     ) -> Self
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R>,
         R: Float,
     {
         let incident_flux = incident_normalisation.mapv(|value| value.real());
@@ -506,7 +513,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveResponseDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     variable: DerivativeVariable,
@@ -516,7 +523,7 @@ where
 
 impl<C, D> PlaneWaveResponseDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     /// Construct first-order response derivatives.
@@ -565,7 +572,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveResponseDifferential<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     amplitudes: PlaneWaveAmplitudeDifferential<C, D>,
@@ -574,7 +581,7 @@ where
 
 impl<C, D> PlaneWaveResponseDifferential<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     /// Construct one derivative order of the response.
@@ -745,7 +752,7 @@ where
         transmitted_normalisation_first: &ArrayBase<OwnedRepr<C>, D>,
     ) -> Self
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R> + Copy,
         R: Float,
     {
         let two = R::one() + R::one();
@@ -816,7 +823,7 @@ where
         transmitted_normalisation_second: &ArrayBase<OwnedRepr<C>, D>,
     ) -> Self
     where
-        C: ComplexScalar<RealField = R>,
+        C: ComplexField<RealField = R> + Copy,
         R: Float,
     {
         let two = R::one() + R::one();

@@ -1,5 +1,5 @@
 use crate::{
-    ComplexScalar, DerivativeVariable,
+    DerivativeVariable,
     backend::{
         FieldPosition, IsotropicFieldState,
         algebra::ScalarAlgebra,
@@ -8,13 +8,14 @@ use crate::{
     },
 };
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 /// Fields sampled at a sequence of requested positions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFields<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     samples: Vec<PlaneWaveFieldSample<C, D>>,
@@ -23,7 +24,7 @@ where
 
 impl<C, D> PlaneWaveFields<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     pub(crate) fn from_values(
@@ -121,7 +122,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFieldSample<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     position: FieldPosition<C::RealField>,
@@ -138,7 +139,7 @@ where
 
 impl<C, D> PlaneWaveFieldSample<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn from_algebraic(sample: AlgebraicFieldSample<C, D, ArrayBase<OwnedRepr<C>, D>>) -> Self {
@@ -234,7 +235,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFieldDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     variable: DerivativeVariable,
@@ -244,7 +245,7 @@ where
 
 impl<C, D> PlaneWaveFieldDerivatives<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub fn variable(&self) -> DerivativeVariable {
@@ -271,7 +272,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveFieldDifferential<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     canonical: IsotropicFieldState<ArrayBase<OwnedRepr<C>, D>>,
@@ -280,7 +281,7 @@ where
 
 impl<C, D> PlaneWaveFieldDifferential<C, D>
 where
-    C: ComplexScalar,
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
@@ -315,7 +316,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct AlgebraicFieldSample<C, D, A>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
     A: ScalarAlgebra<C, D>,
 {
@@ -327,7 +328,7 @@ where
 
 impl<C, D> AlgebraicFieldSample<C, D, ArrayJetFirst<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn into_value_and_first(
@@ -346,7 +347,7 @@ where
 
 impl<C, D> AlgebraicFieldSample<C, D, ArrayJet<C, D>>
 where
-    C: ComplexScalar,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn into_value_first_and_second(
