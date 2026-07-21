@@ -414,7 +414,7 @@ where
     Ok(PlaneWavePowerBalance::from_values(balance))
 }
 
-pub(super) fn plane_wave_power_balance_structural_first<M, C, D>(
+pub(crate) fn plane_wave_power_balance_structural_first<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
@@ -448,7 +448,7 @@ where
     ))
 }
 
-pub(super) fn plane_wave_power_balance_structural_second<M, C, D>(
+pub(crate) fn plane_wave_power_balance_structural_second<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
@@ -484,7 +484,7 @@ where
     ))
 }
 
-pub(super) fn plane_wave_power_balance_spectral_first<M, C, D>(
+pub(crate) fn plane_wave_power_balance_spectral_first<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
@@ -518,7 +518,7 @@ where
     ))
 }
 
-pub(super) fn plane_wave_power_balance_spectral_second<M, C, D>(
+pub(crate) fn plane_wave_power_balance_spectral_second<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,

@@ -19,9 +19,10 @@ pub use derivative::{
     DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
 };
 pub use field::{
-    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, IsotropicFieldState,
-    LayerSampling, PlaneWaveFieldBackend, PlaneWaveFieldError, PlaneWaveFieldResponse,
-    PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance,
+    DifferentiablePlaneWaveFieldBackend, ExteriorSampling, FieldPosition, FieldSampling,
+    FieldSamplingRegion, IsotropicFieldState, LayerSampling, PlaneWaveFieldBackend,
+    PlaneWaveFieldError, PlaneWaveFieldResponse, PlaneWaveFieldSample, PlaneWaveFields,
+    PlaneWavePowerBalance,
 };
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
 pub use matrix::{

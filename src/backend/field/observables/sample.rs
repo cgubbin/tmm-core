@@ -24,6 +24,7 @@ use crate::{
     material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
 };
 
+use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
@@ -69,7 +70,7 @@ where
     Ok(PlaneWaveFields::from_values(samples))
 }
 
-pub(super) fn sample_first_order_fields_structural<M, C, D>(
+pub(crate) fn sample_first_order_fields_structural<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -101,7 +102,7 @@ where
     ))
 }
 
-pub(super) fn sample_second_order_fields_structural<M, C, D>(
+pub(crate) fn sample_second_order_fields_structural<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -135,7 +136,7 @@ where
     ))
 }
 
-pub(super) fn sample_first_order_fields_spectral<M, C, D>(
+pub(crate) fn sample_first_order_fields_spectral<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -167,7 +168,7 @@ where
     ))
 }
 
-pub(super) fn sample_second_order_fields_spectral<M, C, D>(
+pub(crate) fn sample_second_order_fields_spectral<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -324,7 +325,7 @@ where
         boundary,
         layer.quantities.kappa(),
         offset,
-        layer.thickness,
+        &layer.algebraic_thickness,
     );
 
     let (canonical, cartesian) = fields_from_local_waves(context, &local, &layer.quantities);
@@ -405,9 +406,12 @@ where
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {
-    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, -distance);
+    let distance = A::constant_like(kappa.value(), C::from_real(distance));
 
-    let backward_phase = propagation_phase_algebraic::<C, D, A>(&kappa.negate(), -distance);
+    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, &distance.negate());
+
+    let backward_phase =
+        propagation_phase_algebraic::<C, D, A>(&kappa.negate(), &distance.negate());
 
     BidirectionalWavesGeneric::new(
         boundary.forward().multiply(&forward_phase),
@@ -419,7 +423,7 @@ fn sample_layer_waves_algebraic<C, D, A>(
     boundary: &crate::backend::field::boundary::LayerBoundaryWavesGeneric<A>,
     kappa: &A,
     offset: C::RealField,
-    thickness: C::RealField,
+    thickness: &A,
 ) -> crate::backend::field::boundary::BidirectionalWavesGeneric<A>
 where
     C: ComplexScalar,
@@ -427,9 +431,12 @@ where
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {
-    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, offset);
+    let offset = A::constant_like(kappa.value(), C::from_real(offset));
 
-    let backward_phase = propagation_phase_algebraic::<C, D, A>(kappa, thickness - offset);
+    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, &offset);
+
+    let backward_phase =
+        propagation_phase_algebraic::<C, D, A>(kappa, &thickness.subtract(&offset));
 
     crate::backend::field::boundary::BidirectionalWavesGeneric::new(
         boundary.left().forward().multiply(&forward_phase),
@@ -448,9 +455,11 @@ where
     D: Dimension,
     A: ScalarAlgebra<C, D> + Clone,
 {
-    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, distance);
+    let distance = A::constant_like(kappa.value(), C::from_real(distance));
 
-    let backward_phase = propagation_phase_algebraic::<C, D, A>(&kappa.negate(), distance);
+    let forward_phase = propagation_phase_algebraic::<C, D, A>(kappa, &distance);
+
+    let backward_phase = propagation_phase_algebraic::<C, D, A>(&kappa.negate(), &distance);
 
     crate::backend::field::boundary::BidirectionalWavesGeneric::new(
         boundary.forward().multiply(&forward_phase),
@@ -458,15 +467,13 @@ where
     )
 }
 
-fn propagation_phase_algebraic<C, D, A>(kappa: &A, distance: C::RealField) -> A
+fn propagation_phase_algebraic<C, D, A>(kappa: &A, distance: &A) -> A
 where
     C: ComplexScalar,
     D: Dimension,
     A: ScalarAlgebra<C, D>,
 {
-    let coefficient = C::i() * C::from_real(distance);
-
-    kappa.scale(coefficient).exp()
+    kappa.multiply(distance).scale(C::i()).exp()
 }
 
 #[cfg(test)]
@@ -549,7 +556,8 @@ mod tests {
         let thickness = 1.0;
         let offset = 0.3;
 
-        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, offset, thickness);
+        let sampled =
+            sample_layer_waves_algebraic(&boundary, &kappa, offset, &scalar(thickness, 0.0));
 
         let expected = amplitude * c(0.0, 2.0 * offset).exp();
 
@@ -571,7 +579,8 @@ mod tests {
             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), Array0::from_elem((), amplitude)),
         );
 
-        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, offset, thickness);
+        let sampled =
+            sample_layer_waves_algebraic(&boundary, &kappa, offset, &scalar(thickness, 0.0));
 
         let expected = amplitude * c(0.0, 2.0 * (thickness - offset)).exp();
 
@@ -592,10 +601,19 @@ mod tests {
             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), Array0::from_elem((), right_backward)),
         );
 
-        let left = sample_layer_waves_algebraic(&boundary, &scalar(1.4, 0.0), 0.0, thickness);
+        let left = sample_layer_waves_algebraic(
+            &boundary,
+            &scalar(1.4, 0.0),
+            0.0,
+            &scalar(thickness, 0.0),
+        );
 
-        let right =
-            sample_layer_waves_algebraic(&boundary, &scalar(1.4, 0.0), thickness, thickness);
+        let right = sample_layer_waves_algebraic(
+            &boundary,
+            &scalar(1.4, 0.0),
+            thickness,
+            &scalar(thickness, 0.0),
+        );
 
         assert_complex_close(left.forward()[()], left_forward, TOLERANCE);
 

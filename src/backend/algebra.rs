@@ -28,6 +28,7 @@ where
     fn cos(&self) -> Self;
 
     fn constant_like(source: &ArrayBase<OwnedRepr<T>, D>, value: T) -> Self;
+    fn structural_like(source: &ArrayBase<OwnedRepr<T>, D>, value: T) -> Self;
 
     fn zero_like(&self) -> Self;
 
@@ -74,6 +75,10 @@ where
     }
 
     fn constant_like(source: &Self, value: C) -> Self {
+        source.mapv(|_| value)
+    }
+
+    fn structural_like(source: &Self, value: C) -> Self {
         source.mapv(|_| value)
     }
 
@@ -166,6 +171,13 @@ where
         ArrayJetFirst::constant_like(source, value)
     }
 
+    fn structural_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
+        JetFirst::from_parts(
+            ndarray::Array::from_elem(source.raw_dim(), value),
+            ndarray::Array::from_elem(source.raw_dim(), C::one()),
+        )
+    }
+
     fn exp(&self) -> Self {
         ArrayJetFirst::exp(self.clone())
     }
@@ -255,6 +267,14 @@ where
 
     fn constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
         ArrayJet::constant_like(source, value)
+    }
+
+    fn structural_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
+        Jet::from_parts(
+            ndarray::Array::from_elem(source.raw_dim(), value),
+            ndarray::Array::from_elem(source.raw_dim(), C::one()),
+            ndarray::Array::from_elem(source.raw_dim(), C::zero()),
+        )
     }
 
     fn zero_like(&self) -> Self {

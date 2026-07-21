@@ -56,6 +56,18 @@ impl IncidentSide {
 }
 
 impl<M, F> Stack<M, F> {
+    pub(crate) fn new(
+        left_exterior: M,
+        layers_left_to_right: Vec<Layer<M, F>>,
+        right_exterior: M,
+    ) -> Self {
+        Self {
+            left_exterior,
+            right_exterior,
+            layers_left_to_right,
+        }
+    }
+
     pub fn builder(left_exterior: M, right_exterior: M) -> StackBuilder<M, F>
     where
         F: Float,

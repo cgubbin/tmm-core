@@ -77,7 +77,10 @@ pub use isotropic::IsotropicFieldState;
 
 pub use cartesian::{CartesianElectromagneticField, CartesianVector3};
 
-pub use observables::{PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance};
+pub use observables::{
+    PlaneWaveFieldSample, PlaneWaveFields, PlaneWavePowerBalance, PlaneWavePowerBalanceDerivative,
+    PlaneWavePowerBalanceDerivatives,
+};
 
 pub use plane_wave::{
     DifferentiablePlaneWaveFieldBackend, PlaneWaveFieldBackend, PlaneWaveFieldResponse,

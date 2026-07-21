@@ -4,13 +4,18 @@ use super::{
 };
 
 use crate::{
-    ComplexScalar, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
-    PlaneWaveResponseDerivatives, Stack,
+    ComplexScalar, EvaluateDifferentiableMaterial, PlaneWaveBackend, PlaneWaveInput,
+    PlaneWaveResponse, PlaneWaveResponseDerivatives, Stack,
     backend::{
         PlaneWaveAmplitudes,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         field::observables::{
-            plane_wave_power_balance_values, sample_plane_wave_field_profile, sample_value_fields,
+            plane_wave_power_balance_spectral_first, plane_wave_power_balance_spectral_second,
+            plane_wave_power_balance_structural_first, plane_wave_power_balance_structural_second,
+            plane_wave_power_balance_values, sample_first_order_fields_spectral,
+            sample_first_order_fields_structural, sample_plane_wave_field_profile,
+            sample_second_order_fields_spectral, sample_second_order_fields_structural,
+            sample_value_fields,
         },
         plane_wave::PlaneWavePower,
     },
@@ -141,7 +146,67 @@ where
         sample_plane_wave_field_profile(stack, input, self.boundary_waves(), sampling)
     }
 
-    pub fn sample_field_positions<M>(
+    pub fn sample_fields_structural_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        sampling: &FieldSampling<C::RealField>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        let positions = sampling.positions(stack)?;
+
+        sample_first_order_fields_structural(stack, input, self.boundary_waves(), positions)
+    }
+
+    pub fn sample_fields_structural_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        sampling: &FieldSampling<C::RealField>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        let positions = sampling.positions(stack)?;
+
+        sample_second_order_fields_structural(stack, input, self.boundary_waves(), positions)
+    }
+
+    pub fn sample_fields_spectral_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        sampling: &FieldSampling<C::RealField>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        let positions = sampling.positions(stack)?;
+
+        sample_first_order_fields_spectral(stack, input, self.boundary_waves(), positions)
+    }
+
+    pub fn sample_fields_spectral_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        sampling: &FieldSampling<C::RealField>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        let positions = sampling.positions(stack)?;
+
+        sample_second_order_fields_spectral(stack, input, self.boundary_waves(), positions)
+    }
+
+    pub(crate) fn sample_field_positions<M>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -159,6 +224,78 @@ where
         )
     }
 
+    pub(crate) fn sample_field_positions_structural_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        sample_first_order_fields_structural(
+            stack,
+            input,
+            self.boundary_waves(),
+            positions.into_iter().collect(),
+        )
+    }
+
+    pub(crate) fn sample_field_positions_structural_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        sample_second_order_fields_structural(
+            stack,
+            input,
+            self.boundary_waves(),
+            positions.into_iter().collect(),
+        )
+    }
+
+    pub fn sample_field_positions_spectral_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        sample_first_order_fields_spectral(
+            stack,
+            input,
+            self.boundary_waves(),
+            positions.into_iter().collect(),
+        )
+    }
+
+    pub fn sample_field_positions_spectral_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
+    ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: Float,
+    {
+        sample_second_order_fields_spectral(
+            stack,
+            input,
+            self.boundary_waves(),
+            positions.into_iter().collect(),
+        )
+    }
+
     pub fn power_balance<M>(
         &self,
         stack: &Stack<M, C::RealField>,
@@ -169,5 +306,53 @@ where
         C::RealField: ComplexField,
     {
         plane_wave_power_balance_values(stack, input, self)
+    }
+
+    pub fn power_balance_structural_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_structural_first(stack, input, self)
+    }
+
+    pub fn power_balance_structural_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_structural_second(stack, input, self)
+    }
+
+    pub fn power_balance_spectral_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_spectral_first(stack, input, self)
+    }
+
+    pub fn power_balance_spectral_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_spectral_second(stack, input, self)
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation,
+    ComplexScalar, DerivativeVariable, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation,
     SpectralDerivativeVariable, Stack, StructuralDerivativeVariable,
     backend::{
         algebra::ScalarAlgebra,
@@ -13,9 +13,13 @@ use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 #[derive(Clone, Debug)]
-pub(super) struct AlgebraicLayerFieldData<R, A> {
-    pub(super) origin: R,
-    pub(super) thickness: R,
+pub(super) struct AlgebraicLayerFieldData<C, A>
+where
+    C: ComplexField,
+{
+    pub(super) origin: C::RealField,
+    pub(super) thickness: C::RealField,
+    pub(super) algebraic_thickness: A,
     pub(super) quantities: IsotropicLayerQuantities<A>,
 }
 
@@ -30,20 +34,22 @@ where
     pub(super) polarisation: Polarisation,
     pub(super) left: IsotropicLayerQuantities<A>,
     pub(super) right: IsotropicLayerQuantities<A>,
-    pub(super) layers: Vec<AlgebraicLayerFieldData<C::RealField, A>>,
+    pub(super) layers: Vec<AlgebraicLayerFieldData<C, A>>,
     pub(super) total_thickness: C::RealField,
 }
 
 impl<C, D, A> AlgebraicFieldContext<C, D, A>
 where
     C: ComplexField,
-    C::RealField: Copy,
+    C::RealField: Copy + ComplexField,
     D: Dimension,
     A: ScalarAlgebra<C, D>,
+    A::RealField: ScalarAlgebra<C::RealField, D>,
 {
     pub(super) fn evaluate<M, F>(
         stack: &Stack<M, C::RealField>,
         planar: PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        derivative: Option<DerivativeVariable>,
         mut evaluate: F,
     ) -> Self
     where
@@ -55,12 +61,24 @@ where
         let mut origin = C::zero().real();
         let mut layers = Vec::with_capacity(stack.layers_left_to_right().len());
 
-        for layer in stack.layers_left_to_right() {
+        for (idx, layer) in stack.layers_left_to_right().iter().enumerate() {
             let thickness = layer.thickness().as_cm();
+
+            let algebraic_thickness: A =
+                if let Some(DerivativeVariable::Thickness(index)) = derivative {
+                    if index == idx {
+                        A::structural_like(planar.vacuum_wavenumber(), C::from_real(thickness))
+                    } else {
+                        A::constant_like(planar.vacuum_wavenumber(), C::from_real(thickness))
+                    }
+                } else {
+                    A::constant_like(planar.vacuum_wavenumber(), C::from_real(thickness))
+                };
 
             layers.push(AlgebraicLayerFieldData {
                 origin,
                 thickness,
+                algebraic_thickness,
                 quantities: evaluate(layer.material(), &planar),
             });
 
@@ -90,7 +108,7 @@ where
 {
     let input = input.to_complex();
 
-    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), |material, planar| {
+    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), None, |material, planar| {
         IsotropicLayerQuantities::real_axis(material, planar)
     })
 }
@@ -108,9 +126,16 @@ where
 {
     let input = input.to_complex();
 
-    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), |material, planar| {
-        IsotropicLayerQuantities::evaluate_first_structural_real_axis(material, planar, variable)
-    })
+    AlgebraicFieldContext::evaluate(
+        stack,
+        input.planar().clone(),
+        Some(variable.into()),
+        |material, planar| {
+            IsotropicLayerQuantities::evaluate_first_structural_real_axis(
+                material, planar, variable,
+            )
+        },
+    )
 }
 
 pub(super) fn structural_second_context<M, C, D>(
@@ -126,9 +151,16 @@ where
 {
     let input = input.to_complex();
 
-    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), |material, planar| {
-        IsotropicLayerQuantities::evaluate_second_structural_real_axis(material, planar, variable)
-    })
+    AlgebraicFieldContext::evaluate(
+        stack,
+        input.planar().clone(),
+        Some(variable.into()),
+        |material, planar| {
+            IsotropicLayerQuantities::evaluate_second_structural_real_axis(
+                material, planar, variable,
+            )
+        },
+    )
 }
 
 pub(super) fn spectral_first_context<M, C, D>(
@@ -144,9 +176,14 @@ where
 {
     let input = input.to_complex();
 
-    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), |material, planar| {
-        IsotropicLayerQuantities::evaluate_first_spectral_real_axis(material, planar, variable)
-    })
+    AlgebraicFieldContext::evaluate(
+        stack,
+        input.planar().clone(),
+        Some(variable.into()),
+        |material, planar| {
+            IsotropicLayerQuantities::evaluate_first_spectral_real_axis(material, planar, variable)
+        },
+    )
 }
 
 pub(super) fn spectral_second_context<M, C, D>(
@@ -162,9 +199,14 @@ where
 {
     let input = input.to_complex();
 
-    AlgebraicFieldContext::evaluate(stack, input.planar().clone(), |material, planar| {
-        IsotropicLayerQuantities::evaluate_second_spectral_real_axis(material, planar, variable)
-    })
+    AlgebraicFieldContext::evaluate(
+        stack,
+        input.planar().clone(),
+        Some(variable.into()),
+        |material, planar| {
+            IsotropicLayerQuantities::evaluate_second_spectral_real_axis(material, planar, variable)
+        },
+    )
 }
 
 #[derive(Clone, Debug)]

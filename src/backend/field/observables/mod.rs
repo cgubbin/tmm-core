@@ -71,8 +71,16 @@ pub use power::{
     PlaneWavePowerBalance, PlaneWavePowerBalanceDerivative, PlaneWavePowerBalanceDerivatives,
 };
 
-pub(crate) use power::plane_wave_power_balance_values;
-pub(crate) use sample::{sample_plane_wave_field_profile, sample_value_fields};
+pub(crate) use power::{
+    plane_wave_power_balance_spectral_first, plane_wave_power_balance_spectral_second,
+    plane_wave_power_balance_structural_first, plane_wave_power_balance_structural_second,
+    plane_wave_power_balance_values,
+};
+pub(crate) use sample::{
+    sample_first_order_fields_spectral, sample_first_order_fields_structural,
+    sample_plane_wave_field_profile, sample_second_order_fields_spectral,
+    sample_second_order_fields_structural, sample_value_fields,
+};
 
 #[cfg(test)]
 mod tests {

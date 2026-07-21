@@ -3,13 +3,13 @@ use ndarray::{Array0, ArrayBase, Data, Dimension, Ix0, arr0};
 use num_complex::Complex64;
 
 use crate::{
-    Constant, IncidentSide, MaterialStack, PlanarInput, PlaneWaveInput, Polarisation, Stack,
-    Thickness,
+    Constant, DifferentiableMaterialStack, IncidentSide, Layer, MaterialStack, PlanarInput,
+    PlaneWaveInput, Polarisation, Stack, Thickness,
     backend::{
         ExteriorSampling, LayerSampling,
         field::{
             BoundaryWaves, CartesianElectromagneticField, CartesianVector3, IsotropicFieldState,
-            PlaneWaveFields, PlaneWavePowerBalance,
+            PlaneWaveFields, PlaneWavePowerBalance, PlaneWavePowerBalanceDerivative,
         },
     },
     material::model::Lossy,
@@ -197,17 +197,17 @@ pub(crate) fn assert_boundary_waves_close<D>(
     }
 }
 
-pub(crate) fn lossless_stack() -> MaterialStack<f64, Complex64> {
-    Stack::from_materials(Constant::dielectric(1.0), Constant::dielectric(1.0))
-        .material_layer(
+pub(crate) fn lossless_stack() -> DifferentiableMaterialStack<f64, Complex64> {
+    Stack::from_differentiable_materials(Constant::dielectric(1.0), Constant::dielectric(1.0))
+        .differentiable_layer(
             Constant::dielectric(2.25),
             Thickness::from_cm(0.31).unwrap(),
         )
-        .material_layer(
+        .differentiable_layer(
             Constant::dielectric(4.00),
             Thickness::from_cm(0.17).unwrap(),
         )
-        .material_layer(
+        .differentiable_layer(
             Constant::dielectric(1.69),
             Thickness::from_cm(0.23).unwrap(),
         )
@@ -215,13 +215,13 @@ pub(crate) fn lossless_stack() -> MaterialStack<f64, Complex64> {
         .unwrap()
 }
 
-pub(crate) fn absorbing_stack() -> MaterialStack<f64, Complex64> {
-    Stack::from_materials(Constant::dielectric(1.0), Constant::dielectric(1.44))
-        .material_layer(
+pub(crate) fn absorbing_stack() -> DifferentiableMaterialStack<f64, Complex64> {
+    Stack::from_differentiable_materials(Constant::dielectric(1.0), Constant::dielectric(1.44))
+        .differentiable_layer(
             Lossy::dielectric(c(2.25, 0.15)),
             Thickness::from_cm(0.21).unwrap(),
         )
-        .material_layer(
+        .differentiable_layer(
             Lossy::dielectric(c(3.10, 0.35)),
             Thickness::from_cm(0.16).unwrap(),
         )
@@ -313,4 +313,266 @@ pub(crate) fn field_samples<M>(stack: &Stack<M, f64>) -> crate::backend::field::
     sampling = sampling.right_exterior(ExteriorSampling::point(0.27));
 
     sampling
+}
+
+pub(crate) fn assert_field_derivatives_close<D>(
+    actual: &PlaneWaveFields<C, D>,
+    expected: &PlaneWaveFields<C, D>,
+) where
+    D: Dimension,
+{
+    assert_fields_close(actual, expected);
+
+    let actual = actual
+        .derivatives()
+        .expect("actual fields should contain derivatives");
+
+    let expected = expected
+        .derivatives()
+        .expect("expected fields should contain derivatives");
+
+    assert_eq!(actual.variable(), expected.variable(),);
+
+    assert_eq!(actual.first().len(), expected.first().len(),);
+
+    for (actual, expected) in actual.first().iter().zip(expected.first()) {
+        assert_canonical_state_close(actual.canonical_state(), expected.canonical_state());
+
+        assert_cartesian_fields_close(actual.cartesian_fields(), expected.cartesian_fields());
+    }
+
+    match (actual.second(), expected.second()) {
+        (None, None) => {}
+
+        (Some(actual), Some(expected)) => {
+            assert_eq!(actual.len(), expected.len());
+
+            for (actual, expected) in actual.iter().zip(expected) {
+                assert_canonical_state_close(actual.canonical_state(), expected.canonical_state());
+
+                assert_cartesian_fields_close(
+                    actual.cartesian_fields(),
+                    expected.cartesian_fields(),
+                );
+            }
+        }
+
+        _ => panic!("backends retained different derivative orders"),
+    }
+}
+
+pub(crate) fn assert_power_derivative_close<D>(
+    actual: &PlaneWavePowerBalanceDerivative<f64, D>,
+    expected: &PlaneWavePowerBalanceDerivative<f64, D>,
+) where
+    D: Dimension,
+{
+    assert_real_array_close(actual.incident_flux(), expected.incident_flux());
+
+    assert_real_array_close(actual.reflected_flux(), expected.reflected_flux());
+
+    assert_real_array_close(actual.transmitted_flux(), expected.transmitted_flux());
+
+    assert_eq!(
+        actual.layer_absorptance().len(),
+        expected.layer_absorptance().len(),
+    );
+
+    for (actual, expected) in actual
+        .layer_absorptance()
+        .iter()
+        .zip(expected.layer_absorptance())
+    {
+        assert_real_array_close(actual, expected);
+    }
+
+    assert_real_array_close(
+        actual.total_layer_absorptance(),
+        expected.total_layer_absorptance(),
+    );
+
+    assert_real_array_close(actual.balance_residual(), expected.balance_residual());
+}
+
+pub(crate) fn assert_differentiated_power_balance_close<D>(
+    actual: &PlaneWavePowerBalance<f64, D>,
+    expected: &PlaneWavePowerBalance<f64, D>,
+) where
+    D: Dimension,
+{
+    assert_power_balance_close(actual, expected);
+
+    let actual = actual.derivatives().unwrap();
+    let expected = expected.derivatives().unwrap();
+
+    assert_eq!(actual.variable(), expected.variable(),);
+
+    assert_power_derivative_close(actual.first(), expected.first());
+
+    match (actual.second(), expected.second()) {
+        (None, None) => {}
+
+        (Some(actual), Some(expected)) => {
+            assert_power_derivative_close(actual, expected);
+        }
+
+        _ => panic!("backends retained different derivative orders"),
+    }
+}
+
+pub(crate) fn central_first_complex<F>(mut evaluate: F, x: f64, step: f64) -> Complex64
+where
+    F: FnMut(f64) -> Complex64,
+{
+    let upper = evaluate(x + step);
+    let lower = evaluate(x - step);
+
+    (upper - lower) / (2.0 * step)
+}
+
+pub(crate) fn central_second_complex<F>(mut evaluate: F, x: f64, step: f64) -> Complex64
+where
+    F: FnMut(f64) -> Complex64,
+{
+    let upper = evaluate(x + step);
+    let centre = evaluate(x);
+    let lower = evaluate(x - step);
+
+    (upper - 2.0 * centre + lower) / step.powi(2)
+}
+
+pub(crate) fn central_first_real<F>(mut evaluate: F, x: f64, step: f64) -> f64
+where
+    F: FnMut(f64) -> f64,
+{
+    let upper = evaluate(x + step);
+    let lower = evaluate(x - step);
+
+    (upper - lower) / (2.0 * step)
+}
+
+pub(crate) fn central_second_real<F>(mut evaluate: F, x: f64, step: f64) -> f64
+where
+    F: FnMut(f64) -> f64,
+{
+    let upper = evaluate(x + step);
+    let centre = evaluate(x);
+    let lower = evaluate(x - step);
+
+    (upper - 2.0 * centre + lower) / step.powi(2)
+}
+
+pub(crate) fn first_derivative_step(value: f64) -> f64 {
+    1.0e-5 * value.abs().max(1.0)
+}
+
+pub(crate) fn second_derivative_step(value: f64) -> f64 {
+    1.0e-4 * value.abs().max(1.0)
+}
+
+pub(crate) fn thickness_first_step(thickness_cm: f64) -> f64 {
+    1.0e-5 * thickness_cm.abs().max(1.0e-6)
+}
+
+pub(crate) fn thickness_second_step(thickness_cm: f64) -> f64 {
+    1.0e-4 * thickness_cm.abs().max(1.0e-6)
+}
+
+pub(crate) fn with_layer_thickness<M>(
+    stack: &Stack<M, f64>,
+    index: usize,
+    thickness_cm: f64,
+) -> Stack<M, f64>
+where
+    M: Clone,
+{
+    let mut layers = stack.layers_left_to_right().to_vec();
+
+    let material = layers[index].material().clone();
+
+    layers[index] = Layer::new(material, Thickness::from_cm(thickness_cm).unwrap());
+
+    Stack::new(
+        stack.left_exterior().clone(),
+        layers,
+        stack.right_exterior().clone(),
+    )
+}
+
+pub(crate) fn with_vacuum_wavenumber(
+    input: &PlaneWaveInput<Array0<f64>>,
+    vacuum_wavenumber: f64,
+) -> PlaneWaveInput<Array0<f64>> {
+    let mut input = input.clone();
+
+    input.planar.vacuum_wavenumber = arr0(vacuum_wavenumber);
+
+    input
+}
+
+pub(crate) fn with_parallel_wavenumber(
+    input: &PlaneWaveInput<Array0<f64>>,
+    parallel_wavenumber: f64,
+) -> PlaneWaveInput<Array0<f64>> {
+    let mut input = input.clone();
+
+    input.planar.parallel_wavenumber = arr0(parallel_wavenumber);
+
+    input
+}
+
+pub(crate) const FIRST_DERIVATIVE_ABS_TOLERANCE: f64 = 1.0e-7;
+pub(crate) const FIRST_DERIVATIVE_REL_TOLERANCE: f64 = 2.0e-5;
+
+pub(crate) fn assert_real_derivative_close(actual: f64, expected: f64) {
+    assert_relative_eq!(
+        actual,
+        expected,
+        epsilon = FIRST_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = FIRST_DERIVATIVE_REL_TOLERANCE,
+    );
+}
+
+pub(crate) fn assert_complex_derivative_close(actual: Complex64, expected: Complex64) {
+    assert_relative_eq!(
+        actual.re,
+        expected.re,
+        epsilon = FIRST_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = FIRST_DERIVATIVE_REL_TOLERANCE,
+    );
+
+    assert_relative_eq!(
+        actual.im,
+        expected.im,
+        epsilon = FIRST_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = FIRST_DERIVATIVE_REL_TOLERANCE,
+    );
+}
+
+pub(crate) const SECOND_DERIVATIVE_ABS_TOLERANCE: f64 = 1.0e-5;
+pub(crate) const SECOND_DERIVATIVE_REL_TOLERANCE: f64 = 5.0e-4;
+
+pub(crate) fn assert_real_second_derivative_close(actual: f64, expected: f64) {
+    assert_relative_eq!(
+        actual,
+        expected,
+        epsilon = SECOND_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = SECOND_DERIVATIVE_REL_TOLERANCE,
+    );
+}
+
+pub(crate) fn assert_complex_second_derivative_close(actual: Complex64, expected: Complex64) {
+    assert_relative_eq!(
+        actual.re,
+        expected.re,
+        epsilon = SECOND_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = SECOND_DERIVATIVE_REL_TOLERANCE,
+    );
+
+    assert_relative_eq!(
+        actual.im,
+        expected.im,
+        epsilon = SECOND_DERIVATIVE_ABS_TOLERANCE,
+        max_relative = SECOND_DERIVATIVE_REL_TOLERANCE,
+    );
 }

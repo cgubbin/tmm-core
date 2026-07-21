@@ -67,8 +67,8 @@ pub enum Polarisation {
 /// performs no implicit broadcasting.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlanarInput<I> {
-    vacuum_wavenumber: I,
-    parallel_wavenumber: I,
+    pub(crate) vacuum_wavenumber: I,
+    pub(crate) parallel_wavenumber: I,
     polarisation: Polarisation,
 }
 
@@ -155,8 +155,8 @@ pub enum IncidentSide {
 /// coefficients by its chosen incident amplitude.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveInput<I> {
-    planar: PlanarInput<I>,
-    incident_side: IncidentSide,
+    pub(crate) planar: PlanarInput<I>,
+    pub(crate) incident_side: IncidentSide,
 }
 
 impl<I> PlaneWaveInput<I> {

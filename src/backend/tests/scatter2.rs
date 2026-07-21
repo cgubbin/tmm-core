@@ -2,15 +2,23 @@ use crate::backend::field::generic_boundary_values;
 use crate::backend::isotropic::IsotropicLayerQuantities;
 use crate::backend::tests::support::{
     ABS_TOLERANCE, C, absorbing_stack, assert_canonical_state_close, assert_complex_array_close,
-    assert_complex_close, assert_real_close, boundary_samples, c, field_samples, lossless_stack,
-    scalar_input,
+    assert_complex_close, assert_complex_derivative_close, assert_complex_second_derivative_close,
+    assert_real_close, assert_real_derivative_close, boundary_samples, c, central_first_complex,
+    central_first_real, central_second_complex, field_samples, first_derivative_step,
+    lossless_stack, scalar_input, thickness_first_step, thickness_second_step,
+    with_layer_thickness, with_vacuum_wavenumber,
 };
 use crate::backend::{
     ExteriorSampling, FieldSampling, IsotropicFieldState, field::generic_bidirectional_values,
 };
-use crate::{EvaluateMaterial, IncidentSide, PlaneWaveResponse, Polarisation, Scatter2};
+use crate::backend::{FieldPosition, PlaneWaveFieldSample};
 use crate::{
-    PlaneWaveBackend, PlaneWaveFieldBackend, PlaneWaveInput, Stack, backend::PlaneWaveFieldResponse,
+    DifferentiablePlaneWaveFieldBackend, PlaneWaveBackend, PlaneWaveFieldBackend, PlaneWaveInput,
+    Stack, backend::PlaneWaveFieldResponse,
+};
+use crate::{
+    EvaluateMaterial, IncidentSide, PlaneWaveResponse, Polarisation, Scatter2,
+    SpectralDerivativeVariable, StructuralDerivativeVariable,
 };
 
 use ndarray::{Array0, Ix0};
@@ -471,5 +479,396 @@ fn scatter2_layer_absorptance_matches_boundary_flux_drop() {
         let expected = (left_flux - right_flux) / incident_flux;
 
         assert_real_close(balance.layer_absorptance()[index][()], expected);
+    }
+}
+
+#[test]
+fn scatter2_first_thickness_field_derivative_matches_finite_difference() {
+    let backend = Scatter2::default();
+    let stack = lossless_stack();
+    let input = scalar_input(Polarisation::TransverseElectric, IncidentSide::Left);
+
+    let layer_index = 1;
+    let thickness = stack.layers_left_to_right()[layer_index]
+        .thickness()
+        .as_cm();
+
+    let offset = 0.37 * thickness;
+    let step = thickness_first_step(thickness);
+
+    assert!(offset < thickness - step);
+
+    let position = FieldPosition::Layer {
+        index: layer_index,
+        offset,
+    };
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_structural_first_derivative(
+            &stack,
+            &input,
+            StructuralDerivativeVariable::Thickness(layer_index),
+        )
+        .unwrap();
+
+    let analytic_fields = differentiated
+        .sample_field_positions_structural_first_derivative(&stack, &input, [position])
+        .unwrap();
+
+    let analytic = analytic_fields
+        .derivatives()
+        .unwrap()
+        .first_sample(0)
+        .unwrap()
+        .canonical_state()
+        .primary()[()];
+
+    let numerical = central_first_complex(
+        |perturbed_thickness| {
+            let perturbed_stack = with_layer_thickness(&stack, layer_index, perturbed_thickness);
+
+            let response = backend
+                .solve_plane_wave_internal_fields(&perturbed_stack, &input)
+                .unwrap();
+
+            response
+                .sample_field_positions(&perturbed_stack, &input, [position])
+                .unwrap()
+                .sample(0)
+                .unwrap()
+                .canonical_state()
+                .primary()[()]
+        },
+        thickness,
+        step,
+    );
+
+    assert_complex_derivative_close(analytic, numerical);
+}
+
+#[test]
+fn scatter2_second_thickness_field_derivative_matches_finite_difference() {
+    let backend = Scatter2::default();
+    let stack = lossless_stack();
+    let input = scalar_input(Polarisation::TransverseElectric, IncidentSide::Left);
+
+    let layer_index = 1;
+    let thickness = stack.layers_left_to_right()[layer_index]
+        .thickness()
+        .as_cm();
+
+    let step = thickness_second_step(thickness);
+
+    let position = FieldPosition::Layer {
+        index: layer_index,
+        offset: 0.37 * thickness,
+    };
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_structural_second_derivative(
+            &stack,
+            &input,
+            StructuralDerivativeVariable::Thickness(layer_index),
+        )
+        .unwrap();
+
+    let sample = differentiated
+        .sample_field_positions_structural_second_derivative(&stack, &input, [position])
+        .unwrap();
+
+    let analytic_second = sample
+        .derivatives()
+        .unwrap()
+        .second_sample(0)
+        .unwrap()
+        .canonical_state()
+        .primary()[()];
+
+    let numerical_from_values = central_second_complex(
+        |perturbed_thickness| {
+            let perturbed_stack = with_layer_thickness(&stack, layer_index, perturbed_thickness);
+
+            backend
+                .solve_plane_wave_internal_fields(&perturbed_stack, &input)
+                .unwrap()
+                .sample_field_positions(&perturbed_stack, &input, [position])
+                .unwrap()
+                .sample(0)
+                .unwrap()
+                .canonical_state()
+                .primary()[()]
+        },
+        thickness,
+        step,
+    );
+
+    let numerical_from_first = central_first_complex(
+        |perturbed_thickness| {
+            let perturbed_stack = with_layer_thickness(&stack, layer_index, perturbed_thickness);
+
+            backend
+                .solve_plane_wave_internal_fields_structural_first_derivative(
+                    &perturbed_stack,
+                    &input,
+                    StructuralDerivativeVariable::Thickness(layer_index),
+                )
+                .unwrap()
+                .sample_field_positions_structural_first_derivative(
+                    &perturbed_stack,
+                    &input,
+                    [position],
+                )
+                .unwrap()
+                .derivatives()
+                .unwrap()
+                .first_sample(0)
+                .unwrap()
+                .canonical_state()
+                .primary()[()]
+        },
+        thickness,
+        step,
+    );
+
+    assert_complex_second_derivative_close(analytic_second, numerical_from_values);
+
+    assert_complex_second_derivative_close(analytic_second, numerical_from_first);
+}
+
+#[test]
+fn scatter2_first_vacuum_wavenumber_field_derivative_matches_finite_difference() {
+    let backend = Scatter2::default();
+    let stack = absorbing_stack();
+
+    let input = scalar_input(Polarisation::TransverseMagnetic, IncidentSide::Left);
+
+    let wavenumber = input.planar().vacuum_wavenumber()[()];
+    let step = first_derivative_step(wavenumber);
+
+    let position = FieldPosition::Layer {
+        index: 1,
+        offset: 0.04,
+    };
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_spectral_first_derivative(
+            &stack,
+            &input,
+            SpectralDerivativeVariable::VacuumWavenumber,
+        )
+        .unwrap();
+
+    let analytic = differentiated
+        .sample_field_positions_spectral_first_derivative(&stack, &input, [position])
+        .unwrap()
+        .derivatives()
+        .unwrap()
+        .first_sample(0)
+        .unwrap()
+        .canonical_state()
+        .primary()[()];
+
+    let numerical_from_values = central_first_complex(
+        |perturbed_wavenumber| {
+            let perturbed_input = with_vacuum_wavenumber(&input, perturbed_wavenumber);
+
+            backend
+                .solve_plane_wave_internal_fields(&stack, &perturbed_input)
+                .unwrap()
+                .sample_field_positions(&stack, &perturbed_input, [position])
+                .unwrap()
+                .sample(0)
+                .unwrap()
+                .canonical_state()
+                .primary()[()]
+        },
+        wavenumber,
+        step,
+    );
+
+    assert_complex_derivative_close(analytic, numerical_from_values);
+}
+
+#[test]
+fn scatter2_second_vacuum_wavenumber_field_derivative_matches_finite_difference() {
+    let backend = Scatter2::default();
+    let stack = absorbing_stack();
+
+    let input = scalar_input(Polarisation::TransverseMagnetic, IncidentSide::Left);
+
+    let wavenumber = input.planar().vacuum_wavenumber()[()];
+    let step = first_derivative_step(wavenumber);
+
+    let position = FieldPosition::Layer {
+        index: 1,
+        offset: 0.04,
+    };
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_spectral_second_derivative(
+            &stack,
+            &input,
+            SpectralDerivativeVariable::VacuumWavenumber,
+        )
+        .unwrap();
+
+    let analytic = differentiated
+        .sample_field_positions_spectral_second_derivative(&stack, &input, [position])
+        .unwrap()
+        .derivatives()
+        .unwrap()
+        .second_sample(0)
+        .unwrap()
+        .canonical_state()
+        .primary()[()];
+
+    let numerical_from_values = central_second_complex(
+        |perturbed_wavenumber| {
+            let perturbed_input = with_vacuum_wavenumber(&input, perturbed_wavenumber);
+
+            backend
+                .solve_plane_wave_internal_fields(&stack, &perturbed_input)
+                .unwrap()
+                .sample_field_positions(&stack, &perturbed_input, [position])
+                .unwrap()
+                .sample(0)
+                .unwrap()
+                .canonical_state()
+                .primary()[()]
+        },
+        wavenumber,
+        step,
+    );
+
+    assert_complex_derivative_close(analytic, numerical_from_values);
+}
+
+#[test]
+fn scatter2_first_thickness_power_derivative_matches_finite_difference() {
+    let backend = Scatter2::default();
+    let stack = absorbing_stack();
+    let input = scalar_input(Polarisation::TransverseElectric, IncidentSide::Left);
+
+    let layer_index = 1;
+    let thickness = stack.layers_left_to_right()[layer_index]
+        .thickness()
+        .as_cm();
+
+    let step = thickness_first_step(thickness);
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_structural_first_derivative(
+            &stack,
+            &input,
+            StructuralDerivativeVariable::Thickness(layer_index),
+        )
+        .unwrap();
+
+    let analytic = differentiated
+        .response()
+        .derivatives()
+        .expect("response derivative should be present")
+        .first()
+        .power()
+        .reflectance()[()];
+
+    let numerical = central_first_real(
+        |perturbed_thickness| {
+            let perturbed_stack = with_layer_thickness(&stack, layer_index, perturbed_thickness);
+
+            backend
+                .solve_plane_wave_internal_fields(&perturbed_stack, &input)
+                .unwrap()
+                .power()
+                .reflectance()[()]
+        },
+        thickness,
+        step,
+    );
+
+    assert_real_derivative_close(analytic, numerical);
+
+    let analytic = differentiated
+        .response()
+        .derivatives()
+        .expect("response derivative should be present")
+        .first()
+        .power()
+        .transmittance()[()];
+
+    let numerical = central_first_real(
+        |perturbed_thickness| {
+            let perturbed_stack = with_layer_thickness(&stack, layer_index, perturbed_thickness);
+
+            backend
+                .solve_plane_wave_internal_fields(&perturbed_stack, &input)
+                .unwrap()
+                .power()
+                .transmittance()[()]
+        },
+        thickness,
+        step,
+    );
+
+    assert_real_derivative_close(analytic, numerical);
+}
+
+#[test]
+fn scatter2_first_thickness_power_derivatives_obey_balance() {
+    let backend = Scatter2::default();
+    let stack = absorbing_stack();
+    let input = scalar_input(Polarisation::TransverseElectric, IncidentSide::Left);
+
+    let layer_index = 1;
+
+    let differentiated = backend
+        .solve_plane_wave_internal_fields_structural_first_derivative(
+            &stack,
+            &input,
+            StructuralDerivativeVariable::Thickness(layer_index),
+        )
+        .unwrap();
+
+    let balance = differentiated
+        .power_balance_structural_first_derivative(&stack, &input)
+        .unwrap();
+
+    let derivative = balance
+        .derivatives()
+        .expect("first power-balance derivative should be present");
+
+    assert_real_close(derivative.first().balance_residual()[()], 0.0);
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ScalarFieldValues {
+    pub primary: C,
+    pub dual: C,
+
+    pub electric_x: C,
+    pub electric_y: C,
+    pub electric_z: C,
+
+    pub magnetic_x: C,
+    pub magnetic_y: C,
+    pub magnetic_z: C,
+
+    pub normal_flux: f64,
+}
+
+pub(crate) fn scalar_field_values(sample: &PlaneWaveFieldSample<C, Ix0>) -> ScalarFieldValues {
+    ScalarFieldValues {
+        primary: sample.canonical_state().primary()[()],
+        dual: sample.canonical_state().dual()[()],
+
+        electric_x: sample.electric().x()[()],
+        electric_y: sample.electric().y()[()],
+        electric_z: sample.electric().z()[()],
+
+        magnetic_x: sample.magnetic().x()[()],
+        magnetic_y: sample.magnetic().y()[()],
+        magnetic_z: sample.magnetic().z()[()],
+
+        normal_flux: sample.normal_flux()[()],
     }
 }
