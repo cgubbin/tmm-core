@@ -268,3 +268,127 @@ where
 
     CartesianElectromagneticField::new(electric, magnetic)
 }
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Array0, Ix0};
+    use num_complex::Complex64;
+
+    use super::*;
+    use crate::backend::field::boundary::BidirectionalWavesGeneric;
+
+    type C = Complex64;
+    type D = Ix0;
+    type A = Array0<C>;
+
+    const ABS_TOLERANCE: f64 = 1.0e-12;
+    const REL_TOLERANCE: f64 = 1.0e-12;
+
+    fn c(re: f64, im: f64) -> C {
+        C::new(re, im)
+    }
+
+    fn scalar(value: C) -> A {
+        Array0::from_elem((), value)
+    }
+
+    fn assert_complex_close(actual: C, expected: C) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = ABS_TOLERANCE,
+            max_relative = REL_TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = ABS_TOLERANCE,
+            max_relative = REL_TOLERANCE,
+        );
+    }
+
+    fn assert_real_close(actual: f64, expected: f64) {
+        assert_relative_eq!(
+            actual,
+            expected,
+            epsilon = ABS_TOLERANCE,
+            max_relative = REL_TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn forward_wave_has_expected_state_and_positive_flux() {
+        let amplitude = c(0.6, -0.8);
+        let admittance = c(2.5, 0.0);
+
+        let waves = BidirectionalWavesGeneric::new(scalar(amplitude), scalar(C::new(0.0, 0.0)));
+
+        let state = IsotropicFieldState::from_waves::<C, D>(&waves, &scalar(admittance));
+
+        assert_complex_close(state.primary()[()], amplitude);
+
+        assert_complex_close(state.dual()[()], admittance * amplitude);
+
+        /*
+         * |amplitude|² = 1 here, so
+         *
+         * Pz = 1/2 Re(Y) |a+|² = 1.25.
+         */
+        assert_real_close(state.normal_flux()[()], 1.25);
+    }
+
+    #[test]
+    fn backward_wave_has_expected_state_and_negative_flux() {
+        let amplitude = c(0.6, -0.8);
+        let admittance = c(2.5, 0.0);
+
+        let waves = BidirectionalWavesGeneric::new(scalar(C::new(0.0, 0.0)), scalar(amplitude));
+
+        let state = IsotropicFieldState::from_waves::<C, D>(&waves, &scalar(admittance));
+
+        assert_complex_close(state.primary()[()], amplitude);
+
+        assert_complex_close(state.dual()[()], -admittance * amplitude);
+
+        assert_real_close(state.normal_flux()[()], -1.25);
+    }
+
+    #[test]
+    fn bidirectional_wave_flux_is_forward_minus_backward_power() {
+        let forward = c(0.8, 0.1);
+        let backward = c(-0.2, 0.4);
+        let admittance = c(3.0, 0.0);
+
+        let waves = BidirectionalWavesGeneric::new(scalar(forward), scalar(backward));
+
+        let state = IsotropicFieldState::from_waves::<C, D>(&waves, &scalar(admittance));
+
+        let expected_primary = forward + backward;
+
+        let expected_dual = admittance * (forward - backward);
+
+        assert_complex_close(state.primary()[()], expected_primary);
+
+        assert_complex_close(state.dual()[()], expected_dual);
+
+        let expected_flux = 0.5 * admittance.re * (forward.norm_sqr() - backward.norm_sqr());
+
+        assert_real_close(state.normal_flux()[()], expected_flux);
+    }
+
+    #[test]
+    fn forward_wave_flux_uses_real_part_of_complex_admittance() {
+        let amplitude = c(0.3, -0.4);
+        let admittance = c(2.0, 0.7);
+
+        let waves = BidirectionalWavesGeneric::new(scalar(amplitude), scalar(C::new(0.0, 0.0)));
+
+        let state = IsotropicFieldState::from_waves::<C, D>(&waves, &scalar(admittance));
+
+        let expected = 0.5 * admittance.re * amplitude.norm_sqr();
+
+        assert_real_close(state.normal_flux()[()], expected);
+    }
+}

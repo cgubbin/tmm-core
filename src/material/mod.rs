@@ -137,7 +137,6 @@
 //! used accidentally as though it were a valid analytic continuation in a
 //! complex mode calculation.
 
-pub mod builder;
 pub mod erased;
 pub mod evaluate;
 pub mod handle;
@@ -145,7 +144,6 @@ pub mod model;
 pub mod sample;
 // pub mod tensor;
 
-pub use builder::DrudeLorentzBuilder;
 pub use evaluate::{
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
     EvaluateMeromorphicMaterial,
@@ -154,7 +152,7 @@ pub use handle::{
     AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
     MeromorphicMaterialHandle,
 };
-pub use model::{Constant, DrudeLorentz};
+pub use model::Constant;
 pub use sample::Scalar;
 
 pub use sample::{Sampled, TensorSampled};

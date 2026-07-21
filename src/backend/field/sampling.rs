@@ -142,6 +142,14 @@ impl<R> LayerSampling<R> {
             include_right: false,
         }
     }
+
+    pub fn both_edges() -> Self {
+        Self::Uniform {
+            points: 2,
+            include_left: true,
+            include_right: true,
+        }
+    }
 }
 
 /// Sampling pattern in one semi-infinite exterior medium.

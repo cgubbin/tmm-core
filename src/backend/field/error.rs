@@ -39,4 +39,7 @@ pub enum PlaneWaveFieldError<R> {
 
     #[error("power derivatives required but not supplied")]
     MissingPowerDerivatives,
+
+    #[error("field reconstruction produced a non-finite value or derivative")]
+    NonFiniteFieldQuantity,
 }

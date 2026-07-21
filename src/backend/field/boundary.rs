@@ -918,7 +918,7 @@ where
     )
 }
 
-fn generic_bidirectional_values<C, D>(
+pub(crate) fn generic_bidirectional_values<C, D>(
     waves: &BidirectionalWaves<C, D>,
 ) -> BidirectionalWavesGeneric<ArrayBase<OwnedRepr<C>, D>>
 where

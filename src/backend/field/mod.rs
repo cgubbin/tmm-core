@@ -63,7 +63,8 @@ pub use boundary::{
 
 pub(crate) use boundary::{
     BidirectionalWavesGeneric, LayerBoundaryWavesGeneric, first_order_fields_from_generic,
-    second_order_fields_from_generic, value_fields_from_generic,
+    generic_bidirectional_values, generic_boundary_values, second_order_fields_from_generic,
+    value_fields_from_generic,
 };
 
 pub(crate) use cartesian::CartesianVectorAlgebra;

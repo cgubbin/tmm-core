@@ -7,7 +7,7 @@ use crate::{
         PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         evaluator::RealAxis,
-        isotropic::{IsotropicLayerAdmittance, IsotropicLayerQuantities},
+        isotropic::IsotropicLayerQuantities,
         jet::{ArrayJet, ArrayJetFirst},
         plane_wave::DifferentiablePlaneWaveBackend,
         scatter2::{Scatter2, Scatter2Error},

@@ -8,9 +8,9 @@ mod tensor;
 
 pub use backend::{
     DerivativeVariable, DifferentiablePlaneWaveBackend, IncidentSide, OutgoingModeResidualBackend,
-    PlanarInput, PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse, PlaneWaveResponseDerivatives,
-    PlaneWaveResponseDifferential, Polarisation, SpectralDerivativeVariable,
-    StructuralDerivativeVariable,
+    PlanarInput, PlaneWaveBackend, PlaneWaveFieldBackend, PlaneWaveInput, PlaneWaveResponse,
+    PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential, Polarisation,
+    SpectralDerivativeVariable, StructuralDerivativeVariable,
 };
 
 pub use backend::scatter2::Scatter2;

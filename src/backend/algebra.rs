@@ -6,7 +6,7 @@ use crate::backend::{
     jet::{ArrayJet, ArrayJetFirst, Jet, JetFirst},
 };
 
-pub(crate) trait ScalarAlgebra<T, D>: Sized
+pub(crate) trait ScalarAlgebra<T, D>: Sized + std::fmt::Debug
 where
     D: Dimension,
 {
@@ -49,6 +49,8 @@ where
     fn divide(&self, rhs: &Self) -> Self {
         self.multiply(&rhs.reciprocal())
     }
+
+    fn all_finite(&self) -> bool;
 }
 
 impl<C, D> ScalarAlgebra<C, D> for ArrayBase<OwnedRepr<C>, D>
@@ -129,6 +131,10 @@ where
 
     fn reciprocal(&self) -> Self {
         self.mapv(|value| C::one() / value)
+    }
+
+    fn all_finite(&self) -> bool {
+        self.iter().all(complex_is_finite)
     }
 }
 
@@ -215,6 +221,10 @@ where
 
     fn reciprocal(&self) -> Self {
         ArrayJetFirst::reciprocal(self)
+    }
+
+    fn all_finite(&self) -> bool {
+        self.value().iter().all(complex_is_finite) && self.first().iter().all(complex_is_finite)
     }
 }
 
@@ -303,4 +313,17 @@ where
     fn reciprocal(&self) -> Self {
         ArrayJet::reciprocal(self)
     }
+
+    fn all_finite(&self) -> bool {
+        self.value().iter().all(complex_is_finite)
+            && self.first().iter().all(complex_is_finite)
+            && self.second().iter().all(complex_is_finite)
+    }
+}
+
+fn complex_is_finite<C>(value: &C) -> bool
+where
+    C: ComplexField + Copy,
+{
+    value.real().is_finite() && value.imaginary().is_finite()
 }

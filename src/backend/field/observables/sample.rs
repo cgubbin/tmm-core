@@ -327,7 +327,7 @@ where
         layer.thickness,
     );
 
-    let (canonical, cartesian) = fields_from_local_waves(context, &local, &context.right);
+    let (canonical, cartesian) = fields_from_local_waves(context, &local, &layer.quantities);
 
     Ok(AlgebraicFieldSample {
         position,
@@ -464,7 +464,7 @@ where
     D: Dimension,
     A: ScalarAlgebra<C, D>,
 {
-    let coefficient = -C::i() * C::from_real(distance);
+    let coefficient = C::i() * C::from_real(distance);
 
     kappa.scale(coefficient).exp()
 }
@@ -481,6 +481,8 @@ mod tests {
 
     type C = Complex64;
     type Samples = Array0<C>;
+
+    const TOLERANCE: f64 = 1e-15;
 
     fn c(real: f64, imaginary: f64) -> C {
         C::new(real, imaginary)
@@ -516,8 +518,8 @@ mod tests {
             0.0,
         );
 
-        assert_complex_close(sampled.forward()[()], c(0.8, -0.1), 1e-15);
-        assert_complex_close(sampled.backward()[()], c(0.2, 0.3), 1e-15);
+        assert_complex_close(sampled.forward()[()], c(0.8, -0.1), TOLERANCE);
+        assert_complex_close(sampled.backward()[()], c(0.2, 0.3), TOLERANCE);
     }
 
     #[test]
@@ -530,8 +532,8 @@ mod tests {
             0.0,
         );
 
-        assert_complex_close(sampled.forward()[()], c(0.1, -0.6), 1e-15);
-        assert_complex_close(sampled.backward()[()], c(0.4, 0.2), 1e-15);
+        assert_complex_close(sampled.forward()[()], c(0.1, -0.6), TOLERANCE);
+        assert_complex_close(sampled.backward()[()], c(0.4, 0.2), TOLERANCE);
     }
 
     #[test]
@@ -544,20 +546,23 @@ mod tests {
             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), scalar(0.0, 0.0)),
         );
 
+        let thickness = 1.0;
         let offset = 0.3;
 
-        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, 1.0, offset);
+        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, offset, thickness);
 
-        let expected = amplitude * (-C::i() * c(2.0 * offset, 0.0)).exp();
+        let expected = amplitude * c(0.0, 2.0 * offset).exp();
 
-        assert_complex_close(sampled.forward()[()], expected, 1e-15);
-        assert_complex_close(sampled.backward()[()], c(0.0, 0.0), 1e-15);
+        assert_complex_close(sampled.forward()[()], expected, TOLERANCE);
+
+        assert_complex_close(sampled.backward()[()], c(0.0, 0.0), TOLERANCE);
     }
 
     #[test]
     fn finite_layer_backward_wave_is_referenced_to_right_boundary() {
         let kappa = scalar(2.0, 0.0);
         let amplitude = c(-0.2, 0.5);
+
         let thickness = 1.0;
         let offset = 0.3;
 
@@ -566,16 +571,17 @@ mod tests {
             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), Array0::from_elem((), amplitude)),
         );
 
-        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, thickness, offset);
+        let sampled = sample_layer_waves_algebraic(&boundary, &kappa, offset, thickness);
 
-        let expected = amplitude * c(0.0, -2.0 * (thickness - offset)).exp();
+        let expected = amplitude * c(0.0, 2.0 * (thickness - offset)).exp();
 
-        assert_complex_close(sampled.forward()[()], c(0.0, 0.0), 1e-15);
-        assert_complex_close(sampled.backward()[()], expected, 1e-15);
+        assert_complex_close(sampled.forward()[()], c(0.0, 0.0), TOLERANCE);
+
+        assert_complex_close(sampled.backward()[()], expected, TOLERANCE);
     }
 
     #[test]
-    fn finite_layer_endpoints_reproduce_boundary_amplitudes() {
+    fn finite_layer_endpoints_reproduce_reference_amplitudes() {
         let thickness = 0.8;
 
         let left_forward = c(0.7, 0.1);
@@ -586,38 +592,15 @@ mod tests {
             BidirectionalWavesGeneric::new(scalar(0.0, 0.0), Array0::from_elem((), right_backward)),
         );
 
-        let left = sample_layer_waves_algebraic(&boundary, &scalar(1.4, 0.0), thickness, 0.0);
+        let left = sample_layer_waves_algebraic(&boundary, &scalar(1.4, 0.0), 0.0, thickness);
 
         let right =
             sample_layer_waves_algebraic(&boundary, &scalar(1.4, 0.0), thickness, thickness);
 
-        assert_complex_close(left.forward()[()], left_forward, 1e-15);
-        assert_complex_close(right.backward()[()], right_backward, 1e-15);
+        assert_complex_close(left.forward()[()], left_forward, TOLERANCE);
+
+        assert_complex_close(right.backward()[()], right_backward, TOLERANCE);
     }
-
-    // #[test]
-    // fn sampling_rejects_boundary_wave_layer_count_mismatch() {
-    //     let context = field_context_with_layer_count(2);
-    //     let waves = boundary_waves_with_layer_count(1);
-
-    //     let error = sample_plane_wave_fields_algebraic(
-    //         &context,
-    //         &waves,
-    //         [FieldPosition::Layer {
-    //             index: 0,
-    //             offset: 0.0,
-    //         }],
-    //     )
-    //     .unwrap_err();
-
-    //     assert!(matches!(
-    //         error,
-    //         PlaneWaveFieldError::LayerCountMismatch {
-    //             expected: 2,
-    //             actual: 1,
-    //         }
-    //     ));
-    // }
 
     #[test]
     fn sampling_rejects_negative_exterior_distance() {
@@ -638,52 +621,4 @@ mod tests {
             PlaneWaveFieldError::InvalidLayerOffset { .. }
         ));
     }
-
-    // #[test]
-    // fn first_order_field_samples_are_split_into_values_and_derivatives() {
-    //     let sample = algebraic_first_field_sample(
-    //         1.0, // canonical value
-    //         2.0, // canonical first
-    //         3.0, // Cartesian value
-    //         4.0, // Cartesian first
-    //     );
-
-    //     let fields =
-    //         PlaneWaveFields::from_first_order(DerivativeVariable::Thickness(0), vec![sample]);
-
-    //     assert_eq!(fields.len(), 1);
-
-    //     assert_complex_close(fields.samples()[0].canonical_state().primary(), c(1.0, 0.0));
-
-    //     let derivatives = fields.derivatives().unwrap();
-
-    //     assert_eq!(derivatives.variable(), DerivativeVariable::Thickness(0),);
-
-    //     assert_complex_close(
-    //         derivatives.first()[0].canonical_state().primary(),
-    //         c(2.0, 0.0),
-    //     );
-    // }
-    //
-    // #[test]
-    // fn second_order_field_samples_are_split_into_all_orders() {
-    //     let sample = algebraic_second_field_sample(1.0, 2.0, 3.0);
-
-    //     let fields =
-    //         PlaneWaveFields::from_second_order(DerivativeVariable::Thickness(0), vec![sample]);
-
-    //     assert_complex_close(fields.samples()[0].canonical_state().primary(), c(1.0, 0.0));
-
-    //     let derivatives = fields.derivatives().unwrap();
-
-    //     assert_complex_close(
-    //         derivatives.first()[0].canonical_state().primary(),
-    //         c(2.0, 0.0),
-    //     );
-
-    //     assert_complex_close(
-    //         derivatives.second().unwrap()[0].canonical_state().primary(),
-    //         c(3.0, 0.0),
-    //     );
-    // }
 }
