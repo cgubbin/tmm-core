@@ -1,6 +1,5 @@
 use crate::{
-    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation,
-    SpectralDerivativeVariable, Stack, StructuralDerivativeVariable,
+    ComplexScalar, IncidentSide, PlanarInput, PlaneWaveInput, Polarisation, Stack,
     backend::{
         algebra::ScalarAlgebra,
         input::AlgebraicPlanarInput,
@@ -329,29 +328,28 @@ pub(super) struct AlgebraicPowerBalanceContext<A> {
 impl<A> AlgebraicPowerBalanceContext<A> {
     fn evaluate<C, D, M, F>(
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+        planar: AlgebraicPlanarInput<A>,
+        incident_side: IncidentSide,
         mut evaluate: F,
     ) -> Self
     where
         C: ComplexField,
         C::RealField: Copy,
         D: Dimension,
-        F: FnMut(&M, &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> IsotropicLayerAdmittance<A>,
+        F: FnMut(&M, &AlgebraicPlanarInput<A>) -> IsotropicLayerAdmittance<A>,
+        A: ScalarAlgebra<C, D> + Clone,
     {
-        let input = input.to_complex();
-        let planar = input.planar();
-
-        let left_admittance = evaluate(stack.left_exterior(), planar);
-        let right_admittance = evaluate(stack.right_exterior(), planar);
+        let left_admittance = evaluate(stack.left_exterior(), &planar);
+        let right_admittance = evaluate(stack.right_exterior(), &planar);
 
         let layers = stack
             .layers_left_to_right()
             .iter()
-            .map(|layer| evaluate(layer.material(), planar))
+            .map(|layer| evaluate(layer.material(), &planar))
             .collect();
 
         Self {
-            incident_side: input.incident_side(),
+            incident_side,
             left_admittance,
             right_admittance,
             layers,
@@ -369,32 +367,18 @@ where
     C::RealField: Copy,
     D: Dimension,
 {
-    AlgebraicPowerBalanceContext::evaluate(stack, input, |material, planar| {
-        IsotropicLayerQuantities::real_axis(material, planar).into_admittance()
-    })
+    let planar = AlgebraicPlanarInput::values(&input.planar().to_complex());
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
 }
 
-pub(super) fn power_balance_structural_first_context<M, C, D>(
+pub(super) fn power_balance_thickness_first_context<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: StructuralDerivativeVariable,
-) -> AlgebraicPowerBalanceContext<ArrayJetFirst<C, D>>
-where
-    M: EvaluateMaterial<C, Real = C::RealField>,
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    AlgebraicPowerBalanceContext::evaluate(stack, input, |material, planar| {
-        IsotropicLayerQuantities::evaluate_first_structural_real_axis(material, planar, variable)
-            .into_admittance()
-    })
-}
-
-pub(super) fn power_balance_spectral_first_context<M, C, D>(
-    stack: &Stack<M, C::RealField>,
-    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: SpectralDerivativeVariable,
 ) -> AlgebraicPowerBalanceContext<ArrayJetFirst<C, D>>
 where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
@@ -402,33 +386,24 @@ where
     C::RealField: Copy,
     D: Dimension,
 {
-    AlgebraicPowerBalanceContext::evaluate(stack, input, |material, planar| {
-        IsotropicLayerQuantities::evaluate_first_spectral_real_axis(material, planar, variable)
-            .into_admittance()
-    })
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+        ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
 }
 
-pub(super) fn power_balance_structural_second_context<M, C, D>(
+pub(super) fn power_balance_thickness_second_context<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: StructuralDerivativeVariable,
-) -> AlgebraicPowerBalanceContext<ArrayJet<C, D>>
-where
-    M: EvaluateMaterial<C, Real = C::RealField>,
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    AlgebraicPowerBalanceContext::evaluate(stack, input, |material, planar| {
-        IsotropicLayerQuantities::evaluate_second_structural_real_axis(material, planar, variable)
-            .into_admittance()
-    })
-}
-
-pub(super) fn power_balance_spectral_second_context<M, C, D>(
-    stack: &Stack<M, C::RealField>,
-    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    variable: SpectralDerivativeVariable,
 ) -> AlgebraicPowerBalanceContext<ArrayJet<C, D>>
 where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
@@ -436,8 +411,142 @@ where
     C::RealField: Copy,
     D: Dimension,
 {
-    AlgebraicPowerBalanceContext::evaluate(stack, input, |material, planar| {
-        IsotropicLayerQuantities::evaluate_second_spectral_real_axis(material, planar, variable)
-            .into_admittance()
-    })
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+        ArrayJet::constant(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
+}
+
+pub(super) fn power_balance_kx_first_context<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+) -> AlgebraicPowerBalanceContext<ArrayJetFirst<C, D>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+        ArrayJetFirst::variable(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
+}
+
+pub(super) fn power_balance_kx_second_context<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+) -> AlgebraicPowerBalanceContext<ArrayJet<C, D>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+        ArrayJet::variable(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
+}
+
+pub(super) fn power_balance_k0_first_context<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+) -> AlgebraicPowerBalanceContext<ArrayJetFirst<C, D>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJetFirst::variable(planar.vacuum_wavenumber().clone()),
+        ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
+}
+
+pub(super) fn power_balance_k0_second_context<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+) -> AlgebraicPowerBalanceContext<ArrayJet<C, D>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArrayJet::variable(planar.vacuum_wavenumber().clone()),
+        ArrayJet::constant(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
+}
+
+pub(super) fn power_balance_full_hessian_context<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+) -> AlgebraicPowerBalanceContext<ArraySpectralJet<C, D>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+{
+    let planar = input.planar().to_complex();
+    let planar = AlgebraicPlanarInput::new(
+        ArraySpectralJet::vacuum_wavenumber(planar.vacuum_wavenumber().clone()),
+        ArraySpectralJet::parallel_wavenumber(planar.parallel_wavenumber().clone()),
+        planar.polarisation(),
+    );
+
+    AlgebraicPowerBalanceContext::evaluate(
+        stack,
+        planar,
+        input.incident_side(),
+        |material, planar| IsotropicLayerQuantities::real_axis(material, planar).into_admittance(),
+    )
 }

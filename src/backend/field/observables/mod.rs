@@ -73,9 +73,10 @@ pub use power::{
 };
 
 pub(crate) use power::{
-    plane_wave_power_balance_spectral_first, plane_wave_power_balance_spectral_second,
-    plane_wave_power_balance_structural_first, plane_wave_power_balance_structural_second,
-    plane_wave_power_balance_values,
+    plane_wave_power_balance_full_spectral_hessian, plane_wave_power_balance_k0_first,
+    plane_wave_power_balance_k0_second, plane_wave_power_balance_kx_first,
+    plane_wave_power_balance_kx_second, plane_wave_power_balance_thickness_first,
+    plane_wave_power_balance_thickness_second, plane_wave_power_balance_values,
 };
 pub(crate) use sample::{
     sample_first_order_fields_k0, sample_first_order_fields_kx,

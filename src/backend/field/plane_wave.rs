@@ -10,13 +10,15 @@ use crate::{
         PlaneWaveAmplitudes,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         field::observables::{
-            plane_wave_power_balance_spectral_first, plane_wave_power_balance_spectral_second,
-            plane_wave_power_balance_structural_first, plane_wave_power_balance_structural_second,
-            plane_wave_power_balance_values, sample_first_order_fields_k0,
-            sample_first_order_fields_kx, sample_first_order_fields_thickness,
-            sample_plane_wave_field_profile, sample_second_order_fields_full_spectral_hessian,
-            sample_second_order_fields_k0, sample_second_order_fields_kx,
-            sample_second_order_fields_thickness, sample_value_fields,
+            plane_wave_power_balance_full_spectral_hessian, plane_wave_power_balance_k0_first,
+            plane_wave_power_balance_k0_second, plane_wave_power_balance_kx_first,
+            plane_wave_power_balance_kx_second, plane_wave_power_balance_thickness_first,
+            plane_wave_power_balance_thickness_second, plane_wave_power_balance_values,
+            sample_first_order_fields_k0, sample_first_order_fields_kx,
+            sample_first_order_fields_thickness, sample_plane_wave_field_profile,
+            sample_second_order_fields_full_spectral_hessian, sample_second_order_fields_k0,
+            sample_second_order_fields_kx, sample_second_order_fields_thickness,
+            sample_value_fields,
         },
         plane_wave::PlaneWavePower,
     },
@@ -441,31 +443,7 @@ where
         plane_wave_power_balance_values(stack, input, self)
     }
 
-    pub fn power_balance_structural_first_derivative<M>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
-    where
-        M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: ComplexField,
-    {
-        plane_wave_power_balance_structural_first(stack, input, self)
-    }
-
-    pub fn power_balance_structural_second_derivative<M>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
-    where
-        M: EvaluateMaterial<C, Real = C::RealField>,
-        C::RealField: ComplexField,
-    {
-        plane_wave_power_balance_structural_second(stack, input, self)
-    }
-
-    pub fn power_balance_spectral_first_derivative<M>(
+    pub fn power_balance_thickness_first_derivative<M>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -474,10 +452,10 @@ where
         M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: ComplexField,
     {
-        plane_wave_power_balance_spectral_first(stack, input, self)
+        plane_wave_power_balance_thickness_first(stack, input, self)
     }
 
-    pub fn power_balance_spectral_second_derivative<M>(
+    pub fn power_balance_thickness_second_derivative<M>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
@@ -486,6 +464,66 @@ where
         M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
         C::RealField: ComplexField,
     {
-        plane_wave_power_balance_spectral_second(stack, input, self)
+        plane_wave_power_balance_thickness_second(stack, input, self)
+    }
+
+    pub fn power_balance_kx_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_kx_first(stack, input, self)
+    }
+
+    pub fn power_balance_kx_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_kx_second(stack, input, self)
+    }
+
+    pub fn power_balance_k0_first_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_k0_first(stack, input, self)
+    }
+
+    pub fn power_balance_k0_second_derivative<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_k0_second(stack, input, self)
+    }
+
+    pub fn power_balance_full_spectral_hessian<M>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+    where
+        M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+        C::RealField: ComplexField,
+    {
+        plane_wave_power_balance_full_spectral_hessian(stack, input, self)
     }
 }

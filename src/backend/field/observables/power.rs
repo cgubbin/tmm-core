@@ -14,9 +14,11 @@ use crate::{
             },
             observables::{
                 context::{
-                    AlgebraicPowerBalanceContext, power_balance_spectral_first_context,
-                    power_balance_spectral_second_context, power_balance_structural_first_context,
-                    power_balance_structural_second_context, power_balance_value_context,
+                    AlgebraicPowerBalanceContext, power_balance_full_hessian_context,
+                    power_balance_k0_first_context, power_balance_k0_second_context,
+                    power_balance_kx_first_context, power_balance_kx_second_context,
+                    power_balance_thickness_first_context, power_balance_thickness_second_context,
+                    power_balance_value_context,
                 },
                 sample::validate_generic_layer_count,
             },
@@ -414,13 +416,13 @@ where
     Ok(PlaneWavePowerBalance::from_values(balance))
 }
 
-pub(crate) fn plane_wave_power_balance_structural_first<M, C, D>(
+pub(crate) fn plane_wave_power_balance_thickness_first<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
 ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
 where
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy + ComplexField,
     D: Dimension,
@@ -430,31 +432,30 @@ where
         .structural()
         .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
 
-    let variable: StructuralDerivativeVariable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+    if let DerivativeVariable::Thickness(_) = differentiated.variable() {
+        let context = power_balance_thickness_first_context(stack, input);
+        let waves = generic_boundary_first(response.boundary_waves().values(), differentiated);
 
-    let context = power_balance_structural_first_context(stack, input, variable);
-    let waves = generic_boundary_first(response.boundary_waves().values(), differentiated);
+        let power_response = AlgebraicPowerResponse::from_first_order(response)?;
 
-    let power_response = AlgebraicPowerResponse::from_first_order(response)?;
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
 
-    let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
-
-    Ok(PlaneWavePowerBalance::from_first_order(
-        differentiated.variable(),
-        balance,
-    ))
+        Ok(PlaneWavePowerBalance::from_first_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
 }
 
-pub(crate) fn plane_wave_power_balance_structural_second<M, C, D>(
+pub(crate) fn plane_wave_power_balance_thickness_second<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
 ) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
 where
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy + ComplexField,
     D: Dimension,
@@ -464,27 +465,94 @@ where
         .structural()
         .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
 
-    let variable: StructuralDerivativeVariable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+    if let DerivativeVariable::Thickness(_) = differentiated.variable() {
+        let context = power_balance_thickness_second_context(stack, input);
 
-    let context = power_balance_structural_second_context(stack, input, variable);
+        let waves = generic_boundary_second(response.boundary_waves().values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
 
-    let waves = generic_boundary_second(response.boundary_waves().values(), differentiated)
-        .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+        let power_response = AlgebraicPowerResponse::from_second_order(response)?;
 
-    let power_response = AlgebraicPowerResponse::from_second_order(response)?;
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
 
-    let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
-
-    Ok(PlaneWavePowerBalance::from_second_order(
-        differentiated.variable(),
-        balance,
-    ))
+        Ok(PlaneWavePowerBalance::from_second_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
 }
 
-pub(crate) fn plane_wave_power_balance_spectral_first<M, C, D>(
+pub(crate) fn plane_wave_power_balance_kx_first<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    response: &PlaneWaveFieldResponse<C, D>,
+) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + ComplexField,
+    D: Dimension,
+{
+    let differentiated = response
+        .boundary_waves()
+        .structural()
+        .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+
+    if let DerivativeVariable::ParallelWavenumber = differentiated.variable() {
+        let context = power_balance_kx_first_context(stack, input);
+        let waves = generic_boundary_first(response.boundary_waves().values(), differentiated);
+
+        let power_response = AlgebraicPowerResponse::from_first_order(response)?;
+
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
+
+        Ok(PlaneWavePowerBalance::from_first_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
+}
+
+pub(crate) fn plane_wave_power_balance_kx_second<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    response: &PlaneWaveFieldResponse<C, D>,
+) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + ComplexField,
+    D: Dimension,
+{
+    let differentiated = response
+        .boundary_waves()
+        .structural()
+        .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+
+    if let DerivativeVariable::ParallelWavenumber = differentiated.variable() {
+        let context = power_balance_kx_second_context(stack, input);
+
+        let waves = generic_boundary_second(response.boundary_waves().values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+
+        let power_response = AlgebraicPowerResponse::from_second_order(response)?;
+
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
+
+        Ok(PlaneWavePowerBalance::from_second_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
+}
+
+pub(crate) fn plane_wave_power_balance_k0_first<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
@@ -500,25 +568,24 @@ where
         .spectral()
         .ok_or(PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
 
-    let variable: SpectralDerivativeVariable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
+    if let DerivativeVariable::ParallelWavenumber = differentiated.variable() {
+        let context = power_balance_k0_first_context(stack, input);
+        let waves = generic_boundary_first(response.boundary_waves().values(), differentiated);
 
-    let context = power_balance_spectral_first_context(stack, input, variable);
-    let waves = generic_boundary_first(response.boundary_waves().values(), differentiated);
+        let power_response = AlgebraicPowerResponse::from_first_order(response)?;
 
-    let power_response = AlgebraicPowerResponse::from_first_order(response)?;
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
 
-    let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
-
-    Ok(PlaneWavePowerBalance::from_first_order(
-        differentiated.variable(),
-        balance,
-    ))
+        Ok(PlaneWavePowerBalance::from_first_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedSpectralDerivatives)
+    }
 }
 
-pub(crate) fn plane_wave_power_balance_spectral_second<M, C, D>(
+pub(crate) fn plane_wave_power_balance_k0_second<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     response: &PlaneWaveFieldResponse<C, D>,
@@ -534,24 +601,37 @@ where
         .spectral()
         .ok_or(PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
 
-    let variable: SpectralDerivativeVariable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
+    if let DerivativeVariable::ParallelWavenumber = differentiated.variable() {
+        let context = power_balance_k0_second_context(stack, input);
 
-    let context = power_balance_spectral_second_context(stack, input, variable);
+        let waves = generic_boundary_second(response.boundary_waves().values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
 
-    let waves = generic_boundary_second(response.boundary_waves().values(), differentiated)
-        .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+        let power_response = AlgebraicPowerResponse::from_second_order(response)?;
 
-    let power_response = AlgebraicPowerResponse::from_second_order(response)?;
+        let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
 
-    let balance = plane_wave_power_balance_algebraic(&context, &waves, &power_response)?;
+        Ok(PlaneWavePowerBalance::from_second_order(
+            differentiated.variable(),
+            balance,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedSpectralDerivatives)
+    }
+}
 
-    Ok(PlaneWavePowerBalance::from_second_order(
-        differentiated.variable(),
-        balance,
-    ))
+pub(crate) fn plane_wave_power_balance_full_spectral_hessian<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    response: &PlaneWaveFieldResponse<C, D>,
+) -> Result<PlaneWavePowerBalance<C::RealField, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + ComplexField,
+    D: Dimension,
+{
+    todo!()
 }
 
 fn plane_wave_power_balance_algebraic<C, D, A>(
