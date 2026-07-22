@@ -1,7 +1,8 @@
 mod residual;
 
 pub use residual::{
-    AnalyticResidual, DifferentiableOutgoingModeResidualBackend, OutgoingModeResidualBackend,
+    AnalyticResidual, OutgoingModeResidualBackend, OutgoingModeResidualKxDerivativeBackend,
+    OutgoingModeResidualSpectralDerivativeBackend, OutgoingModeResidualThicknessDerivativeBackend,
     ResidualDerivatives,
 };
 

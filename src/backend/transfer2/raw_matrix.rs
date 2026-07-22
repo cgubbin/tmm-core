@@ -1,8 +1,7 @@
 use crate::{
     ComplexScalar, SpectralDerivativeVariable, StructuralDerivativeVariable, Transfer2,
     backend::{
-        MatrixEvaluation, PlanarInput, RawMatrixBackend,
-        evaluator::{ComplexPlane, RealAxis},
+        ComplexPlane, MatrixEvaluation, PlanarInput, RawMatrixBackend, RealAxis,
         jet::{ArrayJet, ArrayJetFirst},
         matrix::{
             ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,

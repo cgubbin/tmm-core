@@ -33,13 +33,11 @@ mod interface_consistency_tests {
     use crate::{
         PlaneWaveResponse,
         backend::{
-            DerivativeVariable, OutgoingModeResidualBackend, PlanarInput, PlaneWaveBackend,
-            PlaneWaveInput, Polarisation, RawMatrixBackend,
+            ComplexPlane, DerivativeVariable, OutgoingModeResidualBackend, PlanarInput,
+            PlaneWaveBackend, PlaneWaveInput, Polarisation, RawMatrixBackend,
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-            evaluator::ComplexPlane,
             input::IncidentSide,
             isotropic::IsotropicLayerQuantities,
-            jet::{Jet, JetFirst},
             matrix::{
                 ComplexMatrixBackend, RawMatrixSpectralDerivativeBackend,
                 RawMatrixStructuralDerivativeBackend,

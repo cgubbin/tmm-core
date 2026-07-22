@@ -15,6 +15,8 @@
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
+use crate::{ArrayJet, ArrayJetFirst, backend::jet::ArraySpectralJet};
+
 /// Polarisation supported by isotropic planar backends.
 ///
 /// In an isotropic stratified system, transverse-electric and
@@ -33,6 +35,148 @@ pub enum Polarisation {
     ///
     /// The magnetic field is perpendicular to the plane of incidence.
     TransverseMagnetic,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AlgebraicPlanarInput<I> {
+    pub(crate) vacuum_wavenumber: I,
+    pub(crate) parallel_wavenumber: I,
+    polarisation: Polarisation,
+}
+
+impl<I> AlgebraicPlanarInput<I> {
+    /// Construct a planar evaluation input.
+    ///
+    /// `vacuum_wavenumber` and `parallel_wavenumber` must use the same
+    /// inverse-length unit. For sampled values, they must also have matching
+    /// shapes.
+    pub fn new(vacuum_wavenumber: I, parallel_wavenumber: I, polarisation: Polarisation) -> Self {
+        Self {
+            vacuum_wavenumber,
+            parallel_wavenumber,
+            polarisation,
+        }
+    }
+
+    /// Return the vacuum wavenumber `k₀`.
+    pub fn vacuum_wavenumber(&self) -> &I {
+        &self.vacuum_wavenumber
+    }
+
+    /// Return the conserved parallel wavenumber `k∥`.
+    pub fn parallel_wavenumber(&self) -> &I {
+        &self.parallel_wavenumber
+    }
+
+    /// Return the polarisation.
+    pub fn polarisation(&self) -> Polarisation {
+        self.polarisation
+    }
+
+    /// Consume the input and return its coordinates and polarisation.
+    pub fn into_parts(self) -> (I, I, Polarisation) {
+        (
+            self.vacuum_wavenumber,
+            self.parallel_wavenumber,
+            self.polarisation,
+        )
+    }
+}
+
+impl<C, D> AlgebraicPlanarInput<ArrayBase<OwnedRepr<C>, D>>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub(crate) fn values(planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self {
+        Self::new(
+            planar.vacuum_wavenumber().clone(),
+            planar.parallel_wavenumber().clone(),
+            planar.polarisation(),
+        )
+    }
+}
+
+impl<C, D> AlgebraicPlanarInput<ArrayJetFirst<C, D>>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    pub(crate) fn first_vacuum_wavenumber(
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        Self::new(
+            ArrayJetFirst::variable(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+
+    pub(crate) fn first_parallel_wavenumber(
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        Self::new(
+            ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::variable(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+
+    pub(crate) fn first_structural(planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self {
+        Self::new(
+            ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+}
+
+impl<C, D> AlgebraicPlanarInput<ArrayJet<C, D>>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    pub(crate) fn second_vacuum_wavenumber(
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        Self::new(
+            ArrayJet::variable(planar.vacuum_wavenumber().clone()),
+            ArrayJet::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+
+    pub(crate) fn second_parallel_wavenumber(
+        planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        Self::new(
+            ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJet::variable(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+
+    pub(crate) fn second_structural(planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self {
+        Self::new(
+            ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJet::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
+}
+
+impl<C, D> AlgebraicPlanarInput<ArraySpectralJet<C, D>>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    pub(crate) fn full_spectral(planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>) -> Self {
+        Self::new(
+            ArraySpectralJet::vacuum_wavenumber(planar.vacuum_wavenumber().clone()),
+            ArraySpectralJet::parallel_wavenumber(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        )
+    }
 }
 
 /// Spectral and in-plane wavevector coordinates for a planar calculation.

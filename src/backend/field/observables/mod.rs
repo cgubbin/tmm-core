@@ -64,7 +64,8 @@ mod power;
 mod sample;
 
 pub use fields::{
-    PlaneWaveFieldDerivatives, PlaneWaveFieldDifferential, PlaneWaveFieldSample, PlaneWaveFields,
+    PlaneWaveFieldDerivatives, PlaneWaveFieldDifferential, PlaneWaveFieldSample,
+    PlaneWaveFieldSampleOwned, PlaneWaveFieldSampleView, PlaneWaveFields,
 };
 
 pub use power::{
@@ -77,9 +78,10 @@ pub(crate) use power::{
     plane_wave_power_balance_values,
 };
 pub(crate) use sample::{
-    sample_first_order_fields_spectral, sample_first_order_fields_structural,
-    sample_plane_wave_field_profile, sample_second_order_fields_spectral,
-    sample_second_order_fields_structural, sample_value_fields,
+    sample_first_order_fields_k0, sample_first_order_fields_kx,
+    sample_first_order_fields_thickness, sample_plane_wave_field_profile,
+    sample_second_order_fields_full_spectral_hessian, sample_second_order_fields_k0,
+    sample_second_order_fields_kx, sample_second_order_fields_thickness, sample_value_fields,
 };
 
 #[cfg(test)]

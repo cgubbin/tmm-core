@@ -2,14 +2,17 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, IncidentSide, PlanarInput,
+    ComplexScalar, DerivativeVariable, IncidentSide, PlanarInput,
     backend::{
-        PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        PlaneWaveInput, PlaneWaveResponse, RealAxis,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        evaluator::RealAxis,
+        input::AlgebraicPlanarInput,
         isotropic::IsotropicLayerQuantities,
-        jet::{ArrayJet, ArrayJetFirst},
-        plane_wave::DifferentiablePlaneWaveBackend,
+        jet::{ArrayJet, ArrayJetFirst, ArraySpectralJet},
+        plane_wave::{
+            PlaneWaveBackend, PlaneWaveKxDerivativeBackend, PlaneWaveSpectralDerivativeBackend,
+            PlaneWaveThicknessDerivativeBackend,
+        },
         scatter2::{Scatter2, Scatter2Error},
     },
     material::{EvaluateDifferentiableMaterial, EvaluateMaterial},
@@ -30,8 +33,7 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.complex_planar_input();
-        let matrix = self.evaluate_with::<RealAxis, _, _, _>(stack, &planar)?;
+        let matrix = self.evaluate_real_axis(stack, input.planar())?;
 
         let entries = matrix.into_entries();
 
@@ -40,113 +42,244 @@ where
         let response = plane_wave_from_amplitudes(
             reflection,
             transmission,
-            &planar,
+            &AlgebraicPlanarInput::values(&input.planar().clone().to_complex()),
             stack,
             input.incident_side(),
-        );
-
-        Ok(response)
-    }
-
-    fn solve_plane_wave_structural_first_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.complex_planar_input();
-        let entries =
-            self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
-
-        let (reflection, transmission) = entries.amplitudes(input.incident_side());
-
-        let response = plane_wave_from_first_jet_amplitudes_structural(
-            reflection,
-            transmission,
-            &planar,
-            stack,
-            input.incident_side(),
-            variable,
-        );
-
-        Ok(response)
-    }
-
-    fn solve_plane_wave_structural_second_derivative(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
-        let planar = input.complex_planar_input();
-        let entries =
-            self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
-
-        let (reflection, transmission) = entries.amplitudes(input.incident_side());
-
-        let response = plane_wave_from_second_jet_amplitudes_structural(
-            reflection,
-            transmission,
-            &planar,
-            stack,
-            input.incident_side(),
-            variable,
         );
 
         Ok(response)
     }
 }
 
-impl<C, D, M> DifferentiablePlaneWaveBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, D, M> PlaneWaveThicknessDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
-    fn solve_plane_wave_spectral_first_derivative(
+    fn solve_plane_wave_thickness_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        layer: usize,
+    ) -> Result<PlaneWaveResponse<C, D>, Scatter2Error> {
         let planar = input.complex_planar_input();
-        let entries =
-            self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+        let entries = self
+            .evaluate_thickness_first_with::<RealAxis, _, _, _>(stack, &planar, layer)?
+            .into_entries();
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        let response = plane_wave_from_first_jet_amplitudes_spectral(
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_first_jet_amplitudes(
             reflection,
             transmission,
             &planar,
             stack,
             input.incident_side(),
-            variable,
+            DerivativeVariable::Thickness(layer),
         );
 
         Ok(response)
     }
 
-    fn solve_plane_wave_spectral_second_derivative(
+    fn solve_plane_wave_thickness_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+        layer: usize,
+    ) -> Result<PlaneWaveResponse<C, D>, Scatter2Error> {
         let planar = input.complex_planar_input();
-        let entries =
-            self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+        let entries = self
+            .evaluate_thickness_second_with::<RealAxis, _, _, _>(stack, &planar, layer)?
+            .into_entries();
 
         let (reflection, transmission) = entries.amplitudes(input.incident_side());
 
-        let response = plane_wave_from_second_jet_amplitudes_spectral(
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJet::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_second_jet_amplitudes(
             reflection,
             transmission,
             &planar,
             stack,
             input.incident_side(),
-            variable,
+            DerivativeVariable::Thickness(layer),
+        );
+
+        Ok(response)
+    }
+}
+
+impl<C, D, M> PlaneWaveKxDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+{
+    fn solve_plane_wave_kx_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Scatter2Error> {
+        let planar = input.complex_planar_input();
+        let entries = self
+            .evaluate_kx_first_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::variable(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_first_jet_amplitudes(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            DerivativeVariable::ParallelWavenumber,
+        );
+
+        Ok(response)
+    }
+
+    fn solve_plane_wave_kx_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Scatter2Error> {
+        let planar = input.complex_planar_input();
+        let entries = self
+            .evaluate_kx_second_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJet::constant(planar.vacuum_wavenumber().clone()),
+            ArrayJet::variable(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_second_jet_amplitudes(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            DerivativeVariable::ParallelWavenumber,
+        );
+
+        Ok(response)
+    }
+}
+
+impl<C, D, M> PlaneWaveSpectralDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+{
+    fn solve_plane_wave_k0_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input();
+        let entries = self
+            .evaluate_k0_first_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJetFirst::variable(planar.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_first_jet_amplitudes(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            DerivativeVariable::VacuumWavenumber,
+        );
+
+        Ok(response)
+    }
+
+    fn solve_plane_wave_k0_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input();
+        let entries = self
+            .evaluate_k0_second_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let planar = AlgebraicPlanarInput::new(
+            ArrayJet::variable(planar.vacuum_wavenumber().clone()),
+            ArrayJet::constant(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_second_jet_amplitudes(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
+            DerivativeVariable::VacuumWavenumber,
+        );
+
+        Ok(response)
+    }
+
+    fn solve_plane_wave_full_spectral_hessian(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error> {
+        let planar = input.complex_planar_input();
+        let entries = self
+            .evaluate_full_spectral_hessian::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (reflection, transmission) = entries.amplitudes(input.incident_side());
+
+        let planar = AlgebraicPlanarInput::new(
+            ArraySpectralJet::vacuum_wavenumber(planar.vacuum_wavenumber().clone()),
+            ArraySpectralJet::parallel_wavenumber(planar.parallel_wavenumber().clone()),
+            planar.polarisation(),
+        );
+
+        let response = plane_wave_from_spectral_jet_amplitudes(
+            reflection,
+            transmission,
+            &planar,
+            stack,
+            input.incident_side(),
         );
 
         Ok(response)
@@ -156,7 +289,7 @@ where
 pub(crate) fn plane_wave_from_amplitudes<C, D, M>(
     reflection: ArrayBase<OwnedRepr<C>, D>,
     transmission: ArrayBase<OwnedRepr<C>, D>,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    planar: &AlgebraicPlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     stack: &Stack<M, C::RealField>,
     incident_side: IncidentSide,
 ) -> PlaneWaveResponse<C, D>
@@ -187,34 +320,26 @@ where
     )
 }
 
-pub(crate) fn plane_wave_from_first_jet_amplitudes_structural<C, D, M>(
+pub(crate) fn plane_wave_from_first_jet_amplitudes<C, D, M>(
     reflection: ArrayJetFirst<C, D>,
     transmission: ArrayJetFirst<C, D>,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    planar: &AlgebraicPlanarInput<ArrayJetFirst<C, D>>,
     stack: &Stack<M, C::RealField>,
     incident_side: IncidentSide,
-    variable: StructuralDerivativeVariable,
+    variable: DerivativeVariable,
 ) -> PlaneWaveResponse<C, D>
 where
     C: ComplexScalar,
     C::RealField: Float,
     D: Dimension,
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
-        stack.left_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let left_admittance =
+        IsotropicLayerQuantities::real_axis(stack.left_exterior(), planar).into_admittance();
 
-    let right_admittance = IsotropicLayerQuantities::evaluate_first_structural_real_axis(
-        stack.right_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let right_admittance =
+        IsotropicLayerQuantities::real_axis(stack.right_exterior(), planar).into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -227,17 +352,17 @@ where
         transmission,
         incident_normalisation.into_inner(),
         transmitted_normalisation.into_inner(),
-        variable.into(),
+        variable,
     )
 }
 
-pub(crate) fn plane_wave_from_first_jet_amplitudes_spectral<C, D, M>(
-    reflection: ArrayJetFirst<C, D>,
-    transmission: ArrayJetFirst<C, D>,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+pub(crate) fn plane_wave_from_second_jet_amplitudes<C, D, M>(
+    reflection: ArrayJet<C, D>,
+    transmission: ArrayJet<C, D>,
+    planar: &AlgebraicPlanarInput<ArrayJet<C, D>>,
     stack: &Stack<M, C::RealField>,
     incident_side: IncidentSide,
-    variable: SpectralDerivativeVariable,
+    variable: DerivativeVariable,
 ) -> PlaneWaveResponse<C, D>
 where
     C: ComplexScalar,
@@ -246,63 +371,11 @@ where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
-        stack.left_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let left_admittance =
+        IsotropicLayerQuantities::real_axis(stack.left_exterior(), planar).into_admittance();
 
-    let right_admittance = IsotropicLayerQuantities::evaluate_first_spectral_real_axis(
-        stack.right_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
-
-    let (incident_normalisation, transmitted_normalisation) = match incident_side {
-        IncidentSide::Left => (left_admittance, right_admittance),
-
-        IncidentSide::Right => (right_admittance, left_admittance),
-    };
-
-    PlaneWaveResponse::from_first_jets(
-        reflection,
-        transmission,
-        incident_normalisation.into_inner(),
-        transmitted_normalisation.into_inner(),
-        variable.into(),
-    )
-}
-
-pub(crate) fn plane_wave_from_second_jet_amplitudes_structural<C, D, M>(
-    reflection: ArrayJet<C, D>,
-    transmission: ArrayJet<C, D>,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    stack: &Stack<M, C::RealField>,
-    incident_side: IncidentSide,
-    variable: StructuralDerivativeVariable,
-) -> PlaneWaveResponse<C, D>
-where
-    C: ComplexScalar,
-    C::RealField: Float,
-    D: Dimension,
-    M: EvaluateMaterial<C, Real = C::RealField>,
-{
-    // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
-        stack.left_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
-
-    let right_admittance = IsotropicLayerQuantities::evaluate_second_structural_real_axis(
-        stack.right_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let right_admittance =
+        IsotropicLayerQuantities::real_axis(stack.right_exterior(), planar).into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -315,17 +388,16 @@ where
         transmission,
         incident_normalisation.into_inner(),
         transmitted_normalisation.into_inner(),
-        variable.into(),
+        variable,
     )
 }
 
-pub(crate) fn plane_wave_from_second_jet_amplitudes_spectral<C, D, M>(
-    reflection: ArrayJet<C, D>,
-    transmission: ArrayJet<C, D>,
-    planar: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+pub(crate) fn plane_wave_from_spectral_jet_amplitudes<C, D, M>(
+    reflection: ArraySpectralJet<C, D>,
+    transmission: ArraySpectralJet<C, D>,
+    planar: &AlgebraicPlanarInput<ArraySpectralJet<C, D>>,
     stack: &Stack<M, C::RealField>,
     incident_side: IncidentSide,
-    variable: SpectralDerivativeVariable,
 ) -> PlaneWaveResponse<C, D>
 where
     C: ComplexScalar,
@@ -334,19 +406,11 @@ where
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
     // Construct complex exterior admittances using the lifted input.
-    let left_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
-        stack.left_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let left_admittance =
+        IsotropicLayerQuantities::real_axis(stack.left_exterior(), planar).into_admittance();
 
-    let right_admittance = IsotropicLayerQuantities::evaluate_second_spectral_real_axis(
-        stack.right_exterior(),
-        planar,
-        variable,
-    )
-    .into_admittance();
+    let right_admittance =
+        IsotropicLayerQuantities::real_axis(stack.right_exterior(), planar).into_admittance();
 
     let (incident_normalisation, transmitted_normalisation) = match incident_side {
         IncidentSide::Left => (left_admittance, right_admittance),
@@ -354,13 +418,7 @@ where
         IncidentSide::Right => (right_admittance, left_admittance),
     };
 
-    PlaneWaveResponse::from_second_jets(
-        reflection,
-        transmission,
-        incident_normalisation.into_inner(),
-        transmitted_normalisation.into_inner(),
-        variable.into(),
-    )
+    todo!()
 }
 
 #[cfg(test)]

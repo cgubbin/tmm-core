@@ -20,7 +20,6 @@ use crate::{
     backend::{
         IncidentSide,
         algebra::ScalarAlgebra,
-        derivative::ChainRule,
         jet::{ArrayJet, ArrayJetFirst},
         mode::OutgoingModeAmplitudes,
     },
@@ -164,51 +163,6 @@ where
     );
 
     ScatterEntries { s11, s12, s21, s22 }
-}
-
-/// Apply a sampled chain-rule transformation to one scattering entry.
-pub(crate) trait ApplyChainRule<R>: Sized {
-    /// Transform derivatives from the primitive coordinate to the requested
-    /// coordinate.
-    fn apply_chain_rule(self, rule: &ChainRule<R>) -> Self;
-}
-
-impl<C, D> ApplyChainRule<SampleArray<C, D>> for ArrayJetFirst<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn apply_chain_rule(self, rule: &ChainRule<SampleArray<C, D>>) -> Self {
-        self.chain_rule(rule)
-    }
-}
-
-impl<C, D> ApplyChainRule<SampleArray<C, D>> for ArrayJet<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn apply_chain_rule(self, rule: &ChainRule<SampleArray<C, D>>) -> Self {
-        self.chain_rule(rule)
-    }
-}
-
-impl<A> ScatterEntries<A> {
-    /// Apply an entrywise chain-rule transformation.
-    ///
-    /// This is used after the complete scattering cascade has been evaluated
-    /// in the backend's primitive squared spectral coordinate.
-    pub(crate) fn chain_rule<R>(self, rule: &ChainRule<R>) -> Self
-    where
-        A: ApplyChainRule<R>,
-    {
-        Self {
-            s11: self.s11.apply_chain_rule(rule),
-            s12: self.s12.apply_chain_rule(rule),
-            s21: self.s21.apply_chain_rule(rule),
-            s22: self.s22.apply_chain_rule(rule),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -560,60 +514,5 @@ mod tests {
         assert_complex_close(analytic.s21.second()[()], expected_s21, 2e-7);
 
         assert_complex_close(analytic.s22.second()[()], expected_s22, 2e-7);
-    }
-
-    #[test]
-    fn first_order_chain_rule_is_applied_to_every_entry() {
-        let entries = ScatterEntries {
-            s11: ArrayJetFirst::from_parts(arr0(c(1.0)), arr0(c(2.0))),
-            s12: ArrayJetFirst::from_parts(arr0(c(3.0)), arr0(c(4.0))),
-            s21: ArrayJetFirst::from_parts(arr0(c(5.0)), arr0(c(6.0))),
-            s22: ArrayJetFirst::from_parts(arr0(c(7.0)), arr0(c(8.0))),
-        };
-
-        let rule = ChainRule {
-            first: arr0(c(10.0)),
-            second: arr0(c(20.0)),
-        };
-
-        let transformed = entries.chain_rule(&rule);
-
-        assert_eq!(transformed.s11.first()[()], c(20.0),);
-
-        assert_eq!(transformed.s12.first()[()], c(40.0),);
-
-        assert_eq!(transformed.s21.first()[()], c(60.0),);
-
-        assert_eq!(transformed.s22.first()[()], c(80.0),);
-    }
-
-    #[test]
-    fn second_order_chain_rule_is_applied_to_every_entry() {
-        let entries = ScatterEntries {
-            s11: ArrayJet::from_parts(arr0(c(1.0)), arr0(c(2.0)), arr0(c(3.0))),
-            s12: ArrayJet::from_parts(arr0(c(4.0)), arr0(c(5.0)), arr0(c(6.0))),
-            s21: ArrayJet::from_parts(arr0(c(7.0)), arr0(c(8.0)), arr0(c(9.0))),
-            s22: ArrayJet::from_parts(arr0(c(10.0)), arr0(c(11.0)), arr0(c(12.0))),
-        };
-
-        let rule = ChainRule {
-            first: arr0(c(2.0)),
-            second: arr0(c(3.0)),
-        };
-
-        let transformed = entries.chain_rule(&rule);
-
-        // y' = primitive_first * 2
-        assert_eq!(transformed.s11.first()[()], c(4.0),);
-
-        // y'' = primitive_second * 2²
-        //     + primitive_first * 3
-        assert_eq!(transformed.s11.second()[()], c(3.0 * 4.0 + 2.0 * 3.0),);
-
-        assert_eq!(transformed.s12.second()[()], c(6.0 * 4.0 + 5.0 * 3.0),);
-
-        assert_eq!(transformed.s21.second()[()], c(9.0 * 4.0 + 8.0 * 3.0),);
-
-        assert_eq!(transformed.s22.second()[()], c(12.0 * 4.0 + 11.0 * 3.0),);
     }
 }

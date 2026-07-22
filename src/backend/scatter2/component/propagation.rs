@@ -81,9 +81,9 @@ pub(crate) fn propagation_from_exponent<C, D, A>(exponent: A) -> ScatterEntries<
 where
     C: ComplexScalar,
     D: Dimension,
-    A: ScalarAlgebra<C, D> + Exponential + Clone,
+    A: ScalarAlgebra<C, D> + Clone,
 {
-    let phase = exponent.exponential();
+    let phase = exponent.exp();
 
     let zero = A::constant_like(phase.value(), C::zero());
 
@@ -114,7 +114,7 @@ pub(crate) fn propagation<C, D, A>(kappa: &A, thickness: C) -> ScatterEntries<A>
 where
     C: ComplexScalar,
     D: Dimension,
-    A: ScalarAlgebra<C, D> + Exponential + Clone,
+    A: ScalarAlgebra<C, D> + Clone,
 {
     let exponent = kappa.scale(C::i() * thickness);
 

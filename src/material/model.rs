@@ -1,7 +1,7 @@
 use nalgebra::ComplexField;
 use num_traits::{Float, One, Zero};
 
-use super::{DerivativeOrder, Material, Sampled, SpectralVariable};
+use super::{DerivativeOrder, Material, Sampled};
 use crate::{
     ComplexScalar,
     material::{DifferentiableMaterial, DifferentiableMeromorphicMaterial, MeromorphicMaterial},
@@ -68,7 +68,6 @@ where
         &self,
         wavenumber: I,
         _order: DerivativeOrder,
-        _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = Self::Real>,
@@ -107,7 +106,6 @@ where
         &self,
         vacuum_wavenumber: I,
         _order: DerivativeOrder,
-        _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real> + Copy,
@@ -173,7 +171,6 @@ where
         &self,
         wavenumber: I,
         _order: DerivativeOrder,
-        _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = Self::Real>,
@@ -197,11 +194,8 @@ mod tests {
     fn constant_material_derivative_is_zero() {
         let material = Constant::new(4.0, 1.0);
 
-        let deps: C = material.relative_permittivity_derivative(
-            Scalar(1000.0),
-            DerivativeOrder::First,
-            SpectralVariable::VacuumWavenumber,
-        );
+        let deps: C =
+            material.relative_permittivity_derivative(Scalar(1000.0), DerivativeOrder::First);
 
         assert_relative_eq!(deps.re, 0.0);
         assert_relative_eq!(deps.im, 0.0);

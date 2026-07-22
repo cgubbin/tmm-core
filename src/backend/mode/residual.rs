@@ -79,27 +79,9 @@ where
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
-
-    /// Evaluate the residual and its first derivative with respect to
-    /// `variable`.
-    fn outgoing_mode_residual_first_structural_derivative(
-        &self,
-        stack: &S,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
-
-    /// Evaluate the residual and its first and second derivatives with respect
-    /// to `variable`.
-    fn outgoing_mode_residual_second_structural_derivative(
-        &self,
-        stack: &S,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 }
 
-pub trait DifferentiableOutgoingModeResidualBackend<C, D, S>:
+pub trait OutgoingModeResidualThicknessDerivativeBackend<C, D, S>:
     OutgoingModeResidualBackend<C, D, S>
 where
     C: ComplexScalar,
@@ -107,20 +89,72 @@ where
 {
     /// Evaluate the residual and its first derivative with respect to
     /// `variable`.
-    fn outgoing_mode_residual_first_spectral_derivative(
+    fn outgoing_mode_residual_first_thickness_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
+        layer: usize,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 
     /// Evaluate the residual and its first and second derivatives with respect
     /// to `variable`.
-    fn outgoing_mode_residual_second_spectral_derivative(
+    fn outgoing_mode_residual_second_thickness_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
+        layer: usize,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+}
+
+pub trait OutgoingModeResidualKxDerivativeBackend<C, D, S>:
+    OutgoingModeResidualBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Evaluate the residual and its first derivative with respect to
+    /// `variable`.
+    fn outgoing_mode_residual_first_kx_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+
+    /// Evaluate the residual and its first and second derivatives with respect
+    /// to `variable`.
+    fn outgoing_mode_residual_second_kx_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+}
+
+pub trait OutgoingModeResidualSpectralDerivativeBackend<C, D, S>:
+    OutgoingModeResidualBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Evaluate the residual and its first derivative with respect to
+    /// `variable`.
+    fn outgoing_mode_residual_first_k0_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+
+    /// Evaluate the residual and its first and second derivatives with respect
+    /// to `variable`.
+    fn outgoing_mode_residual_second_k0_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<AnalyticResidual<C, D>, Self::Error>;
+
+    fn outgoing_mode_residual_full_spectral_hessian(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<AnalyticResidual<C, D>, Self::Error>;
 }
 

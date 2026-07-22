@@ -107,6 +107,90 @@ where
     pub fn into_samples(self) -> Vec<PlaneWaveFieldSample<C, D>> {
         self.samples
     }
+
+    pub fn sample_view(&self, index: usize) -> Option<PlaneWaveFieldSampleView<'_, C, D>> {
+        let value = self.samples.get(index)?;
+
+        let first = self.derivatives.as_ref().map(|d| &d.first[index]);
+
+        let second = self
+            .derivatives
+            .as_ref()
+            .and_then(|d| d.second.as_ref())
+            .map(|d| &d[index]);
+
+        Some(PlaneWaveFieldSampleView {
+            value,
+            first,
+            second,
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlaneWaveFieldSampleView<'a, C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    value: &'a PlaneWaveFieldSample<C, D>,
+    first: Option<&'a PlaneWaveFieldDifferential<C, D>>,
+    second: Option<&'a PlaneWaveFieldDifferential<C, D>>,
+}
+
+impl<'a, C, D> PlaneWaveFieldSampleView<'a, C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub fn value(&self) -> &PlaneWaveFieldSample<C, D> {
+        self.value
+    }
+
+    pub fn first(&self) -> Option<&PlaneWaveFieldDifferential<C, D>> {
+        self.first
+    }
+
+    pub fn second(&self) -> Option<&PlaneWaveFieldDifferential<C, D>> {
+        self.second
+    }
+
+    pub fn to_owned(&self) -> PlaneWaveFieldSampleOwned<C, D> {
+        PlaneWaveFieldSampleOwned {
+            value: self.value.clone(),
+            first: self.first.cloned(),
+            second: self.second.cloned(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlaneWaveFieldSampleOwned<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    value: PlaneWaveFieldSample<C, D>,
+    first: Option<PlaneWaveFieldDifferential<C, D>>,
+    second: Option<PlaneWaveFieldDifferential<C, D>>,
+}
+
+impl<C, D> PlaneWaveFieldSampleOwned<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub fn value(&self) -> &PlaneWaveFieldSample<C, D> {
+        &self.value
+    }
+
+    pub fn first(&self) -> Option<&PlaneWaveFieldDifferential<C, D>> {
+        self.first.as_ref()
+    }
+
+    pub fn second(&self) -> Option<&PlaneWaveFieldDifferential<C, D>> {
+        self.second.as_ref()
+    }
 }
 
 /// Electromagnetic fields sampled at one spatial position.

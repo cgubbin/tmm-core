@@ -3,9 +3,8 @@ use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        AnalyticResidual, OutgoingModeResidualBackend, PlanarInput,
+        AnalyticResidual, ComplexPlane, OutgoingModeResidualBackend, PlanarInput,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        evaluator::ComplexPlane,
         field::{
             BoundaryWaveSolution, BoundaryWaves, ExteriorBoundaryWaves, InternalFieldRequest,
             ModeFieldResponse, OutgoingModeFieldBackend, value_fields_from_generic,
@@ -375,11 +374,10 @@ mod tests {
 
     use crate::{
         backend::{
-            Polarisation,
+            Polarisation, RealAxis,
             derivative::{
                 DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
             },
-            evaluator::RealAxis,
         },
         material::Constant,
         stack::{Thickness, ValidationConfig},

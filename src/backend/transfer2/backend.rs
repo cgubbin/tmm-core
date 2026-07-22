@@ -29,13 +29,12 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        PlanarInput,
+        ComplexPlane, PlanarInput, RealAxis,
         derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        evaluator::{
-            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
-        },
         field::InternalFieldRequest,
-        isotropic::IsotropicLayerQuantities,
+        isotropic::{
+            ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, IsotropicLayerQuantities,
+        },
         jet::{ArrayJet, ArrayJetFirst},
         transfer2::{
             Transfer2Error,
@@ -568,7 +567,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        backend::{Polarisation, evaluator::RealAxis},
+        backend::{Polarisation, RealAxis},
         material::Constant,
         stack::{Thickness, ValidationConfig},
     };

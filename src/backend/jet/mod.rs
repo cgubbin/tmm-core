@@ -21,8 +21,6 @@
 //! - [`JetAdditive`] supports addition, subtraction, and negation;
 //! - [`JetBilinear`] supports a bilinear product and its product rules;
 //! - [`JetField`] supports elementwise reciprocals and division;
-//! - [`ChainRuleScale`] supports multiplication by sampled chain-rule
-//!   coefficients.
 //!
 //! Arrays implement all of these capabilities. Transfer matrices implement
 //! additive and bilinear operations because ordinary matrix multiplication is
@@ -33,17 +31,94 @@
 //! [`JetFirst`] and [`Jet`] are reserved for calculations that actually
 //! request derivatives.
 
+pub(crate) mod bivariate;
+
+pub(crate) use bivariate::{
+    ArraySpectralJet, SpectralGradientRef, SpectralHessianRef, SpectralJet,
+};
+
+use crate::backend::algebra::ScalarAlgebra;
+
 use nalgebra::ComplexField;
 use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 
-use crate::backend::derivative::ChainRule;
+pub type ArrayJet<C, D> = Jet<ArrayBase<OwnedRepr<C>, D>>;
+pub type ArrayJetFirst<C, D> = JetFirst<ArrayBase<OwnedRepr<C>, D>>;
 
-pub(crate) type ArrayJet<C, D> = Jet<ArrayBase<OwnedRepr<C>, D>>;
-pub(crate) type ArrayJetFirst<C, D> = JetFirst<ArrayBase<OwnedRepr<C>, D>>;
+impl<C, D> ArrayJetFirst<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub(crate) fn compose_sampled_function(
+        argument: &Self,
+        value: ArrayBase<OwnedRepr<C>, D>,
+        first: ArrayBase<OwnedRepr<C>, D>,
+    ) -> Self {
+        let first = first * argument.first();
+
+        Self::from_parts(value, first)
+    }
+}
+
+impl<C, D> ArrayJet<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub(crate) fn compose_sampled_function(
+        argument: &Self,
+        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        let (value, function_first, function_second) = expansion.into_parts();
+
+        let first = &function_first * argument.first();
+
+        let argument_first_squared = argument.first() * argument.first();
+
+        let second =
+            &function_second * &argument_first_squared + &function_first * argument.second();
+
+        Self::from_parts(value, first, second)
+    }
+}
+
+impl<C, D> ArraySpectralJet<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    pub(crate) fn compose_sampled_function(
+        argument: &Self,
+        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        let (value, function_first, function_second) = expansion.into_parts();
+
+        let dk0 = &function_first * argument.dk0();
+
+        let dkx = &function_first * argument.dkx();
+
+        let argument_dk0_squared = argument.dk0() * argument.dk0();
+
+        let argument_dkx_squared = argument.dkx() * argument.dkx();
+
+        let argument_dk0_dkx = argument.dk0() * argument.dkx();
+
+        let dk0_dk0 =
+            &function_second * &argument_dk0_squared + &function_first * argument.dk0_dk0();
+
+        let dk0_dkx = &function_second * &argument_dk0_dkx + &function_first * argument.dk0_dkx();
+
+        let dkx_dkx =
+            &function_second * &argument_dkx_squared + &function_first * argument.dkx_dkx();
+
+        Self::from_parts(value, dk0, dkx, dk0_dk0, dk0_dkx, dkx_dkx)
+    }
+}
 
 /// A value and its first and second derivatives.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Jet<I> {
+pub struct Jet<I> {
     value: I,
     first: I,
     second: I,
@@ -51,18 +126,22 @@ pub(crate) struct Jet<I> {
 
 /// A value and its first derivative.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct JetFirst<I> {
+pub struct JetFirst<I> {
     value: I,
     first: I,
 }
 
 /// Construct a zero value with the same representation and sampled shape.
-pub(crate) trait JetZeroLike: Clone {
+pub trait JetZeroLike: Clone {
     fn jet_zeros_like(shape_source: &Self) -> Self;
 }
 
+pub trait JetOneLike: Clone {
+    fn jet_ones_like(shape_source: &Self) -> Self;
+}
+
 /// Additive operations supported componentwise by jets.
-pub(crate) trait JetAdditive: Sized {
+pub trait JetAdditive: Sized {
     /// Add two values.
     fn jet_add(&self, rhs: &Self) -> Self;
 
@@ -74,7 +153,7 @@ pub(crate) trait JetAdditive: Sized {
 }
 
 /// A bilinear product for which the ordinary product rule applies.
-pub(crate) trait JetBilinear: JetAdditive {
+pub trait JetBilinear: JetAdditive {
     /// Multiply or compose two values using a bilinear operation.
     fn jet_multiply(&self, rhs: &Self) -> Self;
 
@@ -83,14 +162,14 @@ pub(crate) trait JetBilinear: JetAdditive {
 }
 
 /// Construct a scalar constant with the same sampled shape.
-pub(crate) trait JetScaleBy: Clone {
+pub trait JetScaleBy: Clone {
     type Scalar: Copy;
 
     fn jet_scale_by(&self, value: Self::Scalar) -> Self;
 }
 
 /// Construct a scalar constant with the same sampled shape.
-pub(crate) trait JetConstant: Clone {
+pub trait JetConstant: Clone {
     type Scalar: Copy;
 
     fn constant_like(&self, value: Self::Scalar) -> Self;
@@ -99,7 +178,7 @@ pub(crate) trait JetConstant: Clone {
 /// Elementwise field operations used by reciprocal and division.
 ///
 /// This trait is appropriate for sampled scalar arrays, not matrices.
-pub(crate) trait JetField: JetBilinear {
+pub trait JetField: JetBilinear {
     fn elementwise_reciprocal(&self) -> Self;
 }
 
@@ -107,34 +186,24 @@ pub(crate) trait JetField: JetBilinear {
 ///
 /// Implementations must be bilinear in both operands so that the ordinary
 /// first- and second-order product rules are valid.
-pub(crate) trait JetCrossProduct: Clone {
+pub trait JetCrossProduct: Clone {
     fn jet_cross(&self, rhs: &Self) -> Self;
 }
 
-pub(crate) trait JetHermitianProduct: Clone {
+pub trait JetHermitianProduct: Clone {
     type Output;
 
     fn jet_hermitian_product(&self, rhs: &Self) -> Self::Output;
 }
 
-pub(crate) trait JetConjugate {
+pub trait JetConjugate {
     fn jet_conjugate(&self) -> Self;
 }
 
-pub(crate) trait JetRealPart {
+pub trait JetRealPart {
     type RealOutput;
 
     fn jet_real(&self) -> Self::RealOutput;
-}
-
-/// Operations required of a chain-rule coefficient.
-pub(crate) trait ChainRuleCoefficient: Clone {
-    fn square(&self) -> Self;
-}
-
-/// Scale a differentiated value by a chain-rule coefficient.
-pub(crate) trait ChainRuleScale<Rhs>: Clone {
-    fn scale_by(&self, rhs: &Rhs) -> Self;
 }
 
 impl<I> JetFirst<I> {
@@ -156,17 +225,6 @@ impl<I> JetFirst<I> {
     /// Consume the jet and return its components.
     pub(crate) fn into_parts(self) -> (I, I) {
         (self.value, self.first)
-    }
-
-    /// Transform the derivative to a new independent coordinate.
-    pub(crate) fn chain_rule<R>(self, rule: &ChainRule<R>) -> Self
-    where
-        I: ChainRuleScale<R>,
-    {
-        Self {
-            value: self.value,
-            first: self.first.scale_by(&rule.first),
-        }
     }
 }
 
@@ -352,33 +410,6 @@ impl<I> Jet<I> {
 
     pub(crate) fn into_parts(self) -> (I, I, I) {
         (self.value, self.first, self.second)
-    }
-
-    /// Transform derivatives to a new independent coordinate.
-    ///
-    /// If `x` is the primitive coordinate and `y` is the requested coordinate:
-    ///
-    /// ```text
-    /// df/dy   = df/dx · dx/dy
-    /// d²f/dy² = d²f/dx² · (dx/dy)² + df/dx · d²x/dy²
-    /// ```
-    pub(crate) fn chain_rule<R>(self, rule: &ChainRule<R>) -> Self
-    where
-        I: ChainRuleScale<R> + JetAdditive,
-        R: ChainRuleCoefficient,
-    {
-        let first_squared = rule.first.square();
-
-        let transformed_second = self
-            .second
-            .scale_by(&first_squared)
-            .jet_add(&self.first.scale_by(&rule.second));
-
-        Self {
-            value: self.value,
-            first: self.first.scale_by(&rule.first),
-            second: transformed_second,
-        }
     }
 }
 
@@ -598,6 +629,22 @@ where
     }
 }
 
+impl<I> Jet<I> {
+    pub(crate) fn variable(value: I) -> Self
+    where
+        I: JetOneLike + JetZeroLike,
+    {
+        let first = I::jet_ones_like(&value);
+        let second = I::jet_zeros_like(&value);
+
+        Self {
+            value,
+            first,
+            second,
+        }
+    }
+}
+
 impl<C, D> JetZeroLike for ArrayBase<OwnedRepr<C>, D>
 where
     C: ComplexField + Copy,
@@ -605,6 +652,16 @@ where
 {
     fn jet_zeros_like(shape_source: &Self) -> Self {
         Array::zeros(shape_source.raw_dim())
+    }
+}
+
+impl<C, D> JetOneLike for ArrayBase<OwnedRepr<C>, D>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    fn jet_ones_like(shape_source: &Self) -> Self {
+        Array::ones(shape_source.raw_dim())
     }
 }
 
@@ -696,26 +753,6 @@ where
     }
 }
 
-impl<C, D> ChainRuleScale<ArrayBase<OwnedRepr<C>, D>> for ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-{
-    fn scale_by(&self, rhs: &ArrayBase<OwnedRepr<C>, D>) -> Self {
-        self * rhs
-    }
-}
-
-impl<C, D> ChainRuleCoefficient for ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-{
-    fn square(&self) -> Self {
-        self.mapv(|x| x * x)
-    }
-}
-
 impl<C, D> ArrayJet<C, D>
 where
     C: ComplexField + Copy,
@@ -794,6 +831,15 @@ impl<I> JetFirst<I> {
     {
         JetFirst::from_parts(f(self.value), f(self.first))
     }
+
+    pub(crate) fn variable(value: I) -> Self
+    where
+        I: JetOneLike,
+    {
+        let first = I::jet_ones_like(&value);
+
+        Self { value, first }
+    }
 }
 
 impl<I> Jet<I> {
@@ -838,6 +884,46 @@ where
             - self.first.mapv(|x| x * x) / value.mapv(|y| four * y * y * y);
 
         Self::from_parts(value, first, second)
+    }
+}
+
+/// Samples of a scalar function and its first two derivatives.
+///
+/// For a function `f`, this stores:
+///
+/// - `value = f(x)`
+/// - `first = f'(x)`
+/// - `second = f''(x)`
+#[derive(Clone, Debug)]
+pub(crate) struct SecondOrderExpansion<I> {
+    value: I,
+    first: I,
+    second: I,
+}
+
+impl<I> SecondOrderExpansion<I> {
+    pub(crate) fn new(value: I, first: I, second: I) -> Self {
+        Self {
+            value,
+            first,
+            second,
+        }
+    }
+
+    pub(crate) fn value(&self) -> &I {
+        &self.value
+    }
+
+    pub(crate) fn first(&self) -> &I {
+        &self.first
+    }
+
+    pub(crate) fn second(&self) -> &I {
+        &self.second
+    }
+
+    pub(crate) fn into_parts(self) -> (I, I, I) {
+        (self.value, self.first, self.second)
     }
 }
 
@@ -954,39 +1040,6 @@ mod tests {
 
         assert_close(result.value()[()], c(1.5));
         assert_close(result.first()[()], c((5.0 * 2.0 - 3.0 * 7.0) / 4.0));
-    }
-
-    #[test]
-    fn second_order_chain_rule_matches_formula() {
-        // f_x = 3, f_xx = 5
-        let jet = ArrayJet::from_parts(a(2.0), a(3.0), a(5.0));
-
-        // x_y = 7, x_yy = 11
-        let rule = ChainRule {
-            first: a(7.0),
-            second: a(11.0),
-        };
-
-        let result = jet.chain_rule(&rule);
-
-        assert_close(result.value()[()], c(2.0));
-        assert_close(result.first()[()], c(3.0 * 7.0));
-        assert_close(result.second()[()], c(5.0 * 7.0 * 7.0 + 3.0 * 11.0));
-    }
-
-    #[test]
-    fn first_order_chain_rule_uses_only_first_coefficient() {
-        let jet = ArrayJetFirst::from_parts(a(2.0), a(3.0));
-
-        let rule = ChainRule {
-            first: a(7.0),
-            second: a(11.0),
-        };
-
-        let result = jet.chain_rule(&rule);
-
-        assert_close(result.value()[()], c(2.0));
-        assert_close(result.first()[()], c(21.0));
     }
 
     #[test]

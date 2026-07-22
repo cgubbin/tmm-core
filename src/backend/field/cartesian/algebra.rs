@@ -3,7 +3,7 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::backend::{
     field::CartesianVector3,
-    jet::{Jet, JetFirst},
+    jet::{ArraySpectralJet, Jet, JetFirst, SpectralJet},
 };
 
 pub(crate) trait CartesianVectorAlgebra<T, D>: Clone
@@ -132,5 +132,41 @@ where
 
     fn scalar_real_part(value: Self::ComplexScalarField) -> Self::RealScalarField {
         Jet::real(&value)
+    }
+}
+
+impl<C, D> CartesianVectorAlgebra<C, D> for SpectralJet<CartesianVector3<C, D>>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    type RealVector = SpectralJet<CartesianVector3<C::RealField, D>>;
+
+    type ComplexScalarField = ArraySpectralJet<C, D>;
+
+    type RealScalarField = ArraySpectralJet<C::RealField, D>;
+
+    fn cross(&self, rhs: &Self) -> Self {
+        SpectralJet::cross(self, rhs)
+    }
+
+    fn conjugate(&self) -> Self {
+        SpectralJet::conjugate(self)
+    }
+
+    fn scale_by(&self, factor: C) -> Self {
+        SpectralJet::scale_by(self, factor)
+    }
+
+    fn real_part(&self) -> Self::RealVector {
+        SpectralJet::real_part(self)
+    }
+
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ComplexScalarField {
+        SpectralJet::hermitian_dot_product(self, rhs)
+    }
+
+    fn scalar_real_part(value: Self::ComplexScalarField) -> Self::RealScalarField {
+        SpectralJet::real_part(&value)
     }
 }

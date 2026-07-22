@@ -162,16 +162,6 @@ use num_traits::{One, Zero};
 
 use crate::ComplexScalar;
 
-/// Differentiation variable for material response functions.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SpectralVariable {
-    /// Differentiate with respect to `k0`.
-    VacuumWavenumber,
-
-    /// Differentiate with respect to `k0²`.
-    VacuumWavenumberSquared,
-}
-
 /// Highest derivative order requested.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DerivativeOrder {
@@ -271,7 +261,6 @@ pub trait DifferentiableMaterial: Material {
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
@@ -284,7 +273,6 @@ pub trait DifferentiableMaterial: Material {
         &self,
         vacuum_wavenumber: I,
         _order: DerivativeOrder,
-        _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
@@ -360,7 +348,6 @@ pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + Differentiabl
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
@@ -371,7 +358,6 @@ pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + Differentiabl
         &self,
         vacuum_wavenumber: I,
         _order: DerivativeOrder,
-        _variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,

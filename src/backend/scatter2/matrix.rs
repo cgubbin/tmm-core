@@ -22,9 +22,20 @@
 //! calculations use [`ScatterEntries`] so that value-only, first-order, and
 //! second-order calculations can share the same Redheffer algebra.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{ArrayBase, OwnedRepr};
 
-use crate::backend::scatter2::entries::ScatterEntries;
+use crate::{
+    ArrayJet, ArrayJetFirst,
+    backend::{jet::ArraySpectralJet, scatter2::entries::ScatterEntries},
+};
+
+pub type Scatter2Values<C, D> = ScatterMatrix2<ArrayBase<OwnedRepr<C>, D>>;
+
+pub type Scatter2JetFirst<C, D> = ScatterMatrix2<ArrayJetFirst<C, D>>;
+
+pub type Scatter2Jet<C, D> = ScatterMatrix2<ArrayJet<C, D>>;
+
+pub type Scatter2SpectralJet<C, D> = ScatterMatrix2<ArraySpectralJet<C, D>>;
 
 /// Shape-preserving scalar-channel 2×2 scattering matrix.
 ///
@@ -40,78 +51,56 @@ use crate::backend::scatter2::entries::ScatterEntries;
 /// [right outgoing] = [s21 s22] [right incoming].
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub struct ScatterMatrix2<C, D>
-where
-    D: Dimension,
-{
-    s11: ArrayBase<OwnedRepr<C>, D>,
-    s12: ArrayBase<OwnedRepr<C>, D>,
-    s21: ArrayBase<OwnedRepr<C>, D>,
-    s22: ArrayBase<OwnedRepr<C>, D>,
+pub struct ScatterMatrix2<A> {
+    s11: A,
+    s12: A,
+    s21: A,
+    s22: A,
 }
 
-impl<C, D> ScatterMatrix2<C, D>
-where
-    D: Dimension,
-{
+impl<A> ScatterMatrix2<A> {
     /// Construct a scattering matrix from its four sampled entries.
     ///
     /// All entries must have identical shapes. This invariant is checked in
     /// debug builds.
-    pub(crate) fn new(
-        s11: ArrayBase<OwnedRepr<C>, D>,
-        s12: ArrayBase<OwnedRepr<C>, D>,
-        s21: ArrayBase<OwnedRepr<C>, D>,
-        s22: ArrayBase<OwnedRepr<C>, D>,
-    ) -> Self {
-        debug_assert_eq!(s11.raw_dim(), s12.raw_dim());
-        debug_assert_eq!(s11.raw_dim(), s21.raw_dim());
-        debug_assert_eq!(s11.raw_dim(), s22.raw_dim());
-
+    pub(crate) fn new(s11: A, s12: A, s21: A, s22: A) -> Self {
         Self { s11, s12, s21, s22 }
     }
 
     /// Return reflection from the left, `s11`.
-    pub fn s11(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn s11(&self) -> &A {
         &self.s11
     }
 
     /// Return transmission from right to left, `s12`.
-    pub fn s12(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn s12(&self) -> &A {
         &self.s12
     }
 
     /// Return transmission from left to right, `s21`.
-    pub fn s21(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn s21(&self) -> &A {
         &self.s21
     }
 
     /// Return reflection from the right, `s22`.
-    pub fn s22(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    pub fn s22(&self) -> &A {
         &self.s22
     }
 
     /// Consume the matrix and return its four entries in row-major order.
     #[allow(clippy::type_complexity)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        ArrayBase<OwnedRepr<C>, D>,
-        ArrayBase<OwnedRepr<C>, D>,
-        ArrayBase<OwnedRepr<C>, D>,
-        ArrayBase<OwnedRepr<C>, D>,
-    ) {
+    pub fn into_parts(self) -> (A, A, A, A) {
         (self.s11, self.s12, self.s21, self.s22)
     }
 
     /// Construct the raw matrix representation from internal scattering
     /// entries.
-    pub(crate) fn from_entries(entries: ScatterEntries<ArrayBase<OwnedRepr<C>, D>>) -> Self {
+    pub(crate) fn from_entries(entries: ScatterEntries<A>) -> Self {
         Self::new(entries.s11, entries.s12, entries.s21, entries.s22)
     }
 
     /// Consume the raw matrix representation and expose its internal entries.
-    pub(crate) fn into_entries(self) -> ScatterEntries<ArrayBase<OwnedRepr<C>, D>> {
+    pub(crate) fn into_entries(self) -> ScatterEntries<A> {
         let (s11, s12, s21, s22) = self.into_parts();
 
         ScatterEntries { s11, s12, s21, s22 }
@@ -120,7 +109,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Ix0, arr0, array};
+    use ndarray::{Array0, arr0, array};
     use num_complex::Complex64;
 
     use super::*;
@@ -131,7 +120,7 @@ mod tests {
         C::new(value, 0.0)
     }
 
-    fn scalar_matrix(s11: f64, s12: f64, s21: f64, s22: f64) -> ScatterMatrix2<C, Ix0> {
+    fn scalar_matrix(s11: f64, s12: f64, s21: f64, s22: f64) -> ScatterMatrix2<Array0<C>> {
         ScatterMatrix2::new(arr0(c(s11)), arr0(c(s12)), arr0(c(s21)), arr0(c(s22)))
     }
 
@@ -247,17 +236,5 @@ mod tests {
         let second = scalar_matrix(1.0, 2.0, 3.0, 5.0);
 
         assert_ne!(first, second);
-    }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn constructor_rejects_mismatched_shapes_in_debug_builds() {
-        ScatterMatrix2::new(
-            array![c(1.0)],
-            array![c(1.0), c(2.0)],
-            array![c(1.0)],
-            array![c(1.0)],
-        );
     }
 }

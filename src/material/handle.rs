@@ -11,7 +11,7 @@ use crate::ComplexScalar;
 use super::{
     DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
-    EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled, SpectralVariable,
+    EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled,
     erased::{
         DifferentiableMaterialPoint, DifferentiableMeromorphicMaterialPoint, MaterialPoint,
         MeromorphicMaterialPoint,
@@ -181,30 +181,22 @@ where
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = R>,
     {
-        vacuum_wavenumber.map(|k0| {
-            self.inner
-                .relative_permittivity_derivative_at(k0, order, variable)
-        })
+        vacuum_wavenumber.map(|k0| self.inner.relative_permittivity_derivative_at(k0, order))
     }
 
     fn evaluate_relative_permeability_derivative<I>(
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = Self::Real>,
     {
-        vacuum_wavenumber.map(|k0| {
-            self.inner
-                .relative_permeability_derivative_at(k0, order, variable)
-        })
+        vacuum_wavenumber.map(|k0| self.inner.relative_permeability_derivative_at(k0, order))
     }
 }
 
@@ -392,30 +384,22 @@ where
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = R>,
     {
-        vacuum_wavenumber.map(|k0| {
-            self.inner
-                .relative_permittivity_derivative_at(k0, order, variable)
-        })
+        vacuum_wavenumber.map(|k0| self.inner.relative_permittivity_derivative_at(k0, order))
     }
 
     fn evaluate_relative_permeability_derivative<I>(
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = Self::Real>,
     {
-        vacuum_wavenumber.map(|k0| {
-            self.inner
-                .relative_permeability_derivative_at(k0, order, variable)
-        })
+        vacuum_wavenumber.map(|k0| self.inner.relative_permeability_derivative_at(k0, order))
     }
 }
 
@@ -448,14 +432,13 @@ where
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = C>,
     {
         vacuum_wavenumber.map(|k0| {
             self.inner
-                .relative_permittivity_complex_derivative_at(k0, order, variable)
+                .relative_permittivity_complex_derivative_at(k0, order)
         })
     }
 
@@ -463,14 +446,13 @@ where
         &self,
         vacuum_wavenumber: I,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> I::Mapped<C>
     where
         I: Sampled<Elem = C>,
     {
         vacuum_wavenumber.map(|k0| {
             self.inner
-                .relative_permeability_complex_derivative_at(k0, order, variable)
+                .relative_permeability_complex_derivative_at(k0, order)
         })
     }
 }

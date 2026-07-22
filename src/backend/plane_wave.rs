@@ -24,7 +24,6 @@ use crate::{
     ComplexScalar,
     backend::{
         DerivativeVariable, PlaneWaveInput,
-        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
         jet::{ArrayJet, ArrayJetFirst},
     },
 };
@@ -55,47 +54,79 @@ where
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
-
-    /// Solve for the response and its first derivative with respect to
-    /// `variable`.
-    fn solve_plane_wave_structural_first_derivative(
-        &self,
-        stack: &S,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
-
-    /// Solve for the response and its first and second derivatives with
-    /// respect to `variable`.
-    fn solve_plane_wave_structural_second_derivative(
-        &self,
-        stack: &S,
-        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 }
 
-pub trait DifferentiablePlaneWaveBackend<C, D, S>: PlaneWaveBackend<C, D, S>
+pub trait PlaneWaveThicknessDerivativeBackend<C, D, S>: PlaneWaveBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
 {
     /// Solve for the response and its first derivative with respect to
     /// `variable`.
-    fn solve_plane_wave_spectral_first_derivative(
+    fn solve_plane_wave_thickness_first_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
+        layer: usize,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 
     /// Solve for the response and its first and second derivatives with
     /// respect to `variable`.
-    fn solve_plane_wave_spectral_second_derivative(
+    fn solve_plane_wave_thickness_second_derivative(
         &self,
         stack: &S,
         input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
+        layer: usize,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+}
+
+pub trait PlaneWaveKxDerivativeBackend<C, D, S>: PlaneWaveBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Solve for the response and its first derivative with respect to
+    /// `variable`.
+    fn solve_plane_wave_kx_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+
+    /// Solve for the response and its first and second derivatives with
+    /// respect to `variable`.
+    fn solve_plane_wave_kx_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+}
+
+pub trait PlaneWaveSpectralDerivativeBackend<C, D, S>: PlaneWaveBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Solve for the response and its first derivative with respect to
+    /// `variable`.
+    fn solve_plane_wave_k0_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+
+    /// Solve for the response and its first and second derivatives with
+    /// respect to `variable`.
+    fn solve_plane_wave_k0_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
+
+    fn solve_plane_wave_full_spectral_hessian(
+        &self,
+        stack: &S,
+        input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<PlaneWaveResponse<C, D>, Self::Error>;
 }
 
@@ -211,6 +242,28 @@ where
         Option<PlaneWaveResponseDerivatives<C, D>>,
     ) {
         (self.amplitudes, self.power, self.derivatives)
+    }
+}
+
+impl<C, D> std::ops::Add<&PlaneWaveResponse<C, D>> for PlaneWaveResponse<C, D>
+where
+    C: ComplexField,
+    C::RealField: Float,
+    D: Dimension,
+{
+    type Output = PlaneWaveResponse<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWaveResponse {
+            amplitudes: self.amplitudes + &other.amplitudes,
+            power: self.power + &other.power,
+            derivatives: match (self.derivatives, other.derivatives.as_ref()) {
+                (Some(s), Some(o)) => Some(s + &o),
+                (Some(s), None) => Some(s),
+                (None, Some(o)) => Some(o.clone()),
+                (None, None) => None,
+            },
+        }
     }
 }
 
@@ -408,6 +461,21 @@ where
     }
 }
 
+impl<C, D> std::ops::Add<&PlaneWaveAmplitudes<C, D>> for PlaneWaveAmplitudes<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    type Output = PlaneWaveAmplitudes<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWaveAmplitudes {
+            reflection: self.reflection + &other.reflection,
+            transmission: self.transmission + &other.transmission,
+        }
+    }
+}
+
 /// Real power reflectance and transmittance.
 ///
 /// Reflectance and transmittance are defined relative to the incident power
@@ -446,7 +514,7 @@ where
         }
     }
 
-    fn from_amplitudes<C>(
+    pub fn from_amplitudes<C>(
         amplitudes: &PlaneWaveAmplitudes<C, D>,
         incident_normalisation: &ArrayBase<OwnedRepr<C>, D>,
         transmitted_normalisation: &ArrayBase<OwnedRepr<C>, D>,
@@ -503,6 +571,22 @@ where
         ArrayBase<OwnedRepr<R>, D>,
     ) {
         (self.reflectance, self.transmittance, self.absorptance)
+    }
+}
+
+impl<C, D> std::ops::Add<&PlaneWavePower<C, D>> for PlaneWavePower<C, D>
+where
+    C: Float,
+    D: Dimension,
+{
+    type Output = PlaneWavePower<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWavePower {
+            reflectance: self.reflectance + &other.reflectance,
+            transmittance: self.transmittance + &other.transmittance,
+            absorptance: self.absorptance + &other.absorptance,
+        }
     }
 }
 
@@ -568,6 +652,29 @@ where
     }
 }
 
+impl<C, D> std::ops::Add<&PlaneWaveResponseDerivatives<C, D>> for PlaneWaveResponseDerivatives<C, D>
+where
+    C: ComplexField,
+    C::RealField: Float,
+    D: Dimension,
+{
+    type Output = PlaneWaveResponseDerivatives<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        debug_assert!(self.variable == other.variable);
+        PlaneWaveResponseDerivatives {
+            variable: self.variable,
+            first: self.first + &other.first,
+            second: match (self.second, other.second.as_ref()) {
+                (Some(s), Some(o)) => Some(s + &o),
+                (Some(s), None) => Some(s),
+                (None, Some(o)) => Some(o.clone()),
+                (None, None) => None,
+            },
+        }
+    }
+}
+
 /// Derivative of all physical plane-wave response quantities at one order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveResponseDifferential<C, D>
@@ -622,6 +729,20 @@ where
         self.power.transmittance()
     }
 
+    pub fn scaled(&self, factor: &ArrayBase<OwnedRepr<C::RealField>, D>) -> Self {
+        let c_factor = factor.mapv(C::from_real);
+        Self {
+            amplitudes: PlaneWaveAmplitudeDifferential {
+                reflection: &self.amplitudes.reflection * &c_factor,
+                transmission: &self.amplitudes.transmission * &c_factor,
+            },
+            power: PlaneWavePowerDifferential {
+                reflectance: &self.power.reflectance * factor,
+                transmittance: &self.power.transmittance * factor,
+            },
+        }
+    }
+
     /// Consume the differential and return its components.
     pub fn into_parts(
         self,
@@ -630,6 +751,23 @@ where
         PlaneWavePowerDifferential<C::RealField, D>,
     ) {
         (self.amplitudes, self.power)
+    }
+}
+
+impl<C, D> std::ops::Add<&PlaneWaveResponseDifferential<C, D>>
+    for PlaneWaveResponseDifferential<C, D>
+where
+    C: ComplexField,
+    C::RealField: Float,
+    D: Dimension,
+{
+    type Output = PlaneWaveResponseDifferential<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWaveResponseDifferential {
+            amplitudes: self.amplitudes + &other.amplitudes,
+            power: self.power + &other.power,
+        }
     }
 }
 
@@ -673,6 +811,22 @@ where
     /// Consume the value and return its arrays.
     pub fn into_parts(self) -> (ArrayBase<OwnedRepr<C>, D>, ArrayBase<OwnedRepr<C>, D>) {
         (self.reflection, self.transmission)
+    }
+}
+
+impl<C, D> std::ops::Add<&PlaneWaveAmplitudeDifferential<C, D>>
+    for PlaneWaveAmplitudeDifferential<C, D>
+where
+    C: ComplexField,
+    D: Dimension,
+{
+    type Output = PlaneWaveAmplitudeDifferential<C, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWaveAmplitudeDifferential {
+            reflection: self.reflection + &other.reflection,
+            transmission: self.transmission + &other.transmission,
+        }
     }
 }
 
@@ -909,6 +1063,21 @@ where
         Self {
             reflectance: reflectance_second,
             transmittance: transmittance_second,
+        }
+    }
+}
+
+impl<R, D> std::ops::Add<&PlaneWavePowerDifferential<R, D>> for PlaneWavePowerDifferential<R, D>
+where
+    R: Float,
+    D: Dimension,
+{
+    type Output = PlaneWavePowerDifferential<R, D>;
+
+    fn add(self, other: &Self) -> Self::Output {
+        PlaneWavePowerDifferential {
+            reflectance: self.reflectance + &other.reflectance,
+            transmittance: self.transmittance + &other.transmittance,
         }
     }
 }

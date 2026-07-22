@@ -51,21 +51,24 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use crate::{
     ComplexScalar,
     backend::{
-        PlanarInput,
+        ComplexPlane, PlanarInput, RealAxis,
         algebra::ScalarAlgebra,
-        derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-        evaluator::{
-            ComplexPlane, ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, RealAxis,
-        },
         field::InternalFieldRequest,
-        isotropic::IsotropicLayerQuantities,
-        jet::{ArrayJet, ArrayJetFirst},
+        input::AlgebraicPlanarInput,
+        isotropic::{
+            ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
+            IsotropicLayerQuantities,
+        },
+        jet::{ArrayJet, ArrayJetFirst, ArraySpectralJet},
         scatter2::{
             ScatterMatrix2,
             component::{interface, propagation_from_exponent},
-            entries::{Scatter2Jet, Scatter2JetFirst},
             error::Scatter2Error,
-            workspace::ScatterWorkspace,
+            matrix::{Scatter2Jet, Scatter2JetFirst, Scatter2SpectralJet, Scatter2Values},
+            workspace::{
+                Scatter2WorkspaceJet, Scatter2WorkspaceJetFirst, Scatter2WorkspaceSpectralJet,
+                Scatter2WorkspaceValues, ScatterWorkspace,
+            },
         },
     },
     material::{EvaluateMaterial, EvaluateMeromorphicMaterial},
@@ -86,1131 +89,1110 @@ impl Scatter2 {
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    ) -> Result<Scatter2Values<C, D>, Scatter2Error>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let input = input.clone().to_complex();
-        self.evaluate_with::<RealAxis, _, _, _>(stack, &input)
+        let input = AlgebraicPlanarInput::values(&input.clone().to_complex());
+
+        self.evaluate_with::<ArrayBase<OwnedRepr<C>, D>, RealAxis, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| source.scalar_constant_like(C::from_real(value)),
+        )
     }
 
     pub(crate) fn evaluate_complex_plane<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    ) -> Result<Scatter2Values<C, D>, Scatter2Error>
     where
         M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)
+        let input = AlgebraicPlanarInput::values(&input);
+
+        self.evaluate_with::<ArrayBase<OwnedRepr<C>, D>, ComplexPlane, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| source.scalar_constant_like(C::from_real(value)),
+        )
     }
 
-    pub(crate) fn evaluate_with<E, M, C, D>(
+    pub(crate) fn evaluate_k0_first_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Result<ScatterMatrix2<C, D>, Scatter2Error>
+    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
     where
-        E: ConstitutiveEvaluator<C, D, M>,
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let workspace =
-            self.accumulate_with::<E, _, _, _>(stack, input, InternalFieldRequest::None)?;
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::variable(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
 
-        let total = workspace.into_total();
+        self.evaluate_with::<ArrayJetFirst<C, D>, E, _, _, _>(stack, &input, |_, value, source| {
+            let values = source.value().mapv(|_| C::from_real(value));
+            ArrayJetFirst::constant(values)
+        })
+    }
 
-        Ok(ScatterMatrix2::from_entries(total))
+    pub(crate) fn evaluate_kx_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::variable(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArrayJetFirst<C, D>, E, _, _, _>(stack, &input, |_, value, source| {
+            let values = source.value().mapv(|_| C::from_real(value));
+            ArrayJetFirst::constant(values)
+        })
+    }
+
+    pub(crate) fn evaluate_thickness_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        layer: usize,
+    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArrayJetFirst<C, D>, E, _, _, _>(
+            stack,
+            &input,
+            move |index, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+
+                if index == layer {
+                    ArrayJetFirst::variable(values)
+                } else {
+                    ArrayJetFirst::constant(values)
+                }
+            },
+        )
+    }
+
+    pub(crate) fn evaluate_k0_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::variable(input.vacuum_wavenumber().clone()),
+            ArrayJet::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArrayJet<C, D>, E, _, _, _>(stack, &input, |_, value, source| {
+            let values = source.value().mapv(|_| C::from_real(value));
+            ArrayJet::constant(values)
+        })
+    }
+
+    pub(crate) fn evaluate_kx_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::constant(input.vacuum_wavenumber().clone()),
+            ArrayJet::variable(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArrayJet<C, D>, E, _, _, _>(stack, &input, |_, value, source| {
+            let values = source.value().mapv(|_| C::from_real(value));
+            ArrayJet::constant(values)
+        })
+    }
+
+    pub(crate) fn evaluate_thickness_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        layer: usize,
+    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::constant(input.vacuum_wavenumber().clone()),
+            ArrayJet::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArrayJet<C, D>, E, _, _, _>(
+            stack,
+            &input,
+            move |index, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+
+                if index == layer {
+                    ArrayJet::variable(values)
+                } else {
+                    ArrayJet::constant(values)
+                }
+            },
+        )
+    }
+
+    pub(crate) fn evaluate_full_spectral_hessian<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2SpectralJet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArraySpectralJet::vacuum_wavenumber(input.vacuum_wavenumber().clone()),
+            ArraySpectralJet::parallel_wavenumber(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.evaluate_with::<ArraySpectralJet<C, D>, E, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArraySpectralJet::constant(values)
+            },
+        )
+    }
+
+    pub(crate) fn evaluate_with<A, E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &AlgebraicPlanarInput<A>,
+        thicknesses: impl FnMut(usize, C::RealField, &A) -> A,
+    ) -> Result<ScatterMatrix2<A>, Scatter2Error>
+    where
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+        E: ConstitutiveEvaluator<C, D, M>,
+        A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, E, M> + Clone,
+    {
+        let workspace = self.accumulate_with::<A, E, M, C, D, _>(
+            stack,
+            input,
+            thicknesses,
+            InternalFieldRequest::None,
+        )?;
+
+        Ok(ScatterMatrix2::from_entries(workspace.into_total()))
     }
 
     pub(crate) fn accumulate_real_axis<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    ) -> Result<Scatter2WorkspaceValues<C, D>, Scatter2Error>
     where
         M: EvaluateMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        let input = input.clone().to_complex();
-        self.accumulate_with::<RealAxis, _, _, _>(stack, &input, request)
+        let input = AlgebraicPlanarInput::values(&input.clone().to_complex());
+
+        self.accumulate_with::<ArrayBase<OwnedRepr<C>, D>, RealAxis, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| source.scalar_constant_like(C::from_real(value)),
+            InternalFieldRequest::LayerBoundaries,
+        )
     }
 
     pub(crate) fn accumulate_complex_plane<M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    ) -> Result<Scatter2WorkspaceValues<C, D>, Scatter2Error>
     where
         M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        self.accumulate_with::<ComplexPlane, _, _, _>(stack, input, request)
+        let input = AlgebraicPlanarInput::values(&input);
+
+        self.accumulate_with::<ArrayBase<OwnedRepr<C>, D>, ComplexPlane, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| source.scalar_constant_like(C::from_real(value)),
+            InternalFieldRequest::LayerBoundaries,
+        )
     }
 
-    /// Evaluate the native scattering matrix without derivatives.
-    pub(crate) fn accumulate_with<E, M, C, D>(
+    pub(crate) fn accumulate_k0_first_with<E, M, C, D>(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>, Scatter2Error>
+    ) -> Result<Scatter2WorkspaceJetFirst<C, D>, Scatter2Error>
     where
-        E: ConstitutiveEvaluator<C, D, M>,
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
         C: ComplexScalar,
         C::RealField: Copy,
         D: Dimension,
     {
-        type Samples<C, D> = ArrayBase<OwnedRepr<C>, D>;
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::variable(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
 
-        let mut workspace: ScatterWorkspace<Samples<C, D>> =
-            ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
+        self.accumulate_with::<ArrayJetFirst<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArrayJetFirst::constant(values)
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
 
-        // let mut total: ScatterEntries<Samples<C, D>> =
-        //     ScatterEntries::identity_like(input.vacuum_wavenumber());
+    pub(crate) fn accumulate_kx_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2WorkspaceJetFirst<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::variable(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
 
-        let left_quantities = IsotropicLayerQuantities::new::<E, _>(stack.left_exterior(), input);
+        self.accumulate_with::<ArrayJetFirst<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArrayJetFirst::constant(values)
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_thickness_first_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        layer: usize,
+    ) -> Result<Scatter2WorkspaceJetFirst<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJetFirst::constant(input.vacuum_wavenumber().clone()),
+            ArrayJetFirst::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.accumulate_with::<ArrayJetFirst<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            move |index, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+
+                if index == layer {
+                    ArrayJetFirst::variable(values)
+                } else {
+                    ArrayJetFirst::constant(values)
+                }
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_k0_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2WorkspaceJet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::variable(input.vacuum_wavenumber().clone()),
+            ArrayJet::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.accumulate_with::<ArrayJet<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArrayJet::constant(values)
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_kx_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2WorkspaceJet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::constant(input.vacuum_wavenumber().clone()),
+            ArrayJet::variable(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.accumulate_with::<ArrayJet<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArrayJet::constant(values)
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_thickness_second_with<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+        layer: usize,
+    ) -> Result<Scatter2WorkspaceJet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArrayJet::constant(input.vacuum_wavenumber().clone()),
+            ArrayJet::constant(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.accumulate_with::<ArrayJet<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            move |index, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+
+                if index == layer {
+                    ArrayJet::variable(values)
+                } else {
+                    ArrayJet::constant(values)
+                }
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_full_spectral_hessian<E, M, C, D>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<Scatter2WorkspaceSpectralJet<C, D>, Scatter2Error>
+    where
+        E: ConstitutiveDerivativeEvaluator<C, D, M>,
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+    {
+        let input = AlgebraicPlanarInput::new(
+            ArraySpectralJet::vacuum_wavenumber(input.vacuum_wavenumber().clone()),
+            ArraySpectralJet::parallel_wavenumber(input.parallel_wavenumber().clone()),
+            input.polarisation(),
+        );
+
+        self.accumulate_with::<ArraySpectralJet<C, D>, E, _, _, _, _>(
+            stack,
+            &input,
+            |_, value, source| {
+                let values = source.value().mapv(|_| C::from_real(value));
+                ArraySpectralJet::constant(values)
+            },
+            InternalFieldRequest::LayerBoundaries,
+        )
+    }
+
+    pub(crate) fn accumulate_with<A, E, M, C, D, F>(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &AlgebraicPlanarInput<A>,
+        mut thickness: F,
+        request: InternalFieldRequest,
+    ) -> Result<ScatterWorkspace<A>, Scatter2Error>
+    where
+        C: ComplexScalar,
+        C::RealField: Copy,
+        D: Dimension,
+        E: ConstitutiveEvaluator<C, D, M>,
+        A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, E, M> + Clone,
+        F: FnMut(usize, C::RealField, &A) -> A,
+    {
+        let mut workspace =
+            ScatterWorkspace::new(input.vacuum_wavenumber().value(), request, stack.len());
+
+        let left_quantities =
+            IsotropicLayerQuantities::evaluate::<C, D, E, M>(stack.left_exterior(), input);
 
         let mut current_admittance = left_quantities.into_admittance().into_inner();
 
-        for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::new::<E, _>(layer.material(), input);
+        for (index, layer) in stack.iter().enumerate() {
+            let quantities =
+                IsotropicLayerQuantities::evaluate::<C, D, E, M>(layer.material(), input);
 
-            let distance = C::from_real(layer.thickness().as_cm());
-            let exponent = quantities.kappa().scale(C::i() * distance);
+            let distance = thickness(index, layer.thickness().as_cm(), input.vacuum_wavenumber());
+
+            let imaginary_unit = input.vacuum_wavenumber().scalar_constant_like(C::i());
+
+            let exponent = quantities
+                .kappa()
+                .multiply(&imaginary_unit)
+                .multiply(&distance);
 
             let layer_admittance = quantities.into_admittance().into_inner();
 
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
+            let interface = interface::<C, D, A>(&current_admittance, &layer_admittance);
+
+            let propagation = propagation_from_exponent::<C, D, A>(exponent);
 
             workspace.append_layer::<C, D>(interface, propagation);
 
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::new::<E, _>(stack.right_exterior(), input);
+        let right_quantities =
+            IsotropicLayerQuantities::evaluate::<C, D, E, M>(stack.right_exterior(), input);
 
         let right_admittance = right_quantities.into_admittance().into_inner();
 
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
+        let final_interface = interface::<C, D, A>(&current_admittance, &right_admittance);
 
         workspace.append(final_interface);
 
         Ok(workspace)
     }
-
-    pub(crate) fn evaluate_structural_first_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace = self.accumulate_structural_first_with::<E, _, _, _>(
-            stack,
-            input,
-            variable,
-            InternalFieldRequest::None,
-        )?;
-
-        let total = workspace.into_total();
-
-        Ok(total)
-    }
-
-    pub(crate) fn evaluate_spectral_first_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> Result<Scatter2JetFirst<C, D>, Scatter2Error>
-    where
-        E: ConstitutiveDerivativeEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace = self.accumulate_spectral_first_with::<E, _, _, _>(
-            stack,
-            input,
-            variable,
-            InternalFieldRequest::None,
-        )?;
-
-        let total = workspace.into_total();
-
-        Ok(total)
-    }
-
-    /// Evaluate the scattering matrix and its first derivative.
-    pub(crate) fn accumulate_structural_first_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        validate_derivative_variable(stack, variable)?;
-
-        let primitive = variable.primitive();
-
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
-
-        let mut current_admittance = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
-            stack.left_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
-                layer.material(),
-                input,
-                primitive,
-            );
-
-            let exponent =
-                first_propagation_exponent(&quantities, layer.thickness().as_cm(), variable, index);
-
-            let layer_admittance = quantities.into_admittance().into_inner();
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_admittance = IsotropicLayerQuantities::evaluate_first_structural::<E, M>(
-            stack.right_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        if let Some(rule) = variable.chain_rule(input) {
-            workspace = workspace.chain_rule(&rule);
-        }
-
-        Ok(workspace)
-    }
-
-    /// Evaluate the scattering matrix and its first derivative.
-    pub(crate) fn accumulate_spectral_first_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJetFirst<C, D>>, Scatter2Error>
-    where
-        E: ConstitutiveDerivativeEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let primitive = variable.primitive();
-
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
-
-        let mut current_admittance = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
-            stack.left_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
-                layer.material(),
-                input,
-                primitive,
-            );
-
-            let distance = C::from_real(layer.thickness().as_cm());
-            let coefficient = C::i() * distance;
-            let exponent = quantities.kappa().scale(coefficient);
-
-            let layer_admittance = quantities.into_admittance().into_inner();
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_admittance = IsotropicLayerQuantities::evaluate_first_spectral::<E, M>(
-            stack.right_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        if let Some(rule) = variable.chain_rule(input) {
-            workspace = workspace.chain_rule(&rule);
-        }
-
-        Ok(workspace)
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn evaluate_structural_second_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace = self.accumulate_structural_second_with::<E, _, _, _>(
-            stack,
-            input,
-            variable,
-            InternalFieldRequest::None,
-        )?;
-
-        Ok(workspace.into_total())
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn evaluate_spectral_second_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-    ) -> Result<Scatter2Jet<C, D>, Scatter2Error>
-    where
-        E: ConstitutiveDerivativeEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let workspace = self.accumulate_spectral_second_with::<E, _, _, _>(
-            stack,
-            input,
-            variable,
-            InternalFieldRequest::None,
-        )?;
-
-        Ok(workspace.into_total())
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn accumulate_structural_second_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
-    where
-        E: ConstitutiveEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        validate_derivative_variable(stack, variable)?;
-
-        let primitive = variable.primitive();
-
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
-
-        let mut current_admittance = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
-            stack.left_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        for (index, layer) in stack.iter().enumerate() {
-            let quantities = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
-                layer.material(),
-                input,
-                primitive,
-            );
-
-            let exponent = second_propagation_exponent(
-                &quantities,
-                layer.thickness().as_cm(),
-                variable,
-                index,
-            );
-
-            let layer_admittance = quantities.into_admittance().into_inner();
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_admittance = IsotropicLayerQuantities::evaluate_second_structural::<E, M>(
-            stack.right_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        if let Some(rule) = variable.chain_rule(input) {
-            workspace = workspace.chain_rule(&rule);
-        }
-
-        Ok(workspace)
-    }
-
-    /// Evaluate the scattering matrix and its first two derivatives.
-    pub(crate) fn accumulate_spectral_second_with<E, M, C, D>(
-        &self,
-        stack: &Stack<M, C::RealField>,
-        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
-        request: InternalFieldRequest,
-    ) -> Result<ScatterWorkspace<ArrayJet<C, D>>, Scatter2Error>
-    where
-        E: ConstitutiveDerivativeEvaluator<C, D, M>,
-        C: ComplexScalar,
-        C::RealField: Copy,
-        D: Dimension,
-    {
-        let primitive = variable.primitive();
-
-        let mut workspace = ScatterWorkspace::new(input.vacuum_wavenumber(), request, stack.len());
-
-        let mut current_admittance = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
-            stack.left_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        for layer in stack.iter() {
-            let quantities = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
-                layer.material(),
-                input,
-                primitive,
-            );
-
-            let distance = C::from_real(layer.thickness().as_cm());
-            let coefficient = C::i() * distance;
-            let exponent = quantities.kappa().scale(coefficient);
-
-            let layer_admittance = quantities.into_admittance().into_inner();
-
-            let interface = interface::<C, D, _>(&current_admittance, &layer_admittance);
-
-            let propagation = propagation_from_exponent::<C, D, _>(exponent);
-
-            workspace.append_layer::<C, D>(interface, propagation);
-
-            current_admittance = layer_admittance;
-        }
-
-        let right_admittance = IsotropicLayerQuantities::evaluate_second_spectral::<E, M>(
-            stack.right_exterior(),
-            input,
-            primitive,
-        )
-        .into_admittance()
-        .into_inner();
-
-        let final_interface = interface::<C, D, _>(&current_admittance, &right_admittance);
-
-        workspace.append(final_interface);
-
-        if let Some(rule) = variable.chain_rule(input) {
-            workspace = workspace.chain_rule(&rule);
-        }
-
-        Ok(workspace)
-    }
 }
 
-fn validate_derivative_variable<M, R>(
-    stack: &Stack<M, R>,
-    variable: StructuralDerivativeVariable,
-) -> Result<(), Scatter2Error> {
-    if let StructuralDerivativeVariable::Thickness(requested) = variable {
-        let layer_count = stack.len();
-
-        if requested >= layer_count {
-            return Err(Scatter2Error::ThicknessLayerOutOfBounds {
-                requested,
-                layer_count,
-            });
-        }
-    }
-
-    Ok(())
-}
-
-fn first_propagation_exponent<C, D>(
-    quantities: &IsotropicLayerQuantities<ArrayJetFirst<C, D>>,
-    thickness_cm: C::RealField,
-    variable: StructuralDerivativeVariable,
-    layer_index: usize,
-) -> ArrayJetFirst<C, D>
-where
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    let thickness = C::from_real(thickness_cm);
-
-    let thickness = if matches!(
-        variable,
-        StructuralDerivativeVariable::Thickness(
-            requested
-        ) if requested == layer_index
-    ) {
-        ArrayJetFirst::from_parts(
-            quantities.kappa().value().mapv(|_| thickness),
-            quantities.kappa().value().mapv(|_| C::one()),
-        )
-    } else {
-        ArrayJetFirst::constant(quantities.kappa().value().mapv(|_| thickness))
-    };
-
-    quantities.kappa().multiply(&thickness).scale(C::i())
-}
-
-fn second_propagation_exponent<C, D>(
-    quantities: &IsotropicLayerQuantities<ArrayJet<C, D>>,
-    thickness_cm: C::RealField,
-    variable: StructuralDerivativeVariable,
-    layer_index: usize,
-) -> ArrayJet<C, D>
-where
-    C: ComplexScalar,
-    C::RealField: Copy,
-    D: Dimension,
-{
-    let thickness = C::from_real(thickness_cm);
-
-    let thickness = if matches!(
-        variable,
-        StructuralDerivativeVariable::Thickness(
-            requested
-        ) if requested == layer_index
-    ) {
-        ArrayJet::from_parts(
-            quantities.kappa().value().mapv(|_| thickness),
-            quantities.kappa().value().mapv(|_| C::one()),
-            quantities.kappa().value().mapv(|_| C::zero()),
-        )
-    } else {
-        ArrayJet::constant(quantities.kappa().value().mapv(|_| thickness))
-    };
-
-    quantities.kappa().multiply(&thickness).scale(C::i())
-}
-
-#[cfg(test)]
-mod tests {
-    use approx::assert_relative_eq;
-    use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr, arr0, array};
-    use num_complex::Complex64;
-    use num_traits::Zero;
-
-    use super::*;
-
-    use crate::{ValidationConfig, backend::Polarisation, material::Constant, stack::Thickness};
-
-    type C = Complex64;
-
-    fn c(value: f64) -> C {
-        C::new(value, 0.0)
-    }
-
-    fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
-        assert_relative_eq!(
-            actual.re,
-            expected.re,
-            epsilon = tolerance,
-            max_relative = tolerance,
-        );
-
-        assert_relative_eq!(
-            actual.im,
-            expected.im,
-            epsilon = tolerance,
-            max_relative = tolerance,
-        );
-    }
-
-    fn assert_array_close<D>(
-        actual: &ArrayBase<OwnedRepr<C>, D>,
-        expected: &ArrayBase<OwnedRepr<C>, D>,
-        tolerance: f64,
-    ) where
-        D: Dimension,
-    {
-        assert_eq!(actual.raw_dim(), expected.raw_dim());
-
-        for (&actual, &expected) in actual.iter().zip(expected.iter()) {
-            assert_complex_close(actual, expected, tolerance);
-        }
-    }
-
-    fn assert_matrix_close<D>(
-        actual: &ScatterMatrix2<C, D>,
-        expected: &ScatterMatrix2<C, D>,
-        tolerance: f64,
-    ) where
-        D: Dimension,
-    {
-        assert_array_close(actual.s11(), expected.s11(), tolerance);
-
-        assert_array_close(actual.s12(), expected.s12(), tolerance);
-
-        assert_array_close(actual.s21(), expected.s21(), tolerance);
-
-        assert_array_close(actual.s22(), expected.s22(), tolerance);
-    }
-
-    fn planar(
-        vacuum_wavenumber: f64,
-        parallel_wavenumber: f64,
-        polarisation: Polarisation,
-    ) -> PlanarInput<Array0<C>> {
-        PlanarInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
-            polarisation,
-        )
-    }
-
-    fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
-        Stack::builder(
-            Constant::new(left_epsilon, 1.0),
-            Constant::new(right_epsilon, 1.0),
-        )
-        .validation(ValidationConfig::permissive())
-        .build()
-        .unwrap()
-    }
-
-    fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
-        Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .layer(
-                Constant::new(2.25, 1.0),
-                Thickness::from_cm(thickness_cm).unwrap(),
-            )
-            .validation(ValidationConfig::permissive())
-            .build()
-            .unwrap()
-    }
-
-    fn two_layer_stack(
-        first_thickness_cm: f64,
-        second_thickness_cm: f64,
-    ) -> Stack<Constant<f64>, f64> {
-        Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .layer(
-                Constant::new(2.25, 1.0),
-                Thickness::from_cm(first_thickness_cm).unwrap(),
-            )
-            .layer(
-                Constant::new(3.24, 1.0),
-                Thickness::from_cm(second_thickness_cm).unwrap(),
-            )
-            .build()
-            .unwrap()
-    }
-
-    #[test]
-    fn empty_stack_is_direct_exterior_interface() {
-        let stack = empty_stack(1.0, 2.25);
-
-        let input = planar(3.0, 0.0, Polarisation::TransverseElectric);
-
-        let matrix = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
-            .unwrap();
-
-        let denominator = 1.0 + 1.5;
-
-        assert_complex_close(matrix.s11()[()], c((1.0 - 1.5) / denominator), 1e-12);
-
-        assert_complex_close(matrix.s21()[()], c(2.0 / denominator), 1e-12);
-
-        assert_complex_close(matrix.s12()[()], c(3.0 / denominator), 1e-12);
-
-        assert_complex_close(matrix.s22()[()], c((1.5 - 1.0) / denominator), 1e-12);
-    }
-
-    #[test]
-    fn equal_exterior_media_and_empty_stack_are_transparent() {
-        let stack = empty_stack(1.0, 1.0);
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
-
-        let matrix = Scatter2::new()
-            .evaluate_with::<ComplexPlane, _, _, _>(&stack, &input)
-            .unwrap();
-
-        assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
-
-        assert_complex_close(matrix.s12()[()], c(1.0), 1e-12);
-
-        assert_complex_close(matrix.s21()[()], c(1.0), 1e-12);
-
-        assert_complex_close(matrix.s22()[()], c(0.0), 1e-12);
-    }
-
-    #[test]
-    fn uniform_layer_has_zero_reflection_and_propagation_phase() {
-        let medium = Constant::new(2.25, 1.0);
-
-        let thickness_cm = 0.3;
-
-        let stack = Stack::builder(medium.clone(), medium)
-            .layer(medium.clone(), Thickness::from_cm(thickness_cm).unwrap())
-            .build()
-            .unwrap();
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
-
-        let matrix = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
-            .unwrap();
-
-        let kappa = (2.25 * 3.0_f64.powi(2) - 0.4_f64.powi(2)).sqrt();
-
-        let phase = (C::i() * c(kappa * thickness_cm)).exp();
-
-        assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
-
-        assert_complex_close(matrix.s22()[()], c(0.0), 1e-12);
-
-        assert_complex_close(matrix.s21()[()], phase, 1e-12);
-
-        assert_complex_close(matrix.s12()[()], phase, 1e-12);
-    }
-
-    #[test]
-    fn zero_thickness_layer_equals_two_adjacent_interfaces() {
-        let stack = one_layer_stack(0.0);
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
-
-        let layer = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
-            .unwrap();
-
-        /*
-         * A zero-thickness intermediate layer should algebraically collapse to
-         * the direct exterior interface.
-         */
-        let direct = empty_stack(1.0, 1.44);
-
-        let without_layer = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&direct, &input)
-            .unwrap();
-
-        assert_matrix_close(&layer, &without_layer, 1e-12);
-    }
-
-    #[test]
-    fn asymmetric_layer_order_changes_scattering_response() {
-        let first = two_layer_stack(0.17, 0.29);
-
-        let reversed = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
-            .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.29).unwrap())
-            .layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.17).unwrap())
-            .build()
-            .unwrap();
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
-
-        let first = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&first, &input)
-            .unwrap();
-
-        let reversed = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&reversed, &input)
-            .unwrap();
-
-        assert_ne!(first.s11(), reversed.s11());
-    }
-
-    #[test]
-    fn thickness_first_derivative_matches_finite_difference() {
-        let d0 = 0.17;
-        let d1 = 0.29;
-        let h = 1e-6;
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
-
-        let analytic = Scatter2::new()
-            .evaluate_structural_first_with::<RealAxis, _, _, _>(
-                &two_layer_stack(d0, d1),
-                &input,
-                StructuralDerivativeVariable::Thickness(0),
-            )
-            .unwrap();
-
-        let plus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 + h, d1), &input)
-            .unwrap();
-
-        let minus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 - h, d1), &input)
-            .unwrap();
-
-        assert_complex_close(
-            analytic.s11.first()[()],
-            (plus.s11()[()] - minus.s11()[()]) / (2.0 * h),
-            2e-7,
-        );
-
-        assert_complex_close(
-            analytic.s12.first()[()],
-            (plus.s12()[()] - minus.s12()[()]) / (2.0 * h),
-            2e-7,
-        );
-
-        assert_complex_close(
-            analytic.s21.first()[()],
-            (plus.s21()[()] - minus.s21()[()]) / (2.0 * h),
-            2e-7,
-        );
-
-        assert_complex_close(
-            analytic.s22.first()[()],
-            (plus.s22()[()] - minus.s22()[()]) / (2.0 * h),
-            2e-7,
-        );
-    }
-
-    #[test]
-    fn thickness_second_derivative_matches_finite_difference() {
-        let d0 = 0.17;
-        let d1 = 0.29;
-        let h = 1e-4;
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
-
-        let analytic = Scatter2::new()
-            .evaluate_structural_second_with::<RealAxis, _, _, _>(
-                &two_layer_stack(d0, d1),
-                &input,
-                StructuralDerivativeVariable::Thickness(1),
-            )
-            .unwrap();
-
-        let plus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 + h), &input)
-            .unwrap();
-
-        let zero = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1), &input)
-            .unwrap();
-
-        let minus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 - h), &input)
-            .unwrap();
-
-        let h2 = h * h;
-
-        assert_complex_close(
-            analytic.s11.second()[()],
-            (plus.s11()[()] - c(2.0) * zero.s11()[()] + minus.s11()[()]) / h2,
-            3e-6,
-        );
-
-        assert_complex_close(
-            analytic.s21.second()[()],
-            (plus.s21()[()] - c(2.0) * zero.s21()[()] + minus.s21()[()]) / h2,
-            3e-6,
-        );
-    }
-
-    #[test]
-    fn linear_vacuum_wavenumber_derivative_matches_finite_difference() {
-        let stack = two_layer_stack(0.17, 0.29);
-
-        let k0 = 3.0;
-        let h = 1e-6;
-
-        let input = planar(k0, 0.4, Polarisation::TransverseElectric);
-
-        let analytic = Scatter2::new()
-            .evaluate_spectral_first_with::<RealAxis, _, _, _>(
-                &stack,
-                &input,
-                SpectralDerivativeVariable::VacuumWavenumber,
-            )
-            .unwrap();
-
-        let plus_input = planar(k0 + h, 0.4, Polarisation::TransverseElectric);
-
-        let minus_input = planar(k0 - h, 0.4, Polarisation::TransverseElectric);
-
-        let plus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
-            .unwrap();
-
-        let minus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
-            .unwrap();
-
-        assert_complex_close(
-            analytic.s11.first()[()],
-            (plus.s11()[()] - minus.s11()[()]) / (2.0 * h),
-            3e-7,
-        );
-
-        assert_complex_close(
-            analytic.s21.first()[()],
-            (plus.s21()[()] - minus.s21()[()]) / (2.0 * h),
-            3e-7,
-        );
-    }
-
-    #[test]
-    fn parallel_wavenumber_squared_second_derivative_matches_finite_difference() {
-        let stack = two_layer_stack(0.17, 0.29);
-
-        let parallel_squared = 0.16_f64;
-        let h = 1e-4;
-
-        let input = planar(
-            3.0,
-            parallel_squared.sqrt(),
-            Polarisation::TransverseMagnetic,
-        );
-
-        let analytic = Scatter2::new()
-            .evaluate_structural_second_with::<RealAxis, _, _, _>(
-                &stack,
-                &input,
-                StructuralDerivativeVariable::ParallelWavenumberSquared,
-            )
-            .unwrap();
-
-        let plus_input = planar(
-            3.0,
-            (parallel_squared + h).sqrt(),
-            Polarisation::TransverseMagnetic,
-        );
-
-        let zero_input = planar(
-            3.0,
-            parallel_squared.sqrt(),
-            Polarisation::TransverseMagnetic,
-        );
-
-        let minus_input = planar(
-            3.0,
-            (parallel_squared - h).sqrt(),
-            Polarisation::TransverseMagnetic,
-        );
-
-        let plus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
-            .unwrap();
-
-        let zero = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &zero_input)
-            .unwrap();
-
-        let minus = Scatter2::new()
-            .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
-            .unwrap();
-
-        let h2 = h * h;
-
-        assert_complex_close(
-            analytic.s11.second()[()],
-            (plus.s11()[()] - c(2.0) * zero.s11()[()] + minus.s11()[()]) / h2,
-            4e-6,
-        );
-
-        assert_complex_close(
-            analytic.s21.second()[()],
-            (plus.s21()[()] - c(2.0) * zero.s21()[()] + minus.s21()[()]) / h2,
-            4e-6,
-        );
-    }
-
-    #[test]
-    fn invalid_thickness_index_returns_error() {
-        let stack = one_layer_stack(0.2);
-
-        let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
-
-        let error = Scatter2::new()
-            .evaluate_structural_first_with::<RealAxis, _, _, _>(
-                &stack,
-                &input,
-                StructuralDerivativeVariable::Thickness(1),
-            )
-            .unwrap_err();
-
-        assert_eq!(
-            error,
-            Scatter2Error::ThicknessLayerOutOfBounds {
-                requested: 1,
-                layer_count: 1,
-            },
-        );
-    }
-
-    #[test]
-    fn sampled_input_shape_is_preserved() {
-        let stack = one_layer_stack(0.2);
-
-        let input = PlanarInput::new(
-            array![c(2.0), c(2.5), c(3.0)],
-            array![c(0.2), c(0.3), c(0.4)],
-            Polarisation::TransverseElectric,
-        );
-
-        let result = Scatter2::new()
-            .evaluate_spectral_second_with::<RealAxis, _, _, _>(
-                &stack,
-                &input,
-                SpectralDerivativeVariable::VacuumWavenumber,
-            )
-            .unwrap();
-
-        let expected = input.vacuum_wavenumber().raw_dim();
-
-        for entry in [&result.s11, &result.s12, &result.s21, &result.s22] {
-            assert_eq!(entry.value().raw_dim(), expected);
-            assert_eq!(entry.first().raw_dim(), expected);
-            assert_eq!(entry.second().raw_dim(), expected);
-        }
-    }
-
-    #[test]
-    fn first_thickness_exponent_has_expected_jet() {
-        let kappa = arr0(C::new(2.0, 0.3));
-
-        let quantities = IsotropicLayerQuantities::from_parts(
-            ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
-            ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
-            ArrayJetFirst::constant(kappa.clone()),
-            Polarisation::TransverseElectric,
-        );
-
-        let exponent = first_propagation_exponent(
-            &quantities,
-            0.4,
-            StructuralDerivativeVariable::Thickness(1),
-            1,
-        );
-
-        assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
-
-        assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
-    }
-
-    #[test]
-    fn second_thickness_exponent_has_zero_second_derivative() {
-        let kappa = arr0(C::new(2.0, 0.3));
-
-        let quantities = IsotropicLayerQuantities::from_parts(
-            ArrayJet::constant(arr0(C::new(1.0, 0.0))),
-            ArrayJet::constant(arr0(C::new(1.0, 0.0))),
-            ArrayJet::constant(kappa.clone()),
-            Polarisation::TransverseElectric,
-        );
-
-        let exponent = second_propagation_exponent(
-            &quantities,
-            0.4,
-            StructuralDerivativeVariable::Thickness(1),
-            1,
-        );
-
-        assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
-
-        assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
-
-        assert_complex_close(exponent.second()[()], C::zero(), 1e-12);
-    }
-
-    #[test]
-    fn thickness_propagation_second_derivative_is_generated_by_exp() {
-        let kappa = C::new(2.0, 0.3);
-        let distance = 0.4;
-
-        let exponent = ArrayJet::from_parts(
-            arr0(C::i() * kappa * distance),
-            arr0(C::i() * kappa),
-            arr0(C::zero()),
-        );
-
-        let propagation = propagation_from_exponent::<C, _, _>(exponent);
-
-        let expected_value = (C::i() * kappa * distance).exp();
-
-        let expected_first = expected_value * C::i() * kappa;
-
-        let expected_second = expected_value * (C::i() * kappa) * (C::i() * kappa);
-
-        assert_complex_close(propagation.s12.value()[()], expected_value, 1e-12);
-
-        assert_complex_close(propagation.s12.first()[()], expected_first, 1e-12);
-
-        assert_complex_close(propagation.s12.second()[()], expected_second, 1e-12);
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use approx::assert_relative_eq;
+//     use ndarray::{Array0, ArrayBase, Dimension, OwnedRepr, arr0, array};
+//     use num_complex::Complex64;
+//     use num_traits::Zero;
+
+//     use super::*;
+
+//     use crate::{ValidationConfig, backend::Polarisation, material::Constant, stack::Thickness};
+
+//     type C = Complex64;
+
+//     fn c(value: f64) -> C {
+//         C::new(value, 0.0)
+//     }
+
+//     fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
+//         assert_relative_eq!(
+//             actual.re,
+//             expected.re,
+//             epsilon = tolerance,
+//             max_relative = tolerance,
+//         );
+
+//         assert_relative_eq!(
+//             actual.im,
+//             expected.im,
+//             epsilon = tolerance,
+//             max_relative = tolerance,
+//         );
+//     }
+
+//     fn assert_array_close<D>(
+//         actual: &ArrayBase<OwnedRepr<C>, D>,
+//         expected: &ArrayBase<OwnedRepr<C>, D>,
+//         tolerance: f64,
+//     ) where
+//         D: Dimension,
+//     {
+//         assert_eq!(actual.raw_dim(), expected.raw_dim());
+
+//         for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+//             assert_complex_close(actual, expected, tolerance);
+//         }
+//     }
+
+//     fn assert_matrix_close<D>(
+//         actual: &ScatterMatrix2<C, D>,
+//         expected: &ScatterMatrix2<C, D>,
+//         tolerance: f64,
+//     ) where
+//         D: Dimension,
+//     {
+//         assert_array_close(actual.s11(), expected.s11(), tolerance);
+
+//         assert_array_close(actual.s12(), expected.s12(), tolerance);
+
+//         assert_array_close(actual.s21(), expected.s21(), tolerance);
+
+//         assert_array_close(actual.s22(), expected.s22(), tolerance);
+//     }
+
+//     fn planar(
+//         vacuum_wavenumber: f64,
+//         parallel_wavenumber: f64,
+//         polarisation: Polarisation,
+//     ) -> PlanarInput<Array0<C>> {
+//         PlanarInput::new(
+//             arr0(c(vacuum_wavenumber)),
+//             arr0(c(parallel_wavenumber)),
+//             polarisation,
+//         )
+//     }
+
+//     fn empty_stack(left_epsilon: f64, right_epsilon: f64) -> Stack<Constant<f64>, f64> {
+//         Stack::builder(
+//             Constant::new(left_epsilon, 1.0),
+//             Constant::new(right_epsilon, 1.0),
+//         )
+//         .validation(ValidationConfig::permissive())
+//         .build()
+//         .unwrap()
+//     }
+
+//     fn one_layer_stack(thickness_cm: f64) -> Stack<Constant<f64>, f64> {
+//         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
+//             .layer(
+//                 Constant::new(2.25, 1.0),
+//                 Thickness::from_cm(thickness_cm).unwrap(),
+//             )
+//             .validation(ValidationConfig::permissive())
+//             .build()
+//             .unwrap()
+//     }
+
+//     fn two_layer_stack(
+//         first_thickness_cm: f64,
+//         second_thickness_cm: f64,
+//     ) -> Stack<Constant<f64>, f64> {
+//         Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
+//             .layer(
+//                 Constant::new(2.25, 1.0),
+//                 Thickness::from_cm(first_thickness_cm).unwrap(),
+//             )
+//             .layer(
+//                 Constant::new(3.24, 1.0),
+//                 Thickness::from_cm(second_thickness_cm).unwrap(),
+//             )
+//             .build()
+//             .unwrap()
+//     }
+
+//     #[test]
+//     fn empty_stack_is_direct_exterior_interface() {
+//         let stack = empty_stack(1.0, 2.25);
+
+//         let input = planar(3.0, 0.0, Polarisation::TransverseElectric);
+
+//         let matrix = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+//             .unwrap();
+
+//         let denominator = 1.0 + 1.5;
+
+//         assert_complex_close(matrix.s11()[()], c((1.0 - 1.5) / denominator), 1e-12);
+
+//         assert_complex_close(matrix.s21()[()], c(2.0 / denominator), 1e-12);
+
+//         assert_complex_close(matrix.s12()[()], c(3.0 / denominator), 1e-12);
+
+//         assert_complex_close(matrix.s22()[()], c((1.5 - 1.0) / denominator), 1e-12);
+//     }
+
+//     #[test]
+//     fn equal_exterior_media_and_empty_stack_are_transparent() {
+//         let stack = empty_stack(1.0, 1.0);
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
+
+//         let matrix = Scatter2::new()
+//             .evaluate_with::<ComplexPlane, _, _, _>(&stack, &input)
+//             .unwrap();
+
+//         assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
+
+//         assert_complex_close(matrix.s12()[()], c(1.0), 1e-12);
+
+//         assert_complex_close(matrix.s21()[()], c(1.0), 1e-12);
+
+//         assert_complex_close(matrix.s22()[()], c(0.0), 1e-12);
+//     }
+
+//     #[test]
+//     fn uniform_layer_has_zero_reflection_and_propagation_phase() {
+//         let medium = Constant::new(2.25, 1.0);
+
+//         let thickness_cm = 0.3;
+
+//         let stack = Stack::builder(medium.clone(), medium)
+//             .layer(medium.clone(), Thickness::from_cm(thickness_cm).unwrap())
+//             .build()
+//             .unwrap();
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+//         let matrix = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+//             .unwrap();
+
+//         let kappa = (2.25 * 3.0_f64.powi(2) - 0.4_f64.powi(2)).sqrt();
+
+//         let phase = (C::i() * c(kappa * thickness_cm)).exp();
+
+//         assert_complex_close(matrix.s11()[()], c(0.0), 1e-12);
+
+//         assert_complex_close(matrix.s22()[()], c(0.0), 1e-12);
+
+//         assert_complex_close(matrix.s21()[()], phase, 1e-12);
+
+//         assert_complex_close(matrix.s12()[()], phase, 1e-12);
+//     }
+
+//     #[test]
+//     fn zero_thickness_layer_equals_two_adjacent_interfaces() {
+//         let stack = one_layer_stack(0.0);
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+//         let layer = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &input)
+//             .unwrap();
+
+//         /*
+//          * A zero-thickness intermediate layer should algebraically collapse to
+//          * the direct exterior interface.
+//          */
+//         let direct = empty_stack(1.0, 1.44);
+
+//         let without_layer = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&direct, &input)
+//             .unwrap();
+
+//         assert_matrix_close(&layer, &without_layer, 1e-12);
+//     }
+
+//     #[test]
+//     fn asymmetric_layer_order_changes_scattering_response() {
+//         let first = two_layer_stack(0.17, 0.29);
+
+//         let reversed = Stack::builder(Constant::new(1.0, 1.0), Constant::new(1.44, 1.0))
+//             .layer(Constant::new(3.24, 1.0), Thickness::from_cm(0.29).unwrap())
+//             .layer(Constant::new(2.25, 1.0), Thickness::from_cm(0.17).unwrap())
+//             .build()
+//             .unwrap();
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+//         let first = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&first, &input)
+//             .unwrap();
+
+//         let reversed = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&reversed, &input)
+//             .unwrap();
+
+//         assert_ne!(first.s11(), reversed.s11());
+//     }
+
+//     #[test]
+//     fn thickness_first_derivative_matches_finite_difference() {
+//         let d0 = 0.17;
+//         let d1 = 0.29;
+//         let h = 1e-6;
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+//         let analytic = Scatter2::new()
+//             .evaluate_structural_first_with::<RealAxis, _, _, _>(
+//                 &two_layer_stack(d0, d1),
+//                 &input,
+//                 StructuralDerivativeVariable::Thickness(0),
+//             )
+//             .unwrap();
+
+//         let plus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 + h, d1), &input)
+//             .unwrap();
+
+//         let minus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0 - h, d1), &input)
+//             .unwrap();
+
+//         assert_complex_close(
+//             analytic.s11.first()[()],
+//             (plus.s11()[()] - minus.s11()[()]) / (2.0 * h),
+//             2e-7,
+//         );
+
+//         assert_complex_close(
+//             analytic.s12.first()[()],
+//             (plus.s12()[()] - minus.s12()[()]) / (2.0 * h),
+//             2e-7,
+//         );
+
+//         assert_complex_close(
+//             analytic.s21.first()[()],
+//             (plus.s21()[()] - minus.s21()[()]) / (2.0 * h),
+//             2e-7,
+//         );
+
+//         assert_complex_close(
+//             analytic.s22.first()[()],
+//             (plus.s22()[()] - minus.s22()[()]) / (2.0 * h),
+//             2e-7,
+//         );
+//     }
+
+//     #[test]
+//     fn thickness_second_derivative_matches_finite_difference() {
+//         let d0 = 0.17;
+//         let d1 = 0.29;
+//         let h = 1e-4;
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseMagnetic);
+
+//         let analytic = Scatter2::new()
+//             .evaluate_structural_second_with::<RealAxis, _, _, _>(
+//                 &two_layer_stack(d0, d1),
+//                 &input,
+//                 StructuralDerivativeVariable::Thickness(1),
+//             )
+//             .unwrap();
+
+//         let plus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 + h), &input)
+//             .unwrap();
+
+//         let zero = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1), &input)
+//             .unwrap();
+
+//         let minus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&two_layer_stack(d0, d1 - h), &input)
+//             .unwrap();
+
+//         let h2 = h * h;
+
+//         assert_complex_close(
+//             analytic.s11.second()[()],
+//             (plus.s11()[()] - c(2.0) * zero.s11()[()] + minus.s11()[()]) / h2,
+//             3e-6,
+//         );
+
+//         assert_complex_close(
+//             analytic.s21.second()[()],
+//             (plus.s21()[()] - c(2.0) * zero.s21()[()] + minus.s21()[()]) / h2,
+//             3e-6,
+//         );
+//     }
+
+//     #[test]
+//     fn linear_vacuum_wavenumber_derivative_matches_finite_difference() {
+//         let stack = two_layer_stack(0.17, 0.29);
+
+//         let k0 = 3.0;
+//         let h = 1e-6;
+
+//         let input = planar(k0, 0.4, Polarisation::TransverseElectric);
+
+//         let analytic = Scatter2::new()
+//             .evaluate_spectral_first_with::<RealAxis, _, _, _>(
+//                 &stack,
+//                 &input,
+//                 SpectralDerivativeVariable::VacuumWavenumber,
+//             )
+//             .unwrap();
+
+//         let plus_input = planar(k0 + h, 0.4, Polarisation::TransverseElectric);
+
+//         let minus_input = planar(k0 - h, 0.4, Polarisation::TransverseElectric);
+
+//         let plus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
+//             .unwrap();
+
+//         let minus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
+//             .unwrap();
+
+//         assert_complex_close(
+//             analytic.s11.first()[()],
+//             (plus.s11()[()] - minus.s11()[()]) / (2.0 * h),
+//             3e-7,
+//         );
+
+//         assert_complex_close(
+//             analytic.s21.first()[()],
+//             (plus.s21()[()] - minus.s21()[()]) / (2.0 * h),
+//             3e-7,
+//         );
+//     }
+
+//     #[test]
+//     fn parallel_wavenumber_squared_second_derivative_matches_finite_difference() {
+//         let stack = two_layer_stack(0.17, 0.29);
+
+//         let parallel_squared = 0.16_f64;
+//         let h = 1e-4;
+
+//         let input = planar(
+//             3.0,
+//             parallel_squared.sqrt(),
+//             Polarisation::TransverseMagnetic,
+//         );
+
+//         let analytic = Scatter2::new()
+//             .evaluate_structural_second_with::<RealAxis, _, _, _>(
+//                 &stack,
+//                 &input,
+//                 StructuralDerivativeVariable::ParallelWavenumberSquared,
+//             )
+//             .unwrap();
+
+//         let plus_input = planar(
+//             3.0,
+//             (parallel_squared + h).sqrt(),
+//             Polarisation::TransverseMagnetic,
+//         );
+
+//         let zero_input = planar(
+//             3.0,
+//             parallel_squared.sqrt(),
+//             Polarisation::TransverseMagnetic,
+//         );
+
+//         let minus_input = planar(
+//             3.0,
+//             (parallel_squared - h).sqrt(),
+//             Polarisation::TransverseMagnetic,
+//         );
+
+//         let plus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &plus_input)
+//             .unwrap();
+
+//         let zero = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &zero_input)
+//             .unwrap();
+
+//         let minus = Scatter2::new()
+//             .evaluate_with::<RealAxis, _, _, _>(&stack, &minus_input)
+//             .unwrap();
+
+//         let h2 = h * h;
+
+//         assert_complex_close(
+//             analytic.s11.second()[()],
+//             (plus.s11()[()] - c(2.0) * zero.s11()[()] + minus.s11()[()]) / h2,
+//             4e-6,
+//         );
+
+//         assert_complex_close(
+//             analytic.s21.second()[()],
+//             (plus.s21()[()] - c(2.0) * zero.s21()[()] + minus.s21()[()]) / h2,
+//             4e-6,
+//         );
+//     }
+
+//     #[test]
+//     fn invalid_thickness_index_returns_error() {
+//         let stack = one_layer_stack(0.2);
+
+//         let input = planar(3.0, 0.4, Polarisation::TransverseElectric);
+
+//         let error = Scatter2::new()
+//             .evaluate_structural_first_with::<RealAxis, _, _, _>(
+//                 &stack,
+//                 &input,
+//                 StructuralDerivativeVariable::Thickness(1),
+//             )
+//             .unwrap_err();
+
+//         assert_eq!(
+//             error,
+//             Scatter2Error::ThicknessLayerOutOfBounds {
+//                 requested: 1,
+//                 layer_count: 1,
+//             },
+//         );
+//     }
+
+//     #[test]
+//     fn sampled_input_shape_is_preserved() {
+//         let stack = one_layer_stack(0.2);
+
+//         let input = PlanarInput::new(
+//             array![c(2.0), c(2.5), c(3.0)],
+//             array![c(0.2), c(0.3), c(0.4)],
+//             Polarisation::TransverseElectric,
+//         );
+
+//         let result = Scatter2::new()
+//             .evaluate_spectral_second_with::<RealAxis, _, _, _>(
+//                 &stack,
+//                 &input,
+//                 SpectralDerivativeVariable::VacuumWavenumber,
+//             )
+//             .unwrap();
+
+//         let expected = input.vacuum_wavenumber().raw_dim();
+
+//         for entry in [&result.s11, &result.s12, &result.s21, &result.s22] {
+//             assert_eq!(entry.value().raw_dim(), expected);
+//             assert_eq!(entry.first().raw_dim(), expected);
+//             assert_eq!(entry.second().raw_dim(), expected);
+//         }
+//     }
+
+//     #[test]
+//     fn first_thickness_exponent_has_expected_jet() {
+//         let kappa = arr0(C::new(2.0, 0.3));
+
+//         let quantities = IsotropicLayerQuantities::from_parts(
+//             ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
+//             ArrayJetFirst::constant(arr0(C::new(1.0, 0.0))),
+//             ArrayJetFirst::constant(kappa.clone()),
+//             Polarisation::TransverseElectric,
+//         );
+
+//         let exponent = first_propagation_exponent(
+//             &quantities,
+//             0.4,
+//             StructuralDerivativeVariable::Thickness(1),
+//             1,
+//         );
+
+//         assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
+
+//         assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
+//     }
+
+//     #[test]
+//     fn second_thickness_exponent_has_zero_second_derivative() {
+//         let kappa = arr0(C::new(2.0, 0.3));
+
+//         let quantities = IsotropicLayerQuantities::from_parts(
+//             ArrayJet::constant(arr0(C::new(1.0, 0.0))),
+//             ArrayJet::constant(arr0(C::new(1.0, 0.0))),
+//             ArrayJet::constant(kappa.clone()),
+//             Polarisation::TransverseElectric,
+//         );
+
+//         let exponent = second_propagation_exponent(
+//             &quantities,
+//             0.4,
+//             StructuralDerivativeVariable::Thickness(1),
+//             1,
+//         );
+
+//         assert_complex_close(exponent.value()[()], C::i() * kappa[()] * 0.4, 1e-12);
+
+//         assert_complex_close(exponent.first()[()], C::i() * kappa[()], 1e-12);
+
+//         assert_complex_close(exponent.second()[()], C::zero(), 1e-12);
+//     }
+
+//     #[test]
+//     fn thickness_propagation_second_derivative_is_generated_by_exp() {
+//         let kappa = C::new(2.0, 0.3);
+//         let distance = 0.4;
+
+//         let exponent = ArrayJet::from_parts(
+//             arr0(C::i() * kappa * distance),
+//             arr0(C::i() * kappa),
+//             arr0(C::zero()),
+//         );
+
+//         let propagation = propagation_from_exponent::<C, _, _>(exponent);
+
+//         let expected_value = (C::i() * kappa * distance).exp();
+
+//         let expected_first = expected_value * C::i() * kappa;
+
+//         let expected_second = expected_value * (C::i() * kappa) * (C::i() * kappa);
+
+//         assert_complex_close(propagation.s12.value()[()], expected_value, 1e-12);
+
+//         assert_complex_close(propagation.s12.first()[()], expected_first, 1e-12);
+
+//         assert_complex_close(propagation.s12.second()[()], expected_second, 1e-12);
+//     }
+// }

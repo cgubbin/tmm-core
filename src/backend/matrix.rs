@@ -73,25 +73,25 @@ where
 /// - squared parallel wavenumber.
 ///
 /// It requires only ordinary real-axis material evaluation.
-pub trait RawMatrixStructuralDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
+pub trait RawMatrixThicknessDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
 {
     /// Evaluate the matrix and its first structural derivative.
-    fn solve_matrix_structural_first_derivative(
+    fn solve_matrix_thickness_first_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
     /// Evaluate the matrix and its first and second structural derivatives.
-    fn solve_matrix_structural_second_derivative(
+    fn solve_matrix_thickness_second_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
@@ -99,26 +99,51 @@ where
 ///
 /// This capability differentiates the constitutive response and therefore
 /// requires material derivatives along the real spectral axis.
+pub trait RawMatrixKxDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    /// Evaluate the matrix and its first real-axis spectral derivative.
+    fn solve_matrix_kx_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    /// Evaluate the matrix and its first and second real-axis spectral
+    /// derivatives.
+    fn solve_matrix_kx_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
+
 pub trait RawMatrixSpectralDerivativeBackend<C, D, S>: RawMatrixBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
 {
     /// Evaluate the matrix and its first real-axis spectral derivative.
-    fn solve_matrix_spectral_first_derivative(
+    fn solve_matrix_k0_first_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
     /// Evaluate the matrix and its first and second real-axis spectral
     /// derivatives.
-    fn solve_matrix_spectral_second_derivative(
+    fn solve_matrix_k0_second_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
-        variable: SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    fn solve_matrix_full_spectral_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
@@ -291,23 +316,41 @@ where
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
-pub trait ComplexMatrixStructuralDerivativeBackend<C, D, S>: ComplexMatrixBackend<C, D, S>
+pub trait ComplexMatrixThicknessDerivativeBackend<C, D, S>: ComplexMatrixBackend<C, D, S>
 where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn solve_complex_matrix_structural_first_derivative(
+    fn solve_complex_matrix_thickness_first_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
-    fn solve_complex_matrix_structural_second_derivative(
+    fn solve_complex_matrix_thickness_second_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: StructuralDerivativeVariable,
+        layer: usize,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+}
+
+pub trait ComplexMatrixKxDerivativeBackend<C, D, S>: ComplexMatrixBackend<C, D, S>
+where
+    C: ComplexScalar,
+    D: Dimension,
+{
+    fn solve_complex_matrix_kx_first_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    fn solve_complex_matrix_kx_second_derivative(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 
@@ -316,18 +359,22 @@ where
     C: ComplexScalar,
     D: Dimension,
 {
-    fn solve_complex_matrix_spectral_first_derivative(
+    fn solve_complex_matrix_k0_first_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 
-    fn solve_complex_matrix_spectral_second_derivative(
+    fn solve_complex_matrix_k0_second_derivative(
         &self,
         stack: &S,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: SpectralDerivativeVariable,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
+
+    fn solve_complex_matrix_full_spectral_hessian(
+        &self,
+        stack: &S,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error>;
 }
 

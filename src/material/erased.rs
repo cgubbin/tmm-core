@@ -6,7 +6,7 @@
 
 use super::{
     DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial, Material,
-    MeromorphicMaterial, Scalar, SpectralVariable,
+    MeromorphicMaterial, Scalar,
 };
 use crate::ComplexScalar;
 
@@ -42,14 +42,12 @@ where
         &self,
         vacuum_wavenumber: R,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C;
 
     fn relative_permeability_derivative_at(
         &self,
         vacuum_wavenumber: R,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C;
 }
 
@@ -63,18 +61,16 @@ where
         &self,
         vacuum_wavenumber: R,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C {
-        self.relative_permittivity_derivative::<_, C>(Scalar(vacuum_wavenumber), order, variable)
+        self.relative_permittivity_derivative::<_, C>(Scalar(vacuum_wavenumber), order)
     }
 
     fn relative_permeability_derivative_at(
         &self,
         vacuum_wavenumber: R,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C {
-        self.relative_permeability_derivative::<_, C>(Scalar(vacuum_wavenumber), order, variable)
+        self.relative_permeability_derivative::<_, C>(Scalar(vacuum_wavenumber), order)
     }
 }
 
@@ -110,14 +106,12 @@ where
         &self,
         vacuum_wavenumber: C,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C;
 
     fn relative_permeability_complex_derivative_at(
         &self,
         vacuum_wavenumber: C,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C;
 }
 
@@ -131,17 +125,15 @@ where
         &self,
         vacuum_wavenumber: C,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C {
-        self.relative_permittivity_complex_derivative(Scalar(vacuum_wavenumber), order, variable)
+        self.relative_permittivity_complex_derivative(Scalar(vacuum_wavenumber), order)
     }
 
     fn relative_permeability_complex_derivative_at(
         &self,
         vacuum_wavenumber: C,
         order: DerivativeOrder,
-        variable: SpectralVariable,
     ) -> C {
-        self.relative_permeability_complex_derivative(Scalar(vacuum_wavenumber), order, variable)
+        self.relative_permeability_complex_derivative(Scalar(vacuum_wavenumber), order)
     }
 }

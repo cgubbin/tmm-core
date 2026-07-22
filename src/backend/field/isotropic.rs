@@ -138,7 +138,7 @@ impl<A> IsotropicFieldState<A> {
     pub(crate) fn cartesian_fields<C, D>(
         &self,
         polarisation: Polarisation,
-        parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+        parallel_wavenumber: &A,
         epsilon: &A,
         mu: &A,
     ) -> CartesianElectromagneticField<A::Vector>
@@ -202,7 +202,7 @@ impl<C, D> IsotropicFieldState<ArrayJet<C, D>> {
 pub(crate) fn reconstruct_isotropic_cartesian_fields<C, D, A>(
     state: &IsotropicFieldState<A>,
     polarisation: Polarisation,
-    parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+    parallel_wavenumber: &A,
     epsilon: &A,
     mu: &A,
 ) -> CartesianElectromagneticField<A::Vector>
@@ -224,7 +224,7 @@ where
 
 fn reconstruct_te<C, D, A>(
     state: &IsotropicFieldState<A>,
-    parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+    parallel_wavenumber: &A,
     mu: &A,
 ) -> CartesianElectromagneticField<A::Vector>
 where
@@ -236,9 +236,7 @@ where
 
     let electric = A::into_cartesian_vector(zero.clone(), state.primary().clone(), zero.clone());
 
-    let longitudinal = A::from_value(parallel_wavenumber.clone())
-        .multiply(state.primary())
-        .divide(mu);
+    let longitudinal = parallel_wavenumber.multiply(state.primary()).divide(mu);
 
     let magnetic = A::into_cartesian_vector(state.dual().negate(), zero.clone(), longitudinal);
 
@@ -247,7 +245,7 @@ where
 
 fn reconstruct_tm<C, D, A>(
     state: &IsotropicFieldState<A>,
-    parallel_wavenumber: &ArrayBase<OwnedRepr<C>, D>,
+    parallel_wavenumber: &A,
     epsilon: &A,
 ) -> CartesianElectromagneticField<A::Vector>
 where
@@ -257,7 +255,7 @@ where
 {
     let zero = epsilon.zero_like();
 
-    let longitudinal = A::from_value(parallel_wavenumber.clone())
+    let longitudinal = parallel_wavenumber
         .multiply(state.primary())
         .divide(epsilon)
         .negate();

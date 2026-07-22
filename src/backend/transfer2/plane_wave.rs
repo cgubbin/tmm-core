@@ -4,10 +4,9 @@ use num_traits::Float;
 use crate::{
     ComplexScalar,
     backend::{
-        PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse,
+        PlaneWaveBackend, PlaneWaveInput, PlaneWaveResponse, RealAxis,
         algebra::ScalarAlgebra,
         derivative::StructuralDerivativeVariable,
-        evaluator::RealAxis,
         input::IncidentSide,
         isotropic::IsotropicLayerQuantities,
         jet::{ArrayJet, ArrayJetFirst},

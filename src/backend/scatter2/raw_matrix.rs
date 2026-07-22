@@ -15,17 +15,20 @@
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, DerivativeVariable,
     backend::{
-        MatrixEvaluation, PlanarInput, RawMatrixBackend,
-        evaluator::{ComplexPlane, RealAxis},
+        ComplexPlane, MatrixEvaluation, PlanarInput, RawMatrixBackend, RealAxis,
         jet::{ArrayJet, ArrayJetFirst},
         matrix::{
-            ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,
-            ComplexMatrixStructuralDerivativeBackend, MatrixDerivatives,
-            RawMatrixSpectralDerivativeBackend, RawMatrixStructuralDerivativeBackend,
+            ComplexMatrixBackend, ComplexMatrixKxDerivativeBackend,
+            ComplexMatrixSpectralDerivativeBackend, ComplexMatrixThicknessDerivativeBackend,
+            MatrixDerivatives, RawMatrixKxDerivativeBackend, RawMatrixSpectralDerivativeBackend,
+            RawMatrixThicknessDerivativeBackend,
         },
-        scatter2::{Scatter2, Scatter2Error, ScatterMatrix2, entries::ScatterEntries},
+        scatter2::{
+            Scatter2, Scatter2Error, ScatterMatrix2, entries::ScatterEntries,
+            matrix::Scatter2Values,
+        },
     },
     material::{
         EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
@@ -46,7 +49,7 @@ where
     /// ```text
     /// (S, dS)
     /// ```
-    pub(crate) fn into_matrix_parts(self) -> (ScatterMatrix2<C, D>, ScatterMatrix2<C, D>) {
+    pub(crate) fn into_matrix_parts(self) -> (Scatter2Values<C, D>, Scatter2Values<C, D>) {
         let (s11, ds11) = self.s11.into_parts();
         let (s12, ds12) = self.s12.into_parts();
         let (s21, ds21) = self.s21.into_parts();
@@ -75,9 +78,9 @@ where
     pub(crate) fn into_matrix_parts(
         self,
     ) -> (
-        ScatterMatrix2<C, D>,
-        ScatterMatrix2<C, D>,
-        ScatterMatrix2<C, D>,
+        Scatter2Values<C, D>,
+        Scatter2Values<C, D>,
+        Scatter2Values<C, D>,
     ) {
         let (s11, ds11, dds11) = self.s11.into_parts();
 
@@ -104,7 +107,7 @@ where
     D: Dimension,
     M: EvaluateMaterial<C, Real = C::RealField>,
 {
-    type Matrix = ScatterMatrix2<C, D>;
+    type Matrix = Scatter2Values<C, D>;
     type Error = Scatter2Error;
 
     fn solve_matrix(
@@ -112,53 +115,102 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let planar = input.clone().to_complex::<C>();
-        let matrix = self.evaluate_with::<RealAxis, _, _, _>(stack, &planar)?;
-
+        let matrix = self.evaluate_real_axis(stack, input)?;
         Ok(MatrixEvaluation::new(matrix))
     }
 }
 
-impl<C, D, M> RawMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, D, M> RawMatrixThicknessDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
-    fn solve_matrix_structural_first_derivative(
+    fn solve_matrix_thickness_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let planar = input.clone().to_complex::<C>();
-        let entries =
-            self.evaluate_structural_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+
+        let entries = self
+            .evaluate_thickness_first_with::<RealAxis, _, _, _>(stack, &planar, layer)?
+            .into_entries();
 
         let (matrix, first) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first),
+            MatrixDerivatives::new(DerivativeVariable::Thickness(layer), first),
         ))
     }
 
-    fn solve_matrix_structural_second_derivative(
+    fn solve_matrix_thickness_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let planar = input.clone().to_complex::<C>();
-        let entries =
-            self.evaluate_structural_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+
+        let entries = self
+            .evaluate_thickness_second_with::<RealAxis, _, _, _>(stack, &planar, layer)?
+            .into_entries();
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first).with_second(second),
+            MatrixDerivatives::new(DerivativeVariable::Thickness(layer), first).with_second(second),
+        ))
+    }
+}
+
+impl<C, D, M> RawMatrixKxDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+{
+    fn solve_matrix_kx_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let planar = input.clone().to_complex::<C>();
+
+        let entries = self
+            .evaluate_kx_first_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (matrix, first) = entries.into_matrix_parts();
+
+        Ok(MatrixEvaluation::with_derivatives(
+            matrix,
+            MatrixDerivatives::new(DerivativeVariable::ParallelWavenumber, first),
+        ))
+    }
+
+    fn solve_matrix_kx_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let planar = input.clone().to_complex::<C>();
+
+        let entries = self
+            .evaluate_kx_second_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        let (matrix, first, second) = entries.into_matrix_parts();
+
+        Ok(MatrixEvaluation::with_derivatives(
+            matrix,
+            MatrixDerivatives::new(DerivativeVariable::ParallelWavenumber, first)
+                .with_second(second),
         ))
     }
 }
@@ -170,40 +222,54 @@ where
     D: Dimension,
     M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
 {
-    fn solve_matrix_spectral_first_derivative(
+    fn solve_matrix_k0_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let planar = input.clone().to_complex::<C>();
-        let entries =
-            self.evaluate_spectral_first_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+
+        let entries = self
+            .evaluate_k0_first_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
 
         let (matrix, first) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first),
+            MatrixDerivatives::new(DerivativeVariable::VacuumWavenumber, first),
         ))
     }
 
-    fn solve_matrix_spectral_second_derivative(
+    fn solve_matrix_k0_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
         let planar = input.clone().to_complex::<C>();
-        let entries =
-            self.evaluate_spectral_second_with::<RealAxis, _, _, _>(stack, &planar, variable)?;
+        let entries = self
+            .evaluate_k0_second_with::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first).with_second(second),
+            MatrixDerivatives::new(DerivativeVariable::VacuumWavenumber, first).with_second(second),
         ))
+    }
+
+    fn solve_matrix_full_spectral_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<<C>::RealField>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let planar = input.clone().to_complex::<C>();
+        let entries = self
+            .evaluate_full_spectral_hessian::<RealAxis, _, _, _>(stack, &planar)?
+            .into_entries();
+
+        todo!()
     }
 }
 
@@ -214,7 +280,7 @@ where
     D: Dimension,
     M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
 {
-    type Matrix = ScatterMatrix2<C, D>;
+    type Matrix = Scatter2Values<C, D>;
     type Error = Scatter2Error;
 
     fn solve_analytic_matrix(
@@ -222,49 +288,94 @@ where
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let matrix = self.evaluate_with::<ComplexPlane, _, _, _>(stack, input)?;
+        let matrix = self.evaluate_complex_plane(stack, input)?;
         Ok(MatrixEvaluation::new(matrix))
     }
 }
 
-impl<C, D, M> ComplexMatrixStructuralDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+impl<C, D, M> ComplexMatrixThicknessDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
 where
     C: ComplexScalar,
     C::RealField: Copy,
     D: Dimension,
-    M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
-    fn solve_complex_matrix_structural_first_derivative(
+    fn solve_complex_matrix_thickness_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries =
-            self.evaluate_structural_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+        let entries = self
+            .evaluate_thickness_first_with::<ComplexPlane, _, _, _>(stack, input, layer)?
+            .into_entries();
 
         let (matrix, first) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first),
+            MatrixDerivatives::new(DerivativeVariable::Thickness(layer), first),
         ))
     }
 
-    fn solve_complex_matrix_structural_second_derivative(
+    fn solve_complex_matrix_thickness_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::StructuralDerivativeVariable,
+        layer: usize,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries =
-            self.evaluate_structural_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+        let entries = self
+            .evaluate_thickness_second_with::<ComplexPlane, _, _, _>(stack, input, layer)?
+            .into_entries();
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first).with_second(second),
+            MatrixDerivatives::new(DerivativeVariable::Thickness(layer), first).with_second(second),
+        ))
+    }
+}
+
+impl<C, D, M> ComplexMatrixKxDerivativeBackend<C, D, Stack<M, C::RealField>> for Scatter2
+where
+    C: ComplexScalar,
+    C::RealField: Copy,
+    D: Dimension,
+    M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
+{
+    fn solve_complex_matrix_kx_first_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let entries = self
+            .evaluate_kx_first_with::<ComplexPlane, _, _, _>(stack, input)?
+            .into_entries();
+
+        let (matrix, first) = entries.into_matrix_parts();
+
+        Ok(MatrixEvaluation::with_derivatives(
+            matrix,
+            MatrixDerivatives::new(DerivativeVariable::ParallelWavenumber, first),
+        ))
+    }
+
+    fn solve_complex_matrix_kx_second_derivative(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let entries = self
+            .evaluate_kx_second_with::<ComplexPlane, _, _, _>(stack, input)?
+            .into_entries();
+
+        let (matrix, first, second) = entries.into_matrix_parts();
+
+        Ok(MatrixEvaluation::with_derivatives(
+            matrix,
+            MatrixDerivatives::new(DerivativeVariable::ParallelWavenumber, first)
+                .with_second(second),
         ))
     }
 }
@@ -276,38 +387,50 @@ where
     D: Dimension,
     M: EvaluateDifferentiableMeromorphicMaterial<C, Real = C::RealField>,
 {
-    fn solve_complex_matrix_spectral_first_derivative(
+    fn solve_complex_matrix_k0_first_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries =
-            self.evaluate_spectral_first_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+        let entries = self
+            .evaluate_k0_first_with::<ComplexPlane, _, _, _>(stack, input)?
+            .into_entries();
 
         let (matrix, first) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first),
+            MatrixDerivatives::new(DerivativeVariable::VacuumWavenumber, first),
         ))
     }
 
-    fn solve_complex_matrix_spectral_second_derivative(
+    fn solve_complex_matrix_k0_second_derivative(
         &self,
         stack: &Stack<M, C::RealField>,
         input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
-        variable: crate::backend::derivative::SpectralDerivativeVariable,
     ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
-        let entries =
-            self.evaluate_spectral_second_with::<ComplexPlane, _, _, _>(stack, input, variable)?;
+        let entries = self
+            .evaluate_k0_second_with::<ComplexPlane, _, _, _>(stack, input)?
+            .into_entries();
 
         let (matrix, first, second) = entries.into_matrix_parts();
 
         Ok(MatrixEvaluation::with_derivatives(
             matrix,
-            MatrixDerivatives::new(variable.into(), first).with_second(second),
+            MatrixDerivatives::new(DerivativeVariable::VacuumWavenumber, first).with_second(second),
         ))
+    }
+
+    fn solve_complex_matrix_full_spectral_hessian(
+        &self,
+        stack: &Stack<M, C::RealField>,
+        input: &PlanarInput<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Result<MatrixEvaluation<Self::Matrix>, Self::Error> {
+        let entries = self
+            .evaluate_full_spectral_hessian::<ComplexPlane, _, _, _>(stack, input)?
+            .into_entries();
+
+        todo!()
     }
 }
 

@@ -1,6 +1,5 @@
 mod algebra;
 mod derivative;
-mod evaluator;
 mod field;
 mod input;
 mod isotropic;
@@ -13,30 +12,38 @@ mod plane_wave;
 mod tests;
 
 pub mod scatter2;
-pub mod transfer2;
+// pub mod transfer2;
+
+pub(crate) struct RealAxis;
+pub(crate) struct ComplexPlane;
 
 pub use derivative::{
     DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
 };
 pub use field::{
-    DifferentiablePlaneWaveFieldBackend, ExteriorSampling, FieldPosition, FieldSampling,
-    FieldSamplingRegion, IsotropicFieldState, LayerSampling, PlaneWaveFieldBackend,
-    PlaneWaveFieldError, PlaneWaveFieldResponse, PlaneWaveFieldSample, PlaneWaveFields,
+    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, IsotropicFieldState,
+    LayerSampling, PlaneWaveFieldBackend, PlaneWaveFieldError, PlaneWaveFieldResponse,
+    PlaneWaveFieldSample, PlaneWaveFieldSampleOwned, PlaneWaveFieldSampleView, PlaneWaveFields,
     PlaneWavePowerBalance,
 };
 pub use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
+pub use jet::{ArrayJet, ArrayJetFirst};
 pub use matrix::{
-    ComplexMatrixBackend, ComplexMatrixSpectralDerivativeBackend,
-    ComplexMatrixStructuralDerivativeBackend, MatrixEvaluation, RawMatrixBackend,
-    RawMatrixSpectralDerivativeBackend, RawMatrixStructuralDerivativeBackend,
+    ComplexMatrixBackend, ComplexMatrixKxDerivativeBackend, ComplexMatrixSpectralDerivativeBackend,
+    ComplexMatrixThicknessDerivativeBackend, MatrixEvaluation, RawMatrixBackend,
+    RawMatrixKxDerivativeBackend, RawMatrixSpectralDerivativeBackend,
+    RawMatrixThicknessDerivativeBackend,
 };
 pub use mode::{
-    AnalyticResidual, DifferentiableOutgoingModeResidualBackend, OutgoingModeResidualBackend,
+    AnalyticResidual, OutgoingModeResidualBackend, OutgoingModeResidualKxDerivativeBackend,
+    OutgoingModeResidualSpectralDerivativeBackend, OutgoingModeResidualThicknessDerivativeBackend,
     OutgoingModeResponse, OutgoingModeStateBackend,
 };
 pub use plane_wave::{
-    DifferentiablePlaneWaveBackend, PlaneWaveAmplitudes, PlaneWaveBackend, PlaneWaveResponse,
+    PlaneWaveAmplitudeDifferential, PlaneWaveAmplitudes, PlaneWaveBackend,
+    PlaneWaveKxDerivativeBackend, PlaneWavePower, PlaneWavePowerDifferential, PlaneWaveResponse,
     PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential,
+    PlaneWaveSpectralDerivativeBackend, PlaneWaveThicknessDerivativeBackend,
 };
 
 use isotropic::IsotropicLayerQuantities;

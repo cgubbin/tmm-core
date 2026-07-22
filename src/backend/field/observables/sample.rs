@@ -1,5 +1,5 @@
 use crate::{
-    ComplexScalar, PlaneWaveInput, Stack,
+    ComplexScalar, DerivativeVariable, PlaneWaveInput, Stack,
     backend::{
         FieldPosition, FieldSampling, IsotropicFieldState, PlaneWaveFieldError, PlaneWaveFields,
         algebra::ScalarAlgebra,
@@ -12,8 +12,9 @@ use crate::{
             },
             observables::{
                 context::{
-                    AlgebraicFieldContext, spectral_first_context, spectral_second_context,
-                    structural_first_context, structural_second_context, value_context,
+                    AlgebraicFieldContext, k0_first_context, k0_second_context, kx_first_context,
+                    kx_second_context, spectral_hessian_context, thickness_first_context,
+                    thickness_second_context, value_context,
                 },
                 fields::AlgebraicFieldSample,
             },
@@ -62,7 +63,7 @@ where
     C::RealField: Copy + Float,
     D: Dimension,
 {
-    let context = value_context(stack, input);
+    let context = value_context(stack, input.planar().to_complex());
     let waves = generic_boundary_values(waves);
 
     let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
@@ -70,14 +71,14 @@ where
     Ok(PlaneWaveFields::from_values(samples))
 }
 
-pub(crate) fn sample_first_order_fields_structural<M, C, D>(
+pub(crate) fn sample_first_order_fields_thickness<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
     positions: Vec<FieldPosition<C::RealField>>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
@@ -86,30 +87,29 @@ where
         .structural()
         .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
 
-    let variable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+    if let DerivativeVariable::Thickness(layer) = differentiated.variable() {
+        let context = thickness_first_context(stack, input.planar().to_complex(), layer);
+        let waves = generic_boundary_first(waves.values(), differentiated);
 
-    let context = structural_first_context(stack, input, variable);
-    let waves = generic_boundary_first(waves.values(), differentiated);
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
 
-    let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
-
-    Ok(PlaneWaveFields::from_first_order(
-        differentiated.variable(),
-        samples,
-    ))
+        Ok(PlaneWaveFields::from_first_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
 }
 
-pub(crate) fn sample_second_order_fields_structural<M, C, D>(
+pub(crate) fn sample_second_order_fields_thickness<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
     positions: Vec<FieldPosition<C::RealField>>,
 ) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
 where
-    M: EvaluateMaterial<C, Real = C::RealField>,
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
     C: ComplexScalar,
     C::RealField: Copy + Float,
     D: Dimension,
@@ -118,25 +118,88 @@ where
         .structural()
         .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
 
-    let variable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+    if let DerivativeVariable::Thickness(layer) = differentiated.variable() {
+        let context = thickness_second_context(stack, input.planar().to_complex(), layer);
 
-    let waves = generic_boundary_second(waves.values(), differentiated)
-        .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+        let waves = generic_boundary_second(waves.values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
 
-    let context = structural_second_context(stack, input, variable);
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
 
-    let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
-
-    Ok(PlaneWaveFields::from_second_order(
-        differentiated.variable(),
-        samples,
-    ))
+        Ok(PlaneWaveFields::from_second_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
 }
 
-pub(crate) fn sample_first_order_fields_spectral<M, C, D>(
+pub(crate) fn sample_first_order_fields_kx<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    waves: &BoundaryWaveSolution<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let differentiated = waves
+        .structural()
+        .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+
+    if DerivativeVariable::ParallelWavenumber == differentiated.variable() {
+        let context = kx_first_context(stack, input.planar().to_complex());
+        let waves = generic_boundary_first(waves.values(), differentiated);
+
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
+
+        Ok(PlaneWaveFields::from_first_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
+}
+
+pub(crate) fn sample_second_order_fields_kx<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    waves: &BoundaryWaveSolution<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let differentiated = waves
+        .structural()
+        .ok_or(PlaneWaveFieldError::ExpectedStructuralDerivatives)?;
+
+    if DerivativeVariable::ParallelWavenumber == differentiated.variable() {
+        let context = kx_second_context(stack, input.planar().to_complex());
+
+        let waves = generic_boundary_second(waves.values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
+
+        Ok(PlaneWaveFields::from_second_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
+}
+
+pub(crate) fn sample_first_order_fields_k0<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -152,23 +215,22 @@ where
         .spectral()
         .ok_or(PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
 
-    let variable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
+    if DerivativeVariable::ParallelWavenumber == differentiated.variable() {
+        let context = k0_first_context(stack, input.planar().to_complex());
+        let waves = generic_boundary_first(waves.values(), differentiated);
 
-    let context = spectral_first_context(stack, input, variable);
-    let waves = generic_boundary_first(waves.values(), differentiated);
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
 
-    let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
-
-    Ok(PlaneWaveFields::from_first_order(
-        differentiated.variable(),
-        samples,
-    ))
+        Ok(PlaneWaveFields::from_first_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
 }
 
-pub(crate) fn sample_second_order_fields_spectral<M, C, D>(
+pub(crate) fn sample_second_order_fields_k0<M, C, D>(
     stack: &Stack<M, C::RealField>,
     input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
     waves: &BoundaryWaveSolution<C, D>,
@@ -184,26 +246,42 @@ where
         .spectral()
         .ok_or(PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
 
-    let variable = differentiated
-        .variable()
-        .try_into()
-        .map_err(|_| PlaneWaveFieldError::ExpectedSpectralDerivatives)?;
+    if DerivativeVariable::ParallelWavenumber == differentiated.variable() {
+        let context = k0_second_context(stack, input.planar().to_complex());
 
-    let waves = generic_boundary_second(waves.values(), differentiated)
-        .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
+        let waves = generic_boundary_second(waves.values(), differentiated)
+            .ok_or(PlaneWaveFieldError::MissingSecondDerivatives)?;
 
-    let context = spectral_second_context(stack, input, variable);
+        let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
 
-    let samples = sample_plane_wave_fields_algebraic(&context, &waves, positions)?;
+        Ok(PlaneWaveFields::from_second_order(
+            differentiated.variable(),
+            samples,
+        ))
+    } else {
+        Err(PlaneWaveFieldError::ExpectedStructuralDerivatives)
+    }
+}
 
-    Ok(PlaneWaveFields::from_second_order(
-        differentiated.variable(),
-        samples,
-    ))
+pub(crate) fn sample_second_order_fields_full_spectral_hessian<M, C, D>(
+    stack: &Stack<M, C::RealField>,
+    input: &PlaneWaveInput<ArrayBase<OwnedRepr<C::RealField>, D>>,
+    waves: &BoundaryWaveSolution<C, D>,
+    positions: Vec<FieldPosition<C::RealField>>,
+) -> Result<PlaneWaveFields<C, D>, PlaneWaveFieldError<C::RealField>>
+where
+    M: EvaluateDifferentiableMaterial<C, Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy + Float,
+    D: Dimension,
+{
+    let context = spectral_hessian_context(stack, input.planar().to_complex());
+
+    todo!()
 }
 
 fn sample_plane_wave_fields_algebraic<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BoundaryWavesGeneric<A>,
     positions: impl IntoIterator<Item = FieldPosition<C::RealField>>,
 ) -> Result<Vec<AlgebraicFieldSample<C, D, A>>, PlaneWaveFieldError<C::RealField>>
@@ -236,7 +314,7 @@ pub(super) fn validate_generic_layer_count<A, R>(
 }
 
 fn sample_position<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BoundaryWavesGeneric<A>,
     position: FieldPosition<C::RealField>,
 ) -> Result<AlgebraicFieldSample<C, D, A>, PlaneWaveFieldError<C::RealField>>
@@ -262,7 +340,7 @@ where
 }
 
 fn sample_left_exterior<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BoundaryWavesGeneric<A>,
     distance: C::RealField,
     position: FieldPosition<C::RealField>,
@@ -292,7 +370,7 @@ where
 }
 
 fn sample_layer<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BoundaryWavesGeneric<A>,
     index: usize,
     offset: C::RealField,
@@ -339,7 +417,7 @@ where
 }
 
 fn sample_right_exterior<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BoundaryWavesGeneric<A>,
     distance: C::RealField,
     position: FieldPosition<C::RealField>,
@@ -369,7 +447,7 @@ where
 }
 
 fn fields_from_local_waves<C, D, A>(
-    context: &AlgebraicFieldContext<C, D, A>,
+    context: &AlgebraicFieldContext<C, A>,
     waves: &BidirectionalWavesGeneric<A>,
     quantities: &IsotropicLayerQuantities<A>,
 ) -> (

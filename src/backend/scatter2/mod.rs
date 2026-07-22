@@ -20,8 +20,8 @@ mod tests {
         Thickness, Transfer2, ValidationConfig,
         backend::{
             DifferentiablePlaneWaveBackend, OutgoingModeResidualBackend, PlaneWaveBackend,
+            RealAxis,
             derivative::{SpectralDerivativeVariable, StructuralDerivativeVariable},
-            evaluator::RealAxis,
             scatter2::Scatter2,
         },
         material::{Constant, MaterialHandle},

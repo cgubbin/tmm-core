@@ -2,14 +2,21 @@ use crate::{
     ComplexScalar, IncidentSide,
     backend::{
         algebra::ScalarAlgebra,
-        derivative::ChainRule,
         field::{BidirectionalWavesGeneric, InternalFieldRequest, LayerBoundaryWavesGeneric},
-        jet::{ArrayJet, ArrayJetFirst},
+        jet::{ArrayJet, ArrayJetFirst, ArraySpectralJet},
         scatter2::entries::{ScatterEntries, cascade},
     },
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+
+pub type Scatter2WorkspaceValues<C, D> = ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>;
+
+pub type Scatter2WorkspaceJetFirst<C, D> = ScatterWorkspace<ArrayJetFirst<C, D>>;
+
+pub type Scatter2WorkspaceJet<C, D> = ScatterWorkspace<ArrayJet<C, D>>;
+
+pub type Scatter2WorkspaceSpectralJet<C, D> = ScatterWorkspace<ArraySpectralJet<C, D>>;
 
 /// Cut positions corresponding to the two boundaries of one finite layer.
 ///
@@ -174,36 +181,6 @@ impl<A> ScatterWorkspace<A> {
 
     pub(crate) fn into_total(self) -> ScatterEntries<A> {
         self.total
-    }
-}
-
-impl<C, D> ScatterWorkspace<ArrayJetFirst<C, D>>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    /// Transform all jets from the primitive derivative variable to the requested
-    /// public variable.
-    ///
-    /// After this method returns, the total response and every retained component
-    /// carry derivatives with respect to the same variable.
-    pub(crate) fn chain_rule(self, rule: &ChainRule<ArrayBase<OwnedRepr<C>, D>>) -> Self {
-        self.map_entries(|entries| entries.chain_rule(rule))
-    }
-}
-
-impl<C, D> ScatterWorkspace<ArrayJet<C, D>>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    /// Transform all jets from the primitive derivative variable to the requested
-    /// public variable.
-    ///
-    /// After this method returns, the total response and every retained component
-    /// carry derivatives with respect to the same variable.
-    pub(crate) fn chain_rule(self, rule: &ChainRule<ArrayBase<OwnedRepr<C>, D>>) -> Self {
-        self.map_entries(|entries| entries.chain_rule(rule))
     }
 }
 
@@ -975,193 +952,6 @@ mod tests {
         assert!(total.s11[()].re.is_finite() && total.s11[()].im.is_finite(),);
 
         assert!(total.s21[()].re.is_finite() && total.s21[()].im.is_finite(),);
-    }
-
-    #[test]
-    fn first_order_chain_rule_transforms_total_and_retained_components() {
-        let mut workspace: ScatterWorkspace<ArrayJetFirst<C, Ix0>> =
-            ScatterWorkspace::new(&source(), InternalFieldRequest::LayerBoundaries, 1);
-
-        /*
-         * Use a single component so the workspace total is exactly this
-         * component and the expected transformed derivatives are direct.
-         */
-        let component = first_jet_entries(
-            [c(1.0), c(2.0), c(3.0), c(4.0)],
-            [c(5.0), c(6.0), c(7.0), c(8.0)],
-        );
-
-        workspace.append::<C, Ix0>(component);
-
-        let rule = ChainRule {
-            first: scalar(c(3.0)),
-            second: scalar(c(11.0)),
-        };
-
-        let transformed = workspace.chain_rule(&rule);
-
-        assert_first_jet_close(&transformed.total().s11, c(1.0), c(15.0), TOLERANCE);
-
-        assert_first_jet_close(&transformed.total().s12, c(2.0), c(18.0), TOLERANCE);
-
-        assert_first_jet_close(&transformed.total().s21, c(3.0), c(21.0), TOLERANCE);
-
-        assert_first_jet_close(&transformed.total().s22, c(4.0), c(24.0), TOLERANCE);
-
-        let retained = transformed
-            .retained
-            .as_ref()
-            .expect("retention was requested");
-
-        assert_eq!(retained.components.len(), 1);
-
-        assert_first_jet_close(&retained.components[0].s11, c(1.0), c(15.0), TOLERANCE);
-
-        assert_first_jet_close(&retained.components[0].s22, c(4.0), c(24.0), TOLERANCE);
-    }
-
-    #[test]
-    fn second_order_chain_rule_transforms_total_and_retained_components() {
-        let mut workspace: ScatterWorkspace<ArrayJet<C, Ix0>> =
-            ScatterWorkspace::new(&source(), InternalFieldRequest::LayerBoundaries, 1);
-
-        let component = second_jet_entries(
-            [c(1.0), c(2.0), c(3.0), c(4.0)],
-            [c(5.0), c(6.0), c(7.0), c(8.0)],
-            [c(9.0), c(10.0), c(11.0), c(12.0)],
-        );
-
-        workspace.append::<C, Ix0>(component);
-
-        /*
-         * For q = q(x):
-         *
-         * d/dx   = dq/dx d/dq
-         *
-         * d²/dx² =
-         *     d²/dq² (dq/dx)²
-         *     + d/dq d²q/dx².
-         */
-        let rule = ChainRule {
-            first: scalar(c(3.0)),
-            second: scalar(c(2.0)),
-        };
-
-        let transformed = workspace.chain_rule(&rule);
-
-        /*
-         * s11:
-         *
-         * first  = 5 * 3 = 15
-         * second = 9 * 3² + 5 * 2 = 91
-         */
-        assert_second_jet_close(
-            &transformed.total().s11,
-            c(1.0),
-            c(15.0),
-            c(91.0),
-            TOLERANCE,
-        );
-
-        /*
-         * s12:
-         *
-         * first  = 6 * 3 = 18
-         * second = 10 * 9 + 6 * 2 = 102
-         */
-        assert_second_jet_close(
-            &transformed.total().s12,
-            c(2.0),
-            c(18.0),
-            c(102.0),
-            TOLERANCE,
-        );
-
-        /*
-         * s21:
-         *
-         * first  = 7 * 3 = 21
-         * second = 11 * 9 + 7 * 2 = 113
-         */
-        assert_second_jet_close(
-            &transformed.total().s21,
-            c(3.0),
-            c(21.0),
-            c(113.0),
-            TOLERANCE,
-        );
-
-        /*
-         * s22:
-         *
-         * first  = 8 * 3 = 24
-         * second = 12 * 9 + 8 * 2 = 124
-         */
-        assert_second_jet_close(
-            &transformed.total().s22,
-            c(4.0),
-            c(24.0),
-            c(124.0),
-            TOLERANCE,
-        );
-
-        let retained = transformed
-            .retained
-            .as_ref()
-            .expect("retention was requested");
-
-        assert_eq!(retained.components.len(), 1);
-
-        assert_second_jet_close(
-            &retained.components[0].s11,
-            c(1.0),
-            c(15.0),
-            c(91.0),
-            TOLERANCE,
-        );
-
-        assert_second_jet_close(
-            &retained.components[0].s22,
-            c(4.0),
-            c(24.0),
-            c(124.0),
-            TOLERANCE,
-        );
-    }
-
-    #[test]
-    fn chain_rule_preserves_layer_cut_topology() {
-        let mut workspace: ScatterWorkspace<ArrayJetFirst<C, Ix0>> =
-            ScatterWorkspace::new(&source(), InternalFieldRequest::LayerBoundaries, 2);
-
-        let identity_jet = first_jet_entries(
-            [C::zero(), C::one(), C::one(), C::zero()],
-            [C::zero(), C::zero(), C::zero(), C::zero()],
-        );
-
-        workspace.append_layer::<C, Ix0>(identity_jet.clone(), identity_jet.clone());
-
-        workspace.append_layer::<C, Ix0>(identity_jet.clone(), identity_jet.clone());
-
-        workspace.append::<C, Ix0>(identity_jet);
-
-        let before = workspace.retained.as_ref().unwrap().layer_cuts.clone();
-
-        let rule = ChainRule {
-            first: scalar(c(2.0)),
-            second: scalar(c(3.0)),
-        };
-
-        let transformed = workspace.chain_rule(&rule);
-
-        let after = &transformed.retained.as_ref().unwrap().layer_cuts;
-
-        assert_eq!(&before, after);
-
-        assert_eq!(
-            after,
-            &vec![LayerCutIndices::new(1, 2), LayerCutIndices::new(3, 4),],
-        );
     }
 
     #[test]
