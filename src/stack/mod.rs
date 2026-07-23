@@ -224,9 +224,9 @@ impl<M, F> Stack<M, F> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::{
-        ComplexScalar, Constant, Material, Sampled, Thickness, material::MaterialHandle,
-        stack::StackBuilder,
+        ComplexScalar, Constant, Material, Sampled, material::MaterialHandle, stack::StackBuilder,
     };
 
     #[derive(Clone, Debug)]
