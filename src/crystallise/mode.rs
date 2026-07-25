@@ -38,4 +38,8 @@ impl DirectionalSecondMode {
 
 /// Crystallise the canonical spectral gradient and Hessian.
 #[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct SpectralFirstMode;
+
+/// Crystallise the canonical spectral gradient and Hessian.
+#[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct SpectralSecondMode;

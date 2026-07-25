@@ -3,7 +3,7 @@
 //! This module provides generic containers for propagating first
 //! derivatives through algebraic expressions.
 //!
-//! [`JetFirst`] stores a value and its first derivative with respect to one
+//! [`Jet1`] stores a value and its first derivative with respect to one
 //! scalar parameter:
 //!
 //! ```text
@@ -49,20 +49,20 @@ use nalgebra::ComplexField;
 use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 use std::marker::PhantomData;
 
-pub(crate) type ArrayJetFirst<C, D, P> = JetFirst<ArrayBase<OwnedRepr<C>, D>, P>;
+pub(crate) type ArrayJet1<C, D, P> = Jet1<ArrayBase<OwnedRepr<C>, D>, P>;
 
-pub(crate) type PhysicalJetFirst<C, D> = ArrayJetFirst<C, D, RealParameter>;
-pub(crate) type ModeJetFirst<C, D> = ArrayJetFirst<C, D, HolomorphicParameter>;
+pub(crate) type PhysicalJet1<C, D> = ArrayJet1<C, D, RealParameter>;
+pub(crate) type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
 /// A value and its first derivative.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct JetFirst<I, P = RealParameter> {
+pub(crate) struct Jet1<I, P = RealParameter> {
     value: I,
     first: I,
     parameter: PhantomData<P>,
 }
 
-impl<I, P> JetFirst<I, P> {
+impl<I, P> Jet1<I, P> {
     /// Construct a first-order jet.
     pub(crate) fn from_parts(value: I, first: I) -> Self {
         Self {
@@ -88,7 +88,7 @@ impl<I, P> JetFirst<I, P> {
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetAdditive,
 {
@@ -111,7 +111,7 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetBilinear,
 {
@@ -156,7 +156,7 @@ impl<I> FirstOrderExpansion<I> {
     }
 }
 
-impl<C, D, P> ArrayJetFirst<C, D, P>
+impl<C, D, P> ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -172,7 +172,7 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetConstant + JetZeroLike,
 {
@@ -182,7 +182,7 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetZeroLike,
 {
@@ -194,7 +194,7 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetScaleBy,
 {
@@ -207,7 +207,7 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetField,
 {
@@ -228,8 +228,8 @@ where
     }
 }
 
-impl<V, P> JetFirst<V, P> {
-    pub fn multiply_by_scalar<S>(&self, scalar: &JetFirst<S, P>) -> Self
+impl<V, P> Jet1<V, P> {
+    pub fn multiply_by_scalar<S>(&self, scalar: &Jet1<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
         P: Clone,
@@ -243,7 +243,7 @@ impl<V, P> JetFirst<V, P> {
     }
 }
 
-impl<I, P> JetFirst<I, P>
+impl<I, P> Jet1<I, P>
 where
     I: JetCrossProduct + JetAdditive,
 {
@@ -262,7 +262,7 @@ where
     }
 }
 
-impl<I> JetFirst<I, RealParameter>
+impl<I> Jet1<I, RealParameter>
 where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
@@ -283,7 +283,7 @@ where
     /// This operation is intentionally unavailable for holomorphic-parameter
     /// jets because conjugating the first operand does not preserve
     /// holomorphicity.
-    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> JetFirst<I::Output, RealParameter> {
+    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> Jet1<I::Output, RealParameter> {
         let value = self.value().jet_hermitian_product(rhs.value());
 
         let first = self
@@ -291,11 +291,11 @@ where
             .jet_hermitian_product(rhs.value())
             .jet_add(&self.value().jet_hermitian_product(rhs.first()));
 
-        JetFirst::from_parts(value, first)
+        Jet1::from_parts(value, first)
     }
 }
 
-impl<I> JetFirst<I, RealParameter>
+impl<I> Jet1<I, RealParameter>
 where
     I: JetConjugate,
 {
@@ -314,7 +314,7 @@ where
     }
 }
 
-impl<I> JetFirst<I, RealParameter>
+impl<I> Jet1<I, RealParameter>
 where
     I: JetRealPart,
 {
@@ -323,12 +323,12 @@ where
     ///
     /// This operation is intentionally unavailable for holomorphic-parameter
     /// jets.
-    pub(crate) fn real(&self) -> JetFirst<I::RealOutput, RealParameter> {
-        JetFirst::from_parts(self.value.jet_real(), self.first.jet_real())
+    pub(crate) fn real(&self) -> Jet1<I::RealOutput, RealParameter> {
+        Jet1::from_parts(self.value.jet_real(), self.first.jet_real())
     }
 }
 
-impl<C, D, P> ArrayJetFirst<C, D, P>
+impl<C, D, P> ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -376,17 +376,17 @@ where
     }
 }
 
-impl<I, P> JetFirst<I, P> {
+impl<I, P> Jet1<I, P> {
     /// Apply the same representation transformation independently to the value
     /// and derivative.
     ///
     /// This does not apply the differential chain rule and must not be used as a
     /// general function map.
-    pub(crate) fn map_components<O, F>(self, mut f: F) -> JetFirst<O, P>
+    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet1<O, P>
     where
         F: FnMut(I) -> O,
     {
-        JetFirst::from_parts(f(self.value), f(self.first))
+        Jet1::from_parts(f(self.value), f(self.first))
     }
 
     pub(crate) fn variable(value: I) -> Self
@@ -469,8 +469,8 @@ mod tests {
         let value = a0(2.0, 3.0);
         let first = a0(5.0, 7.0);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(value.clone(), first.clone());
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(value.clone(), first.clone());
 
         assert_eq!(jet.value(), &value);
         assert_eq!(jet.first(), &first);
@@ -481,8 +481,8 @@ mod tests {
         let value = a0(2.0, 3.0);
         let first = a0(5.0, 7.0);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(value.clone(), first.clone());
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(value.clone(), first.clone());
         let (actual_value, actual_first) = jet.into_parts();
 
         assert_eq!(actual_value, value);
@@ -493,7 +493,7 @@ mod tests {
     fn constant_has_zero_derivative() {
         let value = array![c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0),];
 
-        let jet: ArrayJetFirst<_, _, RealParameter> = ArrayJetFirst::constant(value.clone());
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::constant(value.clone());
 
         assert_eq!(jet.value(), &value);
         assert_eq!(jet.first().raw_dim(), value.raw_dim());
@@ -508,8 +508,7 @@ mod tests {
         let source = array![c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0),];
 
         let constant = c(7.0, -2.0);
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::constant_like(&source, constant);
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::constant_like(&source, constant);
 
         assert_eq!(jet.value().raw_dim(), source.raw_dim());
         assert_eq!(jet.first().raw_dim(), source.raw_dim());
@@ -527,7 +526,7 @@ mod tests {
     fn variable_preserves_shape_and_has_unit_derivative() {
         let value = array![c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0),];
 
-        let jet: ArrayJetFirst<_, _, RealParameter> = ArrayJetFirst::variable(value.clone());
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::variable(value.clone());
 
         assert_eq!(jet.value(), &value);
         assert_eq!(jet.first().raw_dim(), value.raw_dim());
@@ -543,10 +542,10 @@ mod tests {
 
     #[test]
     fn add_is_componentwise() {
-        let left: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
+        let left: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
 
-        let right = ArrayJetFirst::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
+        let right = ArrayJet1::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
 
         let result = left.add(&right);
 
@@ -556,10 +555,10 @@ mod tests {
 
     #[test]
     fn subtract_is_componentwise() {
-        let left: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
+        let left: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
 
-        let right = ArrayJetFirst::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
+        let right = ArrayJet1::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
 
         let result = left.subtract(&right);
 
@@ -569,8 +568,8 @@ mod tests {
 
     #[test]
     fn negate_negates_value_and_derivative() {
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0));
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0));
 
         let result = jet.negate();
 
@@ -580,8 +579,8 @@ mod tests {
 
     #[test]
     fn scale_by_scales_value_and_derivative() {
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0));
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0));
 
         let scale = c(3.0, 2.0);
         let result = jet.scale_by(scale);
@@ -597,11 +596,10 @@ mod tests {
 
     #[test]
     fn multiply_applies_first_order_product_rule() {
-        let f: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
+        let f: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
 
-        let g: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
+        let g: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(a0(11.0, 13.0), a0(17.0, 19.0));
 
         let result = f.multiply(&g);
 
@@ -677,12 +675,12 @@ mod tests {
 
     #[test]
     fn product_rule_preserves_noncommutative_operand_order() {
-        let f: JetFirst<Matrix2, RealParameter> = JetFirst::from_parts(
+        let f: Jet1<Matrix2, RealParameter> = Jet1::from_parts(
             Matrix2::new(1.0, 2.0, 3.0, 4.0),
             Matrix2::new(0.0, 1.0, 2.0, 0.0),
         );
 
-        let g = JetFirst::from_parts(
+        let g = Jet1::from_parts(
             Matrix2::new(2.0, 0.0, 1.0, 3.0),
             Matrix2::new(1.0, 4.0, 0.0, 2.0),
         );
@@ -717,8 +715,7 @@ mod tests {
         let value = c(2.0, 3.0);
         let first = c(5.0, -7.0);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.reciprocal();
 
@@ -735,11 +732,9 @@ mod tests {
         let g_value = c(2.0, -4.0);
         let g_first = c(7.0, 3.0);
 
-        let f: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(f_value), arr0(f_first));
+        let f: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(f_value), arr0(f_first));
 
-        let g: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(g_value), arr0(g_first));
+        let g: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(g_value), arr0(g_first));
 
         let result = f.divide(&g);
 
@@ -760,8 +755,7 @@ mod tests {
         let value = c(0.7, -0.4);
         let first = c(1.3, 0.2);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.exp();
         let expected_value = value.exp();
@@ -776,8 +770,7 @@ mod tests {
         let value = c(0.7, -0.4);
         let first = c(1.3, 0.2);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.sin();
 
@@ -791,8 +784,7 @@ mod tests {
         let value = c(0.7, -0.4);
         let first = c(1.3, 0.2);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.cos();
 
@@ -806,8 +798,7 @@ mod tests {
         let value = c(2.0, 0.5);
         let first = c(1.3, -0.2);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.sqrt();
         let expected_value = value.sqrt();
@@ -826,13 +817,13 @@ mod tests {
         let argument_value = c(0.7, -0.4);
         let argument_first = c(1.3, 0.2);
 
-        let argument: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(argument_value), arr0(argument_first));
+        let argument: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(arr0(argument_value), arr0(argument_first));
 
         let sampled_value = arr0(argument_value.sin());
         let sampled_derivative = arr0(argument_value.cos());
 
-        let result = ArrayJetFirst::compose_sampled_function(
+        let result = ArrayJet1::compose_sampled_function(
             &argument,
             FirstOrderExpansion::new(sampled_value, sampled_derivative),
         );
@@ -851,13 +842,13 @@ mod tests {
         let initial = c(0.8, 0.3);
         let direction = c(0.4, -0.2);
 
-        let argument: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(initial), arr0(direction));
+        let argument: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(arr0(initial), arr0(direction));
 
         // f(z) = exp(z) sin(z) / sqrt(z + 3)
         let numerator = argument.clone().exp().multiply(&argument.clone().sin());
 
-        let shift = ArrayJetFirst::constant_like(argument.value(), real(3.0));
+        let shift = ArrayJet1::constant_like(argument.value(), real(3.0));
 
         let denominator = argument.add(&shift).sqrt();
 
@@ -897,8 +888,7 @@ mod tests {
         let value = c(2.0, 3.0);
         let first = c(5.0, -7.0);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.conjugated();
 
@@ -912,8 +902,8 @@ mod tests {
         let initial = c(0.8, 0.3);
         let direction = c(0.4, -0.2);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(initial), arr0(direction));
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(arr0(initial), arr0(direction));
 
         let result = jet.conjugated();
 
@@ -929,8 +919,7 @@ mod tests {
         let value = c(2.0, 3.0);
         let first = c(5.0, -7.0);
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(arr0(value), arr0(first));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(arr0(value), arr0(first));
 
         let result = jet.real();
 
@@ -989,10 +978,10 @@ mod tests {
 
     #[test]
     fn cross_product_applies_bilinear_product_rule() {
-        let f: JetFirst<Vector3, RealParameter> =
-            JetFirst::from_parts(Vector3([1.0, 2.0, 3.0]), Vector3([4.0, 5.0, 6.0]));
+        let f: Jet1<Vector3, RealParameter> =
+            Jet1::from_parts(Vector3([1.0, 2.0, 3.0]), Vector3([4.0, 5.0, 6.0]));
 
-        let g = JetFirst::from_parts(Vector3([7.0, 8.0, 9.0]), Vector3([10.0, 11.0, 12.0]));
+        let g = Jet1::from_parts(Vector3([7.0, 8.0, 9.0]), Vector3([10.0, 11.0, 12.0]));
 
         let expected_value = f.value().jet_cross(g.value());
 
@@ -1041,12 +1030,12 @@ mod tests {
 
     #[test]
     fn hermitian_product_applies_real_parameter_product_rule() {
-        let f = JetFirst::from_parts(
+        let f = Jet1::from_parts(
             ComplexVector2([c(1.0, 2.0), c(3.0, -1.0)]),
             ComplexVector2([c(0.5, -0.3), c(-0.7, 0.2)]),
         );
 
-        let g = JetFirst::from_parts(
+        let g = Jet1::from_parts(
             ComplexVector2([c(2.0, -1.0), c(-0.5, 4.0)]),
             ComplexVector2([c(0.2, 0.6), c(1.1, -0.4)]),
         );
@@ -1075,9 +1064,9 @@ mod tests {
 
         let g_first = [c(0.2, 0.6), c(1.1, -0.4)];
 
-        let f = JetFirst::from_parts(ComplexVector2(f_value), ComplexVector2(f_first));
+        let f = Jet1::from_parts(ComplexVector2(f_value), ComplexVector2(f_first));
 
-        let g = JetFirst::from_parts(ComplexVector2(g_value), ComplexVector2(g_first));
+        let g = Jet1::from_parts(ComplexVector2(g_value), ComplexVector2(g_first));
 
         let result = f.hermitian_dot_product(&g);
 
@@ -1114,8 +1103,7 @@ mod tests {
 
     #[test]
     fn map_applies_same_transformation_to_both_components() {
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
+        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
 
         let mapped = jet.map_components(|array| array[()]);
 
@@ -1134,8 +1122,8 @@ mod tests {
 
         let derivatives = array![c(0.1, 0.2), c(0.3, -0.1), c(-0.2, 0.4),];
 
-        let jet: ArrayJetFirst<_, _, RealParameter> =
-            ArrayJetFirst::from_parts(values.clone(), derivatives.clone());
+        let jet: ArrayJet1<_, _, RealParameter> =
+            ArrayJet1::from_parts(values.clone(), derivatives.clone());
 
         let result = jet.exp();
 

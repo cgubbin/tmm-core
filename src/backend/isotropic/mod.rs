@@ -75,9 +75,9 @@ pub(crate) use admittance::IsotropicLayerAdmittance;
 
 use crate::{
     ComplexScalar,
-    backend::{
-        ComplexPlane, Polarisation, RealAxis, algebra::ScalarAlgebra, input::AlgebraicPlanarInput,
-    },
+    algebra::ScalarAlgebra,
+    backend::{ComplexPlane, RealAxis, input::AlgebraicPlanarInput},
+    input::{CanonicalInput, Polarisation},
 };
 
 /// Material and propagation quantities for one isotropic medium.

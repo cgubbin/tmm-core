@@ -1,6 +1,6 @@
 // mod field;
-mod input;
-// mod isotropic;
+// mod input;
+mod isotropic;
 // mod matrix;
 // mod mode;
 // mod plane_wave;
@@ -14,7 +14,6 @@ mod input;
 pub(crate) struct RealAxis;
 pub(crate) struct ComplexPlane;
 
-pub use input::{IncidentSide, Polarisation};
 // pub use derivative::{
 //     DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
 // };

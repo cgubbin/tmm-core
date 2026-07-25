@@ -1,145 +1,134 @@
 use crate::{
-    algebra::{ArrayJet, ArrayJetBivariate, ArrayJetFirst},
-    crystallise::{DirectionalFirstParts, DirectionalSecondParts, SpectralSecondParts},
+    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, Jet0, Jet1, Jet2, JetBivariate},
+    differential::{
+        DifferentialResponse, DirectionalCoordinate, DirectionalFirst, DirectionalSecond,
+        NoDerivatives, SpectralGradient, SpectralHessian, SpectralSecond,
+    },
 };
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{Array, Dimension};
 
-/// Extract the value represented by an algebraic storage type.
-pub(crate) trait IntoValue {
-    type Value;
+pub struct ValueOnly;
 
-    fn into_value(self) -> Self::Value;
+pub struct FirstDirectional {
+    pub coordinate: DirectionalCoordinate,
 }
 
-/// Extract a value and one first directional derivative.
-pub(crate) trait IntoDirectionalFirstParts {
-    type Value;
-
-    fn into_directional_first_parts(self) -> DirectionalFirstParts<Self::Value>;
+pub struct SecondDirectional {
+    pub coordinate: DirectionalCoordinate,
 }
 
-/// Extract a value and first and second directional derivatives.
-pub(crate) trait IntoDirectionalSecondParts {
-    type Value;
+pub struct FirstSpectral;
+pub struct SecondSpectral;
 
-    fn into_directional_second_parts(self) -> DirectionalSecondParts<Self::Value>;
-}
-
-/// Extract a value and the canonical spectral gradient and Hessian.
-pub(crate) trait IntoSpectralSecondParts {
-    type Value;
-
-    fn into_spectral_second_parts(self) -> SpectralSecondParts<Self::Value>;
-}
-
-impl<T, D> IntoValue for ArrayBase<OwnedRepr<T>, D>
-where
-    D: Dimension,
-{
-    type Value = Self;
-
-    fn into_value(self) -> Self::Value {
-        self
+pub(crate) trait Crystallise: Sized {
+    fn crystallise<C>(self, crystalliser: C) -> C::Output
+    where
+        C: CrystallisePolicy<Self>,
+    {
+        crystalliser.crystallise(self)
     }
 }
 
-impl<T, D, P> IntoValue for ArrayJetFirst<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<T> Crystallise for T {}
 
-    fn into_value(self) -> Self::Value {
-        let (value, ..) = self.into_parts();
-        value
+/// Converts an internal algebraic quantity into a public result.
+pub(crate) trait CrystallisePolicy<J> {
+    type Output;
+
+    fn crystallise(self, jet: J) -> Self::Output;
+}
+
+impl<I, P> CrystallisePolicy<Jet0<I, P>> for ValueOnly {
+    type Output = DifferentialResponse<I, NoDerivatives>;
+
+    fn crystallise(self, value: Jet0<I, P>) -> Self::Output {
+        DifferentialResponse::new(value.into_inner(), NoDerivatives)
     }
 }
 
-impl<T, D, P> IntoDirectionalFirstParts for ArrayJetFirst<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<Jet1<I, P>> for ValueOnly {
+    type Output = DifferentialResponse<I, NoDerivatives>;
 
-    fn into_directional_first_parts(self) -> DirectionalFirstParts<Self::Value> {
-        let (value, first) = self.into_parts();
-        DirectionalFirstParts::new(value, first)
+    fn crystallise(self, jet: Jet1<I, P>) -> Self::Output {
+        let (values, ..) = jet.into_parts();
+        DifferentialResponse::new(values, NoDerivatives)
     }
 }
 
-impl<T, D, P> IntoValue for ArrayJet<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<Jet1<I, P>> for FirstDirectional {
+    type Output = DifferentialResponse<I, DirectionalFirst<I>>;
 
-    fn into_value(self) -> Self::Value {
-        let (value, ..) = self.into_parts();
-        value
+    fn crystallise(self, jet: Jet1<I, P>) -> Self::Output {
+        let (values, first) = jet.into_parts();
+        DifferentialResponse::new(values, DirectionalFirst::new(self.coordinate, first))
     }
 }
 
-impl<T, D, P> IntoDirectionalFirstParts for ArrayJet<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<Jet2<I, P>> for ValueOnly {
+    type Output = DifferentialResponse<I, NoDerivatives>;
 
-    fn into_directional_first_parts(self) -> DirectionalFirstParts<Self::Value> {
-        let (value, first, ..) = self.into_parts();
-        DirectionalFirstParts::new(value, first)
+    fn crystallise(self, jet: Jet2<I, P>) -> Self::Output {
+        let (values, ..) = jet.into_parts();
+        DifferentialResponse::new(values, NoDerivatives)
     }
 }
 
-impl<T, D, P> IntoDirectionalSecondParts for ArrayJet<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<Jet2<I, P>> for FirstDirectional {
+    type Output = DifferentialResponse<I, DirectionalFirst<I>>;
 
-    fn into_directional_second_parts(self) -> DirectionalSecondParts<Self::Value> {
-        let (value, first, second) = self.into_parts();
-        DirectionalSecondParts::new(value, first, second)
+    fn crystallise(self, jet: Jet2<I, P>) -> Self::Output {
+        let (values, first, ..) = jet.into_parts();
+        DifferentialResponse::new(values, DirectionalFirst::new(self.coordinate, first))
     }
 }
 
-impl<T, D, P> IntoValue for ArrayJetBivariate<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<Jet2<I, P>> for SecondDirectional {
+    type Output = DifferentialResponse<I, DirectionalSecond<I>>;
 
-    fn into_value(self) -> Self::Value {
-        let (value, ..) = self.into_parts();
-        value
+    fn crystallise(self, jet: Jet2<I, P>) -> Self::Output {
+        let (values, first, second) = jet.into_parts();
+        DifferentialResponse::new(
+            values,
+            DirectionalSecond::new(self.coordinate, first, second),
+        )
     }
 }
 
-impl<T, D, P> IntoSpectralSecondParts for ArrayJetBivariate<T, D, P>
-where
-    D: Dimension,
-{
-    type Value = ArrayBase<OwnedRepr<T>, D>;
+impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for ValueOnly {
+    type Output = DifferentialResponse<I, NoDerivatives>;
 
-    fn into_spectral_second_parts(self) -> SpectralSecondParts<Self::Value> {
-        let (value, gradient, hessian) = self.into_parts();
+    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+        let (values, ..) = jet.into_parts();
+        DifferentialResponse::new(values, NoDerivatives)
+    }
+}
 
-        let (vacuum_wavenumber, parallel_wavenumber) = gradient.into_parts();
+impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for FirstSpectral {
+    type Output = DifferentialResponse<I, SpectralGradient<I>>;
 
-        let (
-            vacuum_wavenumber_vacuum_wavenumber,
-            vacuum_wavenumber_parallel_wavenumber,
-            parallel_wavenumber_parallel_wavenumber,
-        ) = hessian.into_parts();
+    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+        let (values, gradient, ..) = jet.into_parts();
+        let (dx, dy) = gradient.into_parts();
 
-        SpectralSecondParts::new(
-            value,
-            vacuum_wavenumber,
-            parallel_wavenumber,
-            vacuum_wavenumber_vacuum_wavenumber,
-            vacuum_wavenumber_parallel_wavenumber,
-            parallel_wavenumber_parallel_wavenumber,
+        DifferentialResponse::new(values, SpectralGradient::new(dx, dy))
+    }
+}
+
+impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for SecondSpectral {
+    type Output = DifferentialResponse<I, SpectralSecond<I>>;
+
+    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+        let (values, gradient, hessian) = jet.into_parts();
+        let (dx, dy) = gradient.into_parts();
+        let (dxdx, dxdy, dydy) = hessian.into_parts();
+
+        DifferentialResponse::new(
+            values,
+            SpectralSecond::new(
+                SpectralGradient::new(dx, dy),
+                SpectralHessian::new(dxdx, dxdy, dydy),
+            ),
         )
     }
 }

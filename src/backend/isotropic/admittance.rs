@@ -54,15 +54,13 @@ impl<A> std::ops::Deref for IsotropicLayerAdmittance<A> {
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
-    use ndarray::{Array0, arr0, array};
+    use ndarray::{Array0, Ix0, arr0, array};
     use num_complex::Complex64;
 
     use crate::{
-        backend::{
-            PlanarInput, Polarisation,
-            isotropic::IsotropicLayerQuantities,
-            jet::{ArrayJet, ArrayJetFirst},
-        },
+        algebra::{ArrayJet0, ArrayJet1, ArrayJet2},
+        backend::isotropic::IsotropicLayerQuantities,
+        input::{CanonicalInput, Polarisation},
         material::Constant,
     };
 
@@ -80,8 +78,8 @@ mod tests {
         vacuum_wavenumber: f64,
         parallel_wavenumber: f64,
         polarisation: Polarisation,
-    ) -> PlanarInput<Array0<C>> {
-        PlanarInput::new(
+    ) -> CanonicalInput<C, Ix0> {
+        CanonicalInput::new(
             arr0(c(vacuum_wavenumber)),
             arr0(c(parallel_wavenumber)),
             polarisation,
@@ -178,7 +176,7 @@ mod tests {
             IsotropicLayerQuantities::real_axis(&material, &input).into_admittance::<C, _>();
 
         let differentiated =
-            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -201,7 +199,7 @@ mod tests {
         );
 
         let admittance =
-            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -240,7 +238,7 @@ mod tests {
         );
 
         let admittance =
-            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -286,7 +284,7 @@ mod tests {
         );
 
         let admittance =
-            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::parallel_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet1<C, _>>::parallel_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -325,7 +323,7 @@ mod tests {
         );
 
         let admittance =
-            IsotropicLayerQuantities::<ArrayJet<C, _>>::parallel_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet2<C, _>>::parallel_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -363,13 +361,13 @@ mod tests {
         let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
 
         let first =
-            IsotropicLayerQuantities::<ArrayJetFirst<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
 
         let second =
-            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();
@@ -383,14 +381,14 @@ mod tests {
     fn sampled_shape_is_preserved() {
         let material = material(2.25, 1.4);
 
-        let input = PlanarInput::new(
+        let input = CanonicalInput::new(
             array![c(2.0), c(2.5), c(3.0)],
             array![c(0.3), c(0.4), c(0.5)],
             Polarisation::TransverseMagnetic,
         );
 
         let admittance =
-            IsotropicLayerQuantities::<ArrayJet<C, _>>::vacuum_wavenumber_squared_real_axis(
+            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
                 &material, &input,
             )
             .into_admittance::<C, _>();

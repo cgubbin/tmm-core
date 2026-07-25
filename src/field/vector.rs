@@ -1,139 +1,233 @@
-/// A pointwise Cartesian three-vector field over an ndarray sampling domain.
-///
-/// Each component is an owned ndarray with dimension `D`. All three arrays
-/// have identical shapes. At sampling index `i`, the value is therefore:
-///
-/// ```text
-/// [x[i], y[i], z[i]].
-/// ```
-///
-/// Arithmetic, scalar multiplication, dot products and cross products are
-/// evaluated independently at every sampling index. Differently shaped
-/// sampling domains are not broadcast.
-///
-/// The Cartesian basis is right-handed:
-///
-/// ```text
-/// e_x × e_y = e_z
-/// e_y × e_z = e_x
-/// e_z × e_x = e_y
-/// ```
-///
-/// For complex-valued vectors, [`Self::dot`] is bilinear and applies no
-/// conjugation. [`Self::hermitian_dot`] uses the convention
-/// `conjugate(self) · rhs`.
+//! Cartesian vector-valued array fields.
+
+use crate::{
+    algebra::{
+        JetAdditive, JetConjugate, JetCrossProduct, JetHermitianProduct, JetMultiplyByScalar,
+        JetRealPart, JetScaleBy,
+    },
+    field::FieldShapeError,
+    spatial::{SpatialProfileError, array_profile},
+};
 use nalgebra::ComplexField;
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{Array, ArrayView, ArrayView1, Dimension, Ix1};
 use num_traits::Zero;
 
-use crate::algebra::{
-    JetAdditive, JetConjugate, JetCrossProduct, JetHermitianProduct, JetMultiplyByScalar,
-    JetRealPart, JetScaleBy,
-};
-
-/// A pointwise Cartesian three-vector over an ndarray sampling domain.
-///
-/// Each component is stored as an owned ndarray with dimension `D`. All three
-/// component arrays have the same shape.
-///
-/// The vector represents one Cartesian vector at every point in the sampling
-/// domain. Algebraic operations are therefore applied pointwise.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CartesianVector3<T, D>
-where
-    D: Dimension,
-{
-    x: ArrayBase<OwnedRepr<T>, D>,
-    y: ArrayBase<OwnedRepr<T>, D>,
-    z: ArrayBase<OwnedRepr<T>, D>,
+/// One Cartesian vector value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VectorValue<C> {
+    pub x: C,
+    pub y: C,
+    pub z: C,
 }
 
-impl<T, D> CartesianVector3<T, D>
+impl<C> VectorValue<C> {
+    /// Construct a Cartesian vector value.
+    pub fn new(x: C, y: C, z: C) -> Self {
+        Self { x, y, z }
+    }
+
+    /// Map each component into a new vector value.
+    pub fn map<B, F>(self, mut map: F) -> VectorValue<B>
+    where
+        F: FnMut(C) -> B,
+    {
+        VectorValue {
+            x: map(self.x),
+            y: map(self.y),
+            z: map(self.z),
+        }
+    }
+
+    /// Convert the vector into an array in `x`, `y`, `z` order.
+    pub fn into_array(self) -> [C; 3] {
+        [self.x, self.y, self.z]
+    }
+}
+
+impl<C> From<[C; 3]> for VectorValue<C> {
+    fn from([x, y, z]: [C; 3]) -> Self {
+        Self { x, y, z }
+    }
+}
+
+impl<C> From<VectorValue<C>> for [C; 3] {
+    fn from(value: VectorValue<C>) -> Self {
+        value.into_array()
+    }
+}
+
+/// A Cartesian vector field.
+///
+/// Every component must have the same shape.
+#[derive(Clone, Debug, PartialEq)]
+pub struct VectorField<C, D>
 where
     D: Dimension,
 {
-    /// Construct a Cartesian vector from its component arrays.
-    ///
-    /// This constructor is crate-private so public field-producing APIs can
-    /// guarantee that all components use the same sampling shape.
-    pub(crate) fn new(
-        x: ArrayBase<OwnedRepr<T>, D>,
-        y: ArrayBase<OwnedRepr<T>, D>,
-        z: ArrayBase<OwnedRepr<T>, D>,
-    ) -> Self {
-        assert_eq!(
-            x.raw_dim(),
-            y.raw_dim(),
-            "Cartesian x and y components must have identical shapes",
-        );
+    x: Array<C, D>,
+    y: Array<C, D>,
+    z: Array<C, D>,
+}
 
-        assert_eq!(
-            x.raw_dim(),
-            z.raw_dim(),
-            "Cartesian x and z components must have identical shapes",
-        );
+/// A borrowed one-dimensional Cartesian vector-field view.
+#[derive(Clone, Copy, Debug)]
+pub struct VectorFieldView1<'a, C> {
+    x: ArrayView1<'a, C>,
+    y: ArrayView1<'a, C>,
+    z: ArrayView1<'a, C>,
+}
+
+impl<C, D> VectorField<C, D>
+where
+    D: Dimension,
+{
+    /// Construct a vector field after checking component shapes.
+    pub fn new(x: Array<C, D>, y: Array<C, D>, z: Array<C, D>) -> Result<Self, FieldShapeError> {
+        let expected = x.shape();
+
+        if y.shape() != expected {
+            return Err(FieldShapeError::new("y", expected, y.shape()));
+        }
+
+        if z.shape() != expected {
+            return Err(FieldShapeError::new("z", expected, z.shape()));
+        }
+
+        Ok(Self { x, y, z })
+    }
+
+    /// Construct a vector field without checking component shapes.
+    ///
+    /// This is intended for internal code where matching shapes are already
+    /// guaranteed by construction.
+    pub(crate) fn new_unchecked(x: Array<C, D>, y: Array<C, D>, z: Array<C, D>) -> Self {
+        debug_assert_eq!(x.shape(), y.shape());
+        debug_assert_eq!(x.shape(), z.shape());
 
         Self { x, y, z }
     }
 
-    /// Return the Cartesian x component.
-    pub fn x(&self) -> &ArrayBase<OwnedRepr<T>, D> {
+    pub fn x(&self) -> &Array<C, D> {
         &self.x
     }
 
-    /// Return the Cartesian y component.
-    pub fn y(&self) -> &ArrayBase<OwnedRepr<T>, D> {
+    pub fn y(&self) -> &Array<C, D> {
         &self.y
     }
 
-    /// Return the Cartesian z component.
-    pub fn z(&self) -> &ArrayBase<OwnedRepr<T>, D> {
+    pub fn z(&self) -> &Array<C, D> {
         &self.z
     }
 
-    /// Return the Cartesian components in `[x, y, z]` order.
-    pub fn components(&self) -> [&ArrayBase<OwnedRepr<T>, D>; 3] {
-        [&self.x, &self.y, &self.z]
+    pub fn x_mut(&mut self) -> &mut Array<C, D> {
+        &mut self.x
     }
 
-    /// Consume the vector and return its component arrays in `(x, y, z)` order.
-    pub(crate) fn into_components(
-        self,
-    ) -> (
-        ArrayBase<OwnedRepr<T>, D>,
-        ArrayBase<OwnedRepr<T>, D>,
-        ArrayBase<OwnedRepr<T>, D>,
-    ) {
+    pub fn y_mut(&mut self) -> &mut Array<C, D> {
+        &mut self.y
+    }
+
+    pub fn z_mut(&mut self) -> &mut Array<C, D> {
+        &mut self.z
+    }
+
+    /// Borrow all component arrays.
+    pub fn components(&self) -> (&Array<C, D>, &Array<C, D>, &Array<C, D>) {
+        (&self.x, &self.y, &self.z)
+    }
+
+    /// Consume the field and return its component arrays.
+    pub fn into_components(self) -> (Array<C, D>, Array<C, D>, Array<C, D>) {
         (self.x, self.y, self.z)
     }
 
-    /// Construct a zero vector with the same sampling shape as `values`.
-    pub(crate) fn zeros_like(values: &ArrayBase<OwnedRepr<T>, D>) -> Self
+    /// Return ndarray views of all components.
+    pub fn view(
+        &self,
+    ) -> (
+        ArrayView<'_, C, D>,
+        ArrayView<'_, C, D>,
+        ArrayView<'_, C, D>,
+    ) {
+        (self.x.view(), self.y.view(), self.z.view())
+    }
+
+    /// Return the shared component shape.
+    pub fn shape(&self) -> &[usize] {
+        self.x.shape()
+    }
+
+    /// Return the shared component dimension.
+    pub fn raw_dim(&self) -> D {
+        self.x.raw_dim()
+    }
+
+    /// Return the number of axes in each component.
+    pub fn ndim(&self) -> usize {
+        self.x.ndim()
+    }
+
+    /// Return the number of vectors stored by the field.
+    pub fn len(&self) -> usize {
+        self.x.len()
+    }
+
+    /// Return `true` when the field contains no vectors.
+    pub fn is_empty(&self) -> bool {
+        self.x.is_empty()
+    }
+
+    /// Return references to the vector at `index`.
+    pub fn get<I>(&self, index: I) -> Option<VectorValue<&C>>
     where
-        T: Clone + Zero,
+        I: ndarray::NdIndex<D> + Clone,
+    {
+        Some(VectorValue {
+            x: self.x.get(index.clone())?,
+            y: self.y.get(index.clone())?,
+            z: self.z.get(index)?,
+        })
+    }
+
+    /// Apply a function independently to every scalar component.
+    pub fn map<B, F>(&self, mut map: F) -> VectorField<B, D>
+    where
+        F: FnMut(&C) -> B,
+    {
+        VectorField::new_unchecked(self.x.map(&mut map), self.y.map(&mut map), self.z.map(map))
+    }
+
+    /// Apply a function to each complete Cartesian vector.
+    pub fn map_vectors<B, F>(&self, mut map: F) -> ScalarField<B, D>
+    where
+        F: FnMut(VectorValue<&C>) -> B,
+    {
+        let values = ndarray::Zip::from(&self.x)
+            .and(&self.y)
+            .and(&self.z)
+            .map_collect(|x, y, z| map(VectorValue { x, y, z }));
+
+        ScalarField::new(values)
+    }
+
+    /// Construct a zero vector with the same sampling shape as `values`.
+    pub(crate) fn zeros_like(values: &Array<C, D>) -> Self
+    where
+        C: Clone + Zero,
     {
         let dimension = values.raw_dim();
 
-        Self::new(
-            ArrayBase::from_elem(dimension.clone(), T::zero()),
-            ArrayBase::from_elem(dimension.clone(), T::zero()),
-            ArrayBase::from_elem(dimension, T::zero()),
+        Self::new_unchecked(
+            Array::from_elem(dimension.clone(), C::zero()),
+            Array::from_elem(dimension.clone(), C::zero()),
+            Array::from_elem(dimension, C::zero()),
         )
     }
 
-    /// Apply a pointwise scalar mapping to every Cartesian component.
-    pub fn map<U, F>(&self, mut f: F) -> CartesianVector3<U, D>
-    where
-        F: FnMut(T) -> U,
-        T: Clone,
-    {
-        CartesianVector3::new(self.x.mapv(&mut f), self.y.mapv(&mut f), self.z.mapv(f))
-    }
-
     /// Return the pointwise complex conjugate
-    pub fn conjugate(&self) -> Self
+    pub(crate) fn conjugate(&self) -> Self
     where
-        T: ComplexField + Copy,
+        C: ComplexField + Copy,
     {
         self.map(|value| value.conjugate())
     }
@@ -142,9 +236,9 @@ where
     ///
     /// Complex conjugation is not applied. Use [`Self::hermitian_dot`] for a conjugating inner
     /// product
-    pub fn dot(&self, rhs: &Self) -> ArrayBase<OwnedRepr<T>, D>
+    pub(crate) fn dot(&self, rhs: &Self) -> Array<C, D>
     where
-        T: ComplexField + Copy,
+        C: ComplexField + Copy,
     {
         self.x.clone() * rhs.x.view()
             + self.y.clone() * rhs.y.view()
@@ -155,9 +249,9 @@ where
     ///
     /// This evaluates `conjugate(self) · rhs`, and is conjugate-linear in
     /// `self` and linear in `rhs`.
-    pub fn hermitian_dot(&self, rhs: &Self) -> ArrayBase<OwnedRepr<T>, D>
+    pub(crate) fn hermitian_dot(&self, rhs: &Self) -> Array<C, D>
     where
-        T: ComplexField + Copy,
+        C: ComplexField + Copy,
     {
         self.conjugate().dot(rhs)
     }
@@ -175,11 +269,11 @@ where
     /// ```
     ///
     /// Complex conjugation is not applied.
-    pub fn cross(&self, rhs: &Self) -> Self
+    pub(crate) fn cross(&self, rhs: &Self) -> Self
     where
-        T: ComplexField + Copy,
+        C: ComplexField + Copy,
     {
-        Self::new(
+        Self::new_unchecked(
             self.y.clone() * rhs.z.view() - self.z.clone() * rhs.y.view(),
             self.z.clone() * rhs.x.view() - self.x.clone() * rhs.z.view(),
             self.x.clone() * rhs.y.view() - self.y.clone() * rhs.x.view(),
@@ -195,25 +289,131 @@ where
     /// ```
     ///
     /// The result is real and non-negative up to floating-point roundoff.
-    pub fn magnitude_squared(&self) -> ArrayBase<OwnedRepr<T::RealField>, D>
+    pub(crate) fn magnitude_squared(&self) -> Array<C::RealField, D>
     where
-        T: ComplexField + Copy,
+        C: ComplexField + Copy,
     {
         self.x.mapv(|value| value.modulus_squared())
             + self.y.mapv(|value| value.modulus_squared())
             + self.z.mapv(|value| value.modulus_squared())
     }
+
+    pub(crate) fn profile_last_axis(
+        &self,
+        excitation_index: &D::Smaller,
+    ) -> Result<VectorFieldView1<'_, C>, SpatialProfileError>
+    where
+        D::Smaller: Dimension<Larger = D>,
+    {
+        let x = array_profile(self.x.view(), excitation_index)?;
+
+        let y = array_profile(self.y.view(), excitation_index)?;
+
+        let z = array_profile(self.z.view(), excitation_index)?;
+
+        // VectorField guarantees matching component shapes, so profile
+        // extraction preserves matching lengths.
+        Ok(VectorFieldView1::new_unchecked(x, y, z))
+    }
 }
 
-impl<C, D> std::ops::Add<&CartesianVector3<C, D>> for CartesianVector3<C, D>
+use crate::field::ScalarField;
+
+impl<C> VectorField<C, Ix1> {
+    /// Borrow this one-dimensional vector field as a profile view.
+    pub fn view1(&self) -> VectorFieldView1<'_, C> {
+        VectorFieldView1::new(self.x.view(), self.y.view(), self.z.view())
+            .expect("owned vector-field components have matching shapes")
+    }
+}
+
+impl<'a, C> VectorFieldView1<'a, C> {
+    /// Construct a vector-field profile view after checking lengths.
+    pub fn new(
+        x: ArrayView1<'a, C>,
+        y: ArrayView1<'a, C>,
+        z: ArrayView1<'a, C>,
+    ) -> Result<Self, FieldShapeError> {
+        let expected = x.shape();
+
+        if y.shape() != expected {
+            return Err(FieldShapeError::new("y", expected, y.shape()));
+        }
+
+        if z.shape() != expected {
+            return Err(FieldShapeError::new("z", expected, z.shape()));
+        }
+
+        Ok(Self { x, y, z })
+    }
+
+    pub(crate) fn new_unchecked(
+        x: ArrayView1<'a, C>,
+        y: ArrayView1<'a, C>,
+        z: ArrayView1<'a, C>,
+    ) -> Self {
+        debug_assert_eq!(x.shape(), y.shape());
+        debug_assert_eq!(x.shape(), z.shape());
+
+        Self { x, y, z }
+    }
+
+    pub fn x(&self) -> ArrayView1<'a, C> {
+        self.x
+    }
+
+    pub fn y(&self) -> ArrayView1<'a, C> {
+        self.y
+    }
+
+    pub fn z(&self) -> ArrayView1<'a, C> {
+        self.z
+    }
+
+    pub fn components(&self) -> (ArrayView1<'a, C>, ArrayView1<'a, C>, ArrayView1<'a, C>) {
+        (self.x, self.y, self.z)
+    }
+
+    pub fn len(&self) -> usize {
+        self.x.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.x.is_empty()
+    }
+
+    pub fn get(&self, index: usize) -> Option<VectorValue<&C>> {
+        Some(VectorValue {
+            x: self.x.get(index)?,
+            y: self.y.get(index)?,
+            z: self.z.get(index)?,
+        })
+    }
+
+    pub fn to_owned(&self) -> VectorField<C, Ix1>
+    where
+        C: Clone,
+    {
+        VectorField::new_unchecked(self.x.to_owned(), self.y.to_owned(), self.z.to_owned())
+    }
+
+    pub fn map<B, F>(&self, mut map: F) -> VectorField<B, Ix1>
+    where
+        F: FnMut(&C) -> B,
+    {
+        VectorField::new_unchecked(self.x.map(&mut map), self.y.map(&mut map), self.z.map(map))
+    }
+}
+
+impl<C, D> std::ops::Add<&VectorField<C, D>> for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn add(self, rhs: &Self) -> Self::Output {
-        CartesianVector3::new(
+        VectorField::new_unchecked(
             self.x + rhs.x.view(),
             self.y + rhs.y.view(),
             self.z + rhs.z.view(),
@@ -221,15 +421,15 @@ where
     }
 }
 
-impl<C, D> std::ops::Add for CartesianVector3<C, D>
+impl<C, D> std::ops::Add for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::new(
+        Self::new_unchecked(
             self.x + rhs.x.view(),
             self.y + rhs.y.view(),
             self.z + rhs.z.view(),
@@ -237,27 +437,27 @@ where
     }
 }
 
-impl<C, D> std::ops::Add<&CartesianVector3<C, D>> for &CartesianVector3<C, D>
+impl<C, D> std::ops::Add<&VectorField<C, D>> for &VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
-    fn add(self, rhs: &CartesianVector3<C, D>) -> Self::Output {
-        CartesianVector3::new(&self.x + &rhs.x, &self.y + &rhs.y, &self.z + &rhs.z)
+    fn add(self, rhs: &VectorField<C, D>) -> Self::Output {
+        VectorField::new_unchecked(&self.x + &rhs.x, &self.y + &rhs.y, &self.z + &rhs.z)
     }
 }
 
-impl<C, D> std::ops::Sub<&CartesianVector3<C, D>> for CartesianVector3<C, D>
+impl<C, D> std::ops::Sub<&VectorField<C, D>> for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn sub(self, rhs: &Self) -> Self::Output {
-        CartesianVector3::new(
+        VectorField::new_unchecked(
             self.x - rhs.x.view(),
             self.y - rhs.y.view(),
             self.z - rhs.z.view(),
@@ -265,15 +465,15 @@ where
     }
 }
 
-impl<C, D> std::ops::Sub for CartesianVector3<C, D>
+impl<C, D> std::ops::Sub for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(
+        Self::new_unchecked(
             self.x - rhs.x.view(),
             self.y - rhs.y.view(),
             self.z - rhs.z.view(),
@@ -281,32 +481,32 @@ where
     }
 }
 
-impl<C, D> std::ops::Sub<&CartesianVector3<C, D>> for &CartesianVector3<C, D>
+impl<C, D> std::ops::Sub<&VectorField<C, D>> for &VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
-    fn sub(self, rhs: &CartesianVector3<C, D>) -> Self::Output {
-        CartesianVector3::new(&self.x - &rhs.x, &self.y - &rhs.y, &self.z - &rhs.z)
+    fn sub(self, rhs: &VectorField<C, D>) -> Self::Output {
+        VectorField::new_unchecked(&self.x - &rhs.x, &self.y - &rhs.y, &self.z - &rhs.z)
     }
 }
 
-impl<C, D> std::ops::Mul<ArrayBase<OwnedRepr<C>, D>> for CartesianVector3<C, D>
+impl<C, D> std::ops::Mul<Array<C, D>> for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
-    fn mul(self, factor: ArrayBase<OwnedRepr<C>, D>) -> Self::Output {
+    fn mul(self, factor: Array<C, D>) -> Self::Output {
         assert_eq!(
             self.x.raw_dim(),
             factor.raw_dim(),
             "Cartesian vector and scalar field must have identical shapes",
         );
-        Self::new(
+        Self::new_unchecked(
             self.x * factor.view(),
             self.y * factor.view(),
             self.z * factor.view(),
@@ -314,16 +514,16 @@ where
     }
 }
 
-impl<C, D> std::ops::Mul<&ArrayBase<OwnedRepr<C>, D>> for CartesianVector3<C, D>
+impl<C, D> std::ops::Mul<&Array<C, D>> for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
-    fn mul(self, factor: &ArrayBase<OwnedRepr<C>, D>) -> Self::Output {
+    fn mul(self, factor: &Array<C, D>) -> Self::Output {
         debug_assert_eq!(self.x.raw_dim(), factor.raw_dim());
-        Self::new(
+        Self::new_unchecked(
             self.x * factor.view(),
             self.y * factor.view(),
             self.z * factor.view(),
@@ -331,27 +531,27 @@ where
     }
 }
 
-impl<C, D> std::ops::Mul<&ArrayBase<OwnedRepr<C>, D>> for &CartesianVector3<C, D>
+impl<C, D> std::ops::Mul<&Array<C, D>> for &VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
-    fn mul(self, factor: &ArrayBase<OwnedRepr<C>, D>) -> Self::Output {
-        CartesianVector3::new(&self.x * factor, &self.y * factor, &self.z * factor)
+    fn mul(self, factor: &Array<C, D>) -> Self::Output {
+        VectorField::new_unchecked(&self.x * factor, &self.y * factor, &self.z * factor)
     }
 }
 
-impl<C, D> std::ops::Mul<C> for CartesianVector3<C, D>
+impl<C, D> std::ops::Mul<C> for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn mul(self, factor: C) -> Self::Output {
-        Self::new(
+        Self::new_unchecked(
             self.x.mapv(|v| v * factor),
             self.y.mapv(|v| v * factor),
             self.z.mapv(|v| v * factor),
@@ -359,15 +559,15 @@ where
     }
 }
 
-impl<C, D> std::ops::Mul<C> for &CartesianVector3<C, D>
+impl<C, D> std::ops::Mul<C> for &VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn mul(self, factor: C) -> Self::Output {
-        CartesianVector3::new(
+        VectorField::new_unchecked(
             self.x.mapv(|value| value * factor),
             self.y.mapv(|value| value * factor),
             self.z.mapv(|value| value * factor),
@@ -375,19 +575,19 @@ where
     }
 }
 
-impl<C, D> std::ops::Neg for CartesianVector3<C, D>
+impl<C, D> std::ops::Neg for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = CartesianVector3<C, D>;
+    type Output = VectorField<C, D>;
 
     fn neg(self) -> Self::Output {
-        Self::new(-self.x, -self.y, -self.z)
+        Self::new_unchecked(-self.x, -self.y, -self.z)
     }
 }
 
-impl<C, D> JetAdditive for CartesianVector3<C, D>
+impl<C, D> JetAdditive for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -405,17 +605,17 @@ where
     }
 }
 
-impl<T, D> JetMultiplyByScalar<ArrayBase<OwnedRepr<T>, D>> for CartesianVector3<T, D>
+impl<T, D> JetMultiplyByScalar<Array<T, D>> for VectorField<T, D>
 where
     T: ComplexField + Copy,
     D: Dimension,
 {
-    fn jet_multiply_by_scalar(&self, scalar: &ArrayBase<OwnedRepr<T>, D>) -> Self {
+    fn jet_multiply_by_scalar(&self, scalar: &Array<T, D>) -> Self {
         self * scalar
     }
 }
 
-impl<C, D> JetScaleBy for CartesianVector3<C, D>
+impl<C, D> JetScaleBy for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -427,7 +627,7 @@ where
     }
 }
 
-impl<C, D> JetCrossProduct for CartesianVector3<C, D>
+impl<C, D> JetCrossProduct for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -437,19 +637,19 @@ where
     }
 }
 
-impl<C, D> JetHermitianProduct for CartesianVector3<C, D>
+impl<C, D> JetHermitianProduct for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type Output = ArrayBase<OwnedRepr<C>, D>;
+    type Output = Array<C, D>;
 
     fn jet_hermitian_product(&self, rhs: &Self) -> Self::Output {
         self.hermitian_dot(rhs)
     }
 }
 
-impl<C, D> JetConjugate for CartesianVector3<C, D>
+impl<C, D> JetConjugate for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -459,24 +659,23 @@ where
     }
 }
 
-impl<C, D> JetRealPart for CartesianVector3<C, D>
+impl<C, D> JetRealPart for VectorField<C, D>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type RealOutput = CartesianVector3<C::RealField, D>;
+    type RealOutput = VectorField<C::RealField, D>;
 
     fn jet_real(&self) -> Self::RealOutput {
-        self.map(nalgebra::ComplexField::real)
+        self.map(|x| nalgebra::ComplexField::real(*x))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array1, Ix1, arr1};
-    use num_complex::Complex64;
-
     use super::*;
+    use ndarray::{Array1, Array2, Ix1, arr1, array};
+    use num_complex::Complex64;
 
     type C = Complex64;
     type D = Ix1;
@@ -487,8 +686,8 @@ mod tests {
         C::new(real, imaginary)
     }
 
-    fn vector(x: &[C], y: &[C], z: &[C]) -> CartesianVector3<C, D> {
-        CartesianVector3::new(
+    fn vector(x: &[C], y: &[C], z: &[C]) -> VectorField<C, D> {
+        VectorField::new_unchecked(
             Array1::from_vec(x.to_vec()),
             Array1::from_vec(y.to_vec()),
             Array1::from_vec(z.to_vec()),
@@ -532,41 +731,73 @@ mod tests {
     }
 
     #[test]
-    fn components_are_preserved() {
-        let x = arr1(&[c(1.0, 2.0), c(3.0, 4.0)]);
-        let y = arr1(&[c(5.0, 6.0), c(7.0, 8.0)]);
-        let z = arr1(&[c(9.0, 10.0), c(11.0, 12.0)]);
+    fn constructor_accepts_matching_shapes() {
+        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
 
-        let vector = CartesianVector3::new(x.clone(), y.clone(), z.clone());
-
-        assert_eq!(vector.x(), &x);
-        assert_eq!(vector.y(), &y);
-        assert_eq!(vector.z(), &z);
-        assert_eq!(vector.components(), [&x, &y, &z]);
+        assert_eq!(field.shape(), &[2]);
+        assert_eq!(field.get(1), Some(VectorValue::new(&2, &4, &6)),);
     }
 
     #[test]
-    fn zeros_like_preserves_shape() {
-        let values = arr1(&[c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0)]);
+    fn constructor_rejects_mismatched_y_shape() {
+        let error = VectorField::new(array![1, 2], array![3], array![5, 6]).unwrap_err();
 
-        let zero = CartesianVector3::zeros_like(&values);
+        assert_eq!(error.component(), "y");
+        assert_eq!(error.expected(), &[2]);
+        assert_eq!(error.actual(), &[1]);
+    }
 
-        let expected = arr1(&[C::new(0.0, 0.0), C::new(0.0, 0.0), C::new(0.0, 0.0)]);
+    #[test]
+    fn constructor_rejects_mismatched_z_shape() {
+        let error = VectorField::new(array![1, 2], array![3, 4], array![5]).unwrap_err();
 
-        assert_eq!(zero.x(), &expected);
-        assert_eq!(zero.y(), &expected);
-        assert_eq!(zero.z(), &expected);
+        assert_eq!(error.component(), "z");
+    }
+
+    #[test]
+    fn supports_multidimensional_components() {
+        let component = Array2::from_shape_vec((2, 2), vec![1, 2, 3, 4]).unwrap();
+
+        let field = VectorField::new(component.clone(), component.clone(), component).unwrap();
+
+        assert_eq!(field.get([1, 0]), Some(VectorValue::new(&3, &3, &3)),);
+    }
+
+    #[test]
+    fn view1_borrows_components() {
+        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
+
+        let view = field.view1();
+
+        assert_eq!(view.len(), 2);
+        assert_eq!(view.get(0), Some(VectorValue::new(&1, &3, &5)),);
+    }
+
+    #[test]
+    fn view1_can_be_copied_to_owned_field() {
+        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
+
+        assert_eq!(field.view1().to_owned(), field);
     }
 
     #[test]
     fn map_applies_to_every_component() {
-        let vector = vector(&[c(1.0, 2.0)], &[c(3.0, 4.0)], &[c(5.0, 6.0)]);
+        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
 
-        let real = vector.map(|value| value.re);
+        let mapped = field.map(|value| value * 2);
 
-        assert_eq!(real.x(), &arr1(&[1.0]));
-        assert_eq!(real.y(), &arr1(&[3.0]));
-        assert_eq!(real.z(), &arr1(&[5.0]));
+        assert_eq!(mapped.x(), &array![2, 4]);
+        assert_eq!(mapped.y(), &array![6, 8]);
+        assert_eq!(mapped.z(), &array![10, 12]);
+    }
+
+    #[test]
+    fn map_vectors_produces_scalar_field() {
+        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
+
+        let sums = field.map_vectors(|vector| vector.x + vector.y + vector.z);
+
+        assert_eq!(sums.values(), &array![9, 12]);
     }
 
     #[test]
@@ -719,7 +950,7 @@ mod tests {
         let y = arr1(&[c(3.0, 4.0)]);
         let z = arr1(&[c(5.0, 6.0)]);
 
-        let vector = CartesianVector3::new(x.clone(), y.clone(), z.clone());
+        let vector = VectorField::new(x.clone(), y.clone(), z.clone()).unwrap();
 
         let (actual_x, actual_y, actual_z) = vector.into_components();
 
@@ -781,9 +1012,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cartesian x and y components must have identical shapes")]
-    fn constructor_rejects_mismatched_x_and_y_shapes() {
-        CartesianVector3::new(
+    #[should_panic(expected = "assertion `left == right` failed\n  left: [1]\n right: [2]")]
+    fn constructor_panics_on_mismatched_x_and_y_shapes() {
+        VectorField::new_unchecked(
             arr1(&[c(1.0, 0.0)]),
             arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
             arr1(&[c(4.0, 0.0)]),
@@ -791,13 +1022,46 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cartesian x and z components must have identical shapes")]
+    #[should_panic(expected = "assertion `left == right` failed\n  left: [1]\n right: [2]")]
     fn constructor_rejects_mismatched_x_and_z_shapes() {
-        CartesianVector3::new(
+        VectorField::new_unchecked(
             arr1(&[c(1.0, 0.0)]),
             arr1(&[c(2.0, 0.0)]),
             arr1(&[c(3.0, 0.0), c(4.0, 0.0)]),
         );
+    }
+
+    #[test]
+    fn new_constructor_rejects_mismatched_x_and_y_shapes() {
+        let result = VectorField::new(
+            arr1(&[c(1.0, 0.0)]),
+            arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
+            arr1(&[c(4.0, 0.0)]),
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn new_constructor_rejects_mismatched_x_and_z_shapes() {
+        let result = VectorField::new(
+            arr1(&[c(1.0, 0.0)]),
+            arr1(&[c(4.0, 0.0)]),
+            arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn new_constructor_accepts_equal_shapes() {
+        let result = VectorField::new(
+            arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
+            arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
+            arr1(&[c(2.0, 0.0), c(3.0, 0.0)]),
+        );
+
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -916,5 +1180,47 @@ mod tests {
             JetHermitianProduct::jet_hermitian_product(&lhs, &rhs,),
             lhs.hermitian_dot(&rhs),
         );
+    }
+}
+
+#[cfg(test)]
+mod spatial_profile_tests {
+    use super::*;
+    use ndarray::{Array2, Array3, IntoDimension, Ix2, arr1, array};
+
+    #[test]
+    fn extracts_all_vector_components_at_same_coordinate() {
+        let x = Array2::from_shape_fn((2, 3), |(i, k)| 100 * i + k);
+
+        let y = Array2::from_shape_fn((2, 3), |(i, k)| 1_000 + 100 * i + k);
+
+        let z = Array2::from_shape_fn((2, 3), |(i, k)| 2_000 + 100 * i + k);
+
+        let field = VectorField::new(x, y, z).unwrap();
+        let profile = field.profile_last_axis(&[1].into_dimension()).unwrap();
+
+        assert_eq!(profile.x(), array![100, 101, 102].view());
+        assert_eq!(profile.y(), array![1_100, 1_101, 1_102].view(),);
+        assert_eq!(profile.z(), array![2_100, 2_101, 2_102].view(),);
+    }
+
+    #[test]
+    fn vector_field_profiles_all_components() {
+        let x = Array3::from_shape_fn((2, 2, 3), |(i, j, k)| {
+            100.0 * i as f64 + 10.0 * j as f64 + k as f64
+        });
+
+        let y = x.mapv(|value| value + 1_000.0);
+        let z = x.mapv(|value| value + 2_000.0);
+
+        let field = VectorField::new(x, y, z).unwrap();
+
+        let profile = field
+            .profile_last_axis(&Ix2(1, 0))
+            .expect("profile should succeed");
+
+        assert_eq!(profile.x(), arr1(&[100.0, 101.0, 102.0]).view(),);
+        assert_eq!(profile.y(), arr1(&[1100.0, 1101.0, 1102.0]).view(),);
+        assert_eq!(profile.z(), arr1(&[2100.0, 2101.0, 2102.0]).view(),);
     }
 }

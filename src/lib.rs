@@ -1,18 +1,26 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 pub(crate) mod algebra;
 pub mod backend;
 pub(crate) mod crystallise;
 mod differential;
-pub(crate) mod field;
+mod error;
+pub mod field;
+mod input;
 pub mod material;
+mod observable;
+mod response;
+mod sampling;
 mod scalar;
+pub mod spatial;
 pub mod stack;
 mod tensor;
 
-pub use backend::{IncidentSide, Polarisation};
+pub use error::TmmError;
+pub use input::{IncidentSide, Polarisation};
 // pub use backend::{
-//     ArrayJet, ArrayJetFirst, DerivativeVariable, IncidentSide, OutgoingModeResidualBackend,
+//     ArrayJet, ArrayJet1, DerivativeVariable, IncidentSide, OutgoingModeResidualBackend,
 //     PlanarInput, PlaneWaveAmplitudeDifferential, PlaneWaveAmplitudes, PlaneWaveBackend,
 //     PlaneWaveFieldBackend, PlaneWaveInput, PlaneWavePower, PlaneWavePowerDifferential,
 //     PlaneWaveResponse, PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential, Polarisation,
@@ -27,9 +35,18 @@ pub use material::{
     EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled, Scalar,
 };
 
+pub use field::VectorField;
+pub use observable::{
+    ConstitutiveFields, DirectedPower, DissipationDensity, ElectromagneticFields, EnergyDensity,
+    FieldIndexError, InterfacePower, LayerDissipation, LayerPower, ModeResidual,
+    PlaneWaveAmplitudes, PlaneWaveObservables, PlaneWavePower, StoredEnergy,
+};
+pub use response::Response;
 pub use scalar::ComplexScalar;
 
-// pub use stack::{
-//     AnalyticalMaterialStack, DifferentiableMaterialStack, Layer, MaterialStack,
-//     MeromorphicMaterialStack, Stack, Thickness, ValidationConfig,
-// };
+pub use spatial::{SpatialProfile, SpatialProfileError};
+
+pub use stack::{
+    AnalyticalMaterialStack, DifferentiableMaterialStack, Layer, MaterialStack,
+    MeromorphicMaterialStack, Stack, Thickness, ValidationConfig,
+};

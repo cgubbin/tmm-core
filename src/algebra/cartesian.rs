@@ -1,16 +1,15 @@
-use crate::{
-    algebra::{
-        ArrayJet, ArrayJetBivariate, ArrayJetFirst, Jet, JetBivariate, JetFirst, RealParameter,
-        ScalarAlgebra,
-    },
-    field::CartesianVector3,
+use crate::algebra::{
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, Jet0, Jet1, Jet2, JetBivariate,
+    RealParameter, ScalarAlgebra,
 };
+
+use crate::field::VectorField;
 
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use std::fmt::Debug;
 
-pub(crate) trait CartesianScalarAlgebra<T, D>: ScalarAlgebra<T, D>
+pub trait CartesianScalarAlgebra<T, D>: ScalarAlgebra<T, D>
 where
     D: Dimension,
 {
@@ -19,7 +18,7 @@ where
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 }
 
-pub(crate) trait CartesianVectorAlgebra: Clone + Sized {
+pub trait CartesianVectorAlgebra: Clone + Sized {
     type Coefficient;
     type ScalarField;
 
@@ -30,7 +29,12 @@ pub(crate) trait CartesianVectorAlgebra: Clone + Sized {
     fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self;
 }
 
-pub(crate) trait RealCartesianVectorAlgebra: CartesianVectorAlgebra {
+/// Cartesian vector operations involving complex conjugation.
+///
+/// Implemented only for plain fields and jets whose differentiation
+/// parameters are real. These operations are not holomorphic and must not be
+/// applied to complex-variable derivative jets.
+pub trait RealCartesianVectorAlgebra: CartesianVectorAlgebra {
     type RealVector;
     type RealScalarField;
 
@@ -47,47 +51,60 @@ pub(crate) trait RealCartesianVectorAlgebra: CartesianVectorAlgebra {
     fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField;
 }
 
-impl<T, D> CartesianScalarAlgebra<T, D> for ArrayBase<OwnedRepr<T>, D>
-where
-    T: ComplexField + Copy,
-    D: Dimension,
-{
-    type Vector = CartesianVector3<T, D>;
-
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
-        CartesianVector3::new(x, y, z)
-    }
-}
-
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetFirst<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet0<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
-    type Vector = JetFirst<CartesianVector3<T, D>, P>;
+    type Vector = Jet0<VectorField<T, D>, P>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
-        JetFirst::from_parts(
-            CartesianVector3::new(x.value().clone(), y.value().clone(), z.value().clone()),
-            CartesianVector3::new(x.first().clone(), y.first().clone(), z.first().clone()),
+        Jet0::new(VectorField::new_unchecked(
+            x.into_inner(),
+            y.into_inner(),
+            z.into_inner(),
+        ))
+    }
+}
+
+impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet1<T, D, P>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    type Vector = Jet1<VectorField<T, D>, P>;
+
+    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+        let (x_value, x_first) = x.into_parts();
+        let (y_value, y_first) = y.into_parts();
+        let (z_value, z_first) = z.into_parts();
+
+        Jet1::from_parts(
+            VectorField::new_unchecked(x_value, y_value, z_value),
+            VectorField::new_unchecked(x_first, y_first, z_first),
         )
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet2<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
-    type Vector = Jet<CartesianVector3<T, D>, P>;
+    type Vector = Jet2<VectorField<T, D>, P>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
-        Jet::from_parts(
-            CartesianVector3::new(x.value().clone(), y.value().clone(), z.value().clone()),
-            CartesianVector3::new(x.first().clone(), y.first().clone(), z.first().clone()),
-            CartesianVector3::new(x.second().clone(), y.second().clone(), z.second().clone()),
+        let (x_value, x_first, x_second) = x.into_parts();
+        let (y_value, y_first, y_second) = y.into_parts();
+        let (z_value, z_first, z_second) = z.into_parts();
+
+        Jet2::from_parts(
+            VectorField::new_unchecked(x_value, y_value, z_value),
+            VectorField::new_unchecked(x_first, y_first, z_first),
+            VectorField::new_unchecked(x_second, y_second, z_second),
         )
     }
 }
@@ -98,161 +115,174 @@ where
     D: Dimension,
     P: Clone + Debug,
 {
-    type Vector = JetBivariate<CartesianVector3<T, D>, P>;
+    type Vector = JetBivariate<VectorField<T, D>, P>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+        let (x_value, x_gradient, x_hessian) = x.into_parts();
+        let (y_value, y_gradient, y_hessian) = y.into_parts();
+        let (z_value, z_gradient, z_hessian) = z.into_parts();
+
+        let (x_x, x_y) = x_gradient.into_parts();
+        let (y_x, y_y) = y_gradient.into_parts();
+        let (z_x, z_y) = z_gradient.into_parts();
+
+        let (x_xx, x_xy, x_yy) = x_hessian.into_parts();
+        let (y_xx, y_xy, y_yy) = y_hessian.into_parts();
+        let (z_xx, z_xy, z_yy) = z_hessian.into_parts();
+
         JetBivariate::from_components(
-            CartesianVector3::new(x.value().clone(), y.value().clone(), z.value().clone()),
-            CartesianVector3::new(x.x().clone(), y.x().clone(), z.x().clone()),
-            CartesianVector3::new(x.y().clone(), y.y().clone(), z.y().clone()),
-            CartesianVector3::new(x.xx().clone(), y.xx().clone(), z.xx().clone()),
-            CartesianVector3::new(x.xy().clone(), y.xy().clone(), z.xy().clone()),
-            CartesianVector3::new(x.yy().clone(), y.yy().clone(), z.yy().clone()),
+            VectorField::new_unchecked(x_value, y_value, z_value),
+            VectorField::new_unchecked(x_x, y_x, z_x),
+            VectorField::new_unchecked(x_y, y_y, z_y),
+            VectorField::new_unchecked(x_xx, y_xx, z_xx),
+            VectorField::new_unchecked(x_xy, y_xy, z_xy),
+            VectorField::new_unchecked(x_yy, y_yy, z_yy),
         )
     }
 }
 
-impl<T, D> CartesianVectorAlgebra for CartesianVector3<T, D>
-where
-    T: ComplexField + Copy,
-    D: Dimension,
-{
-    type Coefficient = T;
-    type ScalarField = ArrayBase<OwnedRepr<T>, D>;
-
-    fn cross(&self, rhs: &Self) -> Self {
-        CartesianVector3::cross(self, rhs)
-    }
-
-    fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
-        self.clone() * factor
-    }
-
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
-        self.clone() * factor
-    }
-}
-
-impl<T, D> RealCartesianVectorAlgebra for CartesianVector3<T, D>
-where
-    T: ComplexField + Copy,
-    D: Dimension,
-{
-    type RealVector = CartesianVector3<T::RealField, D>;
-    type RealScalarField = ArrayBase<OwnedRepr<T::RealField>, D>;
-
-    fn conjugated(&self) -> Self {
-        CartesianVector3::conjugate(self)
-    }
-
-    fn real(&self) -> Self::RealVector {
-        self.map(|value| value.real())
-    }
-
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
-        CartesianVector3::hermitian_dot(self, rhs)
-    }
-
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
-        value.mapv(|value| value.real())
-    }
-}
-
-impl<T, D, P> CartesianVectorAlgebra for JetFirst<CartesianVector3<T, D>, P>
+impl<T, D, P> CartesianVectorAlgebra for Jet0<VectorField<T, D>, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJetFirst<T, D, P>;
+    type ScalarField = ArrayJet0<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
-        JetFirst::cross(self, rhs)
+        Jet0::cross(self, rhs)
     }
 
     fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
-        JetFirst::scale_by(self, factor)
+        Jet0::scale_by(self, factor)
     }
 
     fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
-        JetFirst::multiply_by_scalar(self, factor)
+        Jet0::multiply_by_scalar(self, factor)
     }
 }
 
-impl<T, D> RealCartesianVectorAlgebra for JetFirst<CartesianVector3<T, D>, RealParameter>
+impl<T, D> RealCartesianVectorAlgebra for Jet0<VectorField<T, D>, RealParameter>
 where
     T: ComplexField + Copy,
     D: Dimension,
 {
-    type RealVector = JetFirst<CartesianVector3<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJetFirst<T::RealField, D, RealParameter>;
+    type RealVector = Jet0<VectorField<T::RealField, D>, RealParameter>;
+    type RealScalarField = ArrayJet0<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
-        JetFirst::conjugated(self)
+        Jet0::conjugated(self)
     }
 
     fn real(&self) -> Self::RealVector {
-        JetFirst::real(self)
+        Jet0::real(self)
     }
 
     fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
-        JetFirst::hermitian_dot_product(self, rhs)
+        Jet0::hermitian_dot_product(self, rhs)
     }
 
     fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
-        JetFirst::real(&value)
+        Jet0::real(&value)
     }
 }
 
-impl<T, D, P> CartesianVectorAlgebra for Jet<CartesianVector3<T, D>, P>
+impl<T, D, P> CartesianVectorAlgebra for Jet1<VectorField<T, D>, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJet<T, D, P>;
+    type ScalarField = ArrayJet1<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
-        Jet::cross(self, rhs)
+        Jet1::cross(self, rhs)
     }
 
     fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
-        Jet::scale_by(self, factor)
+        Jet1::scale_by(self, factor)
     }
 
     fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
-        Jet::multiply_by_scalar(self, factor)
+        Jet1::multiply_by_scalar(self, factor)
     }
 }
 
-impl<T, D> RealCartesianVectorAlgebra for Jet<CartesianVector3<T, D>, RealParameter>
+impl<T, D> RealCartesianVectorAlgebra for Jet1<VectorField<T, D>, RealParameter>
 where
     T: ComplexField + Copy,
     D: Dimension,
 {
-    type RealVector = Jet<CartesianVector3<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJet<T::RealField, D, RealParameter>;
+    type RealVector = Jet1<VectorField<T::RealField, D>, RealParameter>;
+    type RealScalarField = ArrayJet1<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
-        Jet::conjugated(self)
+        Jet1::conjugated(self)
     }
 
     fn real(&self) -> Self::RealVector {
-        Jet::real(self)
+        Jet1::real(self)
     }
 
     fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
-        Jet::hermitian_dot_product(self, rhs)
+        Jet1::hermitian_dot_product(self, rhs)
     }
 
     fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
-        Jet::real(&value)
+        Jet1::real(&value)
     }
 }
 
-impl<T, D, P> CartesianVectorAlgebra for JetBivariate<CartesianVector3<T, D>, P>
+impl<T, D, P> CartesianVectorAlgebra for Jet2<VectorField<T, D>, P>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    type Coefficient = T;
+    type ScalarField = ArrayJet2<T, D, P>;
+
+    fn cross(&self, rhs: &Self) -> Self {
+        Jet2::cross(self, rhs)
+    }
+
+    fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
+        Jet2::scale_by(self, factor)
+    }
+
+    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+        Jet2::multiply_by_scalar(self, factor)
+    }
+}
+
+impl<T, D> RealCartesianVectorAlgebra for Jet2<VectorField<T, D>, RealParameter>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+{
+    type RealVector = Jet2<VectorField<T::RealField, D>, RealParameter>;
+    type RealScalarField = ArrayJet2<T::RealField, D, RealParameter>;
+
+    fn conjugated(&self) -> Self {
+        Jet2::conjugated(self)
+    }
+
+    fn real(&self) -> Self::RealVector {
+        Jet2::real(self)
+    }
+
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+        Jet2::hermitian_dot_product(self, rhs)
+    }
+
+    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+        Jet2::real(&value)
+    }
+}
+
+impl<T, D, P> CartesianVectorAlgebra for JetBivariate<VectorField<T, D>, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -274,12 +304,12 @@ where
     }
 }
 
-impl<T, D> RealCartesianVectorAlgebra for JetBivariate<CartesianVector3<T, D>, RealParameter>
+impl<T, D> RealCartesianVectorAlgebra for JetBivariate<VectorField<T, D>, RealParameter>
 where
     T: ComplexField + Copy,
     D: Dimension,
 {
-    type RealVector = JetBivariate<CartesianVector3<T::RealField, D>, RealParameter>;
+    type RealVector = JetBivariate<VectorField<T::RealField, D>, RealParameter>;
     type RealScalarField = ArrayJetBivariate<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
@@ -306,25 +336,25 @@ mod tests {
     use ndarray::{Array1, Ix1, arr1};
     use num_complex::Complex64;
 
-    use crate::algebra::{Jet, JetBivariate, JetFirst, RealParameter};
+    use crate::algebra::{Jet1, Jet2, JetBivariate, RealParameter};
 
     type C = Complex64;
     type D = Ix1;
-    type Scalar = Array1<C>;
+    type Scalar = ArrayJet0<C, D, RealParameter>;
 
-    type FirstScalar = ArrayJetFirst<C, D, RealParameter>;
+    type FirstScalar = ArrayJet1<C, D, RealParameter>;
 
-    type SecondScalar = ArrayJet<C, D, RealParameter>;
+    type SecondScalar = ArrayJet2<C, D, RealParameter>;
 
     type BivariateScalar = ArrayJetBivariate<C, D, RealParameter>;
 
-    type Vector = CartesianVector3<C, D>;
+    type Vector = Jet0<VectorField<C, D>, RealParameter>;
 
-    type FirstVector = JetFirst<Vector, RealParameter>;
+    type FirstVector = Jet1<VectorField<C, D>, RealParameter>;
 
-    type SecondVector = Jet<Vector, RealParameter>;
+    type SecondVector = Jet2<VectorField<C, D>, RealParameter>;
 
-    type BivariateVector = JetBivariate<Vector, RealParameter>;
+    type BivariateVector = JetBivariate<VectorField<C, D>, RealParameter>;
 
     const TOLERANCE: f64 = 1.0e-12;
 
@@ -350,7 +380,7 @@ mod tests {
         }
     }
 
-    fn assert_vector_close(actual: &Vector, expected: &Vector) {
+    fn assert_vector_close(actual: &VectorField<C, D>, expected: &VectorField<C, D>) {
         assert_complex_array_close(actual.x(), expected.x());
 
         assert_complex_array_close(actual.y(), expected.y());
@@ -358,16 +388,19 @@ mod tests {
         assert_complex_array_close(actual.z(), expected.z());
     }
 
-    fn vector(x: C, y: C, z: C) -> Vector {
-        CartesianVector3::new(arr1(&[x]), arr1(&[y]), arr1(&[z]))
+    fn vector(x: C, y: C, z: C) -> VectorField<C, D> {
+        VectorField::new_unchecked(arr1(&[x]), arr1(&[y]), arr1(&[z]))
     }
 
-    fn scale_vector(vector: &Vector, scalar: &Scalar) -> Vector {
+    fn scale_vector(
+        vector: &VectorField<C, D>,
+        scalar: &ndarray::Array<C, D>,
+    ) -> VectorField<C, D> {
         vector.clone() * scalar
     }
 
-    fn add_vectors(terms: &[Vector]) -> Vector {
-        let mut result = CartesianVector3::zeros_like(terms[0].x());
+    fn add_vectors(terms: &[VectorField<C, D>]) -> VectorField<C, D> {
+        let mut result = VectorField::zeros_like(terms[0].x());
 
         for term in terms {
             result = result + term;
@@ -435,9 +468,9 @@ mod tests {
         let z = arr1(&[c(9.0, 10.0), c(11.0, 12.0)]);
 
         let result = <Scalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(
-            x.clone(),
-            y.clone(),
-            z.clone(),
+            Jet0::new(x.clone()),
+            Jet0::new(y.clone()),
+            Jet0::new(z.clone()),
         );
 
         assert_eq!(result.x(), &x);
@@ -447,11 +480,11 @@ mod tests {
 
     #[test]
     fn first_order_scalar_jets_are_transposed_into_vector_jet() {
-        let x = JetFirst::from_parts(arr1(&[c(1.0, 0.0)]), arr1(&[c(2.0, 0.0)]));
+        let x = Jet1::from_parts(arr1(&[c(1.0, 0.0)]), arr1(&[c(2.0, 0.0)]));
 
-        let y = JetFirst::from_parts(arr1(&[c(3.0, 0.0)]), arr1(&[c(4.0, 0.0)]));
+        let y = Jet1::from_parts(arr1(&[c(3.0, 0.0)]), arr1(&[c(4.0, 0.0)]));
 
-        let z = JetFirst::from_parts(arr1(&[c(5.0, 0.0)]), arr1(&[c(6.0, 0.0)]));
+        let z = Jet1::from_parts(arr1(&[c(5.0, 0.0)]), arr1(&[c(6.0, 0.0)]));
 
         let result = <FirstScalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(x, y, z);
 
@@ -468,19 +501,19 @@ mod tests {
 
     #[test]
     fn second_order_scalar_jets_are_transposed_into_vector_jet() {
-        let x = Jet::from_parts(
+        let x = Jet2::from_parts(
             arr1(&[c(1.0, 0.0)]),
             arr1(&[c(2.0, 0.0)]),
             arr1(&[c(3.0, 0.0)]),
         );
 
-        let y = Jet::from_parts(
+        let y = Jet2::from_parts(
             arr1(&[c(4.0, 0.0)]),
             arr1(&[c(5.0, 0.0)]),
             arr1(&[c(6.0, 0.0)]),
         );
 
-        let z = Jet::from_parts(
+        let z = Jet2::from_parts(
             arr1(&[c(7.0, 0.0)]),
             arr1(&[c(8.0, 0.0)]),
             arr1(&[c(9.0, 0.0)]),
@@ -566,19 +599,19 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn plain_vector_constant_scaling_delegates_correctly() {
-        let source = vector(c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0));
+    fn zero_order_vector_constant_scaling_scales_every_jet_component() {
+        let source = Jet0::new(vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)));
 
-        let factor = c(2.0, -1.0);
+        let factor = c(2.0, 0.0);
 
         let result = <Vector as CartesianVectorAlgebra>::scale_by_constant(&source, factor);
 
-        assert_eq!(result, source * factor,);
+        assert_vector_close(result.value(), &(source.value().clone() * factor));
     }
 
     #[test]
     fn first_order_vector_constant_scaling_scales_every_jet_component() {
-        let source = JetFirst::from_parts(
+        let source = Jet1::from_parts(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
         );
@@ -594,7 +627,7 @@ mod tests {
 
     #[test]
     fn second_order_vector_constant_scaling_scales_every_jet_component() {
-        let source = Jet::from_parts(
+        let source = Jet2::from_parts(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
             vector(c(7.0, 0.0), c(8.0, 0.0), c(9.0, 0.0)),
@@ -645,28 +678,26 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn plain_vector_scalar_multiplication_is_pointwise() {
-        let source = CartesianVector3::new(
-            arr1(&[c(1.0, 0.0), c(2.0, 0.0)]),
-            arr1(&[c(3.0, 0.0), c(4.0, 0.0)]),
-            arr1(&[c(5.0, 0.0), c(6.0, 0.0)]),
-        );
+    fn zero_order_vector_scalar_product_obeys_product_rule() {
+        let vector = Jet0::new(vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)));
 
-        let scalar = arr1(&[c(2.0, 0.0), c(3.0, 0.0)]);
+        let scalar = Jet0::new(arr1(&[c(7.0, 0.0)]));
 
-        let result = <Vector as CartesianVectorAlgebra>::multiply_by_scalar(&source, &scalar);
+        let result = <Vector as CartesianVectorAlgebra>::multiply_by_scalar(&vector, &scalar);
 
-        assert_eq!(result, source * &scalar,);
+        let expected_value = scale_vector(vector.value(), scalar.value());
+
+        assert_vector_close(result.value(), &expected_value);
     }
 
     #[test]
     fn first_order_vector_scalar_product_obeys_product_rule() {
-        let vector = JetFirst::from_parts(
+        let vector = Jet1::from_parts(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
         );
 
-        let scalar = JetFirst::from_parts(arr1(&[c(7.0, 0.0)]), arr1(&[c(8.0, 0.0)]));
+        let scalar = Jet1::from_parts(arr1(&[c(7.0, 0.0)]), arr1(&[c(8.0, 0.0)]));
 
         let result = <FirstVector as CartesianVectorAlgebra>::multiply_by_scalar(&vector, &scalar);
 
@@ -684,13 +715,13 @@ mod tests {
 
     #[test]
     fn second_order_vector_scalar_product_obeys_product_rule() {
-        let vector = Jet::from_parts(
+        let vector = Jet2::from_parts(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
             vector(c(7.0, 0.0), c(8.0, 0.0), c(9.0, 0.0)),
         );
 
-        let scalar = Jet::from_parts(
+        let scalar = Jet2::from_parts(
             arr1(&[c(10.0, 0.0)]),
             arr1(&[c(11.0, 0.0)]),
             arr1(&[c(12.0, 0.0)]),
@@ -791,43 +822,43 @@ mod tests {
 
     #[test]
     fn cross_delegates_for_plain_vectors() {
-        let lhs = vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0));
+        let lhs = Vector::new(vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)));
 
-        let rhs = vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0));
+        let rhs = Vector::new(vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)));
 
         assert_eq!(
             <Vector as CartesianVectorAlgebra>::cross(&lhs, &rhs),
-            CartesianVector3::cross(&lhs, &rhs,),
+            Jet0::cross(&lhs, &rhs,),
         );
     }
 
     #[test]
     fn cross_delegates_for_first_order_vector_jets() {
-        let lhs = JetFirst::from_parts(
+        let lhs = Jet1::from_parts(
             vector(c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
         );
 
-        let rhs = JetFirst::from_parts(
+        let rhs = Jet1::from_parts(
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
         );
 
         assert_eq!(
             <FirstVector as CartesianVectorAlgebra>::cross(&lhs, &rhs),
-            JetFirst::cross(&lhs, &rhs,),
+            Jet1::cross(&lhs, &rhs,),
         );
     }
 
     #[test]
     fn cross_delegates_for_second_order_vector_jets() {
-        let lhs = Jet::from_parts(
+        let lhs = Jet2::from_parts(
             vector(c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
         );
 
-        let rhs = Jet::from_parts(
+        let rhs = Jet2::from_parts(
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
             vector(c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0)),
@@ -835,7 +866,7 @@ mod tests {
 
         assert_eq!(
             <SecondVector as CartesianVectorAlgebra>::cross(&lhs, &rhs),
-            Jet::cross(&lhs, &rhs,),
+            Jet2::cross(&lhs, &rhs,),
         );
     }
 
@@ -871,63 +902,63 @@ mod tests {
 
     #[test]
     fn plain_real_cartesian_operations_delegate_correctly() {
-        let lhs = vector(c(1.0, 2.0), c(3.0, -4.0), c(-5.0, 6.0));
+        let lhs = Vector::new(vector(c(1.0, 2.0), c(3.0, -4.0), c(-5.0, 6.0)));
 
-        let rhs = vector(c(7.0, -8.0), c(9.0, 10.0), c(11.0, -12.0));
+        let rhs = Vector::new(vector(c(7.0, -8.0), c(9.0, 10.0), c(11.0, -12.0)));
 
         assert_eq!(
             <Vector as RealCartesianVectorAlgebra>::conjugated(&lhs),
-            lhs.conjugate(),
+            Jet0::conjugated(&lhs),
         );
 
         assert_eq!(
             <Vector as RealCartesianVectorAlgebra>::real(&lhs),
-            lhs.map(|value| value.re),
+            Jet0::real(&lhs),
         );
 
         assert_eq!(
             <Vector as RealCartesianVectorAlgebra>::hermitian_dot(&lhs, &rhs,),
-            lhs.hermitian_dot(&rhs),
+            Jet0::hermitian_dot(&lhs, &rhs,),
         );
     }
 
     #[test]
     fn first_order_real_cartesian_operations_delegate_correctly() {
-        let lhs = JetFirst::from_parts(
+        let lhs = Jet1::from_parts(
             vector(c(1.0, 2.0), c(3.0, -4.0), c(-5.0, 6.0)),
             vector(c(2.0, -1.0), c(4.0, 3.0), c(6.0, -5.0)),
         );
 
-        let rhs = JetFirst::from_parts(
+        let rhs = Jet1::from_parts(
             vector(c(7.0, -8.0), c(9.0, 10.0), c(11.0, -12.0)),
             vector(c(8.0, 7.0), c(10.0, -9.0), c(12.0, 11.0)),
         );
 
         assert_eq!(
             <FirstVector as RealCartesianVectorAlgebra>::conjugated(&lhs),
-            JetFirst::conjugated(&lhs),
+            Jet1::conjugated(&lhs),
         );
 
         assert_eq!(
             <FirstVector as RealCartesianVectorAlgebra>::real(&lhs),
-            JetFirst::real(&lhs),
+            Jet1::real(&lhs),
         );
 
         assert_eq!(
             <FirstVector as RealCartesianVectorAlgebra>::hermitian_dot(&lhs, &rhs,),
-            JetFirst::hermitian_dot(&lhs, &rhs,),
+            Jet1::hermitian_dot(&lhs, &rhs,),
         );
     }
 
     #[test]
     fn second_order_real_cartesian_operations_delegate_correctly() {
-        let lhs = Jet::from_parts(
+        let lhs = Jet2::from_parts(
             vector(c(1.0, 2.0), c(3.0, -4.0), c(-5.0, 6.0)),
             vector(c(2.0, -1.0), c(4.0, 3.0), c(6.0, -5.0)),
             vector(c(3.0, 0.5), c(5.0, -2.0), c(7.0, 4.0)),
         );
 
-        let rhs = Jet::from_parts(
+        let rhs = Jet2::from_parts(
             vector(c(7.0, -8.0), c(9.0, 10.0), c(11.0, -12.0)),
             vector(c(8.0, 7.0), c(10.0, -9.0), c(12.0, 11.0)),
             vector(c(9.0, -6.0), c(11.0, 8.0), c(13.0, -10.0)),
@@ -935,17 +966,17 @@ mod tests {
 
         assert_eq!(
             <SecondVector as RealCartesianVectorAlgebra>::conjugated(&lhs),
-            Jet::conjugated(&lhs),
+            Jet2::conjugated(&lhs),
         );
 
         assert_eq!(
             <SecondVector as RealCartesianVectorAlgebra>::real(&lhs),
-            Jet::real(&lhs),
+            Jet2::real(&lhs),
         );
 
         assert_eq!(
             <SecondVector as RealCartesianVectorAlgebra>::hermitian_dot(&lhs, &rhs,),
-            Jet::hermitian_dot(&lhs, &rhs,),
+            Jet2::hermitian_dot(&lhs, &rhs,),
         );
     }
 

@@ -19,7 +19,7 @@ mod storage;
 
 pub(crate) use mode::{DirectionalFirstMode, DirectionalSecondMode, SpectralSecondMode, ValueMode};
 pub(crate) use parts::{DirectionalFirstParts, DirectionalSecondParts, SpectralSecondParts};
-pub(crate) use quantity::Crystallise;
 pub(crate) use storage::{
-    IntoDirectionalFirstParts, IntoDirectionalSecondParts, IntoSpectralSecondParts, IntoValue,
+    Crystallise, CrystallisePolicy, FirstDirectional, FirstSpectral, SecondDirectional,
+    SecondSpectral, ValueOnly,
 };

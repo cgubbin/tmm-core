@@ -50,21 +50,21 @@ use nalgebra::ComplexField;
 use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 use std::marker::PhantomData;
 
-pub(crate) type ArrayJet<C, D, P> = Jet<ArrayBase<OwnedRepr<C>, D>, P>;
+pub(crate) type ArrayJet2<C, D, P> = Jet2<ArrayBase<OwnedRepr<C>, D>, P>;
 
-pub(crate) type PhysicalJet<C, D> = ArrayJet<C, D, RealParameter>;
-pub(crate) type ModeJet<C, D> = ArrayJet<C, D, HolomorphicParameter>;
+pub(crate) type PhysicalJet2<C, D> = ArrayJet2<C, D, RealParameter>;
+pub(crate) type ModeJet2<C, D> = ArrayJet2<C, D, HolomorphicParameter>;
 
 /// A value and its first and second derivatives.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Jet<I, P> {
+pub(crate) struct Jet2<I, P> {
     value: I,
     first: I,
     second: I,
     parameter: PhantomData<P>,
 }
 
-impl<I, P> Jet<I, P> {
+impl<I, P> Jet2<I, P> {
     /// Construct a second-order jet.
     pub(crate) fn from_parts(value: I, first: I, second: I) -> Self {
         Self {
@@ -92,7 +92,7 @@ impl<I, P> Jet<I, P> {
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetAdditive,
 {
@@ -121,8 +121,8 @@ where
     }
 }
 
-impl<V, P> Jet<V, P> {
-    pub fn multiply_by_scalar<S>(&self, scalar: &Jet<S, P>) -> Self
+impl<V, P> Jet2<V, P> {
+    pub fn multiply_by_scalar<S>(&self, scalar: &Jet2<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
         P: Clone,
@@ -149,7 +149,7 @@ impl<V, P> Jet<V, P> {
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetBilinear,
 {
@@ -170,7 +170,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetConstant + JetZeroLike,
 {
@@ -182,7 +182,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetScaleBy,
 {
@@ -196,7 +196,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetZeroLike,
 {
@@ -208,7 +208,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetField,
 {
@@ -236,7 +236,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P>
+impl<I, P> Jet2<I, P>
 where
     I: JetCrossProduct + JetAdditive,
 {
@@ -264,7 +264,7 @@ where
     }
 }
 
-impl<I> Jet<I, RealParameter>
+impl<I> Jet2<I, RealParameter>
 where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
@@ -284,7 +284,7 @@ where
     /// This operation is intentionally unavailable for holomorphic-parameter
     /// jets because conjugating the first operand does not preserve
     /// holomorphicity.
-    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> Jet<I::Output, RealParameter> {
+    pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> Jet2<I::Output, RealParameter> {
         let value = self.value().jet_hermitian_product(rhs.value());
 
         let first = self
@@ -301,11 +301,11 @@ where
             .jet_add(&mixed)
             .jet_add(&self.value().jet_hermitian_product(rhs.second()));
 
-        Jet::from_parts(value, first, second)
+        Jet2::from_parts(value, first, second)
     }
 }
 
-impl<I> Jet<I, RealParameter>
+impl<I> Jet2<I, RealParameter>
 where
     I: JetConjugate,
 {
@@ -329,7 +329,7 @@ where
     }
 }
 
-impl<I> Jet<I, RealParameter>
+impl<I> Jet2<I, RealParameter>
 where
     I: JetRealPart,
 {
@@ -338,8 +338,8 @@ where
     ///
     /// This operation is intentionally unavailable for holomorphic-parameter
     /// jets.
-    pub(crate) fn real(&self) -> Jet<I::RealOutput, RealParameter> {
-        Jet::from_parts(
+    pub(crate) fn real(&self) -> Jet2<I::RealOutput, RealParameter> {
+        Jet2::from_parts(
             self.value.jet_real(),
             self.first.jet_real(),
             self.second.jet_real(),
@@ -347,7 +347,7 @@ where
     }
 }
 
-impl<I, P> Jet<I, P> {
+impl<I, P> Jet2<I, P> {
     pub(crate) fn variable(value: I) -> Self
     where
         I: JetOneLike + JetZeroLike,
@@ -359,7 +359,7 @@ impl<I, P> Jet<I, P> {
     }
 }
 
-impl<C, D, P> ArrayJet<C, D, P>
+impl<C, D, P> ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -418,12 +418,12 @@ where
     }
 }
 
-impl<I, P> Jet<I, P> {
-    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet<O, P>
+impl<I, P> Jet2<I, P> {
+    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet2<O, P>
     where
         F: FnMut(I) -> O,
     {
-        Jet::from_parts(f(self.value), f(self.first), f(self.second))
+        Jet2::from_parts(f(self.value), f(self.first), f(self.second))
     }
 }
 
@@ -467,7 +467,7 @@ impl<I> SecondOrderExpansion<I> {
     }
 }
 
-impl<C, D, P> ArrayJet<C, D, P>
+impl<C, D, P> ArrayJet2<C, D, P>
 where
     C: ComplexField,
     D: Dimension,
@@ -501,8 +501,8 @@ mod tests {
     type A0 = Array0<C>;
     type A1 = Array1<C>;
 
-    type RealJet<I> = Jet<I, RealParameter>;
-    type HolomorphicJet<I> = Jet<I, HolomorphicParameter>;
+    type RealJet2<I> = Jet2<I, RealParameter>;
+    type HolomorphicJet2<I> = Jet2<I, HolomorphicParameter>;
 
     const EPSILON: f64 = 1.0e-11;
     const FINITE_DIFFERENCE_EPSILON: f64 = 5.0e-6;
@@ -587,7 +587,7 @@ mod tests {
         let first = a0(5.0, 7.0);
         let second = a0(11.0, 13.0);
 
-        let jet = RealJet::from_parts(value.clone(), first.clone(), second.clone());
+        let jet = RealJet2::from_parts(value.clone(), first.clone(), second.clone());
 
         assert_eq!(jet.value(), &value);
         assert_eq!(jet.first(), &first);
@@ -600,7 +600,7 @@ mod tests {
         let first = a0(5.0, 7.0);
         let second = a0(11.0, 13.0);
 
-        let jet = RealJet::from_parts(value.clone(), first.clone(), second.clone());
+        let jet = RealJet2::from_parts(value.clone(), first.clone(), second.clone());
 
         let (actual_value, actual_first, actual_second) = jet.into_parts();
 
@@ -613,7 +613,7 @@ mod tests {
     fn constant_has_zero_first_and_second_derivatives() {
         let value = array![c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0),];
 
-        let jet: RealJet<_> = Jet::constant(value.clone());
+        let jet: RealJet2<_> = Jet2::constant(value.clone());
 
         assert_eq!(jet.value(), &value);
         assert_eq!(jet.first().raw_dim(), value.raw_dim());
@@ -634,7 +634,7 @@ mod tests {
 
         let constant = c(7.0, -2.0);
 
-        let jet: RealJet<_> = Jet::constant_like(&source, constant);
+        let jet: RealJet2<_> = Jet2::constant_like(&source, constant);
 
         assert_eq!(jet.value().raw_dim(), source.raw_dim());
         assert_eq!(jet.first().raw_dim(), source.raw_dim());
@@ -657,7 +657,7 @@ mod tests {
     fn variable_has_unit_first_and_zero_second_derivative() {
         let value = array![c(1.0, 2.0), c(3.0, 4.0), c(5.0, 6.0),];
 
-        let jet: RealJet<_> = Jet::variable(value.clone());
+        let jet: RealJet2<_> = Jet2::variable(value.clone());
 
         assert_eq!(jet.value(), &value);
 
@@ -674,7 +674,7 @@ mod tests {
     fn holomorphic_variable_has_same_numerical_seed() {
         let value = a0(2.0, 3.0);
 
-        let jet: HolomorphicJet<_> = Jet::variable(value.clone());
+        let jet: HolomorphicJet2<_> = Jet2::variable(value.clone());
 
         assert_eq!(jet.value(), &value);
         assert_array0_close(jet.first(), r(1.0));
@@ -687,9 +687,9 @@ mod tests {
 
     #[test]
     fn add_is_componentwise() {
-        let left: RealJet<_> = Jet::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
+        let left: RealJet2<_> = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
 
-        let right = Jet::from_parts(a0(17.0, 19.0), a0(23.0, 29.0), a0(31.0, 37.0));
+        let right = Jet2::from_parts(a0(17.0, 19.0), a0(23.0, 29.0), a0(31.0, 37.0));
 
         let result = left.add(&right);
 
@@ -700,9 +700,9 @@ mod tests {
 
     #[test]
     fn subtract_is_componentwise() {
-        let left: RealJet<_> = Jet::from_parts(a0(17.0, 19.0), a0(23.0, 29.0), a0(31.0, 37.0));
+        let left: RealJet2<_> = Jet2::from_parts(a0(17.0, 19.0), a0(23.0, 29.0), a0(31.0, 37.0));
 
-        let right = Jet::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
+        let right = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
 
         let result = left.subtract(&right);
 
@@ -713,7 +713,7 @@ mod tests {
 
     #[test]
     fn negate_negates_all_components() {
-        let jet: RealJet<_> = Jet::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0), a0(11.0, -13.0));
+        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0), a0(11.0, -13.0));
 
         let result = jet.negate();
 
@@ -724,7 +724,7 @@ mod tests {
 
     #[test]
     fn scale_by_scales_all_components() {
-        let jet: RealJet<_> = Jet::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0), a0(11.0, -13.0));
+        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, -3.0), a0(-5.0, 7.0), a0(11.0, -13.0));
 
         let scale = c(3.0, 2.0);
         let result = jet.scale_by(scale);
@@ -750,9 +750,9 @@ mod tests {
         let g_first = c(23.0, 29.0);
         let g_second = c(31.0, 37.0);
 
-        let f: RealJet<_> = Jet::from_parts(arr0(f_value), arr0(f_first), arr0(f_second));
+        let f: RealJet2<_> = Jet2::from_parts(arr0(f_value), arr0(f_first), arr0(f_second));
 
-        let g = Jet::from_parts(arr0(g_value), arr0(g_first), arr0(g_second));
+        let g = Jet2::from_parts(arr0(g_value), arr0(g_first), arr0(g_second));
 
         let result = f.multiply(&g);
 
@@ -824,13 +824,13 @@ mod tests {
 
     #[test]
     fn product_rule_preserves_noncommutative_order() {
-        let f: RealJet<_> = Jet::from_parts(
+        let f: RealJet2<_> = Jet2::from_parts(
             Matrix2::new(1.0, 2.0, 3.0, 4.0),
             Matrix2::new(0.0, 1.0, 2.0, 0.0),
             Matrix2::new(1.0, 0.0, 0.0, -1.0),
         );
 
-        let g = Jet::from_parts(
+        let g = Jet2::from_parts(
             Matrix2::new(2.0, 0.0, 1.0, 3.0),
             Matrix2::new(1.0, 4.0, 0.0, 2.0),
             Matrix2::new(0.0, 2.0, 3.0, 1.0),
@@ -873,7 +873,7 @@ mod tests {
         let first = c(5.0, -7.0);
         let second = c(11.0, 13.0);
 
-        let jet: RealJet<_> = Jet::from_parts(arr0(value), arr0(first), arr0(second));
+        let jet: RealJet2<_> = Jet2::from_parts(arr0(value), arr0(first), arr0(second));
 
         let result = jet.reciprocal();
 
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn reciprocal_of_reciprocal_recovers_jet() {
-        let original: RealJet<_> = Jet::from_parts(a0(2.0, 0.5), a0(0.7, -0.3), a0(-0.2, 0.4));
+        let original: RealJet2<_> = Jet2::from_parts(a0(2.0, 0.5), a0(0.7, -0.3), a0(-0.2, 0.4));
 
         let result = original.reciprocal().reciprocal();
 
@@ -902,9 +902,9 @@ mod tests {
 
     #[test]
     fn division_matches_quotient_via_reciprocal() {
-        let f: RealJet<_> = Jet::from_parts(a0(3.0, 2.0), a0(5.0, -1.0), a0(0.7, 0.3));
+        let f: RealJet2<_> = Jet2::from_parts(a0(3.0, 2.0), a0(5.0, -1.0), a0(0.7, 0.3));
 
-        let g = Jet::from_parts(a0(2.0, -4.0), a0(7.0, 3.0), a0(-0.5, 1.2));
+        let g = Jet2::from_parts(a0(2.0, -4.0), a0(7.0, 3.0), a0(-0.5, 1.2));
 
         let direct = f.divide(&g);
         let expanded = f.multiply(&g.reciprocal());
@@ -922,7 +922,7 @@ mod tests {
         let first = c(1.3, 0.2);
         let second = c(-0.6, 0.8);
 
-        let jet: HolomorphicJet<_> = Jet::from_parts(arr0(value), arr0(first), arr0(second));
+        let jet: HolomorphicJet2<_> = Jet2::from_parts(arr0(value), arr0(first), arr0(second));
 
         let result = jet.exp();
         let expected_value = value.exp();
@@ -938,7 +938,7 @@ mod tests {
         let first = c(1.3, 0.2);
         let second = c(-0.6, 0.8);
 
-        let jet: HolomorphicJet<_> = Jet::from_parts(arr0(value), arr0(first), arr0(second));
+        let jet: HolomorphicJet2<_> = Jet2::from_parts(arr0(value), arr0(first), arr0(second));
 
         let result = jet.sin();
 
@@ -958,7 +958,7 @@ mod tests {
         let first = c(1.3, 0.2);
         let second = c(-0.6, 0.8);
 
-        let jet: HolomorphicJet<_> = Jet::from_parts(arr0(value), arr0(first), arr0(second));
+        let jet: HolomorphicJet2<_> = Jet2::from_parts(arr0(value), arr0(first), arr0(second));
 
         let result = jet.cos();
 
@@ -978,7 +978,7 @@ mod tests {
         let first = c(1.3, -0.2);
         let second = c(-0.4, 0.7);
 
-        let jet: HolomorphicJet<_> = Jet::from_parts(arr0(value), arr0(first), arr0(second));
+        let jet: HolomorphicJet2<_> = Jet2::from_parts(arr0(value), arr0(first), arr0(second));
 
         let result = jet.sqrt();
         let root = value.sqrt();
@@ -1003,7 +1003,7 @@ mod tests {
         let argument_first = c(1.3, 0.2);
         let argument_second = c(-0.6, 0.8);
 
-        let argument: HolomorphicJet<_> = Jet::from_parts(
+        let argument: HolomorphicJet2<_> = Jet2::from_parts(
             arr0(argument_value),
             arr0(argument_first),
             arr0(argument_second),
@@ -1015,7 +1015,7 @@ mod tests {
             arr0(-argument_value.sin()),
         );
 
-        let result = HolomorphicJet::compose_sampled_function(&argument, expansion);
+        let result = HolomorphicJet2::compose_sampled_function(&argument, expansion);
 
         assert_array0_close(result.value(), argument_value.sin());
 
@@ -1038,11 +1038,12 @@ mod tests {
         let direction = c(0.4, -0.2);
         let curvature = c(-0.15, 0.1);
 
-        let argument: RealJet<_> = Jet::from_parts(arr0(initial), arr0(direction), arr0(curvature));
+        let argument: RealJet2<_> =
+            Jet2::from_parts(arr0(initial), arr0(direction), arr0(curvature));
 
         let numerator = argument.clone().exp().multiply(&argument.clone().sin());
 
-        let shift = RealJet::constant_like(argument.value(), r(3.0));
+        let shift = RealJet2::constant_like(argument.value(), r(3.0));
 
         let denominator = argument.add(&shift).sqrt();
 
@@ -1074,7 +1075,7 @@ mod tests {
 
     #[test]
     fn conjugation_conjugates_all_components() {
-        let jet: RealJet<_> = Jet::from_parts(a0(2.0, 3.0), a0(5.0, -7.0), a0(-11.0, 13.0));
+        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, -7.0), a0(-11.0, 13.0));
 
         let result = jet.conjugated();
 
@@ -1091,7 +1092,7 @@ mod tests {
         let direction = c(0.4, -0.2);
         let curvature = c(-0.15, 0.1);
 
-        let jet: RealJet<_> = Jet::from_parts(arr0(initial), arr0(direction), arr0(curvature));
+        let jet: RealJet2<_> = Jet2::from_parts(arr0(initial), arr0(direction), arr0(curvature));
 
         let result = jet.conjugated();
 
@@ -1112,7 +1113,7 @@ mod tests {
 
     #[test]
     fn real_part_extracts_all_real_components() {
-        let jet: RealJet<_> = Jet::from_parts(a0(2.0, 3.0), a0(5.0, -7.0), a0(-11.0, 13.0));
+        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, -7.0), a0(-11.0, 13.0));
 
         let result = jet.real();
 
@@ -1163,13 +1164,13 @@ mod tests {
 
     #[test]
     fn cross_product_applies_second_order_product_rule() {
-        let f: RealJet<_> = Jet::from_parts(
+        let f: RealJet2<_> = Jet2::from_parts(
             Vector3([1.0, 2.0, 3.0]),
             Vector3([4.0, 5.0, 6.0]),
             Vector3([7.0, 8.0, 9.0]),
         );
 
-        let g = Jet::from_parts(
+        let g = Jet2::from_parts(
             Vector3([10.0, 11.0, 12.0]),
             Vector3([13.0, 14.0, 15.0]),
             Vector3([16.0, 17.0, 18.0]),
@@ -1229,13 +1230,13 @@ mod tests {
 
     #[test]
     fn hermitian_product_applies_second_order_real_parameter_rule() {
-        let f: RealJet<_> = Jet::from_parts(
+        let f: RealJet2<_> = Jet2::from_parts(
             ComplexVector2([c(1.0, 2.0), c(3.0, -1.0)]),
             ComplexVector2([c(0.5, -0.3), c(-0.7, 0.2)]),
             ComplexVector2([c(-0.2, 0.4), c(0.1, -0.6)]),
         );
 
-        let g = Jet::from_parts(
+        let g = Jet2::from_parts(
             ComplexVector2([c(2.0, -1.0), c(-0.5, 4.0)]),
             ComplexVector2([c(0.2, 0.6), c(1.1, -0.4)]),
             ComplexVector2([c(0.8, -0.5), c(-0.3, 0.7)]),
@@ -1269,7 +1270,7 @@ mod tests {
 
     #[test]
     fn map_components_transforms_all_components_independently() {
-        let jet: RealJet<_> = Jet::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
+        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
 
         let mapped = jet.map_components(|array| array[()]);
 
@@ -1290,7 +1291,8 @@ mod tests {
 
         let second = array![c(-0.4, 0.1), c(0.2, 0.5), c(0.7, -0.3),];
 
-        let jet: HolomorphicJet<_> = Jet::from_parts(values.clone(), first.clone(), second.clone());
+        let jet: HolomorphicJet2<_> =
+            Jet2::from_parts(values.clone(), first.clone(), second.clone());
 
         let result = jet.exp();
 

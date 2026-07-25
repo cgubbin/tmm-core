@@ -1,18 +1,23 @@
-mod jet;
+mod cartesian;
 mod jet_bivariate;
-mod jet_first;
+mod jet_one;
+mod jet_two;
+mod jet_zero;
 mod scalar;
 
-pub(crate) use jet::{ArrayJet, Jet, ModeJet, PhysicalJet, SecondOrderExpansion};
 pub(crate) use jet_bivariate::{
     ArrayJetBivariate, JetBivariate, ModeJetBivariate, PhysicalJetBivariate,
 };
-pub(crate) use jet_first::{
-    ArrayJetFirst, FirstOrderExpansion, JetFirst, ModeJetFirst, PhysicalJetFirst,
-};
+pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1, ModeJet1, PhysicalJet1};
+pub(crate) use jet_two::{ArrayJet2, Jet2, ModeJet2, PhysicalJet2, SecondOrderExpansion};
+pub(crate) use jet_zero::{ArrayJet0, Jet0, ModeJet0, PhysicalJet0};
 pub(crate) use scalar::{
     BivariateVariableAlgebra, FirstOrderFunctionAlgebra, RealScalarAlgebra, ScalarAlgebra,
     SecondOrderFunctionAlgebra, UnivariateVariableAlgebra,
+};
+
+pub(crate) use cartesian::{
+    CartesianScalarAlgebra, CartesianVectorAlgebra, RealCartesianVectorAlgebra,
 };
 
 use nalgebra::ComplexField;
@@ -225,9 +230,9 @@ where
 mod noncommutative_tests {
     use super::*;
 
-    use crate::algebra::jet::Jet;
     use crate::algebra::jet_bivariate::JetBivariate;
-    use crate::algebra::jet_first::JetFirst;
+    use crate::algebra::jet_one::Jet1;
+    use crate::algebra::jet_two::Jet2;
 
     /// A small exact-arithmetic matrix type used to verify that jet product
     /// rules preserve operand ordering.
@@ -347,9 +352,9 @@ mod noncommutative_tests {
         assert_noncommutative(FX, G);
         assert_noncommutative(F, GX);
 
-        let left: JetFirst<Matrix2, RealParameter> = JetFirst::from_parts(F, FX);
+        let left: Jet1<Matrix2, RealParameter> = Jet1::from_parts(F, FX);
 
-        let right: JetFirst<Matrix2, RealParameter> = JetFirst::from_parts(G, GX);
+        let right: Jet1<Matrix2, RealParameter> = Jet1::from_parts(G, GX);
 
         let result = left.multiply(&right);
 
@@ -382,9 +387,9 @@ mod noncommutative_tests {
         assert_noncommutative(FXX, G);
         assert_noncommutative(F, GXX);
 
-        let left: Jet<Matrix2, RealParameter> = Jet::from_parts(F, FX, FXX);
+        let left: Jet2<Matrix2, RealParameter> = Jet2::from_parts(F, FX, FXX);
 
-        let right: Jet<Matrix2, RealParameter> = Jet::from_parts(G, GX, GXX);
+        let right: Jet2<Matrix2, RealParameter> = Jet2::from_parts(G, GX, GXX);
 
         let result = left.multiply(&right);
 
@@ -420,9 +425,9 @@ mod noncommutative_tests {
 
     #[test]
     fn jet_second_derivative_uses_two_identical_ordered_mixed_terms() {
-        let left: Jet<Matrix2, RealParameter> = Jet::from_parts(F, FX, FXX);
+        let left: Jet2<Matrix2, RealParameter> = Jet2::from_parts(F, FX, FXX);
 
-        let right: Jet<Matrix2, RealParameter> = Jet::from_parts(G, GX, GXX);
+        let right: Jet2<Matrix2, RealParameter> = Jet2::from_parts(G, GX, GXX);
 
         let result = left.multiply(&right);
 
@@ -583,9 +588,9 @@ mod noncommutative_tests {
 
     #[test]
     fn holomorphic_jet_first_uses_the_same_ordered_product_rule() {
-        let left: JetFirst<Matrix2, HolomorphicParameter> = JetFirst::from_parts(F, FX);
+        let left: Jet1<Matrix2, HolomorphicParameter> = Jet1::from_parts(F, FX);
 
-        let right: JetFirst<Matrix2, HolomorphicParameter> = JetFirst::from_parts(G, GX);
+        let right: Jet1<Matrix2, HolomorphicParameter> = Jet1::from_parts(G, GX);
 
         let result = left.multiply(&right);
 
@@ -596,9 +601,9 @@ mod noncommutative_tests {
 
     #[test]
     fn holomorphic_jet_uses_the_same_ordered_product_rule() {
-        let left: Jet<Matrix2, HolomorphicParameter> = Jet::from_parts(F, FX, FXX);
+        let left: Jet2<Matrix2, HolomorphicParameter> = Jet2::from_parts(F, FX, FXX);
 
-        let right: Jet<Matrix2, HolomorphicParameter> = Jet::from_parts(G, GX, GXX);
+        let right: Jet2<Matrix2, HolomorphicParameter> = Jet2::from_parts(G, GX, GXX);
 
         let result = left.multiply(&right);
 

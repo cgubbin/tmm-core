@@ -34,7 +34,7 @@ use crate::algebra::JetMultiplyByScalar;
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
     JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
-    jet::SecondOrderExpansion,
+    SecondOrderExpansion,
 };
 
 use nalgebra::ComplexField;
