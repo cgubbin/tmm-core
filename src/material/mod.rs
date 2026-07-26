@@ -140,6 +140,7 @@
 pub mod erased;
 pub mod evaluate;
 pub mod handle;
+pub mod lifting;
 pub mod model;
 pub mod sample;
 // pub mod tensor;
@@ -152,6 +153,7 @@ pub use handle::{
     AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
     MeromorphicMaterialHandle,
 };
+pub(crate) use lifting::{ConstitutiveEvaluator, ConstitutiveLift};
 pub use model::Constant;
 pub use sample::Scalar;
 

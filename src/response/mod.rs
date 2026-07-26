@@ -195,7 +195,7 @@ use crate::{
     ConstitutiveFields, DissipationDensity, EnergyDensity, InterfacePower, LayerDissipation,
     LayerPower, ModeResidual, PlaneWaveObservables, StoredEnergy, VectorField,
     field::ScalarField,
-    input::{CanonicalInput, PlaneWaveInput},
+    input::{CanonicalSolverInput, PlaneWaveInput},
 };
 
 use nalgebra::ComplexField;
@@ -208,4 +208,4 @@ pub type PlaneWaveResponse<C, ED, Diff> = Response<
 >;
 
 pub type ModeResidualResponse<C, ED, D> =
-    Response<ModeResidual<Array<C, ED>>, CanonicalInput<C, ED>, D>;
+    Response<ModeResidual<Array<C, ED>>, CanonicalSolverInput<Array<C, ED>>, D>;

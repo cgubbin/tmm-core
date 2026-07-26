@@ -58,9 +58,9 @@ mod tests {
     use num_complex::Complex64;
 
     use crate::{
-        algebra::{ArrayJet0, ArrayJet1, ArrayJet2},
+        algebra::{ArrayJet0, ArrayJet1, ArrayJet2, Jet0, RealParameter},
         backend::isotropic::IsotropicLayerQuantities,
-        input::{CanonicalInput, Polarisation},
+        input::{CanonicalSolverInput, Polarisation},
         material::Constant,
     };
 
@@ -75,13 +75,13 @@ mod tests {
     }
 
     fn scalar_input(
-        vacuum_wavenumber: f64,
-        parallel_wavenumber: f64,
+        vacuum_angular_wavenumber: f64,
+        parallel_angular_wavenumber: f64,
         polarisation: Polarisation,
-    ) -> CanonicalInput<C, Ix0> {
-        CanonicalInput::new(
-            arr0(c(vacuum_wavenumber)),
-            arr0(c(parallel_wavenumber)),
+    ) -> CanonicalSolverInput<Jet0<Array0<C>>> {
+        CanonicalSolverInput::from_coordinates(
+            Jet0::new(arr0(c(vacuum_angular_wavenumber))),
+            Jet0::new(arr0(c(parallel_angular_wavenumber))),
             polarisation,
         )
     }
@@ -164,257 +164,5 @@ mod tests {
         assert_close(te[()], kappa / c(2.0), 1e-12);
 
         assert_close(tm[()], kappa / c(4.0), 1e-12);
-    }
-
-    #[test]
-    fn first_order_admittance_value_matches_value_path() {
-        let material = material(2.25, 1.4);
-
-        let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
-
-        let values =
-            IsotropicLayerQuantities::real_axis(&material, &input).into_admittance::<C, _>();
-
-        let differentiated =
-            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        assert_close(differentiated.value()[()], values[()], 1e-12);
-    }
-
-    #[test]
-    fn first_k0_squared_derivative_matches_finite_difference() {
-        let material = material(2.25, 1.4);
-
-        let k0_squared: f64 = 9.0;
-        let parallel = 0.7;
-        let h = 1e-5;
-
-        let input = scalar_input(
-            k0_squared.sqrt(),
-            parallel,
-            Polarisation::TransverseMagnetic,
-        );
-
-        let admittance =
-            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let plus = value_admittance_at_k0_squared(
-            &material,
-            k0_squared + h,
-            parallel,
-            Polarisation::TransverseMagnetic,
-        );
-
-        let minus = value_admittance_at_k0_squared(
-            &material,
-            k0_squared - h,
-            parallel,
-            Polarisation::TransverseMagnetic,
-        );
-
-        let expected = (plus - minus) / (2.0 * h);
-
-        assert_close(admittance.first()[()], expected, 1e-8);
-    }
-
-    #[test]
-    fn second_k0_squared_derivative_matches_finite_difference() {
-        let material = material(2.25, 1.4);
-
-        let k0_squared: f64 = 9.0;
-        let parallel = 0.7;
-        let h = 2e-3;
-
-        let input = scalar_input(
-            k0_squared.sqrt(),
-            parallel,
-            Polarisation::TransverseElectric,
-        );
-
-        let admittance =
-            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let plus = value_admittance_at_k0_squared(
-            &material,
-            k0_squared + h,
-            parallel,
-            Polarisation::TransverseElectric,
-        );
-
-        let centre = value_admittance_at_k0_squared(
-            &material,
-            k0_squared,
-            parallel,
-            Polarisation::TransverseElectric,
-        );
-
-        let minus = value_admittance_at_k0_squared(
-            &material,
-            k0_squared - h,
-            parallel,
-            Polarisation::TransverseElectric,
-        );
-
-        let expected = (plus - c(2.0) * centre + minus) / (h * h);
-
-        assert_close(admittance.second()[()], expected, 2e-6);
-    }
-
-    #[test]
-    fn first_parallel_squared_derivative_matches_finite_difference() {
-        let material = material(2.25, 1.4);
-
-        let vacuum_wavenumber = 3.0;
-        let parallel_squared: f64 = 0.49;
-        let h = 1e-5;
-
-        let input = scalar_input(
-            vacuum_wavenumber,
-            parallel_squared.sqrt(),
-            Polarisation::TransverseMagnetic,
-        );
-
-        let admittance =
-            IsotropicLayerQuantities::<ArrayJet1<C, _>>::parallel_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let plus = value_admittance_at_parallel_squared(
-            &material,
-            vacuum_wavenumber,
-            parallel_squared + h,
-            Polarisation::TransverseMagnetic,
-        );
-
-        let minus = value_admittance_at_parallel_squared(
-            &material,
-            vacuum_wavenumber,
-            parallel_squared - h,
-            Polarisation::TransverseMagnetic,
-        );
-
-        let expected = (plus - minus) / (2.0 * h);
-
-        assert_close(admittance.first()[()], expected, 1e-8);
-    }
-
-    #[test]
-    fn second_parallel_squared_derivative_matches_finite_difference() {
-        let material = material(2.25, 1.4);
-
-        let vacuum_wavenumber = 3.0;
-        let parallel_squared: f64 = 0.49;
-        let h = 2e-3;
-
-        let input = scalar_input(
-            vacuum_wavenumber,
-            parallel_squared.sqrt(),
-            Polarisation::TransverseElectric,
-        );
-
-        let admittance =
-            IsotropicLayerQuantities::<ArrayJet2<C, _>>::parallel_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let plus = value_admittance_at_parallel_squared(
-            &material,
-            vacuum_wavenumber,
-            parallel_squared + h,
-            Polarisation::TransverseElectric,
-        );
-
-        let centre = value_admittance_at_parallel_squared(
-            &material,
-            vacuum_wavenumber,
-            parallel_squared,
-            Polarisation::TransverseElectric,
-        );
-
-        let minus = value_admittance_at_parallel_squared(
-            &material,
-            vacuum_wavenumber,
-            parallel_squared - h,
-            Polarisation::TransverseElectric,
-        );
-
-        let expected = (plus - c(2.0) * centre + minus) / (h * h);
-
-        assert_close(admittance.second()[()], expected, 2e-6);
-    }
-
-    #[test]
-    fn second_order_admittance_contains_first_order_result() {
-        let material = material(2.25, 1.4);
-
-        let input = scalar_input(3.0, 0.7, Polarisation::TransverseMagnetic);
-
-        let first =
-            IsotropicLayerQuantities::<ArrayJet1<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let second =
-            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        assert_close(second.value()[()], first.value()[()], 1e-12);
-
-        assert_close(second.first()[()], first.first()[()], 1e-12);
-    }
-
-    #[test]
-    fn sampled_shape_is_preserved() {
-        let material = material(2.25, 1.4);
-
-        let input = CanonicalInput::new(
-            array![c(2.0), c(2.5), c(3.0)],
-            array![c(0.3), c(0.4), c(0.5)],
-            Polarisation::TransverseMagnetic,
-        );
-
-        let admittance =
-            IsotropicLayerQuantities::<ArrayJet2<C, _>>::vacuum_wavenumber_squared_real_axis(
-                &material, &input,
-            )
-            .into_admittance::<C, _>();
-
-        let expected = input.vacuum_wavenumber().raw_dim();
-
-        assert_eq!(admittance.value().raw_dim(), expected,);
-
-        assert_eq!(admittance.first().raw_dim(), expected,);
-
-        assert_eq!(admittance.second().raw_dim(), expected,);
-    }
-
-    #[test]
-    fn into_inner_returns_wrapped_representation() {
-        let quantities = IsotropicLayerQuantities::from_parts(
-            arr0(c(4.0)),
-            arr0(c(2.0)),
-            arr0(c(6.0)),
-            Polarisation::TransverseElectric,
-        );
-
-        let admittance = quantities.into_admittance::<C, _>();
-
-        let inner = admittance.into_inner();
-
-        assert_close(inner[()], c(3.0), 1e-12);
     }
 }

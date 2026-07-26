@@ -1,5 +1,8 @@
 use crate::{
-    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, Jet0, Jet1, Jet2, JetBivariate},
+    algebra::{
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet0, Jet1, Jet2,
+        JetBivariate1, JetBivariate2,
+    },
     differential::{
         DifferentialResponse, DirectionalCoordinate, DirectionalFirst, DirectionalSecond,
         NoDerivatives, SpectralGradient, SpectralHessian, SpectralSecond,
@@ -95,19 +98,39 @@ impl<I, P> CrystallisePolicy<Jet2<I, P>> for SecondDirectional {
     }
 }
 
-impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for ValueOnly {
+impl<I, P> CrystallisePolicy<JetBivariate1<I, P>> for ValueOnly {
     type Output = DifferentialResponse<I, NoDerivatives>;
 
-    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+    fn crystallise(self, jet: JetBivariate1<I, P>) -> Self::Output {
         let (values, ..) = jet.into_parts();
         DifferentialResponse::new(values, NoDerivatives)
     }
 }
 
-impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for FirstSpectral {
+impl<I, P> CrystallisePolicy<JetBivariate1<I, P>> for FirstSpectral {
     type Output = DifferentialResponse<I, SpectralGradient<I>>;
 
-    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+    fn crystallise(self, jet: JetBivariate1<I, P>) -> Self::Output {
+        let (values, gradient) = jet.into_parts();
+        let (dx, dy) = gradient.into_parts();
+
+        DifferentialResponse::new(values, SpectralGradient::new(dx, dy))
+    }
+}
+
+impl<I, P> CrystallisePolicy<JetBivariate2<I, P>> for ValueOnly {
+    type Output = DifferentialResponse<I, NoDerivatives>;
+
+    fn crystallise(self, jet: JetBivariate2<I, P>) -> Self::Output {
+        let (values, ..) = jet.into_parts();
+        DifferentialResponse::new(values, NoDerivatives)
+    }
+}
+
+impl<I, P> CrystallisePolicy<JetBivariate2<I, P>> for FirstSpectral {
+    type Output = DifferentialResponse<I, SpectralGradient<I>>;
+
+    fn crystallise(self, jet: JetBivariate2<I, P>) -> Self::Output {
         let (values, gradient, ..) = jet.into_parts();
         let (dx, dy) = gradient.into_parts();
 
@@ -115,10 +138,10 @@ impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for FirstSpectral {
     }
 }
 
-impl<I, P> CrystallisePolicy<JetBivariate<I, P>> for SecondSpectral {
+impl<I, P> CrystallisePolicy<JetBivariate2<I, P>> for SecondSpectral {
     type Output = DifferentialResponse<I, SpectralSecond<I>>;
 
-    fn crystallise(self, jet: JetBivariate<I, P>) -> Self::Output {
+    fn crystallise(self, jet: JetBivariate2<I, P>) -> Self::Output {
         let (values, gradient, hessian) = jet.into_parts();
         let (dx, dy) = gradient.into_parts();
         let (dxdx, dxdy, dydy) = hessian.into_parts();

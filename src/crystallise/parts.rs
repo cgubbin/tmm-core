@@ -1,4 +1,4 @@
-use crate::algebra::{Jet1, Jet2, JetBivariate};
+use crate::algebra::{Jet1, Jet2, JetBivariate1, JetBivariate2};
 
 /// Value and one first directional derivative.
 #[derive(Clone, Debug)]
@@ -80,8 +80,16 @@ impl<T> SpectralFirstParts<T> {
     }
 }
 
-impl<I, P> From<JetBivariate<I, P>> for SpectralFirstParts<I> {
-    fn from(jet: JetBivariate<I, P>) -> Self {
+impl<I, P> From<JetBivariate1<I, P>> for SpectralFirstParts<I> {
+    fn from(jet: JetBivariate1<I, P>) -> Self {
+        let (value, gradient) = jet.into_parts();
+        let (vacuum_wavenumber, parallel_wavenumber) = gradient.into_parts();
+        SpectralFirstParts::new(value, vacuum_wavenumber, parallel_wavenumber)
+    }
+}
+
+impl<I, P> From<JetBivariate2<I, P>> for SpectralFirstParts<I> {
+    fn from(jet: JetBivariate2<I, P>) -> Self {
         let (value, gradient, ..) = jet.into_parts();
         let (vacuum_wavenumber, parallel_wavenumber) = gradient.into_parts();
         SpectralFirstParts::new(value, vacuum_wavenumber, parallel_wavenumber)
@@ -122,8 +130,8 @@ impl<T> SpectralSecondParts<T> {
     }
 }
 
-impl<I, P> From<JetBivariate<I, P>> for SpectralSecondParts<I> {
-    fn from(jet: JetBivariate<I, P>) -> Self {
+impl<I, P> From<JetBivariate2<I, P>> for SpectralSecondParts<I> {
+    fn from(jet: JetBivariate2<I, P>) -> Self {
         let (value, gradient, hessian) = jet.into_parts();
         let (vacuum_wavenumber, parallel_wavenumber) = gradient.into_parts();
         let (

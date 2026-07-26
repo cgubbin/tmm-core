@@ -17,22 +17,25 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
 use crate::{
     ComplexScalar,
-    backend::{
-        IncidentSide,
-        algebra::ScalarAlgebra,
-        jet::{ArrayJet, ArrayJetFirst},
-        mode::OutgoingModeAmplitudes,
-    },
+    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, ScalarAlgebra},
+    backend::mode::OutgoingModeAmplitudes,
+    input::IncidentSide,
 };
 
 /// Owned sampled scalar array used by the scattering backend.
 pub(crate) type SampleArray<C, D> = ArrayBase<OwnedRepr<C>, D>;
 
+/// Zero-order entry-wise scattering representation.
+pub(crate) type Scatter2Jet0<C, D, P> = ScatterEntries<ArrayJet0<C, D, P>>;
+
 /// First-order entry-wise scattering representation.
-pub(crate) type Scatter2JetFirst<C, D> = ScatterEntries<ArrayJetFirst<C, D>>;
+pub(crate) type Scatter2Jet1<C, D, P> = ScatterEntries<ArrayJet1<C, D, P>>;
 
 /// Second-order entry-wise scattering representation.
-pub(crate) type Scatter2Jet<C, D> = ScatterEntries<ArrayJet<C, D>>;
+pub(crate) type Scatter2Jet2<C, D, P> = ScatterEntries<ArrayJet2<C, D, P>>;
+
+/// Bivariate entry-wise scattering representation.
+pub(crate) type Scatter2JetBivariate<C, D, P> = ScatterEntries<ArrayJetBivariate<C, D, P>>;
 
 /// Four scalar entries of a 2×2 scattering matrix.
 ///

@@ -17,54 +17,48 @@
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-use crate::{
-    ComplexScalar,
-    backend::{
-        algebra::ScalarAlgebra,
-        jet::{ArrayJet, ArrayJetFirst},
-    },
-};
+use crate::{ComplexScalar, algebra::ScalarAlgebra};
 
 use super::super::entries::ScatterEntries;
 
-/// Scalar-like value supporting an elementwise complex exponential.
-///
-/// This trait is private to homogeneous propagation. It allows the propagation
-/// constructor to operate uniformly on sampled values and derivative jets.
-pub(crate) trait Exponential: Sized {
-    /// Apply the elementwise complex exponential.
-    fn exponential(self) -> Self;
-}
+// /// Scalar-like value supporting an elementwise complex exponential.
+// ///
+// /// This trait is private to homogeneous propagation. It allows the propagation
+// /// constructor to operate uniformly on sampled values and derivative jets.
+// pub(crate) trait Exponential: Sized {
+//     /// Apply the elementwise complex exponential.
+//     fn exponential(self) -> Self;
+// }
 
-impl<C, D> Exponential for ArrayBase<OwnedRepr<C>, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn exponential(self) -> Self {
-        self.mapv(|value| value.exp())
-    }
-}
+// impl<C, D> Exponential for ArrayBase<OwnedRepr<C>, D>
+// where
+//     C: ComplexScalar,
+//     D: Dimension,
+// {
+//     fn exponential(self) -> Self {
+//         self.mapv(|value| value.exp())
+//     }
+// }
 
-impl<C, D> Exponential for ArrayJetFirst<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn exponential(self) -> Self {
-        self.exp()
-    }
-}
+// impl<C, D> Exponential for ArrayJetFirst<C, D>
+// where
+//     C: ComplexScalar,
+//     D: Dimension,
+// {
+//     fn exponential(self) -> Self {
+//         self.exp()
+//     }
+// }
 
-impl<C, D> Exponential for ArrayJet<C, D>
-where
-    C: ComplexScalar,
-    D: Dimension,
-{
-    fn exponential(self) -> Self {
-        self.exp()
-    }
-}
+// impl<C, D> Exponential for ArrayJet<C, D>
+// where
+//     C: ComplexScalar,
+//     D: Dimension,
+// {
+//     fn exponential(self) -> Self {
+//         self.exp()
+//     }
+// }
 
 /// Construct homogeneous propagation entries from an exponent.
 ///

@@ -1,4 +1,4 @@
-use num_traits::Float;
+use num_traits::{Float, FromPrimitive};
 use thiserror::Error;
 
 use super::thickness::Thickness;
@@ -81,43 +81,19 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StackValidator<F> {
-    config: ValidationConfig<F>,
-}
-
-impl<F> StackValidator<F> {
-    pub fn new(config: ValidationConfig<F>) -> Self {
-        Self { config }
-    }
-
-    pub fn config(&self) -> &ValidationConfig<F> {
-        &self.config
-    }
-}
-
-impl<F> Default for StackValidator<F>
+impl<F> ValidationConfig<F>
 where
-    F: Float,
-{
-    fn default() -> Self {
-        Self::new(ValidationConfig::default())
-    }
-}
-
-impl<F> StackValidator<F>
-where
-    F: Float + Copy + std::fmt::Debug,
+    F: Float + FromPrimitive + Copy + std::fmt::Debug,
 {
     pub fn validate_thicknesses(
         &self,
         thicknesses: &[Thickness<F>],
     ) -> Result<(), ValidationError<F>> {
-        if !self.config.allow_empty && thicknesses.is_empty() {
+        if !self.allow_empty && thicknesses.is_empty() {
             return Err(ValidationError::NoLayers);
         }
 
-        if let Some(max) = self.config.max_layer_count {
+        if let Some(max) = self.max_layer_count {
             if thicknesses.len() > max {
                 return Err(ValidationError::TooManyLayers {
                     count: thicknesses.len(),
@@ -126,15 +102,20 @@ where
             }
         }
 
-        let mut total = Thickness::zero();
+        let mut total_cm = F::zero();
 
         for (index, thickness) in thicknesses.iter().copied().enumerate() {
-            if !self.config.allow_zero_thickness && thickness.is_zero() {
+            if !self.allow_zero_thickness && thickness.is_zero() {
                 return Err(ValidationError::ZeroThickness { index });
             }
 
-            if let Some(min) = self.config.min_thickness {
-                if thickness < min {
+            let (value, unit) = thickness.into_parts();
+            let thickness_cm = value * unit.to_centimetres_factor();
+
+            if let Some(min) = self.min_thickness {
+                let (value, unit) = min.into_parts();
+                let min_thickness_cm = value * unit.to_centimetres_factor();
+                if thickness_cm < min_thickness_cm {
                     return Err(ValidationError::ThicknessTooSmall {
                         index,
                         actual: thickness,
@@ -143,8 +124,10 @@ where
                 }
             }
 
-            if let Some(max) = self.config.max_thickness {
-                if thickness > max {
+            if let Some(max) = self.max_thickness {
+                let (value, unit) = max.into_parts();
+                let max_thickness_cm = value * unit.to_centimetres_factor();
+                if thickness_cm > max_thickness_cm {
                     return Err(ValidationError::ThicknessTooLarge {
                         index,
                         actual: thickness,
@@ -153,12 +136,17 @@ where
                 }
             }
 
-            total = total + thickness;
+            total_cm = total_cm + thickness_cm;
         }
 
-        if let Some(max) = self.config.max_total_thickness {
-            if total > max {
-                return Err(ValidationError::TotalThicknessTooLarge { actual: total, max });
+        if let Some(max) = self.max_total_thickness {
+            let (value, unit) = max.into_parts();
+            let max_thickness_cm = value * unit.to_centimetres_factor();
+            if total_cm > max_thickness_cm {
+                return Err(ValidationError::TotalThicknessTooLarge {
+                    actual: Thickness::centimetres(total_cm),
+                    max,
+                });
             }
         }
 

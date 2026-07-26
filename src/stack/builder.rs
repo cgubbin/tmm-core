@@ -7,10 +7,7 @@ use crate::{
     stack::ValidationConfig,
 };
 
-use super::{
-    Layer, Stack, Thickness,
-    validation::{StackValidator, ValidationError},
-};
+use super::{Layer, Stack, Thickness};
 
 use num_traits::Float;
 
@@ -52,33 +49,24 @@ impl<M, F> StackBuilder<M, F>
 where
     F: Float + std::fmt::Debug + std::fmt::Display,
 {
-    pub fn build(self) -> Result<Stack<M, F>, ValidationError<F>> {
-        let thicknesses: Vec<_> = self
-            .layers_left_to_right
-            .iter()
-            .map(|l| l.thickness())
-            .collect();
-        let validator = StackValidator::new(self.validation);
-        validator.validate_thicknesses(&thicknesses)?;
-
-        Ok(Stack {
+    pub fn finalise(self) -> Stack<M, F> {
+        Stack {
             left_exterior: self.left_exterior,
             right_exterior: self.right_exterior,
             layers_left_to_right: self.layers_left_to_right,
-        })
+        }
     }
 }
 
-impl<R, C, F> StackBuilder<MaterialHandle<R, C>, F>
+impl<C> StackBuilder<MaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
-    F: Float,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static + Float,
 {
     pub fn from_materials<L, U>(left_exterior: L, right_exterior: U) -> Self
     where
-        L: Material<Real = R> + Send + Sync + 'static,
-        U: Material<Real = R> + Send + Sync + 'static,
+        L: Material<Real = C::RealField> + Send + Sync + 'static,
+        U: Material<Real = C::RealField> + Send + Sync + 'static,
     {
         Self::new(
             MaterialHandle::new(left_exterior),
@@ -86,31 +74,30 @@ where
         )
     }
 
-    pub fn material_layer<M>(self, material: M, thickness: Thickness<F>) -> Self
+    pub fn material_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
     where
-        M: Material<Real = R> + Send + Sync + 'static,
+        M: Material<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(MaterialHandle::new(material), thickness)
     }
 
-    pub fn push_material_layer<M>(&mut self, material: M, thickness: Thickness<F>)
+    pub fn push_material_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
     where
-        M: Material<Real = R> + Send + Sync + 'static,
+        M: Material<Real = C::RealField> + Send + Sync + 'static,
     {
         self.push_layer(MaterialHandle::new(material), thickness)
     }
 }
 
-impl<R, C, F> StackBuilder<AnalyticalMaterialHandle<R, C>, F>
+impl<C> StackBuilder<AnalyticalMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
-    F: Float,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static + Float,
 {
     pub fn from_analytical_materials<L, U>(left_exterior: L, right_exterior: U) -> Self
     where
-        L: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        U: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        L: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         Self::new(
             AnalyticalMaterialHandle::new(left_exterior),
@@ -118,32 +105,31 @@ where
         )
     }
 
-    pub fn analytical_layer<M>(self, material: M, thickness: Thickness<F>) -> Self
+    pub fn analytical_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
     where
-        M: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(AnalyticalMaterialHandle::new(material), thickness)
     }
 
-    pub fn push_analytical_layer<M>(&mut self, material: M, thickness: Thickness<F>)
+    pub fn push_analytical_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
     where
-        M: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        M: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.push_layer(AnalyticalMaterialHandle::new(material), thickness)
     }
 }
 
-impl<R, C, F> StackBuilder<DifferentiableMaterialHandle<R, C>, F>
+impl<C> StackBuilder<DifferentiableMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
-    F: Float,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static + Float,
 {
     /// Create a builder whose materials support real-axis derivatives.
     pub fn from_differentiable_materials<L, U>(left_exterior: L, right_exterior: U) -> Self
     where
-        L: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
-        U: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
+        L: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         Self::new(
             DifferentiableMaterialHandle::new(left_exterior),
@@ -152,34 +138,33 @@ where
     }
 
     /// Add a finite layer whose material supports real-axis derivatives.
-    pub fn differentiable_layer<M>(self, material: M, thickness: Thickness<F>) -> Self
+    pub fn differentiable_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
     where
-        M: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
+        M: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(DifferentiableMaterialHandle::new(material), thickness)
     }
 
     /// Add a finite differentiable layer in place.
-    pub fn push_differentiable_layer<M>(&mut self, material: M, thickness: Thickness<F>)
+    pub fn push_differentiable_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
     where
-        M: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
+        M: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.push_layer(DifferentiableMaterialHandle::new(material), thickness)
     }
 }
 
-impl<R, C, F> StackBuilder<MeromorphicMaterialHandle<R, C>, F>
+impl<C> StackBuilder<MeromorphicMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
-    F: Float,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static + Float,
 {
     /// Create a builder whose materials support complex-frequency
     /// continuation.
     pub fn from_meromorphic_materials<L, U>(left_exterior: L, right_exterior: U) -> Self
     where
-        L: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        U: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        L: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         Self::new(
             MeromorphicMaterialHandle::new(left_exterior),
@@ -189,17 +174,17 @@ where
 
     /// Add a finite layer whose constitutive response supports
     /// complex-frequency continuation.
-    pub fn meromorphic_layer<M>(self, material: M, thickness: Thickness<F>) -> Self
+    pub fn meromorphic_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
     where
-        M: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        M: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(MeromorphicMaterialHandle::new(material), thickness)
     }
 
     /// Add a finite meromorphic layer in place.
-    pub fn push_meromorphic_layer<M>(&mut self, material: M, thickness: Thickness<F>)
+    pub fn push_meromorphic_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
     where
-        M: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
+        M: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.push_layer(MeromorphicMaterialHandle::new(material), thickness)
     }

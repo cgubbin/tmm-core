@@ -1,16 +1,16 @@
 mod builder;
 mod layer;
 mod thickness;
-mod units;
 mod validation;
 
 pub use builder::StackBuilder;
 pub use layer::Layer;
 pub use thickness::Thickness;
-pub use validation::ValidationConfig;
+pub use validation::{ValidationConfig, ValidationError};
 
 use either::Either;
-use num_traits::Float;
+use nalgebra::ComplexField;
+use num_traits::{Float, FromPrimitive};
 
 use crate::{
     ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, EvaluateMaterial,
@@ -22,16 +22,19 @@ use crate::{
 };
 
 /// Heterogeneous stack supporting real-axis constitutive evaluation.
-pub type MaterialStack<R, C, F = R> = Stack<MaterialHandle<R, C>, F>;
+pub type MaterialStack<C> = Stack<MaterialHandle<C>, <C as ComplexField>::RealField>;
 
 /// Heterogeneous stack supporting real-axis derivatives.
-pub type DifferentiableMaterialStack<R, C, F = R> = Stack<DifferentiableMaterialHandle<R, C>, F>;
+pub type DifferentiableMaterialStack<C> =
+    Stack<DifferentiableMaterialHandle<C>, <C as ComplexField>::RealField>;
 
 /// Heterogeneous stack supporting complex continuation.
-pub type MeromorphicMaterialStack<R, C, F = R> = Stack<MeromorphicMaterialHandle<R, C>, F>;
+pub type MeromorphicMaterialStack<C> =
+    Stack<MeromorphicMaterialHandle<C>, <C as ComplexField>::RealField>;
 
 /// Heterogeneous stack supporting complex continuation and derivatives.
-pub type AnalyticalMaterialStack<R, C, F = R> = Stack<AnalyticalMaterialHandle<R, C>, F>;
+pub type AnalyticalMaterialStack<C> =
+    Stack<AnalyticalMaterialHandle<C>, <C as ComplexField>::RealField>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stack<M, F> {
@@ -76,73 +79,73 @@ impl<M, F> Stack<M, F> {
     }
 }
 
-impl<R, C, F> Stack<MaterialHandle<R, C>, F>
+impl<C> Stack<MaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static,
 {
     pub fn from_materials<L, U>(
         left_exterior: L,
         right_exterior: U,
-    ) -> StackBuilder<MaterialHandle<R, C>, F>
+    ) -> StackBuilder<MaterialHandle<C>, C::RealField>
     where
-        L: Material<Real = R> + Send + Sync + 'static,
-        U: Material<Real = R> + Send + Sync + 'static,
-        F: Float,
+        L: Material<Real = C::RealField> + Send + Sync + 'static,
+        U: Material<Real = C::RealField> + Send + Sync + 'static,
+        C::RealField: Float,
     {
         StackBuilder::from_materials(left_exterior, right_exterior)
     }
 }
 
-impl<R, C, F> Stack<AnalyticalMaterialHandle<R, C>, F>
+impl<C> Stack<AnalyticalMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static,
 {
     pub fn from_analytical_materials<L, U>(
         left_exterior: L,
         right_exterior: U,
-    ) -> StackBuilder<AnalyticalMaterialHandle<R, C>, F>
+    ) -> StackBuilder<AnalyticalMaterialHandle<C>, C::RealField>
     where
-        L: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        U: DifferentiableMeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        F: Float,
+        L: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        C::RealField: Float,
     {
         StackBuilder::from_analytical_materials(left_exterior, right_exterior)
     }
 }
 
-impl<R, C, F> Stack<DifferentiableMaterialHandle<R, C>, F>
+impl<C> Stack<DifferentiableMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static,
 {
     pub fn from_differentiable_materials<L, U>(
         left_exterior: L,
         right_exterior: U,
-    ) -> StackBuilder<DifferentiableMaterialHandle<R, C>, F>
+    ) -> StackBuilder<DifferentiableMaterialHandle<C>, C::RealField>
     where
-        L: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
-        U: DifferentiableMaterial<Real = R> + Send + Sync + 'static,
-        F: Float,
+        L: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
+        C::RealField: Float,
     {
         StackBuilder::from_differentiable_materials(left_exterior, right_exterior)
     }
 }
 
-impl<R, C, F> Stack<MeromorphicMaterialHandle<R, C>, F>
+impl<C> Stack<MeromorphicMaterialHandle<C>, C::RealField>
 where
-    R: Copy + 'static,
-    C: ComplexScalar<RealField = R> + Copy + 'static,
+    C: ComplexScalar + Copy + 'static,
+    C::RealField: Copy + 'static,
 {
     pub fn from_meromorphic_materials<L, U>(
         left_exterior: L,
         right_exterior: U,
-    ) -> StackBuilder<MeromorphicMaterialHandle<R, C>, F>
+    ) -> StackBuilder<MeromorphicMaterialHandle<C>, C::RealField>
     where
-        L: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        U: MeromorphicMaterial<Real = R> + Send + Sync + 'static,
-        F: Float,
+        L: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        U: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
+        C::RealField: Float,
     {
         StackBuilder::from_meromorphic_materials(left_exterior, right_exterior)
     }
@@ -196,6 +199,14 @@ impl<M, F> Stack<M, F> {
         }
     }
 
+    pub(crate) fn incident_exterior(&self, incident_side: IncidentSide) -> &M {
+        match incident_side {
+            IncidentSide::Left => self.left_exterior(),
+
+            IncidentSide::Right => self.right_exterior(),
+        }
+    }
+
     /// Exterior encountered last in the requested direction.
     pub(crate) fn exit_exterior(&self, direction: PropagationDirection) -> &M {
         match direction {
@@ -219,6 +230,19 @@ impl<M, F> Stack<M, F> {
         let material = self.entrance_exterior(direction);
 
         material.evaluate_relative_permittivity(vacuum_wavenumber)
+    }
+
+    pub fn validate(&self, config: &ValidationConfig<F>) -> Result<(), ValidationError<F>>
+    where
+        F: Copy + Float + FromPrimitive + std::fmt::Debug,
+    {
+        let thicknesses = self
+            .layers_left_to_right()
+            .iter()
+            .map(|each| each.thickness())
+            .collect::<Vec<_>>();
+
+        config.validate_thicknesses(&thicknesses[..])
     }
 }
 
@@ -259,7 +283,7 @@ mod test {
     #[test]
     fn material_handle_supports_heterogeneous_core_materials() {
         type C = num_complex::Complex64;
-        type Handle = MaterialHandle<f64, C>;
+        type Handle = MaterialHandle<C>;
 
         let stack = StackBuilder::<Handle, f64>::from_materials(
             Constant::dielectric(1.0),
@@ -267,18 +291,14 @@ mod test {
                 relative_permittivity: 2.25,
             },
         )
-        .material_layer(
-            Constant::dielectric(4.0),
-            Thickness::from_cm(100.0).unwrap(),
-        )
+        .material_layer(Constant::dielectric(4.0), Thickness::centimetres(100.0))
         .material_layer(
             TestMaterial {
                 relative_permittivity: 6.25,
             },
-            Thickness::from_cm(200.0).unwrap(),
+            Thickness::centimetres(200.0),
         )
-        .build()
-        .unwrap();
+        .finalise();
 
         assert_eq!(stack.layers_left_to_right().len(), 2);
     }

@@ -1,19 +1,24 @@
 mod cartesian;
-mod jet_bivariate;
+mod jet_bivariate_one;
+mod jet_bivariate_two;
 mod jet_one;
 mod jet_two;
 mod jet_zero;
 mod scalar;
 
-pub(crate) use jet_bivariate::{
-    ArrayJetBivariate, JetBivariate, ModeJetBivariate, PhysicalJetBivariate,
+use jet_bivariate_one::BivariateGradient;
+pub(crate) use jet_bivariate_one::{
+    ArrayJetBivariate1, JetBivariate1, ModeJetBivariate1, PhysicalJetBivariate1,
+};
+pub(crate) use jet_bivariate_two::{
+    ArrayJetBivariate2, JetBivariate2, ModeJetBivariate2, PhysicalJetBivariate2,
 };
 pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1, ModeJet1, PhysicalJet1};
 pub(crate) use jet_two::{ArrayJet2, Jet2, ModeJet2, PhysicalJet2, SecondOrderExpansion};
 pub(crate) use jet_zero::{ArrayJet0, Jet0, ModeJet0, PhysicalJet0};
 pub(crate) use scalar::{
-    BivariateVariableAlgebra, FirstOrderFunctionAlgebra, RealScalarAlgebra, ScalarAlgebra,
-    SecondOrderFunctionAlgebra, UnivariateVariableAlgebra,
+    BivariateVariableAlgebra, ComplexJet, FirstOrderFunctionAlgebra, RealScalarAlgebra,
+    ScalarAlgebra, SecondOrderFunctionAlgebra, UnivariateVariableAlgebra,
 };
 
 pub(crate) use cartesian::{
@@ -230,7 +235,7 @@ where
 mod noncommutative_tests {
     use super::*;
 
-    use crate::algebra::jet_bivariate::JetBivariate;
+    use crate::algebra::jet_bivariate_two::JetBivariate2;
     use crate::algebra::jet_one::Jet1;
     use crate::algebra::jet_two::Jet2;
 
@@ -455,11 +460,11 @@ mod noncommutative_tests {
 
     #[test]
     fn bivariate_jet_multiplication_preserves_operand_order() {
-        let left: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(F, FX, FY, FXX, FXY, FYY);
+        let left: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(F, FX, FY, FXX, FXY, FYY);
 
-        let right: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(G, GX, GY, GXX, GXY, GYY);
+        let right: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(G, GX, GY, GXX, GXY, GYY);
 
         let result = left.multiply(&right);
 
@@ -497,11 +502,11 @@ mod noncommutative_tests {
 
     #[test]
     fn bivariate_jet_pure_second_derivatives_repeat_ordered_mixed_terms() {
-        let left: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(F, FX, FY, FXX, FXY, FYY);
+        let left: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(F, FX, FY, FXX, FXY, FYY);
 
-        let right: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(G, GX, GY, GXX, GXY, GYY);
+        let right: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(G, GX, GY, GXX, GXY, GYY);
 
         let result = left.multiply(&right);
 
@@ -538,11 +543,11 @@ mod noncommutative_tests {
 
     #[test]
     fn bivariate_jet_mixed_derivative_preserves_both_cross_orders() {
-        let left: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(F, FX, FY, FXX, FXY, FYY);
+        let left: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(F, FX, FY, FXX, FXY, FYY);
 
-        let right: JetBivariate<Matrix2, RealParameter> =
-            JetBivariate::from_components(G, GX, GY, GXX, GXY, GYY);
+        let right: JetBivariate2<Matrix2, RealParameter> =
+            JetBivariate2::from_components(G, GX, GY, GXX, GXY, GYY);
 
         let result = left.multiply(&right);
 
@@ -622,11 +627,11 @@ mod noncommutative_tests {
 
     #[test]
     fn holomorphic_bivariate_jet_uses_the_same_ordered_product_rule() {
-        let left: JetBivariate<Matrix2, HolomorphicParameter> =
-            JetBivariate::from_components(F, FX, FY, FXX, FXY, FYY);
+        let left: JetBivariate2<Matrix2, HolomorphicParameter> =
+            JetBivariate2::from_components(F, FX, FY, FXX, FXY, FYY);
 
-        let right: JetBivariate<Matrix2, HolomorphicParameter> =
-            JetBivariate::from_components(G, GX, GY, GXX, GXY, GYY);
+        let right: JetBivariate2<Matrix2, HolomorphicParameter> =
+            JetBivariate2::from_components(G, GX, GY, GXX, GXY, GYY);
 
         let result = left.multiply(&right);
 

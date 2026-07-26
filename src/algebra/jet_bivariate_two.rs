@@ -32,22 +32,22 @@
 use crate::algebra::JetMultiplyByScalar;
 
 use super::{
-    HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
-    SecondOrderExpansion,
+    BivariateGradient, HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant,
+    JetCrossProduct, JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike,
+    RealParameter, SecondOrderExpansion,
 };
 
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use std::marker::PhantomData;
 
-pub(crate) type ArrayJetBivariate<C, D, P> = JetBivariate<ArrayBase<OwnedRepr<C>, D>, P>;
+pub(crate) type ArrayJetBivariate2<C, D, P> = JetBivariate2<ArrayBase<OwnedRepr<C>, D>, P>;
 
-pub(crate) type PhysicalJetBivariate<C, D> = ArrayJetBivariate<C, D, RealParameter>;
-pub(crate) type ModeJetBivariate<C, D> = ArrayJetBivariate<C, D, HolomorphicParameter>;
+pub(crate) type PhysicalJetBivariate2<C, D> = ArrayJetBivariate2<C, D, RealParameter>;
+pub(crate) type ModeJetBivariate2<C, D> = ArrayJetBivariate2<C, D, HolomorphicParameter>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct JetBivariate<A, P> {
+pub(crate) struct JetBivariate2<A, P> {
     value: A,
 
     gradient: BivariateGradient<A>,
@@ -55,30 +55,6 @@ pub(crate) struct JetBivariate<A, P> {
     hessian: BivariateHessian<A>,
 
     parameter: PhantomData<P>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct BivariateGradient<I> {
-    x: I,
-    y: I,
-}
-
-impl<I> BivariateGradient<I> {
-    pub(crate) fn new(x: I, y: I) -> Self {
-        Self { x, y }
-    }
-
-    pub(crate) fn x(&self) -> &I {
-        &self.x
-    }
-
-    pub(crate) fn y(&self) -> &I {
-        &self.y
-    }
-
-    pub(crate) fn into_parts(self) -> (I, I) {
-        (self.x, self.y)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,7 +86,7 @@ impl<I> BivariateHessian<I> {
     }
 }
 
-impl<I, P> JetBivariate<I, P> {
+impl<I, P> JetBivariate2<I, P> {
     pub(crate) fn from_parts(
         value: I,
         gradient: BivariateGradient<I>,
@@ -169,7 +145,7 @@ impl<I, P> JetBivariate<I, P> {
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetOneLike + JetZeroLike,
 {
@@ -190,7 +166,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetZeroLike,
 {
@@ -207,7 +183,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetAdditive,
 {
@@ -245,7 +221,7 @@ where
     }
 }
 
-impl<V, P> JetBivariate<V, P> {
+impl<V, P> JetBivariate2<V, P> {
     /// Multiply this bivariate vector-valued jet by a scalar-valued jet.
     ///
     /// For `w = v s`, the derivatives are
@@ -258,7 +234,7 @@ impl<V, P> JetBivariate<V, P> {
     /// w_xy = v_xy s + v_x s_y + v_y s_x + v s_xy
     /// w_yy = v_yy s + 2 v_y s_y + v s_yy
     /// ```
-    pub(crate) fn multiply_by_scalar<S>(&self, scalar: &JetBivariate<S, P>) -> Self
+    pub(crate) fn multiply_by_scalar<S>(&self, scalar: &JetBivariate2<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
         P: Clone,
@@ -298,7 +274,7 @@ impl<V, P> JetBivariate<V, P> {
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetBilinear,
 {
@@ -338,7 +314,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetZeroLike,
 {
@@ -356,7 +332,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetConstant + JetZeroLike,
 {
@@ -365,7 +341,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetScaleBy,
 {
@@ -382,7 +358,7 @@ where
     }
 }
 
-impl<I> JetBivariate<I, RealParameter>
+impl<I> JetBivariate2<I, RealParameter>
 where
     I: JetConjugate,
 {
@@ -398,12 +374,12 @@ where
     }
 }
 
-impl<I> JetBivariate<I, RealParameter>
+impl<I> JetBivariate2<I, RealParameter>
 where
     I: JetRealPart,
 {
-    pub(crate) fn real(&self) -> JetBivariate<I::RealOutput, RealParameter> {
-        JetBivariate::from_components(
+    pub(crate) fn real(&self) -> JetBivariate2<I::RealOutput, RealParameter> {
+        JetBivariate2::from_components(
             self.value.jet_real(),
             self.x().jet_real(),
             self.y().jet_real(),
@@ -414,7 +390,7 @@ where
     }
 }
 
-impl<I, P> JetBivariate<I, P>
+impl<I, P> JetBivariate2<I, P>
 where
     I: JetCrossProduct + JetAdditive,
 {
@@ -461,7 +437,7 @@ where
     }
 }
 
-impl<I> JetBivariate<I, RealParameter>
+impl<I> JetBivariate2<I, RealParameter>
 where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
@@ -470,7 +446,7 @@ where
     pub(crate) fn hermitian_dot_product(
         &self,
         rhs: &Self,
-    ) -> JetBivariate<I::Output, RealParameter> {
+    ) -> JetBivariate2<I::Output, RealParameter> {
         let value = self.value().jet_hermitian_product(rhs.value());
 
         let x = self
@@ -508,11 +484,11 @@ where
             .jet_add(&self.y().jet_hermitian_product(rhs.x()))
             .jet_add(&self.value().jet_hermitian_product(rhs.xy()));
 
-        JetBivariate::from_components(value, x, y, xx, xy, yy)
+        JetBivariate2::from_components(value, x, y, xx, xy, yy)
     }
 }
 
-impl<C, D, P> ArrayJetBivariate<C, D, P>
+impl<C, D, P> ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField,
     D: Dimension,
@@ -600,7 +576,7 @@ where
     }
 }
 
-impl<C, D, P> ArrayJetBivariate<C, D, P>
+impl<C, D, P> ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField,
     D: Dimension,
@@ -642,9 +618,9 @@ mod tests {
     type C = Complex64;
     type A0 = Array0<C>;
 
-    type RealJet = JetBivariate<A0, RealParameter>;
+    type RealJet = JetBivariate2<A0, RealParameter>;
 
-    type HolomorphicJet = JetBivariate<A0, HolomorphicParameter>;
+    type HolomorphicJet = JetBivariate2<A0, HolomorphicParameter>;
 
     const EPSILON: f64 = 1.0e-11;
     const FD_EPSILON: f64 = 1.0e-5;
@@ -746,7 +722,7 @@ mod tests {
         let gxy = c(0.3, 0.8);
         let gyy = c(0.6, -0.9);
 
-        let f: RealJet = JetBivariate::from_components(
+        let f: RealJet = JetBivariate2::from_components(
             arr0(f_value),
             arr0(fx),
             arr0(fy),
@@ -755,7 +731,7 @@ mod tests {
             arr0(fyy),
         );
 
-        let g = JetBivariate::from_components(
+        let g = JetBivariate2::from_components(
             arr0(g_value),
             arr0(gx),
             arr0(gy),
@@ -797,7 +773,7 @@ mod tests {
         let xy = c(0.3, 0.7);
         let yy = c(-0.2, 0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -833,9 +809,9 @@ mod tests {
         let x0 = 0.7;
         let y0 = -0.4;
 
-        let x: RealJet = JetBivariate::variable_x(arr0(r(x0)));
+        let x: RealJet = JetBivariate2::variable_x(arr0(r(x0)));
 
-        let y: RealJet = JetBivariate::variable_y(arr0(r(y0)));
+        let y: RealJet = JetBivariate2::variable_y(arr0(r(y0)));
 
         let imaginary_scale = c(0.0, 0.2);
 
@@ -871,7 +847,7 @@ mod tests {
 
     #[test]
     fn conjugation_propagates_real_coordinate_derivatives() {
-        let jet: RealJet = JetBivariate::from_components(
+        let jet: RealJet = JetBivariate2::from_components(
             a(1.0, 2.0),
             a(3.0, -4.0),
             a(-5.0, 6.0),
@@ -896,7 +872,7 @@ mod tests {
 
     #[test]
     fn variable_x_has_expected_seed() {
-        let jet: HolomorphicJet = JetBivariate::variable_x(a(2.0, 3.0));
+        let jet: HolomorphicJet = JetBivariate2::variable_x(a(2.0, 3.0));
 
         assert_close(jet.value()[()], c(2.0, 3.0));
         assert_close(jet.x()[()], r(1.0));
@@ -908,7 +884,7 @@ mod tests {
 
     #[test]
     fn variable_y_has_expected_seed() {
-        let jet: HolomorphicJet = JetBivariate::variable_y(a(2.0, 3.0));
+        let jet: HolomorphicJet = JetBivariate2::variable_y(a(2.0, 3.0));
 
         assert_close(jet.value()[()], c(2.0, 3.0));
         assert_close(jet.x()[()], r(0.0));
@@ -920,7 +896,7 @@ mod tests {
 
     #[test]
     fn constant_has_zero_gradient_and_hessian() {
-        let jet: RealJet = JetBivariate::constant(a(4.0, -2.0));
+        let jet: RealJet = JetBivariate2::constant(a(4.0, -2.0));
 
         assert_close(jet.value()[()], c(4.0, -2.0));
         assert_close(jet.x()[()], r(0.0));
@@ -932,7 +908,8 @@ mod tests {
 
     #[test]
     fn from_x_derivatives_sets_only_x_components() {
-        let jet: RealJet = JetBivariate::from_x_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
+        let jet: RealJet =
+            JetBivariate2::from_x_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.x()[()], c(3.0, -1.0));
@@ -944,7 +921,8 @@ mod tests {
 
     #[test]
     fn from_y_derivatives_sets_only_y_components() {
-        let jet: RealJet = JetBivariate::from_y_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
+        let jet: RealJet =
+            JetBivariate2::from_y_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.x()[()], r(0.0));
@@ -959,7 +937,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     fn sample_jet() -> RealJet {
-        JetBivariate::from_components(
+        JetBivariate2::from_components(
             a(1.0, 2.0),
             a(3.0, 4.0),
             a(5.0, 6.0),
@@ -973,7 +951,7 @@ mod tests {
     fn addition_is_componentwise() {
         let left = sample_jet();
 
-        let right = JetBivariate::from_components(
+        let right = JetBivariate2::from_components(
             a(13.0, 14.0),
             a(15.0, 16.0),
             a(17.0, 18.0),
@@ -1058,7 +1036,7 @@ mod tests {
         let gxy = c(0.3, 0.8);
         let gyy = c(0.6, -0.9);
 
-        let f: RealJet = JetBivariate::from_components(
+        let f: RealJet = JetBivariate2::from_components(
             arr0(f_value),
             arr0(fx),
             arr0(fy),
@@ -1067,7 +1045,7 @@ mod tests {
             arr0(fyy),
         );
 
-        let g = JetBivariate::from_components(
+        let g = JetBivariate2::from_components(
             arr0(g_value),
             arr0(gx),
             arr0(gy),
@@ -1104,7 +1082,7 @@ mod tests {
     fn multiplying_by_constant_preserves_scaled_derivatives() {
         let jet = sample_jet();
 
-        let constant: RealJet = JetBivariate::constant(a(2.0, -1.0));
+        let constant: RealJet = JetBivariate2::constant(a(2.0, -1.0));
 
         let result = jet.multiply(&constant);
         let scale = c(2.0, -1.0);
@@ -1124,9 +1102,9 @@ mod tests {
 
     #[test]
     fn product_of_coordinate_variables_has_unit_mixed_derivative() {
-        let x: RealJet = JetBivariate::variable_x(a(2.0, 0.0));
+        let x: RealJet = JetBivariate2::variable_x(a(2.0, 0.0));
 
-        let y: RealJet = JetBivariate::variable_y(a(3.0, 0.0));
+        let y: RealJet = JetBivariate2::variable_y(a(3.0, 0.0));
 
         let result = x.multiply(&y);
 
@@ -1140,7 +1118,7 @@ mod tests {
 
     #[test]
     fn square_of_x_has_expected_pure_second_derivative() {
-        let x: RealJet = JetBivariate::variable_x(a(3.0, 0.0));
+        let x: RealJet = JetBivariate2::variable_x(a(3.0, 0.0));
 
         let result = x.multiply(&x);
 
@@ -1165,7 +1143,7 @@ mod tests {
         let xy = c(-0.5, 0.3);
         let yy = c(0.6, -0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -1193,7 +1171,7 @@ mod tests {
 
     #[test]
     fn reciprocal_of_reciprocal_recovers_original() {
-        let original: HolomorphicJet = JetBivariate::from_components(
+        let original: HolomorphicJet = JetBivariate2::from_components(
             a(2.0, 0.5),
             a(0.7, -0.2),
             a(-0.3, 0.4),
@@ -1219,7 +1197,7 @@ mod tests {
 
     #[test]
     fn division_agrees_with_multiplication_by_reciprocal() {
-        let numerator: HolomorphicJet = JetBivariate::from_components(
+        let numerator: HolomorphicJet = JetBivariate2::from_components(
             a(2.0, 1.0),
             a(0.5, -0.3),
             a(-0.2, 0.7),
@@ -1228,7 +1206,7 @@ mod tests {
             a(0.8, -0.5),
         );
 
-        let denominator: HolomorphicJet = JetBivariate::from_components(
+        let denominator: HolomorphicJet = JetBivariate2::from_components(
             a(3.0, -0.5),
             a(-0.4, 0.2),
             a(0.6, 0.1),
@@ -1257,7 +1235,7 @@ mod tests {
         let xy = c(0.3, 0.7);
         let yy = c(-0.2, 0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -1289,7 +1267,7 @@ mod tests {
         let xy = c(0.3, 0.7);
         let yy = c(-0.2, 0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -1323,7 +1301,7 @@ mod tests {
         let xy = c(0.3, 0.7);
         let yy = c(-0.2, 0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -1357,7 +1335,7 @@ mod tests {
         let xy = c(-0.5, 0.3);
         let yy = c(0.6, -0.4);
 
-        let jet: HolomorphicJet = JetBivariate::from_components(
+        let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
@@ -1391,7 +1369,7 @@ mod tests {
     fn sampled_function_composition_matches_unary_composition() {
         let value = c(0.7, -0.4);
 
-        let argument: HolomorphicJet = JetBivariate::from_components(
+        let argument: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             a(1.3, 0.2),
             a(-0.6, 0.8),
@@ -1420,7 +1398,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     fn swap_coordinates(jet: &RealJet) -> RealJet {
-        JetBivariate::from_components(
+        JetBivariate2::from_components(
             jet.value().clone(),
             jet.y().clone(),
             jet.x().clone(),
@@ -1434,7 +1412,7 @@ mod tests {
     fn multiplication_is_equivariant_under_coordinate_exchange() {
         let left = sample_jet();
 
-        let right = JetBivariate::from_components(
+        let right = JetBivariate2::from_components(
             a(2.0, -1.0),
             a(0.5, 0.3),
             a(-0.7, 0.1),
@@ -1465,11 +1443,11 @@ mod tests {
 
     #[test]
     fn array_operations_preserve_shape() {
-        type ArrayJet = JetBivariate<Array1<C>, RealParameter>;
+        type ArrayJet = JetBivariate2<Array1<C>, RealParameter>;
 
         let value = array![c(1.0, 0.2), c(2.0, -0.4), c(3.0, 0.6),];
 
-        let jet: ArrayJet = JetBivariate::variable_x(value.clone());
+        let jet: ArrayJet = JetBivariate2::variable_x(value.clone());
 
         let result = jet.exp();
 
@@ -1488,7 +1466,7 @@ mod tests {
 
     #[test]
     fn array_unary_operations_are_elementwise() {
-        type ArrayJet = JetBivariate<Array1<C>, HolomorphicParameter>;
+        type ArrayJet = JetBivariate2<Array1<C>, HolomorphicParameter>;
 
         let values = array![c(1.0, 0.2), c(2.0, -0.4), c(3.0, 0.6),];
 
@@ -1498,7 +1476,7 @@ mod tests {
 
         let zero = Array1::zeros(values.raw_dim());
 
-        let jet: ArrayJet = JetBivariate::from_components(
+        let jet: ArrayJet = JetBivariate2::from_components(
             values.clone(),
             x.clone(),
             y.clone(),
@@ -1564,9 +1542,9 @@ mod tests {
         let x0 = 0.7;
         let y0 = -0.4;
 
-        let x: RealJet = JetBivariate::variable_x(arr0(r(x0)));
+        let x: RealJet = JetBivariate2::variable_x(arr0(r(x0)));
 
-        let y: RealJet = JetBivariate::variable_y(arr0(r(y0)));
+        let y: RealJet = JetBivariate2::variable_y(arr0(r(y0)));
 
         let z = x.add(&y.scale_by(c(0.0, 0.2)));
 
@@ -1577,7 +1555,7 @@ mod tests {
         let denominator = x
             .multiply(&x)
             .add(&y.multiply(&y))
-            .add(&JetBivariate::constant(arr0(r(2.0))))
+            .add(&JetBivariate2::constant(arr0(r(2.0))))
             .sqrt();
 
         let result = numerator.divide(&denominator);

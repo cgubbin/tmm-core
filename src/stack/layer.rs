@@ -24,4 +24,8 @@ impl<M, F> Layer<M, F> {
     {
         self.thickness
     }
+
+    pub fn into_parts(self) -> (M, Thickness<F>) {
+        (self.material, self.thickness)
+    }
 }

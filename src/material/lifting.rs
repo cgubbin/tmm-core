@@ -26,10 +26,10 @@ use std::fmt::Debug;
 
 use crate::{
     algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, FirstOrderExpansion, ScalarAlgebra,
-        SecondOrderExpansion,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
+        FirstOrderExpansion, ScalarAlgebra, SecondOrderExpansion,
     },
-    backend::{ComplexPlane, RealAxis},
+    domain::{ComplexPlane, RealAxis},
     material::{
         DerivativeOrder, EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial,
         EvaluateMaterial, EvaluateMeromorphicMaterial,
@@ -128,6 +128,11 @@ where
         vacuum_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
+        debug_assert!(
+            vacuum_wavenumber
+                .iter()
+                .all(|value| value.imaginary() == C::zero().real())
+        );
         let spectral = vacuum_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permittivity_derivative(spectral, order)
@@ -138,6 +143,11 @@ where
         vacuum_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
+        debug_assert!(
+            vacuum_wavenumber
+                .iter()
+                .all(|value| value.imaginary() == C::zero().real())
+        );
         let spectral = vacuum_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permeability_derivative(spectral, order)
@@ -174,6 +184,10 @@ where
     D: Dimension,
     E: ConstitutiveEvaluator<C, D, M>,
 {
+    fn refractive_index(material: &M, vacuum_wavenumber: &Self) -> Self {
+        ScalarAlgebra::sqrt(&Self::relative_permittivity(material, vacuum_wavenumber))
+    }
+
     fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self;
 
     fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self;
@@ -271,7 +285,36 @@ where
     }
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJetBivariate<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexScalar + Copy,
+    D: Dimension,
+    E: ConstitutiveDerivativeEvaluator<C, D, M>,
+    P: Clone + Debug,
+{
+    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
+        let value = E::relative_permittivity(material, vacuum_wavenumber.value());
+        let first = E::relative_permittivity_derivative(
+            material,
+            vacuum_wavenumber.value(),
+            DerivativeOrder::First,
+        );
+        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+    }
+
+    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
+        let value = E::relative_permeability(material, vacuum_wavenumber.value());
+        let first = E::relative_permeability_derivative(
+            material,
+            vacuum_wavenumber.value(),
+            DerivativeOrder::First,
+        );
+
+        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+    }
+}
+
+impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,

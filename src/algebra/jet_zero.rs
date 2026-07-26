@@ -115,36 +115,6 @@ where
     }
 }
 
-/// Samples of a scalar function and its first derivative.
-///
-/// For a function `f`, this stores:
-///
-/// - `value = f(x)`
-/// - `first = f'(x)`
-#[derive(Clone, Debug)]
-pub(crate) struct FirstOrderExpansion<I> {
-    value: I,
-    first: I,
-}
-
-impl<I> FirstOrderExpansion<I> {
-    pub(crate) fn new(value: I, first: I) -> Self {
-        Self { value, first }
-    }
-
-    pub(crate) fn value(&self) -> &I {
-        &self.value
-    }
-
-    pub(crate) fn first(&self) -> &I {
-        &self.first
-    }
-
-    pub(crate) fn into_parts(self) -> (I, I) {
-        (self.value, self.first)
-    }
-}
-
 impl<I, P> Jet0<I, P>
 where
     I: JetConstant + JetZeroLike,

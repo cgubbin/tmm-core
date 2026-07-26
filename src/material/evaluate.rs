@@ -38,9 +38,9 @@ where
 
 impl<M, C> EvaluateMaterial<C> for M
 where
-    M: Material,
-    M::Real: Copy,
-    C: ComplexScalar<RealField = M::Real>,
+    M: Material<Real = C::RealField>,
+    C: ComplexScalar,
+    C::RealField: Copy,
 {
     type Real = M::Real;
 

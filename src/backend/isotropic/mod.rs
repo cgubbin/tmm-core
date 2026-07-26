@@ -62,11 +62,6 @@
 //! layers and both exterior media.
 
 mod admittance;
-mod constitutive;
-
-pub(crate) use constitutive::{
-    ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
-};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
@@ -76,8 +71,9 @@ pub(crate) use admittance::IsotropicLayerAdmittance;
 use crate::{
     ComplexScalar,
     algebra::ScalarAlgebra,
-    backend::{ComplexPlane, RealAxis, input::AlgebraicPlanarInput},
-    input::{CanonicalInput, Polarisation},
+    domain::{ComplexPlane, RealAxis},
+    input::{CanonicalSolverInput, Polarisation},
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
 /// Material and propagation quantities for one isotropic medium.
@@ -146,44 +142,44 @@ impl<A> IsotropicLayerQuantities<A> {
 }
 
 impl<A> IsotropicLayerQuantities<A> {
-    pub(crate) fn real_axis<C, D, M>(material: &M, planar: &AlgebraicPlanarInput<A>) -> Self
+    pub(crate) fn real_axis<C, D, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
     where
         C: ComplexScalar,
         D: Dimension,
         A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, RealAxis, M> + Clone,
         RealAxis: ConstitutiveEvaluator<C, D, M>,
     {
-        Self::evaluate::<C, D, RealAxis, M>(material, planar)
+        Self::evaluate::<C, D, RealAxis, M>(material, input)
     }
 
-    pub(crate) fn complex_plane<C, D, M>(material: &M, planar: &AlgebraicPlanarInput<A>) -> Self
+    pub(crate) fn complex_plane<C, D, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
     where
         C: ComplexScalar,
         D: Dimension,
         A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, ComplexPlane, M> + Clone,
         ComplexPlane: ConstitutiveEvaluator<C, D, M>,
     {
-        Self::evaluate::<C, D, ComplexPlane, M>(material, planar)
+        Self::evaluate::<C, D, ComplexPlane, M>(material, input)
     }
 
-    pub(crate) fn evaluate<C, D, E, M>(material: &M, planar: &AlgebraicPlanarInput<A>) -> Self
+    pub(crate) fn evaluate<C, D, E, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
     where
         C: ComplexScalar,
         D: Dimension,
         E: ConstitutiveEvaluator<C, D, M>,
         A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, E, M> + Clone,
     {
-        let epsilon = A::relative_permittivity(material, planar.vacuum_wavenumber());
+        let epsilon = A::relative_permittivity(material, input.vacuum_angular_wavenumber());
 
-        let mu = A::relative_permeability(material, planar.vacuum_wavenumber());
+        let mu = A::relative_permeability(material, input.vacuum_angular_wavenumber());
 
-        let k0_squared = planar
-            .vacuum_wavenumber()
-            .multiply(planar.vacuum_wavenumber());
+        let k0_squared = input
+            .vacuum_angular_wavenumber()
+            .multiply(input.vacuum_angular_wavenumber());
 
-        let kx_squared = planar
-            .parallel_wavenumber()
-            .multiply(planar.parallel_wavenumber());
+        let kx_squared = input
+            .parallel_angular_wavenumber()
+            .multiply(input.parallel_angular_wavenumber());
 
         let kappa = epsilon
             .multiply(&mu)
@@ -191,6 +187,6 @@ impl<A> IsotropicLayerQuantities<A> {
             .subtract(&kx_squared)
             .sqrt();
 
-        Self::from_parts(epsilon, mu, kappa, planar.polarisation())
+        Self::from_parts(epsilon, mu, kappa, input.polarisation())
     }
 }

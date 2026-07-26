@@ -13,7 +13,7 @@
 
 use ndarray::Dimension;
 
-use crate::{ComplexScalar, backend::algebra::ScalarAlgebra};
+use crate::{ComplexScalar, algebra::ScalarAlgebra};
 
 use super::super::entries::ScatterEntries;
 

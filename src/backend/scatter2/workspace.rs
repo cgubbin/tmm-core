@@ -1,22 +1,22 @@
 use crate::{
-    ComplexScalar, IncidentSide,
+    ComplexScalar,
+    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, ScalarAlgebra},
     backend::{
-        algebra::ScalarAlgebra,
         field::{BidirectionalWavesGeneric, InternalFieldRequest, LayerBoundaryWavesGeneric},
-        jet::{ArrayJet, ArrayJetFirst, ArraySpectralJet},
         scatter2::entries::{ScatterEntries, cascade},
     },
+    input::IncidentSide,
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 
-pub type Scatter2WorkspaceValues<C, D> = ScatterWorkspace<ArrayBase<OwnedRepr<C>, D>>;
+pub type Scatter2WorkspaceJet0<C, D, P> = ScatterWorkspace<ArrayJet0<C, D, P>>;
 
-pub type Scatter2WorkspaceJetFirst<C, D> = ScatterWorkspace<ArrayJetFirst<C, D>>;
+pub type Scatter2WorkspaceJet1<C, D, P> = ScatterWorkspace<ArrayJet1<C, D, P>>;
 
-pub type Scatter2WorkspaceJet<C, D> = ScatterWorkspace<ArrayJet<C, D>>;
+pub type Scatter2WorkspaceJet2<C, D, P> = ScatterWorkspace<ArrayJet2<C, D, P>>;
 
-pub type Scatter2WorkspaceSpectralJet<C, D> = ScatterWorkspace<ArraySpectralJet<C, D>>;
+pub type Scatter2WorkspaceJetBivariate<C, D, P> = ScatterWorkspace<ArrayJetBivariate<C, D, P>>;
 
 /// Cut positions corresponding to the two boundaries of one finite layer.
 ///

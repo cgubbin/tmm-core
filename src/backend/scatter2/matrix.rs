@@ -25,17 +25,17 @@
 use ndarray::{ArrayBase, OwnedRepr};
 
 use crate::{
-    ArrayJet, ArrayJetFirst,
-    backend::{jet::ArraySpectralJet, scatter2::entries::ScatterEntries},
+    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate},
+    backend::scatter2::entries::ScatterEntries,
 };
 
-pub type Scatter2Values<C, D> = ScatterMatrix2<ArrayBase<OwnedRepr<C>, D>>;
+pub type Scatter2Jet0<C, D, P> = ScatterMatrix2<ArrayJet0<C, D, P>>;
 
-pub type Scatter2JetFirst<C, D> = ScatterMatrix2<ArrayJetFirst<C, D>>;
+pub type Scatter2Jet1<C, D, P> = ScatterMatrix2<ArrayJet1<C, D, P>>;
 
-pub type Scatter2Jet<C, D> = ScatterMatrix2<ArrayJet<C, D>>;
+pub type Scatter2Jet2<C, D, P> = ScatterMatrix2<ArrayJet2<C, D, P>>;
 
-pub type Scatter2SpectralJet<C, D> = ScatterMatrix2<ArraySpectralJet<C, D>>;
+pub type Scatter2JetBivariate<C, D, P> = ScatterMatrix2<ArrayJetBivariate<C, D, P>>;
 
 /// Shape-preserving scalar-channel 2×2 scattering matrix.
 ///

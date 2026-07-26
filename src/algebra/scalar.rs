@@ -3,9 +3,13 @@ use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 use std::fmt::Debug;
 
 use super::{
-    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, FirstOrderExpansion, RealParameter,
-    SecondOrderExpansion,
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, FirstOrderExpansion,
+    RealParameter, SecondOrderExpansion,
 };
+
+pub trait ComplexJet {
+    type RealJet;
+}
 
 pub(crate) trait ScalarAlgebra<T, D>: Clone + Sized + std::fmt::Debug
 where
@@ -56,17 +60,15 @@ where
 ///
 /// This trait is deliberately not implemented for jets parameterised by
 /// [`super::HolomorphicParameter`].
-pub(crate) trait RealScalarAlgebra<T, D>: ScalarAlgebra<T, D>
+pub(crate) trait RealScalarAlgebra<T, D>: ScalarAlgebra<T, D> + ComplexJet
 where
     D: Dimension,
 {
-    type RealField;
-
     fn conjugated(&self) -> Self;
 
-    fn real(&self) -> Self::RealField;
+    fn real(&self) -> Self::RealJet;
 
-    fn magnitude_squared(&self) -> Self::RealField {
+    fn magnitude_squared(&self) -> Self::RealJet {
         self.multiply(&self.conjugated()).real()
     }
 }
@@ -205,18 +207,23 @@ where
     }
 }
 
+impl<C, D, P> ComplexJet for ArrayJet0<C, D, P>
+where
+    C: ComplexField,
+{
+    type RealJet = ArrayJet0<C::RealField, D, P>;
+}
+
 impl<C, D> RealScalarAlgebra<C, D> for ArrayJet0<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type RealField = ArrayJet0<C::RealField, D, RealParameter>;
-
     fn conjugated(&self) -> Self {
         ArrayJet0::conjugated(self)
     }
 
-    fn real(&self) -> Self::RealField {
+    fn real(&self) -> Self::RealJet {
         ArrayJet0::real(self)
     }
 }
@@ -292,18 +299,23 @@ where
     }
 }
 
+impl<C, D, P> ComplexJet for ArrayJet1<C, D, P>
+where
+    C: ComplexField,
+{
+    type RealJet = ArrayJet1<C::RealField, D, P>;
+}
+
 impl<C, D> RealScalarAlgebra<C, D> for ArrayJet1<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type RealField = ArrayJet1<C::RealField, D, RealParameter>;
-
     fn conjugated(&self) -> Self {
         ArrayJet1::conjugated(self)
     }
 
-    fn real(&self) -> Self::RealField {
+    fn real(&self) -> Self::RealJet {
         ArrayJet1::real(self)
     }
 }
@@ -406,18 +418,23 @@ where
     }
 }
 
+impl<C, D, P> ComplexJet for ArrayJet2<C, D, P>
+where
+    C: ComplexField,
+{
+    type RealJet = ArrayJet2<C::RealField, D, P>;
+}
+
 impl<C, D> RealScalarAlgebra<C, D> for ArrayJet2<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type RealField = ArrayJet2<C::RealField, D, RealParameter>;
-
     fn conjugated(&self) -> Self {
         ArrayJet2::conjugated(self)
     }
 
-    fn real(&self) -> Self::RealField {
+    fn real(&self) -> Self::RealJet {
         ArrayJet2::real(self)
     }
 }
@@ -451,50 +468,167 @@ where
 // Second-order bivariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJetBivariate<C, D, P>
+impl<C, D, P> ScalarAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
     fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
-        ArrayJetBivariate::value(self)
+        ArrayJetBivariate1::value(self)
     }
 
     fn lift_constant(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate::constant(value)
+        ArrayJetBivariate1::constant(value)
     }
 
     fn filled_constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
-        ArrayJetBivariate::constant_like(source, value)
+        ArrayJetBivariate1::constant_like(source, value)
     }
 
     fn zero_like(&self) -> Self {
-        ArrayJetBivariate::constant_like(self.value(), C::zero())
+        ArrayJetBivariate1::constant_like(self.value(), C::zero())
     }
 
     fn add(&self, rhs: &Self) -> Self {
-        ArrayJetBivariate::add(self, rhs)
+        ArrayJetBivariate1::add(self, rhs)
     }
 
     fn subtract(&self, rhs: &Self) -> Self {
-        ArrayJetBivariate::subtract(self, rhs)
+        ArrayJetBivariate1::subtract(self, rhs)
     }
 
     fn negate(&self) -> Self {
-        ArrayJetBivariate::negate(self)
+        ArrayJetBivariate1::negate(self)
     }
 
     fn multiply(&self, rhs: &Self) -> Self {
-        ArrayJetBivariate::multiply(self, rhs)
+        ArrayJetBivariate1::multiply(self, rhs)
     }
 
     fn reciprocal(&self) -> Self {
-        ArrayJetBivariate::reciprocal(self)
+        ArrayJetBivariate1::reciprocal(self)
     }
 
     fn scale(&self, coefficient: C) -> Self {
-        ArrayJetBivariate::scale_by(self, coefficient)
+        ArrayJetBivariate1::scale_by(self, coefficient)
+    }
+
+    fn exp(&self) -> Self {
+        self.clone().exp()
+    }
+
+    fn sin(&self) -> Self {
+        self.clone().sin()
+    }
+
+    fn cos(&self) -> Self {
+        self.clone().cos()
+    }
+
+    fn sqrt(&self) -> Self {
+        self.clone().sqrt()
+    }
+
+    fn all_finite(&self) -> bool {
+        array_is_finite(self.value()) && array_is_finite(self.x()) && array_is_finite(self.y())
+    }
+}
+
+impl<C, D, P> ComplexJet for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField,
+{
+    type RealJet = ArrayJetBivariate1<C::RealField, D, P>;
+}
+
+impl<C, D> RealScalarAlgebra<C, D> for ArrayJetBivariate1<C, D, RealParameter>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+{
+    fn conjugated(&self) -> Self {
+        ArrayJetBivariate1::conjugated(self)
+    }
+
+    fn real(&self) -> Self::RealJet {
+        ArrayJetBivariate1::real(self)
+    }
+}
+
+impl<C, D, P> BivariateVariableAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn variable_x(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate1::variable_x(value)
+    }
+
+    fn variable_y(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate1::variable_y(value)
+    }
+}
+
+impl<C, D, P> FirstOrderFunctionAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn compose_sampled_function(
+        argument: &Self,
+        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
+    ) -> Self {
+        ArrayJetBivariate1::compose_sampled_function(argument, expansion)
+    }
+}
+
+impl<C, D, P> ScalarAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+        ArrayJetBivariate2::value(self)
+    }
+
+    fn lift_constant(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate2::constant(value)
+    }
+
+    fn filled_constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
+        ArrayJetBivariate2::constant_like(source, value)
+    }
+
+    fn zero_like(&self) -> Self {
+        ArrayJetBivariate2::constant_like(self.value(), C::zero())
+    }
+
+    fn add(&self, rhs: &Self) -> Self {
+        ArrayJetBivariate2::add(self, rhs)
+    }
+
+    fn subtract(&self, rhs: &Self) -> Self {
+        ArrayJetBivariate2::subtract(self, rhs)
+    }
+
+    fn negate(&self) -> Self {
+        ArrayJetBivariate2::negate(self)
+    }
+
+    fn multiply(&self, rhs: &Self) -> Self {
+        ArrayJetBivariate2::multiply(self, rhs)
+    }
+
+    fn reciprocal(&self) -> Self {
+        ArrayJetBivariate2::reciprocal(self)
+    }
+
+    fn scale(&self, coefficient: C) -> Self {
+        ArrayJetBivariate2::scale_by(self, coefficient)
     }
 
     fn exp(&self) -> Self {
@@ -523,38 +657,43 @@ where
     }
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJetBivariate<C, D, RealParameter>
+impl<C, D, P> ComplexJet for ArrayJetBivariate2<C, D, P>
+where
+    C: ComplexField,
+{
+    type RealJet = ArrayJetBivariate2<C::RealField, D, P>;
+}
+
+impl<C, D> RealScalarAlgebra<C, D> for ArrayJetBivariate2<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
 {
-    type RealField = ArrayJetBivariate<C::RealField, D, RealParameter>;
-
     fn conjugated(&self) -> Self {
-        ArrayJetBivariate::conjugated(self)
+        ArrayJetBivariate2::conjugated(self)
     }
 
-    fn real(&self) -> Self::RealField {
-        ArrayJetBivariate::real(self)
+    fn real(&self) -> Self::RealJet {
+        ArrayJetBivariate2::real(self)
     }
 }
 
-impl<C, D, P> BivariateVariableAlgebra<C, D> for ArrayJetBivariate<C, D, P>
+impl<C, D, P> BivariateVariableAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
     fn variable_x(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate::variable_x(value)
+        ArrayJetBivariate2::variable_x(value)
     }
 
     fn variable_y(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate::variable_y(value)
+        ArrayJetBivariate2::variable_y(value)
     }
 }
 
-impl<C, D, P> SecondOrderFunctionAlgebra<C, D> for ArrayJetBivariate<C, D, P>
+impl<C, D, P> SecondOrderFunctionAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -564,7 +703,7 @@ where
         argument: &Self,
         expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
     ) -> Self {
-        ArrayJetBivariate::compose_sampled_function(argument, expansion)
+        ArrayJetBivariate2::compose_sampled_function(argument, expansion)
     }
 }
 
@@ -577,7 +716,8 @@ mod tests {
     use num_complex::Complex64;
 
     use crate::algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, Jet1, Jet2, JetBivariate, RealParameter,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, Jet1, Jet2, JetBivariate2,
+        RealParameter,
     };
 
     type C = Complex64;
@@ -591,7 +731,7 @@ mod tests {
 
     type Second = ArrayJet2<C, D, RealParameter>;
 
-    type Bivariate = ArrayJetBivariate<C, D, RealParameter>;
+    type Bivariate = ArrayJetBivariate2<C, D, RealParameter>;
 
     const EPSILON: f64 = 1.0e-11;
 
@@ -914,7 +1054,7 @@ mod tests {
 
 //     #[test]
 //     fn bivariate_scalar_algebra_matches_inherent_jet_arithmetic() {
-//         let left = JetBivariate::from_components(
+//         let left = JetBivariate2::from_components(
 //             values(),
 //             first_derivative(),
 //             other_first_derivative(),
@@ -923,7 +1063,7 @@ mod tests {
 //             values(),
 //         );
 
-//         let right = JetBivariate::from_components(
+//         let right = JetBivariate2::from_components(
 //             other_values(),
 //             other_first_derivative(),
 //             first_derivative(),
@@ -934,7 +1074,7 @@ mod tests {
 
 //         let via_trait = <Bivariate as ScalarAlgebra<C, D>>::multiply(&left, &right);
 
-//         let inherent = JetBivariate::multiply(&left, &right);
+//         let inherent = JetBivariate2::multiply(&left, &right);
 
 //         assert_eq!(via_trait, inherent);
 //     }
@@ -1013,7 +1153,7 @@ mod tests {
 
 //     #[test]
 //     fn bivariate_real_scalar_algebra_matches_inherent_operations() {
-//         let source = JetBivariate::from_components(
+//         let source = JetBivariate2::from_components(
 //             values(),
 //             first_derivative(),
 //             other_first_derivative(),
@@ -1028,13 +1168,13 @@ mod tests {
 
 //         let magnitude_squared = <Bivariate as RealScalarAlgebra<C, D>>::magnitude_squared(&source);
 
-//         assert_eq!(conjugated, JetBivariate::conjugated(&source),);
+//         assert_eq!(conjugated, JetBivariate2::conjugated(&source),);
 
-//         assert_eq!(real, JetBivariate::real(&source),);
+//         assert_eq!(real, JetBivariate2::real(&source),);
 
 //         assert_eq!(
 //             magnitude_squared,
-//             JetBivariate::multiply(&source, &JetBivariate::conjugated(&source,),).real(),
+//             JetBivariate2::multiply(&source, &JetBivariate::conjugated(&source,),).real(),
 //         );
 //     }
 
@@ -1102,7 +1242,7 @@ mod tests {
 
 //     #[test]
 //     fn bivariate_scalar_jets_pack_into_vector_jet() {
-//         let x = JetBivariate::from_components(
+//         let x = JetBivariate2::from_components(
 //             values(),
 //             first_derivative(),
 //             other_first_derivative(),
@@ -1111,7 +1251,7 @@ mod tests {
 //             values(),
 //         );
 
-//         let y = JetBivariate::from_components(
+//         let y = JetBivariate2::from_components(
 //             other_values(),
 //             other_first_derivative(),
 //             first_derivative(),
@@ -1120,7 +1260,7 @@ mod tests {
 //             second_derivative(),
 //         );
 
-//         let z = JetBivariate::from_components(
+//         let z = JetBivariate2::from_components(
 //             second_derivative(),
 //             other_second_derivative(),
 //             values(),
@@ -1174,7 +1314,7 @@ mod tests {
 
 //         let second = Jet2::from_parts(values(), first_derivative(), second_derivative());
 
-//         let bivariate = JetBivariate::from_components(
+//         let bivariate = JetBivariate2::from_components(
 //             values(),
 //             first_derivative(),
 //             other_first_derivative(),
@@ -1217,7 +1357,7 @@ mod tests {
 //     #[test]
 //     fn all_finite_checks_every_bivariate_component() {
 //         fn finite_jet() -> Bivariate {
-//             JetBivariate::from_components(
+//             JetBivariate2::from_components(
 //                 values(),
 //                 first_derivative(),
 //                 other_first_derivative(),
@@ -1256,7 +1396,7 @@ mod tests {
 //                 _ => unreachable!(),
 //             }
 
-//             let source = JetBivariate::from_components(value, x, y, xx, xy, yy);
+//             let source = JetBivariate2::from_components(value, x, y, xx, xy, yy);
 
 //             assert!(
 //                 !<Bivariate as ScalarAlgebra<C, D>>::all_finite(&source),
@@ -1297,7 +1437,7 @@ mod tests {
 //             other_second_derivative(),
 //         );
 
-//         let bivariate_x = JetBivariate::from_components(
+//         let bivariate_x = JetBivariate2::from_components(
 //             values(),
 //             first_derivative(),
 //             other_first_derivative(),
@@ -1306,7 +1446,7 @@ mod tests {
 //             values(),
 //         );
 
-//         let bivariate_y = JetBivariate::from_components(
+//         let bivariate_y = JetBivariate2::from_components(
 //             other_values(),
 //             other_first_derivative(),
 //             first_derivative(),

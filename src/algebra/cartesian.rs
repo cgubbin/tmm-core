@@ -1,6 +1,6 @@
 use crate::algebra::{
-    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate, Jet0, Jet1, Jet2, JetBivariate,
-    RealParameter, ScalarAlgebra,
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet0, Jet1, Jet2,
+    JetBivariate1, JetBivariate2, RealParameter, ScalarAlgebra,
 };
 
 use crate::field::VectorField;
@@ -109,13 +109,38 @@ where
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetBivariate<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetBivariate1<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
-    type Vector = JetBivariate<VectorField<T, D>, P>;
+    type Vector = JetBivariate1<VectorField<T, D>, P>;
+
+    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+        let (x_value, x_gradient) = x.into_parts();
+        let (y_value, y_gradient) = y.into_parts();
+        let (z_value, z_gradient) = z.into_parts();
+
+        let (x_x, x_y) = x_gradient.into_parts();
+        let (y_x, y_y) = y_gradient.into_parts();
+        let (z_x, z_y) = z_gradient.into_parts();
+
+        JetBivariate1::from_components(
+            VectorField::new_unchecked(x_value, y_value, z_value),
+            VectorField::new_unchecked(x_x, y_x, z_x),
+            VectorField::new_unchecked(x_y, y_y, z_y),
+        )
+    }
+}
+
+impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetBivariate2<T, D, P>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    type Vector = JetBivariate2<VectorField<T, D>, P>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         let (x_value, x_gradient, x_hessian) = x.into_parts();
@@ -130,7 +155,7 @@ where
         let (y_xx, y_xy, y_yy) = y_hessian.into_parts();
         let (z_xx, z_xy, z_yy) = z_hessian.into_parts();
 
-        JetBivariate::from_components(
+        JetBivariate2::from_components(
             VectorField::new_unchecked(x_value, y_value, z_value),
             VectorField::new_unchecked(x_x, y_x, z_x),
             VectorField::new_unchecked(x_y, y_y, z_y),
@@ -282,50 +307,97 @@ where
     }
 }
 
-impl<T, D, P> CartesianVectorAlgebra for JetBivariate<VectorField<T, D>, P>
+impl<T, D, P> CartesianVectorAlgebra for JetBivariate1<VectorField<T, D>, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJetBivariate<T, D, P>;
+    type ScalarField = ArrayJetBivariate1<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
-        JetBivariate::cross(self, rhs)
+        JetBivariate1::cross(self, rhs)
     }
 
     fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
-        JetBivariate::scale_by(self, factor)
+        JetBivariate1::scale_by(self, factor)
     }
 
     fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
-        JetBivariate::multiply_by_scalar(self, factor)
+        JetBivariate1::multiply_by_scalar(self, factor)
     }
 }
 
-impl<T, D> RealCartesianVectorAlgebra for JetBivariate<VectorField<T, D>, RealParameter>
+impl<T, D> RealCartesianVectorAlgebra for JetBivariate1<VectorField<T, D>, RealParameter>
 where
     T: ComplexField + Copy,
     D: Dimension,
 {
-    type RealVector = JetBivariate<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJetBivariate<T::RealField, D, RealParameter>;
+    type RealVector = JetBivariate1<VectorField<T::RealField, D>, RealParameter>;
+    type RealScalarField = ArrayJetBivariate1<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
-        JetBivariate::conjugated(self)
+        JetBivariate1::conjugated(self)
     }
 
     fn real(&self) -> Self::RealVector {
-        JetBivariate::real(self)
+        JetBivariate1::real(self)
     }
 
     fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
-        JetBivariate::hermitian_dot_product(self, rhs)
+        JetBivariate1::hermitian_dot_product(self, rhs)
     }
 
     fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
-        JetBivariate::real(&value)
+        JetBivariate1::real(&value)
+    }
+}
+
+impl<T, D, P> CartesianVectorAlgebra for JetBivariate2<VectorField<T, D>, P>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    type Coefficient = T;
+    type ScalarField = ArrayJetBivariate2<T, D, P>;
+
+    fn cross(&self, rhs: &Self) -> Self {
+        JetBivariate2::cross(self, rhs)
+    }
+
+    fn scale_by_constant(&self, factor: Self::Coefficient) -> Self {
+        JetBivariate2::scale_by(self, factor)
+    }
+
+    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+        JetBivariate2::multiply_by_scalar(self, factor)
+    }
+}
+
+impl<T, D> RealCartesianVectorAlgebra for JetBivariate2<VectorField<T, D>, RealParameter>
+where
+    T: ComplexField + Copy,
+    D: Dimension,
+{
+    type RealVector = JetBivariate2<VectorField<T::RealField, D>, RealParameter>;
+    type RealScalarField = ArrayJetBivariate2<T::RealField, D, RealParameter>;
+
+    fn conjugated(&self) -> Self {
+        JetBivariate2::conjugated(self)
+    }
+
+    fn real(&self) -> Self::RealVector {
+        JetBivariate2::real(self)
+    }
+
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+        JetBivariate2::hermitian_dot_product(self, rhs)
+    }
+
+    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+        JetBivariate2::real(&value)
     }
 }
 
@@ -336,7 +408,7 @@ mod tests {
     use ndarray::{Array1, Ix1, arr1};
     use num_complex::Complex64;
 
-    use crate::algebra::{Jet1, Jet2, JetBivariate, RealParameter};
+    use crate::algebra::{Jet1, Jet2, JetBivariate2, RealParameter};
 
     type C = Complex64;
     type D = Ix1;
@@ -346,7 +418,7 @@ mod tests {
 
     type SecondScalar = ArrayJet2<C, D, RealParameter>;
 
-    type BivariateScalar = ArrayJetBivariate<C, D, RealParameter>;
+    type BivariateScalar = ArrayJetBivariate2<C, D, RealParameter>;
 
     type Vector = Jet0<VectorField<C, D>, RealParameter>;
 
@@ -354,7 +426,7 @@ mod tests {
 
     type SecondVector = Jet2<VectorField<C, D>, RealParameter>;
 
-    type BivariateVector = JetBivariate<VectorField<C, D>, RealParameter>;
+    type BivariateVector = JetBivariate2<VectorField<C, D>, RealParameter>;
 
     const TOLERANCE: f64 = 1.0e-12;
 
@@ -539,7 +611,7 @@ mod tests {
 
     #[test]
     fn bivariate_scalar_jets_are_transposed_into_vector_jet() {
-        let x = JetBivariate::from_components(
+        let x = JetBivariate2::from_components(
             arr1(&[c(1.0, 0.0)]),
             arr1(&[c(2.0, 0.0)]),
             arr1(&[c(3.0, 0.0)]),
@@ -548,7 +620,7 @@ mod tests {
             arr1(&[c(6.0, 0.0)]),
         );
 
-        let y = JetBivariate::from_components(
+        let y = JetBivariate2::from_components(
             arr1(&[c(7.0, 0.0)]),
             arr1(&[c(8.0, 0.0)]),
             arr1(&[c(9.0, 0.0)]),
@@ -557,7 +629,7 @@ mod tests {
             arr1(&[c(12.0, 0.0)]),
         );
 
-        let z = JetBivariate::from_components(
+        let z = JetBivariate2::from_components(
             arr1(&[c(13.0, 0.0)]),
             arr1(&[c(14.0, 0.0)]),
             arr1(&[c(15.0, 0.0)]),
@@ -646,7 +718,7 @@ mod tests {
 
     #[test]
     fn bivariate_vector_constant_scaling_scales_every_jet_component() {
-        let source = JetBivariate::from_components(
+        let source = JetBivariate2::from_components(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
             vector(c(7.0, 0.0), c(8.0, 0.0), c(9.0, 0.0)),
@@ -751,7 +823,7 @@ mod tests {
 
     #[test]
     fn bivariate_vector_scalar_product_obeys_all_product_rules() {
-        let vector = JetBivariate::from_components(
+        let vector = JetBivariate2::from_components(
             vector(c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)),
             vector(c(4.0, 0.0), c(5.0, 0.0), c(6.0, 0.0)),
             vector(c(7.0, 0.0), c(8.0, 0.0), c(9.0, 0.0)),
@@ -760,7 +832,7 @@ mod tests {
             vector(c(16.0, 0.0), c(17.0, 0.0), c(18.0, 0.0)),
         );
 
-        let scalar = JetBivariate::from_components(
+        let scalar = JetBivariate2::from_components(
             arr1(&[c(19.0, 0.0)]),
             arr1(&[c(20.0, 0.0)]),
             arr1(&[c(21.0, 0.0)]),
@@ -872,7 +944,7 @@ mod tests {
 
     #[test]
     fn cross_delegates_for_bivariate_vector_jets() {
-        let lhs = JetBivariate::from_components(
+        let lhs = JetBivariate2::from_components(
             vector(c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
@@ -881,7 +953,7 @@ mod tests {
             vector(c(1.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
         );
 
-        let rhs = JetBivariate::from_components(
+        let rhs = JetBivariate2::from_components(
             vector(c(0.0, 0.0), c(1.0, 0.0), c(0.0, 0.0)),
             vector(c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)),
             vector(c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0)),
@@ -892,7 +964,7 @@ mod tests {
 
         assert_eq!(
             <BivariateVector as CartesianVectorAlgebra>::cross(&lhs, &rhs),
-            JetBivariate::cross(&lhs, &rhs,),
+            JetBivariate2::cross(&lhs, &rhs,),
         );
     }
 
@@ -982,7 +1054,7 @@ mod tests {
 
     #[test]
     fn bivariate_real_cartesian_operations_delegate_correctly() {
-        let lhs = JetBivariate::from_components(
+        let lhs = JetBivariate2::from_components(
             vector(c(1.0, 2.0), c(3.0, -4.0), c(-5.0, 6.0)),
             vector(c(2.0, -1.0), c(4.0, 3.0), c(6.0, -5.0)),
             vector(c(3.0, 0.5), c(5.0, -2.0), c(7.0, 4.0)),
@@ -991,7 +1063,7 @@ mod tests {
             vector(c(6.0, -5.0), c(8.0, 7.0), c(10.0, -9.0)),
         );
 
-        let rhs = JetBivariate::from_components(
+        let rhs = JetBivariate2::from_components(
             vector(c(7.0, -8.0), c(9.0, 10.0), c(11.0, -12.0)),
             vector(c(8.0, 7.0), c(10.0, -9.0), c(12.0, 11.0)),
             vector(c(9.0, -6.0), c(11.0, 8.0), c(13.0, -10.0)),
@@ -1002,17 +1074,17 @@ mod tests {
 
         assert_eq!(
             <BivariateVector as RealCartesianVectorAlgebra>::conjugated(&lhs),
-            JetBivariate::conjugated(&lhs),
+            JetBivariate2::conjugated(&lhs),
         );
 
         assert_eq!(
             <BivariateVector as RealCartesianVectorAlgebra>::real(&lhs),
-            JetBivariate::real(&lhs),
+            JetBivariate2::real(&lhs),
         );
 
         assert_eq!(
             <BivariateVector as RealCartesianVectorAlgebra>::hermitian_dot(&lhs, &rhs,),
-            JetBivariate::hermitian_dot(&lhs, &rhs,),
+            JetBivariate2::hermitian_dot(&lhs, &rhs,),
         );
     }
 }

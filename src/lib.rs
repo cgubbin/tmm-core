@@ -5,18 +5,21 @@ pub(crate) mod algebra;
 pub mod backend;
 pub(crate) mod crystallise;
 mod differential;
+mod domain;
 mod error;
+mod evaluate;
 pub mod field;
 mod input;
 pub mod material;
 mod observable;
 mod response;
-mod sampling;
+// mod sampling;
 mod scalar;
 pub mod spatial;
 pub mod stack;
 mod tensor;
 
+pub(crate) use domain::{ComplexPlane, RealAxis};
 pub use error::TmmError;
 pub use input::{IncidentSide, Polarisation};
 // pub use backend::{

@@ -76,7 +76,7 @@ where
 
         let derivatives = self.derivatives().spatial_profile(&excitation_index)?;
 
-        let excitation = self.metadata().input().point(&excitation_index).expect(
+        let excitation = self.metadata().input().get_point(&excitation_index).expect(
             "field response metadata and observables must have \
                  matching excitation dimensions",
         );
