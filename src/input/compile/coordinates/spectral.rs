@@ -1,3 +1,29 @@
+//! Validation and canonicalisation of caller-facing spectral coordinates.
+//!
+//! The numerical backend represents every spectral coordinate as a vacuum
+//! angular wavenumber expressed in inverse centimetres.
+//!
+//! This module validates caller-facing spectral values before converting them
+//! into that canonical representation.
+//!
+//! Validation checks only properties of the supplied values themselves (for
+//! example finiteness and positivity). Unit conversions and coordinate
+//! transformations are performed separately so that validation remains
+//! independent of canonicalisation.
+//!
+//! Canonicalisation operates on seeded jet values rather than raw scalars.
+//! Consequently, derivatives are taken with respect to the caller-facing
+//! spectral coordinate while the jet algebra automatically propagates the
+//! required chain rule.
+//!
+//! The supported transformations are:
+//!
+//! - vacuum angular wavenumber → identity (with unit conversion);
+//! - vacuum wavenumber → vacuum angular wavenumber;
+//! - frequency → vacuum angular wavenumber;
+//! - angular frequency → vacuum angular wavenumber;
+//! - vacuum wavelength → vacuum angular wavenumber.
+
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Data, Dimension};
 use num_traits::{Float, FloatConst, FromPrimitive};
@@ -5,9 +31,12 @@ use thiserror::Error;
 
 use crate::input::SpectralCoordinate;
 
-use super::CoordinateJet;
+use super::CanonicalCoordinateJet;
 
-/// Speed of light in vacuum in centimetres per second.
+/// Exact speed of light expressed in centimetres per second.
+///
+/// This constant converts frequency- and angular-frequency-based
+/// parameterisations into the canonical vacuum angular wavenumber.
 fn speed_of_light_cm_per_second<R>() -> R
 where
     R: Float,
@@ -30,6 +59,16 @@ pub enum SpectralInputError<R> {
     NonPositive { index: usize, value: R },
 }
 
+/// Validate a caller-facing spectral coordinate.
+///
+/// Every supplied value must be finite and strictly positive.
+///
+/// No unit conversion or canonicalisation is performed.
+///
+/// # Errors
+///
+/// Returns [`SpectralInputError`] if any value is non-finite or is less than
+/// or equal to zero.
 pub(crate) fn validate_spectral<R, S, D>(
     values: &ArrayBase<S, D>,
 ) -> Result<(), SpectralInputError<R>>
@@ -51,11 +90,44 @@ where
     Ok(())
 }
 
+/// Convert a seeded caller-facing spectral coordinate into the canonical
+/// vacuum angular wavenumber.
+///
+/// The returned quantity is always expressed as a vacuum angular wavenumber in
+/// inverse centimetres, regardless of the caller-facing parameterisation.
+///
+/// Coordinate transformations are applied through the supplied jet algebra so
+/// that derivatives with respect to the original caller-facing coordinate are
+/// propagated automatically.
+///
+/// The transformations are:
+///
+/// ```text
+/// β₀            → β₀
+///
+/// k₀            → 2π k₀
+///
+/// ν             → 2πν / c
+///
+/// ω             → ω / c
+///
+/// λ             → 2π / λ
+/// ```
+///
+/// where
+///
+/// - `β₀` is the vacuum angular wavenumber;
+/// - `k₀` is the vacuum wavenumber;
+/// - `ν` is frequency;
+/// - `ω` is angular frequency;
+/// - `λ` is vacuum wavelength;
+/// - `c` is the speed of light in vacuum.
 pub(crate) fn canonicalise_spectral<C, D, J>(value: J, coordinate: SpectralCoordinate) -> J
 where
     C: ComplexField,
     C::RealField: Float + FloatConst + FromPrimitive + Copy,
-    J: CoordinateJet<C, D>,
+    J: CanonicalCoordinateJet<C, D>,
+    D: Dimension,
 {
     let two_pi = <C::RealField as FloatConst>::PI() + <C::RealField as FloatConst>::PI();
 

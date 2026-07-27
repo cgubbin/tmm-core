@@ -7,7 +7,7 @@ pub(crate) mod crystallise;
 mod differential;
 mod domain;
 mod error;
-mod evaluate;
+// mod evaluate;
 pub mod field;
 mod input;
 pub mod material;

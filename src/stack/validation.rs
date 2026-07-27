@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use super::thickness::Thickness;
 
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ValidationError<F> {
     #[error("stack must contain at least one internal layer")]
     NoLayers,

@@ -1,19 +1,31 @@
 use crate::{
     PlaneWaveObservables, RealAxis,
     algebra::ComplexJet,
-    input::{
-        CanonicalPlaneWaveInput, CanonicalPlaneWaveProblem, CanonicalProblem, CanonicalSolverInput,
-    },
+    input::{CanonicalBackendInput, CanonicalSolverInput},
 };
 
 use ndarray::Dimension;
 
-// mod field;
-// mod input;
 mod isotropic;
-// mod matrix;
-// mod mode;
-// mod plane_wave;
+// mod scatter2;
+
+/// Internal field data requested from a backend solve.
+///
+/// The derivative order is represented by the backend workspace entry type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum InternalFieldRequest {
+    /// Compute only the external response.
+    None,
+
+    /// Retain enough data to reconstruct waves at finite-layer boundaries.
+    LayerBoundaries,
+}
+
+impl InternalFieldRequest {
+    pub(crate) const fn is_requested(self) -> bool {
+        matches!(self, Self::LayerBoundaries)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct NoWorkspace;
@@ -52,72 +64,67 @@ where
     }
 }
 
-pub(crate) trait PlaneWaveBackend: Backend<RealAxis>
-where
-    Self::Workspace: HasEntries<Entries = Self::Entries>,
-{
-    fn solve<M, J>(
-        &self,
-        input: &CanonicalPlaneWaveProblem<M, J>,
-    ) -> Result<BackendResponse<J, NoWorkspace>, Self::Error>
-    where
-        J: ComplexJet,
-        Self::Entries: BuildPlaneWaveObservables<J>,
-    {
-        let problem = input.problem();
-        let entries = Backend::solve(self, problem)?;
+// pub(crate) trait PlaneWaveBackend<J>: Backend<J, RealAxis>
+// where
+//     J: ComplexJet,
+//     <Self::Workspace as HasEntries>::Entries: BuildPlaneWaveObservables<J>,
+// {
+//     fn solve_plane_wave<M>(
+//         &self,
+//         input: &CanonicalPlaneWaveProblem<M, J>,
+//     ) -> Result<BackendResponse<J, NoWorkspace>, Self::Error> {
+//         let problem = input.problem();
+//         let entries = Backend::solve(self, problem)?;
 
-        let observables = entries.build_plane_wave_observables(input);
+//         let observables = entries.build_plane_wave_observables(input);
 
-        Ok(BackendResponse {
-            external: observables,
-            internal: NoWorkspace,
-        })
-    }
+//         Ok(BackendResponse {
+//             external: observables,
+//             internal: NoWorkspace,
+//         })
+//     }
 
-    fn retain<M, J>(
-        &self,
-        input: &CanonicalPlaneWaveProblem<M, J>,
-    ) -> Result<BackendResponse<J, Self::Workspace>, Self::Error>
-    where
-        J: ComplexJet,
-        Self::Entries: BuildPlaneWaveObservables<J>,
-    {
-        let problem = input.problem();
-        let workspace = Backend::retain(self, problem)?;
+//     fn retain_plane_wave<M>(
+//         &self,
+//         input: &CanonicalPlaneWaveProblem<M, J>,
+//     ) -> Result<BackendResponse<J, Self::Workspace>, Self::Error> {
+//         let problem = input.problem();
+//         let workspace = Backend::retain(self, problem)?;
 
-        let observables = workspace.entries().build_plane_wave_observables(input);
+//         let observables = workspace.entries().build_plane_wave_observables(input);
 
-        Ok(BackendResponse {
-            external: observables,
-            internal: workspace,
-        })
-    }
-}
+//         Ok(BackendResponse {
+//             external: observables,
+//             internal: workspace,
+//         })
+//     }
+// }
 
-pub(crate) trait Backend<Domain> {
-    type Workspace;
-    type Entries;
+pub(crate) trait Backend<J, Domain> {
+    type Workspace: IntoEntries;
 
     type Error;
 
-    fn solve<M, J>(&self, problem: &CanonicalProblem<M, J>) -> Result<Self::Entries, Self::Error>;
-
-    fn retain<M, J>(
+    fn solve<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        problem: &CanonicalBackendInput<M, J>,
+    ) -> Result<<Self::Workspace as HasEntries>::Entries, Self::Error>;
+
+    fn retain<M>(
+        &self,
+        problem: &CanonicalBackendInput<M, J>,
     ) -> Result<Self::Workspace, Self::Error>;
 }
 
-pub(crate) trait BuildPlaneWaveObservables<J>
-where
-    J: ComplexJet,
-{
-    fn build_plane_wave_observables<M>(
-        &self,
-        input: &CanonicalPlaneWaveProblem<M, J>,
-    ) -> PlaneWaveObservables<J, J::RealJet>;
-}
+// pub(crate) trait BuildPlaneWaveObservables<J>
+// where
+//     J: ComplexJet,
+// {
+//     fn build_plane_wave_observables<M>(
+//         &self,
+//         input: &CanonicalPlaneWaveProblem<M, J>,
+//     ) -> PlaneWaveObservables<J, J::RealJet>;
+// }
 
 pub(crate) trait HasEntries {
     type Entries;
@@ -128,44 +135,3 @@ pub(crate) trait HasEntries {
 pub(crate) trait IntoEntries: HasEntries {
     fn into_entries(self) -> Self::Entries;
 }
-
-// #[cfg(test)]
-// mod tests;
-
-// pub(crate)mod scatter2;
-// // pub(crate)mod transfer2;
-
-// pub(crate)use derivative::{
-//     DerivativeVariable, SpectralDerivativeVariable, StructuralDerivativeVariable,
-// };
-
-// pub(crate)use field::{
-//     ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingRegion, IsotropicFieldState,
-//     LayerSampling, PlaneWaveFieldBackend, PlaneWaveFieldError, PlaneWaveFieldResponse,
-//     PlaneWaveFieldSample, PlaneWaveFieldSampleOwned, PlaneWaveFieldSampleView, PlaneWaveFields,
-//     PlaneWavePowerBalance,
-// };
-
-// pub(crate)use input::{IncidentSide, PlanarInput, PlaneWaveInput, Polarisation};
-
-// pub(crate)use matrix::{
-//     ComplexMatrixBackend, ComplexMatrixKxDerivativeBackend, ComplexMatrixSpectralDerivativeBackend,
-//     ComplexMatrixThicknessDerivativeBackend, MatrixEvaluation, RawMatrixBackend,
-//     RawMatrixKxDerivativeBackend, RawMatrixSpectralDerivativeBackend,
-//     RawMatrixThicknessDerivativeBackend,
-// };
-
-// pub(crate)use mode::{
-//     AnalyticResidual, OutgoingModeResidualBackend, OutgoingModeResidualKxDerivativeBackend,
-//     OutgoingModeResidualSpectralDerivativeBackend, OutgoingModeResidualThicknessDerivativeBackend,
-//     OutgoingModeResponse, OutgoingModeStateBackend,
-// };
-
-// pub(crate)use plane_wave::{
-//     PlaneWaveAmplitudeDifferential, PlaneWaveAmplitudes, PlaneWaveBackend,
-//     PlaneWaveKxDerivativeBackend, PlaneWavePower, PlaneWavePowerDifferential, PlaneWaveResponse,
-//     PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential,
-//     PlaneWaveSpectralDerivativeBackend, PlaneWaveThicknessDerivativeBackend,
-// };
-
-// use isotropic::IsotropicLayerQuantities;

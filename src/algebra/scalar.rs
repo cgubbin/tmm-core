@@ -88,9 +88,9 @@ pub(crate) trait BivariateVariableAlgebra<T, D>: ScalarAlgebra<T, D>
 where
     D: Dimension,
 {
-    fn variable_x(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
+    fn variable_axis0(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
 
-    fn variable_y(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
+    fn variable_axis1(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
 }
 
 // -------------------------------------------------------------------------
@@ -531,7 +531,9 @@ where
     }
 
     fn all_finite(&self) -> bool {
-        array_is_finite(self.value()) && array_is_finite(self.x()) && array_is_finite(self.y())
+        array_is_finite(self.value())
+            && array_is_finite(self.axis0())
+            && array_is_finite(self.axis1())
     }
 }
 
@@ -562,12 +564,12 @@ where
     D: Dimension,
     P: Clone + Debug,
 {
-    fn variable_x(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate1::variable_x(value)
+    fn variable_axis0(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate1::variable_axis0(value)
     }
 
-    fn variable_y(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate1::variable_y(value)
+    fn variable_axis1(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate1::variable_axis1(value)
     }
 }
 
@@ -649,11 +651,11 @@ where
 
     fn all_finite(&self) -> bool {
         array_is_finite(self.value())
-            && array_is_finite(self.x())
-            && array_is_finite(self.y())
-            && array_is_finite(self.xx())
-            && array_is_finite(self.xy())
-            && array_is_finite(self.yy())
+            && array_is_finite(self.axis0())
+            && array_is_finite(self.axis1())
+            && array_is_finite(self.axis0_axis0())
+            && array_is_finite(self.axis0_axis1())
+            && array_is_finite(self.axis1_axis1())
     }
 }
 
@@ -684,12 +686,12 @@ where
     D: Dimension,
     P: Clone + Debug,
 {
-    fn variable_x(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate2::variable_x(value)
+    fn variable_axis0(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate2::variable_axis0(value)
     }
 
-    fn variable_y(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate2::variable_y(value)
+    fn variable_axis1(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+        ArrayJetBivariate2::variable_axis1(value)
     }
 }
 
@@ -898,8 +900,8 @@ mod tests {
 //         let vector =
 //             <Array as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
 
-//         assert_eq!(vector.x(), &x);
-//         assert_eq!(vector.y(), &y);
+//         assert_eq!(vector.axis0(), &x);
+//         assert_eq!(vector.axis1(), &y);
 //         assert_eq!(vector.z(), &z);
 //     }
 
@@ -940,11 +942,11 @@ mod tests {
 //         assert_eq!(result.value(), &value);
 
 //         for derivative in [
-//             result.x(),
-//             result.y(),
-//             result.xx(),
-//             result.xy(),
-//             result.yy(),
+//             result.axis0(),
+//             result.axis1(),
+//             result.axis0_axis0(),
+//             result.axis0_axis1(),
+//             result.axis1_axis1(),
 //         ] {
 //             assert!(derivative.iter().all(|value| { *value == C::default() },),);
 //         }
@@ -989,31 +991,31 @@ mod tests {
 //     }
 
 //     #[test]
-//     fn bivariate_variable_x_seeds_only_x() {
+//     fn bivariate_variable_axis0_seeds_only_axis0() {
 //         let value = values();
 
-//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_x(value.clone());
+//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_axis0(value.clone());
 
 //         assert_eq!(result.value(), &value);
 
-//         assert!(result.x().iter().all(|value| *value == C::new(1.0, 0.0)),);
+//         assert!(result.axis0().iter().all(|value| *value == C::new(1.0, 0.0)),);
 
-//         for derivative in [result.y(), result.xx(), result.xy(), result.yy()] {
+//         for derivative in [result.axis1(), result.axis0_axis0(), result.axis0_axis1(), result.axis1_axis1()] {
 //             assert!(derivative.iter().all(|value| { *value == C::default() },),);
 //         }
 //     }
 
 //     #[test]
-//     fn bivariate_variable_y_seeds_only_y() {
+//     fn bivariate_variable_axis1_seeds_only_axis1() {
 //         let value = values();
 
-//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_y(value.clone());
+//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_axis1(value.clone());
 
 //         assert_eq!(result.value(), &value);
 
-//         assert!(result.y().iter().all(|value| *value == C::new(1.0, 0.0)),);
+//         assert!(result.axis1().iter().all(|value| *value == C::new(1.0, 0.0)),);
 
-//         for derivative in [result.x(), result.xx(), result.xy(), result.yy()] {
+//         for derivative in [result.axis0(), result.axis0_axis0(), result.axis0_axis1(), result.axis1_axis1()] {
 //             assert!(derivative.iter().all(|value| { *value == C::default() },),);
 //         }
 //     }
@@ -1193,15 +1195,15 @@ mod tests {
 //         let result =
 //             <First as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
 
-//         assert_eq!(result.value().x(), x.value(),);
+//         assert_eq!(result.value().axis0(), x.value(),);
 
-//         assert_eq!(result.value().y(), y.value(),);
+//         assert_eq!(result.value().axis1(), y.value(),);
 
 //         assert_eq!(result.value().z(), z.value(),);
 
-//         assert_eq!(result.first().x(), x.first(),);
+//         assert_eq!(result.first().axis0(), x.first(),);
 
-//         assert_eq!(result.first().y(), y.first(),);
+//         assert_eq!(result.first().axis1(), y.first(),);
 
 //         assert_eq!(result.first().z(), z.first(),);
 //     }
@@ -1221,21 +1223,21 @@ mod tests {
 //         let result =
 //             <Second as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
 
-//         assert_eq!(result.value().x(), x.value(),);
+//         assert_eq!(result.value().axis0(), x.value(),);
 
-//         assert_eq!(result.value().y(), y.value(),);
+//         assert_eq!(result.value().axis1(), y.value(),);
 
 //         assert_eq!(result.value().z(), z.value(),);
 
-//         assert_eq!(result.first().x(), x.first(),);
+//         assert_eq!(result.first().axis0(), x.first(),);
 
-//         assert_eq!(result.first().y(), y.first(),);
+//         assert_eq!(result.first().axis1(), y.first(),);
 
 //         assert_eq!(result.first().z(), z.first(),);
 
-//         assert_eq!(result.second().x(), x.second(),);
+//         assert_eq!(result.second().axis0(), x.second(),);
 
-//         assert_eq!(result.second().y(), y.second(),);
+//         assert_eq!(result.second().axis1(), y.second(),);
 
 //         assert_eq!(result.second().z(), z.second(),);
 //     }
@@ -1275,31 +1277,31 @@ mod tests {
 //             z.clone(),
 //         );
 
-//         assert_eq!(result.value().x(), x.value(),);
+//         assert_eq!(result.value().axis0(), x.value(),);
 
-//         assert_eq!(result.value().y(), y.value(),);
+//         assert_eq!(result.value().axis1(), y.value(),);
 
 //         assert_eq!(result.value().z(), z.value(),);
 
-//         assert_eq!(result.x().x(), x.x());
-//         assert_eq!(result.x().y(), y.x());
-//         assert_eq!(result.x().z(), z.x());
+//         assert_eq!(result.axis0().axis0(), x.axis0());
+//         assert_eq!(result.axis0().axis1(), y.axis0());
+//         assert_eq!(result.axis0().z(), z.axis0());
 
-//         assert_eq!(result.y().x(), x.y());
-//         assert_eq!(result.y().y(), y.y());
-//         assert_eq!(result.y().z(), z.y());
+//         assert_eq!(result.axis1().axis0(), x.axis1());
+//         assert_eq!(result.axis1().axis1(), y.axis1());
+//         assert_eq!(result.axis1().z(), z.axis1());
 
-//         assert_eq!(result.xx().x(), x.xx());
-//         assert_eq!(result.xx().y(), y.xx());
-//         assert_eq!(result.xx().z(), z.xx());
+//         assert_eq!(result.axis0_axis0().axis0(), x.axis0_axis0());
+//         assert_eq!(result.axis0_axis0().axis1(), y.axis0_axis0());
+//         assert_eq!(result.axis0_axis0().z(), z.axis0_axis0());
 
-//         assert_eq!(result.xy().x(), x.xy());
-//         assert_eq!(result.xy().y(), y.xy());
-//         assert_eq!(result.xy().z(), z.xy());
+//         assert_eq!(result.axis0_axis1().axis0(), x.axis0_axis1());
+//         assert_eq!(result.axis0_axis1().axis1(), y.axis0_axis1());
+//         assert_eq!(result.axis0_axis1().z(), z.axis0_axis1());
 
-//         assert_eq!(result.yy().x(), x.yy());
-//         assert_eq!(result.yy().y(), y.yy());
-//         assert_eq!(result.yy().z(), z.yy());
+//         assert_eq!(result.axis1_axis1().axis0(), x.axis1_axis1());
+//         assert_eq!(result.axis1_axis1().axis1(), y.axis1_axis1());
+//         assert_eq!(result.axis1_axis1().z(), z.axis1_axis1());
 //     }
 
 //     // ---------------------------------------------------------------------

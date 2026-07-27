@@ -4,8 +4,8 @@ mod jet;
 mod seed;
 mod spectral;
 
-pub(crate) use error::{CoordinateAssignmentError, CoordinateCompileError};
-pub(crate) use jet::CoordinateJet;
+pub(crate) use error::CoordinateCompileError;
+pub(crate) use jet::CanonicalCoordinateJet;
 use seed::seed_coordinate;
 
 use nalgebra::ComplexField;
@@ -96,20 +96,19 @@ where
     C: ComplexField,
     C::RealField: Float + FloatConst + FromPrimitive + Copy,
     D: Dimension,
-    J: SeedJet<Array<C, D>> + CoordinateJet<C, D>,
+    J: SeedJet<Array<C, D>> + CanonicalCoordinateJet<C, D>,
 {
     validate_spectral(values)?;
 
-    let values = super::complexify(values);
+    let sampled = super::complexify(values);
 
-    let spectral =
-        seed_coordinate(values, slot).map_err(|source| CoordinateCompileError::Seed {
-            variable: CoordinateVariable::Spectral,
-            source,
-        })?;
+    let seeded = seed_coordinate(sampled, slot).map_err(|source| CoordinateCompileError::Seed {
+        variable: CoordinateVariable::Spectral,
+        source,
+    })?;
 
     Ok(SeededSpectral {
-        vacuum_angular_wavenumber: canonicalise_spectral::<C, D, J>(spectral, coordinate),
+        vacuum_angular_wavenumber: canonicalise_spectral::<C, D, J>(seeded, coordinate),
     })
 }
 
@@ -124,100 +123,22 @@ where
     C: ComplexField,
     C::RealField: Float + FloatConst + FromPrimitive + Copy,
     D: Dimension,
-    J: SeedJet<Array<C, D>> + CoordinateJet<C, D>,
+    J: SeedJet<Array<C, D>> + CanonicalCoordinateJet<C, D>,
 {
     validate_in_plane(values, coordinate)?;
 
-    let values = super::complexify(values);
+    let sampled = super::complexify(values);
 
-    let in_plane =
-        seed_coordinate(values.clone(), slot).map_err(|source| CoordinateCompileError::Seed {
+    let seeded =
+        seed_coordinate(sampled.clone(), slot).map_err(|source| CoordinateCompileError::Seed {
             variable: CoordinateVariable::InPlane,
             source,
         })?;
 
     Ok(canonicalise_in_plane::<C, D, J>(
-        in_plane,
+        seeded,
         coordinate,
         vacuum_angular_wavenumber,
         incident_index,
     )?)
 }
-
-// #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-// pub struct CoordinateVariables {
-//     spectral_slot: Option<usize>,
-//     in_plane_slot: Option<usize>,
-// }
-
-// impl CoordinateVariables {
-//     /// Compile both coordinates as constants.
-//     pub const fn none() -> Self {
-//         Self {
-//             spectral_slot: None,
-//             in_plane_slot: None,
-//         }
-//     }
-
-//     /// Assign one caller-facing coordinate to one jet slot.
-//     pub fn with(
-//         mut self,
-//         variable: CoordinateVariable,
-//         slot: usize,
-//     ) -> Result<Self, CoordinateAssignmentError> {
-//         let assigned_slot = match variable {
-//             CoordinateVariable::Spectral => &mut self.spectral_slot,
-
-//             CoordinateVariable::InPlane => &mut self.in_plane_slot,
-//         };
-
-//         if assigned_slot.is_some() {
-//             return Err(CoordinateAssignmentError::DuplicateVariable { variable });
-//         }
-
-//         *assigned_slot = Some(slot);
-
-//         Ok(self)
-//     }
-
-//     /// A univariate spectral assignment.
-//     ///
-//     /// This works for both first- and second-order univariate jets. The jet
-//     /// algebra determines the derivative order; the assignment merely places
-//     /// the spectral coordinate in slot zero.
-//     pub const fn spectral() -> Self {
-//         Self {
-//             spectral_slot: Some(0),
-//             in_plane_slot: None,
-//         }
-//     }
-
-//     /// A univariate in-plane assignment.
-//     pub const fn in_plane() -> Self {
-//         Self {
-//             spectral_slot: None,
-//             in_plane_slot: Some(0),
-//         }
-//     }
-
-//     /// Assign the spectral and in-plane coordinates to distinct slots.
-//     ///
-//     /// This is the normal assignment for a two-variable gradient or Hessian:
-//     ///
-//     /// - slot 0: caller-facing spectral coordinate;
-//     /// - slot 1: caller-facing in-plane coordinate.
-//     pub const fn full() -> Self {
-//         Self {
-//             spectral_slot: Some(0),
-//             in_plane_slot: Some(1),
-//         }
-//     }
-
-//     pub const fn spectral_slot(&self) -> Option<usize> {
-//         self.spectral_slot
-//     }
-
-//     pub const fn in_plane_slot(&self) -> Option<usize> {
-//         self.in_plane_slot
-//     }
-// }

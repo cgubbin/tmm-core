@@ -1,3 +1,20 @@
+//! Caller-facing descriptions of planar-wave solve problems.
+//!
+//! This module defines:
+//!
+//! - the physical coordinates used to parameterise a solve;
+//! - the sampled coordinate values supplied by the caller;
+//! - the incidence direction and polarisation;
+//! - the numerical value and derivative information requested from the
+//!   evaluator.
+//!
+//! Inputs are expressed in caller-selected units and coordinate systems.
+//! Before evaluation, they are validated and compiled into the canonical
+//! coordinates used by the numerical backends.
+//!
+//! The public types in this module describe a problem; they do not perform
+//! coordinate conversion or numerical evaluation themselves.
+
 mod canonical;
 mod compile;
 mod coordinate;
@@ -6,16 +23,16 @@ mod parameter;
 mod plane_wave;
 
 pub(crate) use canonical::{
-    CanonicalCoordinates, CanonicalPlaneWaveInput, CanonicalPlaneWaveProblem, CanonicalProblem,
-    CanonicalSolverInput,
+    CanonicalBackendInput, CanonicalCoordinates, CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationPlan, CompileProblemError, ParameterAssignment, SeedJet, compile_problem,
-    plan_compilation,
+    CompilationContext, CompilePlaneWaveError, CompilePlaneWaveJet, ParameterAssignment,
+    ParameterAssignmentError, SeedJet, compile_plane_wave_problem,
 };
 pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};
 pub use error::{PlaneWaveInputError, SpectralTransformError};
-pub use parameter::{DerivativeParameter, SolveRequest};
+pub use parameter::SolveRequest;
+pub(crate) use parameter::{Parameter, ThicknessSeedError};
 pub use plane_wave::{PlaneWaveInput, PlaneWavePoint};
 
 /// Polarisation supported by isotropic planar backends.

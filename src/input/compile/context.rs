@@ -1,3 +1,13 @@
+//! Caller-facing information retained after canonical compilation.
+//!
+//! Compilation converts coordinates and layer thicknesses into backend units
+//! and seeds derivative jets. The canonical backend input therefore no longer
+//! contains all information needed to describe results in the representation
+//! originally supplied by the caller.
+//!
+//! The context types in this module retain that information for derivative
+//! interpretation, observable projection, labels, and reporting.
+
 use ndarray::{Array, Dimension};
 
 use crate::{
@@ -9,10 +19,18 @@ use crate::{
     stack::Thickness,
 };
 
-/// Non-canonical information retained alongside a compiled backend problem.
+/// Caller-facing information associated with a compiled backend problem.
 ///
-/// This contains everything required to interpret backend values and
-/// assignment in the caller-facing parameterisation.
+/// This context records:
+///
+/// - the original coordinate kinds, values, and units;
+/// - the requested incidence side and polarisation;
+/// - finite-layer thicknesses in their caller-facing units;
+/// - the mapping from derivative slots to physical parameters.
+///
+/// The numerical backend does not consume this information. It is retained to
+/// interpret derivatives and project solved matrices into caller-facing
+/// observables.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompilationContext<R, D>
 where
@@ -27,7 +45,8 @@ impl<R, D> CompilationContext<R, D>
 where
     D: Dimension,
 {
-    pub fn new(
+    /// Construct context for a successfully compiled problem.
+    pub(crate) fn new(
         coordinates: CoordinateContext<R, D>,
         stack: StackContext<R>,
         assignment: ParameterAssignment,
@@ -39,18 +58,22 @@ where
         }
     }
 
+    /// Return the caller-facing plane-wave coordinate context.
     pub fn coordinates(&self) -> &CoordinateContext<R, D> {
         &self.coordinates
     }
 
+    /// Return the caller-facing finite-layer geometry.
     pub fn stack(&self) -> &StackContext<R> {
         &self.stack
     }
 
+    /// Return the mapping from derivative slots to physical parameters.
     pub fn assignment(&self) -> &ParameterAssignment {
         &self.assignment
     }
 
+    /// Consume the context and return its components.
     pub fn into_parts(
         self,
     ) -> (
@@ -62,48 +85,59 @@ where
     }
 }
 
-/// Caller-facing geometric description of the compiled stack.
+/// Caller-facing geometric description of the compiled finite layers.
 ///
-/// This deliberately excludes material handles. Material models remain in the
-/// canonical stack, while this context stores the lightweight geometry needed
-/// for labels, derivative interpretation, and reporting.
+/// Material models remain in the canonical backend stack. This lightweight
+/// context retains only the physical thickness values and units required for
+/// derivative interpretation, labels, and reporting.
+///
+/// Layer order is the same geometric left-to-right order used by the canonical
+/// stack.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StackContext<R> {
     layer_thicknesses: Vec<Thickness<R>>,
-
-    layer_labels: Vec<Option<String>>,
 }
 
 impl<R> StackContext<R> {
-    pub fn new(layer_thicknesses: Vec<Thickness<R>>) -> Self {
-        let len = layer_thicknesses.len();
-        Self {
-            layer_thicknesses,
-            layer_labels: vec![None; len],
-        }
+    /// Construct context from finite-layer thicknesses in left-to-right order.
+    pub(crate) fn new(layer_thicknesses: Vec<Thickness<R>>) -> Self {
+        Self { layer_thicknesses }
     }
 
+    /// Return all finite-layer thicknesses in left-to-right order.
     pub fn layer_thicknesses(&self) -> &[Thickness<R>] {
         &self.layer_thicknesses
     }
 
+    /// Return the thickness of finite layer `index`.
     pub fn layer_thickness(&self, index: usize) -> Option<&Thickness<R>> {
         self.layer_thicknesses.get(index)
     }
 
+    /// Return the number of finite layers.
     pub fn layer_count(&self) -> usize {
         self.layer_thicknesses.len()
     }
 
+    /// Whether the stack contains no finite layers.
     pub fn is_empty(&self) -> bool {
         self.layer_thicknesses.is_empty()
     }
 
+    /// Consume the context and return the finite-layer thicknesses.
     pub fn into_layer_thicknesses(self) -> Vec<Thickness<R>> {
         self.layer_thicknesses
     }
 }
 
+/// Original plane-wave description retained after canonicalisation.
+///
+/// Coordinate values remain in the exact representation and units supplied by
+/// the caller. The incidence side is retained for observable projection; it
+/// does not alter the fixed left-to-right backend traversal of the stack.
+///
+/// Polarisation is retained for result interpretation and reporting even
+/// though it is also present in the canonical backend input.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CoordinateContext<R, D>
 where
@@ -111,7 +145,6 @@ where
 {
     coordinates: PlaneWaveCoordinates,
     values: PlaneWaveCoordinateValues<R, D>,
-    incident_side: IncidentSide,
     polarisation: Polarisation,
 }
 
@@ -119,57 +152,148 @@ impl<R, D> CoordinateContext<R, D>
 where
     D: Dimension,
 {
+    /// Construct caller-facing coordinate context.
     pub(crate) fn new(
         coordinates: PlaneWaveCoordinates,
         values: PlaneWaveCoordinateValues<R, D>,
-        incident_side: IncidentSide,
         polarisation: Polarisation,
     ) -> Self {
         Self {
             coordinates,
             values,
-            incident_side,
             polarisation,
         }
     }
 
+    /// Return the coordinate parameterisations supplied by the caller.
     pub fn coordinates(&self) -> PlaneWaveCoordinates {
         self.coordinates
     }
 
-    pub fn values(&self) -> &PlaneWaveCoordinateValues<R, D> {
-        &self.values
-    }
-
+    /// Return the supplied spectral-coordinate values.
     pub fn spectral_values(&self) -> &Array<R, D> {
         self.values.spectral()
     }
 
+    /// Return the supplied in-plane-coordinate values.
     pub fn in_plane_values(&self) -> &Array<R, D> {
         self.values.in_plane()
     }
 
-    pub fn incident_side(&self) -> IncidentSide {
-        self.incident_side
-    }
-
+    /// Return the requested polarisation.
     pub fn polarisation(&self) -> Polarisation {
         self.polarisation
     }
 
-    pub fn into_parts(
-        self,
-    ) -> (
-        PlaneWaveCoordinates,
-        PlaneWaveCoordinateValues<R, D>,
-        IncidentSide,
-        Polarisation,
-    ) {
+    /// Consume the context and return its caller-facing components.
+    pub fn into_parts(self) -> (PlaneWaveCoordinates, Array<R, D>, Array<R, D>, Polarisation) {
+        let (spectral_values, in_plane_values) = self.values.into_parts();
+
         (
             self.coordinates,
-            self.values,
-            self.incident_side,
+            spectral_values,
+            in_plane_values,
             self.polarisation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ndarray::arr1;
+
+    use super::*;
+    use crate::input::{InPlaneCoordinate, Parameter, SpectralCoordinate};
+    use tmm_units::InverseLengthUnit;
+
+    #[test]
+    fn stack_context_preserves_layer_order() {
+        let thicknesses = vec![
+            Thickness::nanometres(10.0),
+            Thickness::micrometres(2.0),
+            Thickness::centimetres(0.1),
+        ];
+
+        let context = StackContext::new(thicknesses.clone());
+
+        assert_eq!(context.layer_thicknesses(), thicknesses.as_slice(),);
+        assert_eq!(context.layer_count(), 3);
+        assert!(!context.is_empty());
+
+        assert_eq!(context.layer_thickness(0), Some(&thicknesses[0]),);
+        assert_eq!(context.layer_thickness(2), Some(&thicknesses[2]),);
+        assert_eq!(context.layer_thickness(3), None);
+
+        assert_eq!(context.into_layer_thicknesses(), thicknesses,);
+    }
+
+    #[test]
+    fn empty_stack_context_is_empty() {
+        let context = StackContext::<f64>::new(Vec::new());
+
+        assert!(context.is_empty());
+        assert_eq!(context.layer_count(), 0);
+        assert_eq!(context.layer_thickness(0), None);
+    }
+
+    #[test]
+    fn coordinate_context_preserves_caller_representation() {
+        let spectral = arr1(&[1000.0, 1100.0]);
+        let in_plane = arr1(&[0.1, 0.2]);
+
+        let coordinates = PlaneWaveCoordinates::new(
+            SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
+            InPlaneCoordinate::EffectiveIndex,
+        );
+
+        let values = PlaneWaveCoordinateValues::new(spectral.clone(), in_plane.clone());
+
+        let context = CoordinateContext::new(coordinates, values, Polarisation::TransverseMagnetic);
+
+        assert_eq!(context.coordinates(), coordinates);
+        assert_eq!(context.spectral_values(), &spectral);
+        assert_eq!(context.in_plane_values(), &in_plane);
+        assert_eq!(context.polarisation(), Polarisation::TransverseMagnetic,);
+
+        let (returned_coordinates, returned_spectral, returned_in_plane, returned_polarisation) =
+            context.into_parts();
+
+        assert_eq!(returned_coordinates, coordinates);
+        assert_eq!(returned_spectral, spectral);
+        assert_eq!(returned_in_plane, in_plane);
+        assert_eq!(returned_polarisation, Polarisation::TransverseMagnetic,);
+    }
+
+    #[test]
+    fn compilation_context_preserves_all_components() {
+        let coordinate_context = CoordinateContext::new(
+            PlaneWaveCoordinates::new(
+                SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
+                InPlaneCoordinate::ParallelWavenumber(InverseLengthUnit::PerMetre),
+            ),
+            PlaneWaveCoordinateValues::new(arr1(&[1000.0]), arr1(&[100.0])),
+            Polarisation::TransverseElectric,
+        );
+
+        let stack_context = StackContext::new(vec![Thickness::nanometres(100.0)]);
+
+        let assignment =
+            ParameterAssignment::new([Parameter::Spectral, Parameter::LayerThickness { layer: 0 }])
+                .unwrap();
+
+        let context = CompilationContext::new(
+            coordinate_context.clone(),
+            stack_context.clone(),
+            assignment.clone(),
+        );
+
+        assert_eq!(context.coordinates(), &coordinate_context,);
+        assert_eq!(context.stack(), &stack_context);
+        assert_eq!(context.assignment(), &assignment);
+
+        assert_eq!(
+            context.into_parts(),
+            (coordinate_context, stack_context, assignment,),
+        );
     }
 }

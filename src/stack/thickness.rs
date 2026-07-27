@@ -2,7 +2,7 @@ use num_traits::{Float, Zero};
 use std::fmt;
 use tmm_units::{LengthUnit, UnitLabel};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Thickness<F> {
     value: F,
     length_unit: LengthUnit,

@@ -1,17 +1,79 @@
-// mod backend;
+mod backend;
 mod component;
 mod entries;
 mod error;
-// mod fields;
-mod matrix;
-// mod mode;
-// pub(super) mod plane_wave; // TODO: Move these
-// mod raw_matrix;
 mod workspace;
 
-// pub use backend::Scatter2;
-// pub use error::Scatter2Error;
-// pub use matrix::ScatterMatrix2;
+use crate::{
+    ComplexPlane, RealAxis,
+    backend::{Backend, InternalFieldRequest},
+};
+pub(crate) use entries::Scatter2Entries;
+pub use error::Scatter2Error;
+pub(crate) use workspace::Scatter2Workspace;
+
+use std::marker::PhantomData;
+
+/// Scalar-channel isotropic 2×2 scattering backend.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Scatter2<J>(PhantomData<J>);
+
+impl<J> Scatter2<J> {
+    /// Construct a scattering backend.
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<J> Backend<J, RealAxis> for Scatter2<J> {
+    type Error = Scatter2Error;
+    type Workspace = Scatter2Workspace<J>;
+
+    fn solve<M>(
+        &self,
+        problem: &crate::input::CanonicalProblem<M, J>,
+    ) -> Result<<Self::Workspace as crate::backend::HasEntries>::Entries, Self::Error> {
+        let workspace = self.accumulate::<E, M, C, D>(
+            problem.input(),
+            problem.stack(),
+            InternalFieldRequest::None,
+        )?;
+
+        Ok(workspace.into_entries())
+    }
+
+    fn retain<M>(
+        &self,
+        problem: &crate::input::CanonicalProblem<M, J>,
+    ) -> Result<Self::Workspace, Self::Error> {
+        let workspace = self.accumulate::<E, M, C, D>(
+            problem.input(),
+            problem.stack(),
+            InternalFieldRequest::LayerBoundaries,
+        )?;
+
+        Ok(workspace)
+    }
+}
+
+impl<J> Backend<J, ComplexPlane> for Scatter2<J> {
+    type Error = Scatter2Error;
+    type Workspace = Scatter2Workspace<J>;
+
+    fn solve<M>(
+        &self,
+        problem: &crate::input::CanonicalProblem<M, J>,
+    ) -> Result<<Self::Workspace as crate::backend::HasEntries>::Entries, Self::Error> {
+        todo!()
+    }
+
+    fn retain<M>(
+        &self,
+        problem: &crate::input::CanonicalProblem<M, J>,
+    ) -> Result<Self::Workspace, Self::Error> {
+        todo!()
+    }
+}
 
 // #[cfg(test)]
 // mod tests {

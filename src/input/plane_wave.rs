@@ -1,25 +1,19 @@
 use nalgebra::RealField;
-use ndarray::{
-    Array, Array0, Array1, Array2, ArrayBase, Data, Dimension, IntoDimension, Ix0, Ix1, Ix2,
-    OwnedRepr, arr0,
-};
+use ndarray::{Array, Array1, Array2, Dimension, IntoDimension, Ix0, Ix1, Ix2, arr0};
 
 use super::{IncidentSide, PlaneWaveCoordinates, PlaneWaveInputError, Polarisation};
 
+/// A scalar plane-wave input.
 pub type PlaneWavePoint<R> = PlaneWaveInput<R, Ix0>;
-pub type PlaneWaveSamples<R> = PlaneWaveInput<R, Ix1>;
-pub type PlaneWaveGrid<R> = PlaneWaveInput<R, Ix2>;
 
-/// Caller-facing plane-wave input.
+/// Caller-facing sampled plane-wave input.
 ///
-/// The spectral and in-plane values:
+/// Every element describes one plane-wave state using a spectral coordinate
+/// and an in-plane coordinate. Both arrays must have exactly the same shape;
+/// this type performs no implicit broadcasting.
 ///
-/// - use the parameterisations described by [`PlaneWaveCoordinates`];
-/// - have identical dimensions and shapes;
-/// - are interpreted elementwise;
-/// - have already been broadcast by the caller, if broadcasting was required.
-///
-/// Each corresponding pair defines one plane-wave state.
+/// Coordinate values are interpreted according to [`PlaneWaveCoordinates`]
+/// and converted to backend coordinates during input compilation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaneWaveInput<R, D>
 where
@@ -35,6 +29,18 @@ impl<R, D> PlaneWaveInput<R, D>
 where
     D: Dimension,
 {
+    /// Construct and validate a plane-wave input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when:
+    ///
+    /// - the spectral and in-plane arrays have different shapes;
+    /// - any spectral value is not finite;
+    /// - any in-plane value is not finite.
+    ///
+    /// Arrays that could be broadcast to a common shape are still rejected.
+    /// Broadcasting, when desired, must be performed explicitly by the caller.
     pub fn new(
         coordinates: PlaneWaveCoordinates,
         spectral: Array<R, D>,
@@ -68,30 +74,38 @@ where
         })
     }
 
+    /// Return the caller-facing coordinate system.
     pub fn coordinates(&self) -> PlaneWaveCoordinates {
         self.coordinates
     }
 
+    /// Return the supplied spectral coordinate values.
     pub fn spectral(&self) -> &Array<R, D> {
         self.values.spectral()
     }
 
+    /// Return the supplied in-plane coordinate values.
     pub fn in_plane(&self) -> &Array<R, D> {
         self.values.in_plane()
     }
 
+    /// Return the requested polarisation.
     pub fn polarisation(&self) -> Polarisation {
         self.polarisation
     }
 
+    /// Return the side from which the stack is illuminated.
     pub fn incident_side(&self) -> IncidentSide {
         self.incident_side
     }
 
-    pub fn get_point<I>(&self, index: &I) -> Option<PlaneWavePoint<R>>
+    /// Extract one sampled state as a scalar plane-wave input.
+    ///
+    /// Returns `None` when `index` lies outside the sampled array.
+    pub fn get_point<I>(&self, index: I) -> Option<PlaneWavePoint<R>>
     where
         R: Copy,
-        I: IntoDimension<Dim = D> + Clone,
+        I: IntoDimension<Dim = D>,
     {
         Some(PlaneWavePoint {
             coordinates: self.coordinates,
@@ -101,7 +115,8 @@ where
         })
     }
 
-    pub fn into_parts(
+    /// Consume the input and return its internal components.
+    pub(crate) fn into_parts(
         self,
     ) -> (
         PlaneWaveCoordinates,
@@ -122,6 +137,7 @@ impl<R> PlaneWaveInput<R, Ix0>
 where
     R: RealField,
 {
+    /// Construct a scalar plane-wave input.
     pub fn point(
         coordinates: PlaneWaveCoordinates,
         spectral: R,
@@ -143,6 +159,7 @@ impl<R> PlaneWaveInput<R, Ix1>
 where
     R: RealField,
 {
+    /// Construct a one-dimensional sequence of plane-wave inputs.
     pub fn samples(
         coordinates: PlaneWaveCoordinates,
         spectral: Array1<R>,
@@ -158,6 +175,10 @@ impl<R> PlaneWaveInput<R, Ix2>
 where
     R: RealField,
 {
+    /// Construct a two-dimensional grid of plane-wave inputs.
+    ///
+    /// Both arrays must already have the complete grid shape. Column and row
+    /// vectors are not implicitly broadcast.
     pub fn grid(
         coordinates: PlaneWaveCoordinates,
         spectral: Array2<R>,
@@ -169,8 +190,12 @@ where
     }
 }
 
+/// Paired spectral and in-plane coordinate values.
+///
+/// This type is internal to input compilation. Shape and finiteness invariants
+/// are established by [`PlaneWaveInput::new`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct PlaneWaveCoordinateValues<R, D>
+pub(crate) struct PlaneWaveCoordinateValues<R, D>
 where
     D: Dimension,
 {
@@ -182,38 +207,36 @@ impl<R, D> PlaneWaveCoordinateValues<R, D>
 where
     D: Dimension,
 {
-    pub fn new(spectral: Array<R, D>, in_plane: Array<R, D>) -> Self {
+    pub(super) fn new(spectral: Array<R, D>, in_plane: Array<R, D>) -> Self {
         Self { spectral, in_plane }
     }
 
-    pub fn spectral(&self) -> &Array<R, D> {
+    pub(super) fn spectral(&self) -> &Array<R, D> {
         &self.spectral
     }
 
-    pub fn in_plane(&self) -> &Array<R, D> {
+    pub(super) fn in_plane(&self) -> &Array<R, D> {
         &self.in_plane
     }
 
-    pub fn get_point<I>(&self, index: &I) -> Option<PlaneWaveCoordinateValues<R, Ix0>>
+    fn get_point<I>(&self, index: I) -> Option<PlaneWaveCoordinateValues<R, Ix0>>
     where
         R: Copy,
-        I: IntoDimension<Dim = D> + Clone,
+        I: IntoDimension<Dim = D>,
     {
-        let index = index.clone().into_dimension();
+        let index = index.into_dimension();
+
         Some(PlaneWaveCoordinateValues {
             spectral: arr0(*self.spectral.get(index.clone())?),
-            in_plane: arr0(*self.in_plane.get(index.clone())?),
+            in_plane: arr0(*self.in_plane.get(index)?),
         })
     }
 
-    pub fn raw_dim(&self) -> D
-    where
-        D: Clone,
-    {
+    pub(crate) fn raw_dim(&self) -> D {
         self.spectral.raw_dim()
     }
 
-    pub fn into_parts(self) -> (Array<R, D>, Array<R, D>) {
+    pub(crate) fn into_parts(self) -> (Array<R, D>, Array<R, D>) {
         (self.spectral, self.in_plane)
     }
 }
@@ -230,7 +253,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{arr1, arr2};
+    use ndarray::{IxDyn, arr1, arr2};
     use tmm_units::InverseLengthUnit;
 
     use crate::input::{InPlaneCoordinate, SpectralCoordinate};
@@ -245,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn point_constructs_scalar_arrays() {
+    fn point_preserves_values_and_metadata() {
         let input = PlaneWaveInput::point(
             coordinates(),
             1000.0,
@@ -255,21 +278,31 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(input.coordinates(), coordinates());
         assert_eq!(input.spectral()[()], 1000.0);
         assert_eq!(input.in_plane()[()], 1.5);
+        assert_eq!(input.polarisation(), Polarisation::TransverseElectric,);
+        assert_eq!(input.incident_side(), IncidentSide::Left);
     }
 
     #[test]
-    fn samples_accept_equal_shapes() {
+    fn samples_preserve_values_and_metadata() {
+        let spectral = arr1(&[1000.0, 1100.0]);
+        let in_plane = arr1(&[1.4, 1.5]);
+
         let input = PlaneWaveInput::samples(
             coordinates(),
-            arr1(&[1000.0, 1100.0]),
-            arr1(&[1.4, 1.5]),
+            spectral.clone(),
+            in_plane.clone(),
             Polarisation::TransverseMagnetic,
             IncidentSide::Right,
-        );
+        )
+        .unwrap();
 
-        assert!(input.is_ok());
+        assert_eq!(input.spectral(), &spectral);
+        assert_eq!(input.in_plane(), &in_plane);
+        assert_eq!(input.polarisation(), Polarisation::TransverseMagnetic,);
+        assert_eq!(input.incident_side(), IncidentSide::Right);
     }
 
     #[test]
@@ -282,14 +315,17 @@ mod tests {
             IncidentSide::Left,
         );
 
-        assert!(matches!(
+        assert_eq!(
             result,
-            Err(PlaneWaveInputError::ShapeMismatch { .. })
-        ));
+            Err(PlaneWaveInputError::ShapeMismatch {
+                spectral: IxDyn(&[2]),
+                in_plane: IxDyn(&[1]),
+            }),
+        );
     }
 
     #[test]
-    fn grid_rejects_different_shapes_even_when_broadcastable() {
+    fn grid_rejects_broadcastable_but_unequal_shapes() {
         let result = PlaneWaveInput::grid(
             coordinates(),
             arr2(&[[1000.0], [1100.0]]),
@@ -298,41 +334,129 @@ mod tests {
             IncidentSide::Left,
         );
 
-        assert!(matches!(
+        assert_eq!(
             result,
-            Err(PlaneWaveInputError::ShapeMismatch { .. })
-        ));
+            Err(PlaneWaveInputError::ShapeMismatch {
+                spectral: IxDyn(&[2, 1]),
+                in_plane: IxDyn(&[1, 2]),
+            }),
+        );
     }
 
     #[test]
-    fn spectral_values_must_be_finite() {
-        let result = PlaneWaveInput::samples(
+    fn spectral_values_report_first_non_finite_index() {
+        let result = PlaneWaveInput::grid(
             coordinates(),
-            arr1(&[1000.0, f64::NAN]),
+            arr2(&[[1000.0, 1100.0], [f64::NAN, f64::INFINITY]]),
+            arr2(&[[1.0, 1.1], [1.2, 1.3]]),
+            Polarisation::TransverseElectric,
+            IncidentSide::Left,
+        );
+
+        assert_eq!(
+            result,
+            Err(PlaneWaveInputError::NonFiniteSpectralValue { index: vec![1, 0] },),
+        );
+    }
+
+    #[test]
+    fn in_plane_values_report_first_non_finite_index() {
+        let result = PlaneWaveInput::grid(
+            coordinates(),
+            arr2(&[[1000.0, 1100.0], [1200.0, 1300.0]]),
+            arr2(&[[1.0, 1.1], [f64::NEG_INFINITY, f64::NAN]]),
+            Polarisation::TransverseElectric,
+            IncidentSide::Left,
+        );
+
+        assert_eq!(
+            result,
+            Err(PlaneWaveInputError::NonFiniteInPlaneValue { index: vec![1, 0] },),
+        );
+    }
+
+    #[test]
+    fn negative_finite_values_are_not_rejected_at_structural_validation() {
+        let input = PlaneWaveInput::samples(
+            coordinates(),
+            arr1(&[-1000.0]),
+            arr1(&[-1.5]),
+            Polarisation::TransverseElectric,
+            IncidentSide::Left,
+        );
+
+        assert!(input.is_ok());
+    }
+
+    #[test]
+    fn empty_inputs_are_accepted_when_shapes_match() {
+        let input = PlaneWaveInput::samples(
+            coordinates(),
+            arr1::<f64>(&[]),
+            arr1::<f64>(&[]),
+            Polarisation::TransverseElectric,
+            IncidentSide::Left,
+        );
+
+        assert!(input.is_ok());
+    }
+
+    #[test]
+    fn get_point_extracts_values_and_preserves_metadata() {
+        let input = PlaneWaveInput::grid(
+            coordinates(),
+            arr2(&[[1000.0, 1100.0], [1200.0, 1300.0]]),
+            arr2(&[[1.0, 1.1], [1.2, 1.3]]),
+            Polarisation::TransverseMagnetic,
+            IncidentSide::Right,
+        )
+        .unwrap();
+
+        let point = input.get_point((1, 0)).unwrap();
+
+        assert_eq!(point.coordinates(), coordinates());
+        assert_eq!(point.spectral()[()], 1200.0);
+        assert_eq!(point.in_plane()[()], 1.2);
+        assert_eq!(point.polarisation(), Polarisation::TransverseMagnetic,);
+        assert_eq!(point.incident_side(), IncidentSide::Right);
+    }
+
+    #[test]
+    fn get_point_returns_none_for_out_of_bounds_index() {
+        let input = PlaneWaveInput::samples(
+            coordinates(),
+            arr1(&[1000.0, 1100.0]),
             arr1(&[1.4, 1.5]),
             Polarisation::TransverseElectric,
             IncidentSide::Left,
-        );
+        )
+        .unwrap();
 
-        assert!(matches!(
-            result,
-            Err(PlaneWaveInputError::NonFiniteSpectralValue { .. })
-        ));
+        assert!(input.get_point(2).is_none());
     }
 
     #[test]
-    fn in_plane_values_must_be_finite() {
-        let result = PlaneWaveInput::samples(
-            coordinates(),
-            arr1(&[1000.0, 1100.0]),
-            arr1(&[1.4, f64::INFINITY]),
-            Polarisation::TransverseElectric,
-            IncidentSide::Left,
-        );
+    fn into_parts_preserves_all_components() {
+        let spectral = arr1(&[1000.0, 1100.0]);
+        let in_plane = arr1(&[1.4, 1.5]);
 
-        assert!(matches!(
-            result,
-            Err(PlaneWaveInputError::NonFiniteInPlaneValue { .. })
-        ));
+        let input = PlaneWaveInput::samples(
+            coordinates(),
+            spectral.clone(),
+            in_plane.clone(),
+            Polarisation::TransverseMagnetic,
+            IncidentSide::Right,
+        )
+        .unwrap();
+
+        let (returned_coordinates, values, polarisation, incident_side) = input.into_parts();
+
+        let (returned_spectral, returned_in_plane) = values.into_parts();
+
+        assert_eq!(returned_coordinates, coordinates());
+        assert_eq!(returned_spectral, spectral);
+        assert_eq!(returned_in_plane, in_plane);
+        assert_eq!(polarisation, Polarisation::TransverseMagnetic,);
+        assert_eq!(incident_side, IncidentSide::Right);
     }
 }

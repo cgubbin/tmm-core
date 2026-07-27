@@ -6,7 +6,6 @@ mod jet_two;
 mod jet_zero;
 mod scalar;
 
-use jet_bivariate_one::BivariateGradient;
 pub(crate) use jet_bivariate_one::{
     ArrayJetBivariate1, JetBivariate1, ModeJetBivariate1, PhysicalJetBivariate1,
 };
@@ -493,11 +492,11 @@ mod noncommutative_tests {
             .add(F.multiply(GYY));
 
         assert_eq!(result.value(), &expected_value);
-        assert_eq!(result.x(), &expected_x);
-        assert_eq!(result.y(), &expected_y);
-        assert_eq!(result.xx(), &expected_xx);
-        assert_eq!(result.xy(), &expected_xy);
-        assert_eq!(result.yy(), &expected_yy);
+        assert_eq!(result.axis0(), &expected_x);
+        assert_eq!(result.axis1(), &expected_y);
+        assert_eq!(result.axis0_axis0(), &expected_xx);
+        assert_eq!(result.axis0_axis1(), &expected_xy);
+        assert_eq!(result.axis1_axis1(), &expected_yy);
     }
 
     #[test]
@@ -534,8 +533,8 @@ mod noncommutative_tests {
             .add(GY.multiply(FY))
             .add(F.multiply(GYY));
 
-        assert_eq!(result.xx(), &correct_xx);
-        assert_eq!(result.yy(), &correct_yy);
+        assert_eq!(result.axis0_axis0(), &correct_xx);
+        assert_eq!(result.axis1_axis1(), &correct_yy);
 
         assert_ne!(correct_xx, incorrectly_symmetrised_xx);
         assert_ne!(correct_yy, incorrectly_symmetrised_yy);
@@ -557,7 +556,7 @@ mod noncommutative_tests {
             .add(FY.multiply(GX))
             .add(F.multiply(GXY));
 
-        assert_eq!(result.xy(), &expected);
+        assert_eq!(result.axis0_axis1(), &expected);
 
         // Each incorrect candidate reverses a different operand pair.
         let reversed_outer_terms = G
@@ -637,12 +636,12 @@ mod noncommutative_tests {
 
         assert_eq!(result.value(), &F.multiply(G));
 
-        assert_eq!(result.x(), &FX.multiply(G).add(F.multiply(GX)),);
+        assert_eq!(result.axis0(), &FX.multiply(G).add(F.multiply(GX)),);
 
-        assert_eq!(result.y(), &FY.multiply(G).add(F.multiply(GY)),);
+        assert_eq!(result.axis1(), &FY.multiply(G).add(F.multiply(GY)),);
 
         assert_eq!(
-            result.xx(),
+            result.axis0_axis0(),
             &FXX.multiply(G)
                 .add(FX.multiply(GX))
                 .add(FX.multiply(GX))
@@ -650,7 +649,7 @@ mod noncommutative_tests {
         );
 
         assert_eq!(
-            result.xy(),
+            result.axis0_axis1(),
             &FXY.multiply(G)
                 .add(FX.multiply(GY))
                 .add(FY.multiply(GX))
@@ -658,7 +657,7 @@ mod noncommutative_tests {
         );
 
         assert_eq!(
-            result.yy(),
+            result.axis1_axis1(),
             &FYY.multiply(G)
                 .add(FY.multiply(GY))
                 .add(FY.multiply(GY))

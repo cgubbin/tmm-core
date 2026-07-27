@@ -1,6 +1,6 @@
 use ndarray::Dimension;
 
-use crate::input::CanonicalProblem;
+use crate::input::CanonicalBackendInput;
 
 use super::CompilationContext;
 
@@ -15,7 +15,7 @@ pub struct CompiledProblem<M, J, R, D>
 where
     D: Dimension,
 {
-    canonical: CanonicalProblem<M, J>,
+    canonical: CanonicalBackendInput<M, J>,
     context: CompilationContext<R, D>,
 }
 
@@ -24,23 +24,23 @@ where
     D: Dimension,
 {
     pub(crate) fn new(
-        canonical: CanonicalProblem<M, J>,
+        canonical: CanonicalBackendInput<M, J>,
         context: CompilationContext<R, D>,
     ) -> Self {
         Self { canonical, context }
     }
 
     /// Canonical input passed to the numerical backend.
-    pub fn canonical(&self) -> &CanonicalProblem<M, J> {
+    pub fn canonical(&self) -> &CanonicalBackendInput<M, J> {
         &self.canonical
     }
 
     /// Caller-facing information used to interpret results.
-    pub fn context(&self) -> &CompilationContext<R, D> {
+    pub fn compilation_context(&self) -> &CompilationContext<R, D> {
         &self.context
     }
 
-    pub fn into_parts(self) -> (CanonicalProblem<M, J>, CompilationContext<R, D>) {
+    pub fn into_parts(self) -> (CanonicalBackendInput<M, J>, CompilationContext<R, D>) {
         (self.canonical, self.context)
     }
 }

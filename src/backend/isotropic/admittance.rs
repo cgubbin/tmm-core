@@ -60,7 +60,7 @@ mod tests {
     use crate::{
         algebra::{ArrayJet0, ArrayJet1, ArrayJet2, Jet0, RealParameter},
         backend::isotropic::IsotropicLayerQuantities,
-        input::{CanonicalSolverInput, Polarisation},
+        input::{CanonicalCoordinates, CanonicalSolverInput, Polarisation},
         material::Constant,
     };
 
@@ -79,9 +79,11 @@ mod tests {
         parallel_angular_wavenumber: f64,
         polarisation: Polarisation,
     ) -> CanonicalSolverInput<Jet0<Array0<C>>> {
-        CanonicalSolverInput::from_coordinates(
-            Jet0::new(arr0(c(vacuum_angular_wavenumber))),
-            Jet0::new(arr0(c(parallel_angular_wavenumber))),
+        CanonicalSolverInput::new(
+            CanonicalCoordinates::new(
+                Jet0::new(arr0(c(vacuum_angular_wavenumber))),
+                Jet0::new(arr0(c(parallel_angular_wavenumber))),
+            ),
             polarisation,
         )
     }

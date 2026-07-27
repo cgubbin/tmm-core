@@ -646,22 +646,28 @@ mod tests {
             &vector(c(1.0, 0.0), c(7.0, 0.0), c(13.0, 0.0)),
         );
 
-        assert_vector_close(result.x(), &vector(c(2.0, 0.0), c(8.0, 0.0), c(14.0, 0.0)));
-
-        assert_vector_close(result.y(), &vector(c(3.0, 0.0), c(9.0, 0.0), c(15.0, 0.0)));
+        assert_vector_close(
+            result.axis0(),
+            &vector(c(2.0, 0.0), c(8.0, 0.0), c(14.0, 0.0)),
+        );
 
         assert_vector_close(
-            result.xx(),
+            result.axis1(),
+            &vector(c(3.0, 0.0), c(9.0, 0.0), c(15.0, 0.0)),
+        );
+
+        assert_vector_close(
+            result.axis0_axis0(),
             &vector(c(4.0, 0.0), c(10.0, 0.0), c(16.0, 0.0)),
         );
 
         assert_vector_close(
-            result.xy(),
+            result.axis0_axis1(),
             &vector(c(5.0, 0.0), c(11.0, 0.0), c(17.0, 0.0)),
         );
 
         assert_vector_close(
-            result.yy(),
+            result.axis1_axis1(),
             &vector(c(6.0, 0.0), c(12.0, 0.0), c(18.0, 0.0)),
         );
     }
@@ -734,15 +740,24 @@ mod tests {
 
         assert_vector_close(result.value(), &(source.value().clone() * factor));
 
-        assert_vector_close(result.x(), &(source.x().clone() * factor));
+        assert_vector_close(result.axis0(), &(source.axis0().clone() * factor));
 
-        assert_vector_close(result.y(), &(source.y().clone() * factor));
+        assert_vector_close(result.axis1(), &(source.axis1().clone() * factor));
 
-        assert_vector_close(result.xx(), &(source.xx().clone() * factor));
+        assert_vector_close(
+            result.axis0_axis0(),
+            &(source.axis0_axis0().clone() * factor),
+        );
 
-        assert_vector_close(result.xy(), &(source.xy().clone() * factor));
+        assert_vector_close(
+            result.axis0_axis1(),
+            &(source.axis0_axis1().clone() * factor),
+        );
 
-        assert_vector_close(result.yy(), &(source.yy().clone() * factor));
+        assert_vector_close(
+            result.axis1_axis1(),
+            &(source.axis1_axis1().clone() * factor),
+        );
     }
 
     // ------------------------------------------------------------------
@@ -847,45 +862,45 @@ mod tests {
         let expected_value = scale_vector(vector.value(), scalar.value());
 
         let expected_x = add_vectors(&[
-            scale_vector(vector.x(), scalar.value()),
-            scale_vector(vector.value(), scalar.x()),
+            scale_vector(vector.axis0(), scalar.value()),
+            scale_vector(vector.value(), scalar.axis0()),
         ]);
 
         let expected_y = add_vectors(&[
-            scale_vector(vector.y(), scalar.value()),
-            scale_vector(vector.value(), scalar.y()),
+            scale_vector(vector.axis1(), scalar.value()),
+            scale_vector(vector.value(), scalar.axis1()),
         ]);
 
         let expected_xx = add_vectors(&[
-            scale_vector(vector.xx(), scalar.value()),
-            scale_vector(vector.x(), scalar.x()) * c(2.0, 0.0),
-            scale_vector(vector.value(), scalar.xx()),
+            scale_vector(vector.axis0_axis0(), scalar.value()),
+            scale_vector(vector.axis0(), scalar.axis0()) * c(2.0, 0.0),
+            scale_vector(vector.value(), scalar.axis0_axis0()),
         ]);
 
         let expected_xy = add_vectors(&[
-            scale_vector(vector.xy(), scalar.value()),
-            scale_vector(vector.x(), scalar.y()),
-            scale_vector(vector.y(), scalar.x()),
-            scale_vector(vector.value(), scalar.xy()),
+            scale_vector(vector.axis0_axis1(), scalar.value()),
+            scale_vector(vector.axis0(), scalar.axis1()),
+            scale_vector(vector.axis1(), scalar.axis0()),
+            scale_vector(vector.value(), scalar.axis0_axis1()),
         ]);
 
         let expected_yy = add_vectors(&[
-            scale_vector(vector.yy(), scalar.value()),
-            scale_vector(vector.y(), scalar.y()) * c(2.0, 0.0),
-            scale_vector(vector.value(), scalar.yy()),
+            scale_vector(vector.axis1_axis1(), scalar.value()),
+            scale_vector(vector.axis1(), scalar.axis1()) * c(2.0, 0.0),
+            scale_vector(vector.value(), scalar.axis1_axis1()),
         ]);
 
         assert_vector_close(result.value(), &expected_value);
 
-        assert_vector_close(result.x(), &expected_x);
+        assert_vector_close(result.axis0(), &expected_x);
 
-        assert_vector_close(result.y(), &expected_y);
+        assert_vector_close(result.axis1(), &expected_y);
 
-        assert_vector_close(result.xx(), &expected_xx);
+        assert_vector_close(result.axis0_axis0(), &expected_xx);
 
-        assert_vector_close(result.xy(), &expected_xy);
+        assert_vector_close(result.axis0_axis1(), &expected_xy);
 
-        assert_vector_close(result.yy(), &expected_yy);
+        assert_vector_close(result.axis1_axis1(), &expected_yy);
     }
 
     // ------------------------------------------------------------------

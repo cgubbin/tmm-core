@@ -4,7 +4,7 @@ use crate::{
     SpatialProfile, SpatialProfileError, StoredEnergy, VectorField,
     differential::{DifferentialResponse, NoDerivatives},
     field::{ScalarField, ScalarFieldView1, VectorFieldView1},
-    input::{CanonicalPlaneWaveInput, CanonicalSolverInput, PlaneWavePoint},
+    input::{IncidentSide, PlaneWavePoint},
     response::StackRegion,
 };
 
@@ -100,7 +100,7 @@ where
 
         let derivatives = self.derivatives().spatial_profile(&excitation_index)?;
 
-        let excitation = self.metadata().input().get_point(&excitation_index).expect(
+        let excitation = self.metadata().input().get_point(excitation_index).expect(
             "field response metadata and observables must have \
                  matching excitation dimensions",
         );

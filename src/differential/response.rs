@@ -1,8 +1,8 @@
 use crate::{
     SpatialProfile, SpatialProfileError,
     differential::{
-        DirectionalCoordinate, DirectionalFirst, DirectionalSecond, SpectralGradient,
-        SpectralHessian, SpectralSecond,
+        BivariateFirst, BivariateHessian, BivariateSecond, DirectionalCoordinate, DirectionalFirst,
+        DirectionalSecond,
     },
 };
 
@@ -104,13 +104,23 @@ impl<V, X> DifferentialResponse<V, DirectionalSecond<X>> {
     }
 }
 
-impl<V, X> DifferentialResponse<V, SpectralSecond<X>> {
-    pub(crate) fn gradient(&self) -> &SpectralGradient<X> {
-        self.derivatives.gradient()
+impl<V, X> DifferentialResponse<V, BivariateFirst<X>> {
+    pub(crate) fn axis0(&self) -> &X {
+        self.derivatives.axis0()
     }
 
-    pub(crate) fn hessian(&self) -> &SpectralHessian<X> {
-        self.derivatives.hessian()
+    pub(crate) fn axis1(&self) -> &X {
+        self.derivatives.axis1()
+    }
+}
+
+impl<V, X> DifferentialResponse<V, BivariateSecond<X>> {
+    pub(crate) fn gradient(&self) -> &BivariateFirst<X> {
+        self.derivatives.first()
+    }
+
+    pub(crate) fn hessian(&self) -> &BivariateHessian<X> {
+        self.derivatives.second()
     }
 }
 

@@ -5,8 +5,8 @@
 //! [`Response`] with an appropriate observable type.
 
 use crate::differential::{
-    DifferentialResponse, DirectionalCoordinate, DirectionalFirst, DirectionalSecond,
-    NoDerivatives, SpectralGradient, SpectralHessian, SpectralSecond,
+    BivariateFirst, BivariateHessian, BivariateSecond, DifferentialResponse, DirectionalCoordinate,
+    DirectionalFirst, DirectionalSecond, NoDerivatives,
 };
 
 /// Observable values together with optional differential information and metadata required for
@@ -93,14 +93,26 @@ impl<V, M> Response<V, DirectionalSecond<V>, M> {
     }
 }
 
-impl<V, M> Response<V, SpectralSecond<V>, M> {
+impl<V, M> Response<V, BivariateFirst<V>, M> {
     /// Return the spectral gradient of the observables.
-    pub fn gradient(&self) -> &SpectralGradient<V> {
+    pub fn axis0(&self) -> &V {
+        self.inner.axis0()
+    }
+
+    /// Return the spectral Hessian of the observables.
+    pub fn axis1(&self) -> &V {
+        self.inner.axis1()
+    }
+}
+
+impl<V, M> Response<V, BivariateSecond<V>, M> {
+    /// Return the spectral gradient of the observables.
+    pub fn gradient(&self) -> &BivariateFirst<V> {
         self.inner.gradient()
     }
 
     /// Return the spectral Hessian of the observables.
-    pub fn hessian(&self) -> &SpectralHessian<V> {
+    pub fn hessian(&self) -> &BivariateHessian<V> {
         self.inner.hessian()
     }
 }

@@ -5,7 +5,7 @@ use crate::input::compile::{
 };
 
 #[derive(Debug, Error)]
-pub enum CompileProblemError<R> {
+pub enum CompilePlaneWaveError<R> {
     #[error(transparent)]
     Assignment(#[from] ParameterAssignmentError),
 
