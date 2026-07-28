@@ -166,3 +166,178 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ndarray::arr1;
+
+    use super::*;
+
+    mod validation {
+        use super::*;
+
+        #[test]
+        fn accepts_positive_finite_values() {
+            let values = arr1(&[f64::MIN_POSITIVE, 1.0e-12, 1.0, 1.0e12, f64::MAX]);
+
+            let result = validate_spectral(&values);
+
+            assert_eq!(result, Ok(()));
+        }
+
+        #[test]
+        fn rejects_zero() {
+            let values = arr1(&[1.0, 0.0, 2.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonPositive {
+                    index: 1,
+                    value: 0.0,
+                },
+            );
+        }
+
+        #[test]
+        fn rejects_negative_value() {
+            let values = arr1(&[1.0, -2.5, 3.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonPositive {
+                    index: 1,
+                    value: -2.5,
+                },
+            );
+        }
+
+        #[test]
+        fn rejects_negative_zero() {
+            let values = arr1(&[-0.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonPositive {
+                    index: 0,
+                    value: -0.0,
+                },
+            );
+        }
+
+        #[test]
+        fn rejects_nan() {
+            let values = arr1(&[1.0, f64::NAN, 2.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert!(matches!(
+                error,
+                SpectralInputError::NonFinite {
+                    index: 1,
+                    value,
+                } if value.is_nan()
+            ));
+        }
+
+        #[test]
+        fn rejects_positive_infinity() {
+            let values = arr1(&[1.0, f64::INFINITY]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonFinite {
+                    index: 1,
+                    value: f64::INFINITY,
+                },
+            );
+        }
+
+        #[test]
+        fn rejects_negative_infinity() {
+            let values = arr1(&[f64::NEG_INFINITY, 1.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonFinite {
+                    index: 0,
+                    value: f64::NEG_INFINITY,
+                },
+            );
+        }
+
+        #[test]
+        fn reports_first_invalid_value() {
+            let values = arr1(&[1.0, -2.0, f64::NAN, 0.0]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonPositive {
+                    index: 1,
+                    value: -2.0,
+                },
+            );
+        }
+
+        #[test]
+        fn reports_non_finite_before_non_positive_for_same_value() {
+            let values = arr1(&[f64::NEG_INFINITY]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonFinite {
+                    index: 0,
+                    value: f64::NEG_INFINITY,
+                },
+            );
+        }
+
+        #[test]
+        fn reports_flat_index_for_multidimensional_input() {
+            let values = ndarray::arr2(&[[1.0, 2.0], [3.0, 0.0]]);
+
+            let error = validate_spectral(&values).unwrap_err();
+
+            assert_eq!(
+                error,
+                SpectralInputError::NonPositive {
+                    index: 3,
+                    value: 0.0,
+                },
+            );
+        }
+
+        #[test]
+        fn accepts_empty_input() {
+            let values = ndarray::Array1::<f64>::from_vec(Vec::new());
+
+            let result = validate_spectral(&values);
+
+            assert_eq!(result, Ok(()));
+        }
+
+        #[test]
+        fn works_with_array_views() {
+            let values = arr1(&[1.0, 2.0, 3.0]);
+
+            let view = values.view();
+
+            let result = validate_spectral(&view);
+
+            assert_eq!(result, Ok(()));
+        }
+    }
+}
