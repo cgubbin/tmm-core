@@ -23,11 +23,12 @@ mod parameter;
 mod plane_wave;
 
 pub(crate) use canonical::{
-    CanonicalBackendInput, CanonicalCoordinates, CanonicalSolverInput, CanonicalStack,
+    CanonicalBackendInput, CanonicalCoordinates, CanonicalProblem, CanonicalSolverInput,
+    CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompilePlaneWaveError, CompilePlaneWaveJet, ParameterAssignment,
-    ParameterAssignmentError, SeedJet, compile_plane_wave_problem,
+    CompilationContext, CompileJet, CompilePlaneWaveError, ParameterAssignment,
+    ParameterAssignmentError, SeedJet, compile_complex, compile_real,
 };
 pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};
 pub use error::{PlaneWaveInputError, SpectralTransformError};

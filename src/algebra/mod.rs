@@ -16,7 +16,7 @@ pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1, ModeJet1, Physica
 pub(crate) use jet_two::{ArrayJet2, Jet2, ModeJet2, PhysicalJet2, SecondOrderExpansion};
 pub(crate) use jet_zero::{ArrayJet0, Jet0, ModeJet0, PhysicalJet0};
 pub(crate) use scalar::{
-    BivariateVariableAlgebra, ComplexJet, FirstOrderFunctionAlgebra, RealScalarAlgebra,
+    BivariateVariableAlgebra, ComplexJet, FirstOrderFunctionAlgebra, Jet, RealScalarAlgebra,
     ScalarAlgebra, SecondOrderFunctionAlgebra, UnivariateVariableAlgebra,
 };
 

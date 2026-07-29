@@ -16,6 +16,7 @@
 //! evaluation.
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::Zero;
 
 use crate::{ComplexScalar, algebra::ScalarAlgebra};
 
@@ -32,15 +33,15 @@ use super::super::entries::Scatter2Entries;
 /// and may be a sampled value, first-order jet, or second-order jet. This
 /// lower-level constructor is used when the exponent itself must carry
 /// derivative information, such as for a layer-thickness derivative.
-pub(crate) fn propagation_from_exponent<C, D, A>(exponent: A) -> Scatter2Entries<A>
+pub(crate) fn propagation_from_exponent<A>(exponent: A) -> Scatter2Entries<A>
 where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D> + Clone,
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar + Zero,
+    A::Dimension: Dimension,
 {
     let phase = exponent.exp();
 
-    let zero = A::filled_constant_like(phase.value(), C::zero());
+    let zero = A::filled_constant_like(phase.value(), <A::Scalar as Zero>::zero());
 
     Scatter2Entries {
         s11: zero.clone(),
@@ -65,95 +66,101 @@ where
 /// This constructor treats `thickness` as constant. For derivatives with
 /// respect to thickness, construct a jet for the complete exponent and call
 /// [`propagation_from_exponent`].
-pub(crate) fn propagation<C, D, A>(kappa: &A, thickness: A) -> Scatter2Entries<A>
+pub(crate) fn propagation<A>(kappa: &A, thickness: &A) -> Scatter2Entries<A>
 where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D> + Clone,
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar + Zero,
+    A::Dimension: Dimension,
 {
-    let exponent = kappa.scale(C::i()).multiply(&thickness);
+    let exponent = kappa
+        .scale(<A::Scalar as ComplexScalar>::i())
+        .multiply(thickness);
 
-    propagation_from_exponent::<C, D, A>(exponent)
+    propagation_from_exponent(exponent)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use approx::assert_relative_eq;
-//     use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr, arr0, array};
-//     use num_complex::Complex64;
+#[cfg(test)]
+mod tests {
+    use approx::assert_relative_eq;
+    use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr, arr0, array};
+    use num_complex::Complex64;
 
-//     use super::*;
-//     use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2};
+    use super::*;
+    use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter};
 
-//     type C = Complex64;
+    type C = Complex64;
 
-//     fn c(value: f64) -> C {
-//         C::new(value, 0.0)
-//     }
+    fn c(value: f64) -> C {
+        C::new(value, 0.0)
+    }
 
-//     fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
-//         assert_relative_eq!(
-//             actual.re,
-//             expected.re,
-//             epsilon = tolerance,
-//             max_relative = tolerance,
-//         );
+    fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = tolerance,
+            max_relative = tolerance,
+        );
 
-//         assert_relative_eq!(
-//             actual.im,
-//             expected.im,
-//             epsilon = tolerance,
-//             max_relative = tolerance,
-//         );
-//     }
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = tolerance,
+            max_relative = tolerance,
+        );
+    }
 
-//     fn assert_array_close<D>(
-//         actual: &ArrayBase<OwnedRepr<C>, D>,
-//         expected: &ArrayBase<OwnedRepr<C>, D>,
-//         tolerance: f64,
-//     ) where
-//         D: Dimension,
-//     {
-//         assert_eq!(actual.raw_dim(), expected.raw_dim());
+    fn assert_array_close<D>(
+        actual: &ArrayBase<OwnedRepr<C>, D>,
+        expected: &ArrayBase<OwnedRepr<C>, D>,
+        tolerance: f64,
+    ) where
+        D: Dimension,
+    {
+        assert_eq!(actual.raw_dim(), expected.raw_dim());
 
-//         for (&actual, &expected) in actual.iter().zip(expected.iter()) {
-//             assert_complex_close(actual, expected, tolerance);
-//         }
-//     }
+        for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+            assert_complex_close(actual, expected, tolerance);
+        }
+    }
 
-//     #[test]
-//     fn zero_exponent_produces_transparent_identity() {
-//         let exponent = ArrayJet0::new(arr0(c(0.0)));
+    fn make_zero_jet(value: f64) -> ArrayJet0<C, Ix0, RealParameter> {
+        ArrayJet0::new(arr0(c(value)))
+    }
 
-//         let entries = propagation_from_exponent::<C, Ix0, _>(exponent);
+    #[test]
+    fn zero_exponent_produces_transparent_identity() {
+        let exponent = make_zero_jet(0.0);
 
-//         assert_complex_close(entries.s11[()], c(0.0), 1e-12);
+        let entries = propagation_from_exponent(exponent);
 
-//         assert_complex_close(entries.s12[()], c(1.0), 1e-12);
+        assert_complex_close(entries.s11[()], c(0.0), 1e-12);
 
-//         assert_complex_close(entries.s21[()], c(1.0), 1e-12);
+        assert_complex_close(entries.s12[()], c(1.0), 1e-12);
 
-//         assert_complex_close(entries.s22[()], c(0.0), 1e-12);
-//     }
+        assert_complex_close(entries.s21[()], c(1.0), 1e-12);
 
-//     #[test]
-//     fn propagation_matches_expected_phase() {
-//         let kappa = arr0(c(2.3));
-//         let thickness = c(0.4);
+        assert_complex_close(entries.s22[()], c(0.0), 1e-12);
+    }
 
-//         let entries = propagation::<C, Ix0, _>(&kappa, thickness);
+    #[test]
+    fn propagation_matches_expected_phase() {
+        let kappa = make_zero_jet(2.3);
+        let thickness = make_zero_jet(0.4);
 
-//         let expected = (C::i() * c(2.3) * thickness).exp();
+        let entries = propagation(&kappa, &thickness);
 
-//         assert_complex_close(entries.s11[()], c(0.0), 1e-12);
+        let expected = (kappa.multiply(&thickness).scale_by(C::i())).exp();
 
-//         assert_complex_close(entries.s12[()], expected, 1e-12);
+        assert_complex_close(entries.s11[()], c(0.0), 1e-12);
 
-//         assert_complex_close(entries.s21[()], expected, 1e-12);
+        assert_complex_close(entries.s12[()], expected.clone().into_inner()[()], 1e-12);
 
-//         assert_complex_close(entries.s22[()], c(0.0), 1e-12);
-//     }
+        assert_complex_close(entries.s21[()], expected.into_inner()[()], 1e-12);
 
+        assert_complex_close(entries.s22[()], c(0.0), 1e-12);
+    }
+}
 //     #[test]
 //     fn propagation_is_symmetric_between_directions() {
 //         let kappa = arr0(C::new(2.3, 0.4));

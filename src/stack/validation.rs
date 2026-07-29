@@ -14,6 +14,9 @@ pub enum ValidationError<F> {
     #[error("zero thickness at layer {index}")]
     ZeroThickness { index: usize },
 
+    #[error("negative thickness at layer {index}")]
+    NegativeThickness { index: usize },
+
     #[error("thickness at layer {index} is below minimum {min:?}: {actual:?}")]
     ThicknessTooSmall {
         index: usize,
@@ -111,6 +114,10 @@ where
 
             let (value, unit) = thickness.into_parts();
             let thickness_cm = value * unit.to_centimetres_factor();
+
+            if value < F::zero() {
+                return Err(ValidationError::NegativeThickness { index });
+            }
 
             if let Some(min) = self.min_thickness {
                 let (value, unit) = min.into_parts();

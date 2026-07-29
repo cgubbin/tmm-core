@@ -19,8 +19,7 @@ pub struct PlaneWaveInput<R, D>
 where
     D: Dimension,
 {
-    coordinates: PlaneWaveCoordinates,
-    values: PlaneWaveCoordinateValues<R, D>,
+    input: PlaneWaveCoordinatesInput<R, D>,
     polarisation: Polarisation,
     incident_side: IncidentSide,
 }
@@ -51,24 +50,8 @@ where
     where
         R: RealField,
     {
-        if spectral.raw_dim() != in_plane.raw_dim() {
-            return Err(PlaneWaveInputError::ShapeMismatch {
-                spectral: spectral.raw_dim().into_dyn(),
-                in_plane: in_plane.raw_dim().into_dyn(),
-            });
-        }
-
-        if let Some(index) = first_non_finite_index(&spectral) {
-            return Err(PlaneWaveInputError::NonFiniteSpectralValue { index });
-        }
-
-        if let Some(index) = first_non_finite_index(&in_plane) {
-            return Err(PlaneWaveInputError::NonFiniteInPlaneValue { index });
-        }
-
         Ok(Self {
-            coordinates,
-            values: PlaneWaveCoordinateValues::new(spectral, in_plane),
+            input: PlaneWaveCoordinatesInput::new(coordinates, spectral, in_plane)?,
             polarisation,
             incident_side,
         })
@@ -76,17 +59,17 @@ where
 
     /// Return the caller-facing coordinate system.
     pub fn coordinates(&self) -> PlaneWaveCoordinates {
-        self.coordinates
+        self.input.coordinates()
     }
 
     /// Return the supplied spectral coordinate values.
     pub fn spectral(&self) -> &Array<R, D> {
-        self.values.spectral()
+        self.input.spectral()
     }
 
     /// Return the supplied in-plane coordinate values.
     pub fn in_plane(&self) -> &Array<R, D> {
-        self.values.in_plane()
+        self.input.in_plane()
     }
 
     /// Return the requested polarisation.
@@ -108,8 +91,7 @@ where
         I: IntoDimension<Dim = D>,
     {
         Some(PlaneWavePoint {
-            coordinates: self.coordinates,
-            values: self.values.get_point(index)?,
+            input: self.input.get_point(index)?,
             polarisation: self.polarisation,
             incident_side: self.incident_side,
         })
@@ -118,18 +100,8 @@ where
     /// Consume the input and return its internal components.
     pub(crate) fn into_parts(
         self,
-    ) -> (
-        PlaneWaveCoordinates,
-        PlaneWaveCoordinateValues<R, D>,
-        Polarisation,
-        IncidentSide,
-    ) {
-        (
-            self.coordinates,
-            self.values,
-            self.polarisation,
-            self.incident_side,
-        )
+    ) -> (PlaneWaveCoordinatesInput<R, D>, Polarisation, IncidentSide) {
+        (self.input, self.polarisation, self.incident_side)
     }
 }
 
@@ -187,6 +159,95 @@ where
         incident_side: IncidentSide,
     ) -> Result<Self, PlaneWaveInputError> {
         Self::new(coordinates, spectral, in_plane, polarisation, incident_side)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PlaneWaveCoordinatesInput<R, D>
+where
+    D: Dimension,
+{
+    coordinates: PlaneWaveCoordinates,
+    values: PlaneWaveCoordinateValues<R, D>,
+}
+
+impl<R, D> PlaneWaveCoordinatesInput<R, D>
+where
+    D: Dimension,
+{
+    /// Construct and validate a plane-wave coordinate input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when:
+    ///
+    /// - the spectral and in-plane arrays have different shapes;
+    /// - any spectral value is not finite;
+    /// - any in-plane value is not finite.
+    ///
+    /// Arrays that could be broadcast to a common shape are still rejected.
+    /// Broadcasting, when desired, must be performed explicitly by the caller.
+    pub fn new(
+        coordinates: PlaneWaveCoordinates,
+        spectral: Array<R, D>,
+        in_plane: Array<R, D>,
+    ) -> Result<Self, PlaneWaveInputError>
+    where
+        R: RealField,
+    {
+        if spectral.raw_dim() != in_plane.raw_dim() {
+            return Err(PlaneWaveInputError::ShapeMismatch {
+                spectral: spectral.raw_dim().into_dyn(),
+                in_plane: in_plane.raw_dim().into_dyn(),
+            });
+        }
+
+        if let Some(index) = first_non_finite_index(&spectral) {
+            return Err(PlaneWaveInputError::NonFiniteSpectralValue { index });
+        }
+
+        if let Some(index) = first_non_finite_index(&in_plane) {
+            return Err(PlaneWaveInputError::NonFiniteInPlaneValue { index });
+        }
+
+        Ok(Self {
+            coordinates,
+            values: PlaneWaveCoordinateValues::new(spectral, in_plane),
+        })
+    }
+
+    /// Return the caller-facing coordinate system.
+    pub fn coordinates(&self) -> PlaneWaveCoordinates {
+        self.coordinates
+    }
+
+    /// Return the supplied spectral coordinate values.
+    pub fn spectral(&self) -> &Array<R, D> {
+        self.values.spectral()
+    }
+
+    /// Return the supplied in-plane coordinate values.
+    pub fn in_plane(&self) -> &Array<R, D> {
+        self.values.in_plane()
+    }
+
+    /// Extract one sampled state as a scalar plane-wave input.
+    ///
+    /// Returns `None` when `index` lies outside the sampled array.
+    pub fn get_point<I>(&self, index: I) -> Option<PlaneWaveCoordinatesInput<R, Ix0>>
+    where
+        R: Copy,
+        I: IntoDimension<Dim = D>,
+    {
+        Some(PlaneWaveCoordinatesInput {
+            coordinates: self.coordinates,
+            values: self.values.get_point(index)?,
+        })
+    }
+
+    /// Consume the input and return its internal components.
+    pub(crate) fn into_parts(self) -> (PlaneWaveCoordinates, PlaneWaveCoordinateValues<R, D>) {
+        (self.coordinates, self.values)
     }
 }
 
@@ -449,8 +510,9 @@ mod tests {
         )
         .unwrap();
 
-        let (returned_coordinates, values, polarisation, incident_side) = input.into_parts();
+        let (input, polarisation, incident_side) = input.into_parts();
 
+        let (returned_coordinates, values) = input.into_parts();
         let (returned_spectral, returned_in_plane) = values.into_parts();
 
         assert_eq!(returned_coordinates, coordinates());

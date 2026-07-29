@@ -32,13 +32,12 @@ use crate::input::compile::seed::{SeedJet, UnsupportedDerivativeSlot};
 ///
 /// Returns [`UnsupportedDerivativeSlot`] when `slot` is not represented by
 /// the selected jet algebra.
-pub(crate) fn seed_coordinate<R, D, J>(
-    values: Array<R, D>,
+pub(crate) fn seed_coordinate<J>(
+    values: Array<J::Scalar, J::Dimension>,
     slot: Option<usize>,
 ) -> Result<J, UnsupportedDerivativeSlot>
 where
-    D: Dimension,
-    J: SeedJet<Array<R, D>>,
+    J: SeedJet,
 {
     match slot {
         Some(slot) => J::variable(values, slot),

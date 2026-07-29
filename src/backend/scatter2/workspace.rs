@@ -4,7 +4,7 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        HasEntries, InternalFieldRequest, IntoEntries,
+        BackendWorkspace, RunMode,
         scatter2::entries::{Scatter2Entries, cascade},
     },
     input::IncidentSide,
@@ -70,15 +70,13 @@ pub(crate) struct Scatter2Workspace<A> {
     retained: Option<RetainedScatterComponents<A>>,
 }
 
-impl<A> HasEntries for Scatter2Workspace<A> {
+impl<A> BackendWorkspace for Scatter2Workspace<A> {
     type Entries = Scatter2Entries<A>;
 
     fn entries(&self) -> &Self::Entries {
         &self.total
     }
-}
 
-impl<A> IntoEntries for Scatter2Workspace<A> {
     fn into_entries(self) -> Self::Entries {
         let (entries, ..) = self.into_parts();
         entries
@@ -91,20 +89,20 @@ pub(crate) struct RetainedScatterComponents<A> {
 }
 
 impl<A> Scatter2Workspace<A> {
-    pub(crate) fn new<C, D>(
-        source: &ArrayBase<OwnedRepr<C>, D>,
-        request: InternalFieldRequest,
+    pub(crate) fn new(
+        source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+        mode: RunMode,
         layer_count: usize,
     ) -> Self
     where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
+        A: ScalarAlgebra,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
     {
         Self {
             total: Scatter2Entries::identity_like(source),
 
-            retained: request.is_requested().then(|| RetainedScatterComponents {
+            retained: mode.is_requested().then(|| RetainedScatterComponents {
                 components: Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1)),
                 layer_cuts: Vec::with_capacity(layer_count),
             }),
@@ -115,36 +113,36 @@ impl<A> Scatter2Workspace<A> {
         (self.total, self.retained)
     }
 
-    pub(crate) fn append<C, D>(&mut self, component: Scatter2Entries<A>)
+    pub(crate) fn append(&mut self, component: Scatter2Entries<A>)
     where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
+        A: ScalarAlgebra,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
     {
-        self.total = cascade::<C, D, A>(&self.total, &component);
+        self.total = cascade(&self.total, &component);
 
         if let Some(retained) = &mut self.retained {
             retained.components.push(component);
         }
     }
 
-    pub(crate) fn append_layer<C, D>(
+    pub(crate) fn append_layer(
         &mut self,
         interface: Scatter2Entries<A>,
         propagation: Scatter2Entries<A>,
     ) where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
+        A: ScalarAlgebra,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
     {
-        self.append::<C, D>(interface);
+        self.append(interface);
 
         let left_cut = self
             .retained
             .as_ref()
             .map(|retained| retained.components.len());
 
-        self.append::<C, D>(propagation);
+        self.append(propagation);
 
         if let (Some(left_cut), Some(retained)) = (left_cut, &mut self.retained) {
             let right_cut = retained.components.len();

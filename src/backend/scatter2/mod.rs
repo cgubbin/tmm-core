@@ -5,13 +5,18 @@ mod error;
 mod workspace;
 
 use crate::{
-    ComplexPlane, RealAxis,
-    backend::{Backend, InternalFieldRequest},
+    ComplexPlane, ComplexScalar, Polarisation, RealAxis,
+    algebra::ScalarAlgebra,
+    backend::{Backend, BackendWorkspace, RunMode},
+    input::CanonicalProblem,
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 pub(crate) use entries::Scatter2Entries;
 pub use error::Scatter2Error;
 pub(crate) use workspace::Scatter2Workspace;
 
+use nalgebra::ComplexField;
+use ndarray::Dimension;
 use std::marker::PhantomData;
 
 /// Scalar-channel isotropic 2×2 scattering backend.
@@ -25,18 +30,31 @@ impl<J> Scatter2<J> {
     }
 }
 
-impl<J> Backend<J, RealAxis> for Scatter2<J> {
+impl<J, Domain> Backend<J, Domain> for Scatter2<J>
+where
+    J: ScalarAlgebra + Clone,
+    J::Scalar: ComplexScalar,
+    J::Dimension: Dimension,
+    <J::Scalar as ComplexField>::RealField: Copy,
+{
     type Error = Scatter2Error;
+    type Entries = Scatter2Entries<J>;
     type Workspace = Scatter2Workspace<J>;
 
     fn solve<M>(
         &self,
-        problem: &crate::input::CanonicalProblem<M, J>,
-    ) -> Result<<Self::Workspace as crate::backend::HasEntries>::Entries, Self::Error> {
-        let workspace = self.accumulate::<E, M, C, D>(
-            problem.input(),
+        problem: &CanonicalProblem<M, J>,
+        polarisation: Polarisation,
+    ) -> Result<Self::Entries, Self::Error>
+    where
+        Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        J: ConstitutiveLift<Domain, M>,
+    {
+        let workspace = self.accumulate::<Domain, M>(
+            problem.coordinates(),
             problem.stack(),
-            InternalFieldRequest::None,
+            polarisation,
+            RunMode::Evaluate,
         )?;
 
         Ok(workspace.into_entries())
@@ -44,34 +62,21 @@ impl<J> Backend<J, RealAxis> for Scatter2<J> {
 
     fn retain<M>(
         &self,
-        problem: &crate::input::CanonicalProblem<M, J>,
-    ) -> Result<Self::Workspace, Self::Error> {
-        let workspace = self.accumulate::<E, M, C, D>(
-            problem.input(),
+        problem: &CanonicalProblem<M, J>,
+        polarisation: Polarisation,
+    ) -> Result<Self::Workspace, Self::Error>
+    where
+        Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        J: ConstitutiveLift<Domain, M>,
+    {
+        let workspace = self.accumulate::<Domain, M>(
+            problem.coordinates(),
             problem.stack(),
-            InternalFieldRequest::LayerBoundaries,
+            polarisation,
+            RunMode::Accumulate,
         )?;
 
         Ok(workspace)
-    }
-}
-
-impl<J> Backend<J, ComplexPlane> for Scatter2<J> {
-    type Error = Scatter2Error;
-    type Workspace = Scatter2Workspace<J>;
-
-    fn solve<M>(
-        &self,
-        problem: &crate::input::CanonicalProblem<M, J>,
-    ) -> Result<<Self::Workspace as crate::backend::HasEntries>::Entries, Self::Error> {
-        todo!()
-    }
-
-    fn retain<M>(
-        &self,
-        problem: &crate::input::CanonicalProblem<M, J>,
-    ) -> Result<Self::Workspace, Self::Error> {
-        todo!()
     }
 }
 

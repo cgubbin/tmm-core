@@ -57,13 +57,14 @@ pub enum InPlaneInputError<R> {
 ///
 /// Returns [`InPlaneInputError`] if any value is non-finite or, for incident
 /// angles, lies outside the supported interval.
-pub(crate) fn validate_in_plane<R, S, D>(
+pub(crate) fn validate_in_plane<C, S, D>(
     values: &ArrayBase<S, D>,
     coordinate: InPlaneCoordinate,
-) -> Result<(), InPlaneInputError<R>>
+) -> Result<(), InPlaneInputError<C>>
 where
-    R: Float + FloatConst + FromPrimitive + Copy,
-    S: Data<Elem = R>,
+    C: ComplexField + Copy,
+    C::RealField: Float + FloatConst + FromPrimitive,
+    S: Data<Elem = C>,
     D: Dimension,
 {
     for (index, &value) in values.iter().enumerate() {
@@ -72,11 +73,11 @@ where
         }
 
         if let InPlaneCoordinate::IncidentAngle(unit) = coordinate {
-            let radians = value * unit.scale_to_radians();
+            let radians = value * C::from_real(unit.scale_to_radians::<C::RealField>());
 
-            let half_pi = R::PI() / (R::one() + R::one());
+            let half_pi = C::from_real(<C::RealField as FloatConst>::PI()) / (C::one() + C::one());
 
-            if radians < -half_pi || radians > half_pi {
+            if radians.real() < -half_pi.real() || radians.real() > half_pi.real() {
                 return Err(InPlaneInputError::AngleOutsidePrincipalInterval { index, radians });
             }
         }
@@ -86,7 +87,7 @@ where
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
-pub enum CanonicaliseInPlaneError {
+pub enum InPlaneCanonicalisationError {
     #[error(
         "incident-angle input requires the refractive \
          index of the incident medium"
@@ -129,35 +130,36 @@ pub enum CanonicaliseInPlaneError {
 ///
 /// Incident-angle coordinates require the refractive index of the incident
 /// medium. If it is not supplied,
-/// [`CanonicaliseInPlaneError::MissingIncidentIndex`] is returned.
-pub(crate) fn canonicalise_in_plane<C, D, J>(
+/// [`InPlaneCanonicalisationError::MissingIncidentIndex`] is returned.
+pub(crate) fn canonicalise_in_plane<J>(
     value: J,
     coordinate: InPlaneCoordinate,
     vacuum_angular_wavenumber: &J,
     incident_index: Option<&J>,
-) -> Result<J, CanonicaliseInPlaneError>
+) -> Result<J, InPlaneCanonicalisationError>
 where
-    C: ComplexField,
-    C::RealField: Float + FloatConst + FromPrimitive + Copy,
-    J: CanonicalCoordinateJet<C, D>,
-    D: Dimension,
+    J: CanonicalCoordinateJet,
+    J::Scalar: ComplexField,
+    <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Copy,
+    J::Dimension: Dimension,
 {
-    let two_pi = <C::RealField as FloatConst>::PI() + <C::RealField as FloatConst>::PI();
+    let two_pi = <<J::Scalar as ComplexField>::RealField as FloatConst>::PI()
+        + <<J::Scalar as ComplexField>::RealField as FloatConst>::PI();
 
     match coordinate {
-        InPlaneCoordinate::ParallelAngularWavenumber(unit) => {
-            Ok(value.scale_real(unit.scale_to_inverse_centimetres::<C::RealField>()))
-        }
+        InPlaneCoordinate::ParallelAngularWavenumber(unit) => Ok(value.scale_real(
+            unit.scale_to_inverse_centimetres::<<J::Scalar as ComplexField>::RealField>(),
+        )),
 
-        InPlaneCoordinate::ParallelWavenumber(unit) => {
-            Ok(value.scale_real(unit.scale_to_inverse_centimetres::<C::RealField>() * two_pi))
-        }
+        InPlaneCoordinate::ParallelWavenumber(unit) => Ok(value.scale_real(
+            unit.scale_to_inverse_centimetres::<<J::Scalar as ComplexField>::RealField>() * two_pi,
+        )),
 
         InPlaneCoordinate::EffectiveIndex => Ok(value.multiply(vacuum_angular_wavenumber.clone())),
 
         InPlaneCoordinate::IncidentAngle(unit) => {
             let incident_index =
-                incident_index.ok_or(CanonicaliseInPlaneError::MissingIncidentIndex)?;
+                incident_index.ok_or(InPlaneCanonicalisationError::MissingIncidentIndex)?;
 
             let sine = value.scale_real(unit.scale_to_radians()).sin();
 
@@ -173,7 +175,7 @@ where
 mod tests {
     use std::f64::consts::{FRAC_PI_2, PI};
 
-    use ndarray::{Ix0, arr1};
+    use ndarray::{Ix0, arr1, array};
     use num_complex::Complex64;
     use tmm_units::{AngleUnit, InverseLengthUnit};
 
@@ -229,7 +231,12 @@ mod tests {
         }
     }
 
-    impl CanonicalCoordinateJet<Complex64, Ix0> for RecordingJet {
+    impl crate::algebra::Jet for RecordingJet {
+        type Scalar = Complex64;
+        type Dimension = Ix0;
+    }
+
+    impl CanonicalCoordinateJet for RecordingJet {
         fn scale_real(self, factor: f64) -> Self {
             Self {
                 value: self.value * factor,
@@ -264,8 +271,8 @@ mod tests {
         coordinate: InPlaneCoordinate,
         vacuum_angular_wavenumber: &RecordingJet,
         incident_index: Option<&RecordingJet>,
-    ) -> Result<RecordingJet, CanonicaliseInPlaneError> {
-        canonicalise_in_plane::<Complex64, Ix0, RecordingJet>(
+    ) -> Result<RecordingJet, InPlaneCanonicalisationError> {
+        canonicalise_in_plane::<RecordingJet>(
             value,
             coordinate,
             vacuum_angular_wavenumber,
@@ -538,6 +545,104 @@ mod tests {
                 } if value.is_nan()
             ));
         }
+
+        #[test]
+        fn in_plane_accepts_complex_intrinsic_coordinates() {
+            let values = array![Complex64::new(1.0, 2.0), Complex64::new(-3.0, 4.0),];
+
+            let result = validate_in_plane(
+                &values,
+                InPlaneCoordinate::ParallelAngularWavenumber(InverseLengthUnit::PerMetre),
+            );
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn in_plane_rejects_non_finite_imaginary_part() {
+            let values = array![Complex64::new(1.0, 0.0), Complex64::new(2.0, f64::INFINITY),];
+
+            let error = validate_in_plane(
+                &values,
+                InPlaneCoordinate::ParallelAngularWavenumber(InverseLengthUnit::PerMetre),
+            )
+            .unwrap_err();
+
+            assert!(matches!(
+                error,
+                InPlaneInputError::NonFinite {
+                    index: 1,
+                    value
+                } if value == Complex64::new(2.0, f64::INFINITY)
+            ));
+        }
+
+        #[test]
+        fn in_plane_accepts_complex_angle_inside_principal_interval() {
+            let values = array![Complex64::new(0.25, 20.0)];
+
+            let result =
+                validate_in_plane(&values, InPlaneCoordinate::IncidentAngle(AngleUnit::Radian));
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn in_plane_accepts_large_imaginary_angle_component() {
+            let values = array![Complex64::new(0.25, 1.0e6)];
+
+            let result =
+                validate_in_plane(&values, InPlaneCoordinate::IncidentAngle(AngleUnit::Radian));
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn in_plane_rejects_complex_angle_above_principal_interval() {
+            let values = array![Complex64::new(std::f64::consts::FRAC_PI_2 + 1.0e-6, 4.0,)];
+
+            let error =
+                validate_in_plane(&values, InPlaneCoordinate::IncidentAngle(AngleUnit::Radian))
+                    .unwrap_err();
+
+            assert!(matches!(
+                error,
+                InPlaneInputError::AngleOutsidePrincipalInterval {
+                    index: 0,
+                    radians
+                } if radians == values[0]
+            ));
+        }
+
+        #[test]
+        fn in_plane_rejects_complex_angle_below_principal_interval() {
+            let values = array![Complex64::new(-std::f64::consts::FRAC_PI_2 - 1.0e-6, -3.0,)];
+
+            let error =
+                validate_in_plane(&values, InPlaneCoordinate::IncidentAngle(AngleUnit::Radian))
+                    .unwrap_err();
+
+            assert!(matches!(
+                error,
+                InPlaneInputError::AngleOutsidePrincipalInterval {
+                    index: 0,
+                    radians
+                } if radians == values[0]
+            ));
+        }
+
+        #[test]
+        fn in_plane_accepts_complex_angle_on_principal_interval_boundary() {
+            let values = array![
+                Complex64::new(-std::f64::consts::FRAC_PI_2, 2.0),
+                Complex64::new(std::f64::consts::FRAC_PI_2, -2.0),
+            ];
+
+            let result =
+                validate_in_plane(&values, InPlaneCoordinate::IncidentAngle(AngleUnit::Radian));
+
+            assert!(result.is_ok());
+        }
     }
 
     mod canonicalisation {
@@ -734,7 +839,7 @@ mod tests {
             )
             .unwrap_err();
 
-            assert_eq!(error, CanonicaliseInPlaneError::MissingIncidentIndex,);
+            assert_eq!(error, InPlaneCanonicalisationError::MissingIncidentIndex,);
         }
 
         #[test]

@@ -72,7 +72,7 @@ use crate::{
     ComplexScalar,
     algebra::ScalarAlgebra,
     domain::{ComplexPlane, RealAxis},
-    input::{CanonicalSolverInput, Polarisation},
+    input::{CanonicalCoordinates, CanonicalSolverInput, Polarisation},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
@@ -131,55 +131,65 @@ impl<A> IsotropicLayerQuantities<A> {
         }
     }
 
-    pub(crate) fn into_admittance<C, D>(self) -> IsotropicLayerAdmittance<A>
+    pub(crate) fn into_admittance(self) -> IsotropicLayerAdmittance<A>
     where
-        C: ComplexField,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
+        A: ScalarAlgebra,
     {
         IsotropicLayerAdmittance::new(self.kappa.divide(self.factor()))
     }
 }
 
 impl<A> IsotropicLayerQuantities<A> {
-    pub(crate) fn real_axis<C, D, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
+    pub(crate) fn real_axis<M>(
+        material: &M,
+        coordinates: &CanonicalCoordinates<A>,
+        polarisation: Polarisation,
+    ) -> Self
     where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, RealAxis, M> + Clone,
-        RealAxis: ConstitutiveEvaluator<C, D, M>,
+        A: ScalarAlgebra + ConstitutiveLift<RealAxis, M> + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        RealAxis: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
     {
-        Self::evaluate::<C, D, RealAxis, M>(material, input)
+        Self::evaluate::<RealAxis, M>(material, coordinates, polarisation)
     }
 
-    pub(crate) fn complex_plane<C, D, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
+    pub(crate) fn complex_plane<M>(
+        material: &M,
+        coordinates: &CanonicalCoordinates<A>,
+        polarisation: Polarisation,
+    ) -> Self
     where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, ComplexPlane, M> + Clone,
-        ComplexPlane: ConstitutiveEvaluator<C, D, M>,
+        A: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M> + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        ComplexPlane: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
     {
-        Self::evaluate::<C, D, ComplexPlane, M>(material, input)
+        Self::evaluate::<ComplexPlane, M>(material, coordinates, polarisation)
     }
 
-    pub(crate) fn evaluate<C, D, E, M>(material: &M, input: &CanonicalSolverInput<A>) -> Self
+    pub(crate) fn evaluate<E, M>(
+        material: &M,
+        coordinates: &CanonicalCoordinates<A>,
+        polarisation: Polarisation,
+    ) -> Self
     where
-        C: ComplexScalar,
-        D: Dimension,
-        E: ConstitutiveEvaluator<C, D, M>,
-        A: ScalarAlgebra<C, D> + ConstitutiveLift<C, D, E, M> + Clone,
+        A: ScalarAlgebra + ConstitutiveLift<E, M> + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        E: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
     {
-        let epsilon = A::relative_permittivity(material, input.vacuum_angular_wavenumber());
+        let epsilon = A::relative_permittivity(material, coordinates.vacuum_angular_wavenumber());
 
-        let mu = A::relative_permeability(material, input.vacuum_angular_wavenumber());
+        let mu = A::relative_permeability(material, coordinates.vacuum_angular_wavenumber());
 
-        let k0_squared = input
+        let k0_squared = coordinates
             .vacuum_angular_wavenumber()
-            .multiply(input.vacuum_angular_wavenumber());
+            .multiply(coordinates.vacuum_angular_wavenumber());
 
-        let kx_squared = input
+        let kx_squared = coordinates
             .parallel_angular_wavenumber()
-            .multiply(input.parallel_angular_wavenumber());
+            .multiply(coordinates.parallel_angular_wavenumber());
 
         let kappa = epsilon
             .multiply(&mu)
@@ -187,6 +197,6 @@ impl<A> IsotropicLayerQuantities<A> {
             .subtract(&kx_squared)
             .sqrt();
 
-        Self::from_parts(epsilon, mu, kappa, input.polarisation())
+        Self::from_parts(epsilon, mu, kappa, polarisation)
     }
 }

@@ -7,27 +7,30 @@ use super::{
     RealParameter, SecondOrderExpansion,
 };
 
-pub trait ComplexJet {
+pub trait Jet {
+    type Dimension;
+    type Scalar;
+}
+
+pub trait ComplexJet: Jet {
     type RealJet;
 }
 
-pub(crate) trait ScalarAlgebra<T, D>: Clone + Sized + std::fmt::Debug
-where
-    D: Dimension,
-{
-    // type Vector: CartesianVectorAlgebra<Coefficient = T, ScalarField = Self>;
+pub(crate) trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
+    fn value(&self) -> &ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>;
 
-    fn value(&self) -> &ArrayBase<OwnedRepr<T>, D>;
+    fn lift_constant(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
 
-    fn lift_constant(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
-
-    fn filled_constant_like(source: &ArrayBase<OwnedRepr<T>, D>, value: T) -> Self;
+    fn filled_constant_like(
+        source: &ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>,
+        value: Self::Scalar,
+    ) -> Self;
 
     // fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 
     fn zero_like(&self) -> Self;
 
-    fn constant(&self, value: T) -> Self {
+    fn constant(&self, value: Self::Scalar) -> Self {
         Self::filled_constant_like(self.value(), value)
     }
 
@@ -37,7 +40,7 @@ where
 
     fn multiply(&self, rhs: &Self) -> Self;
     fn reciprocal(&self) -> Self;
-    fn scale(&self, coefficient: T) -> Self;
+    fn scale(&self, coefficient: Self::Scalar) -> Self;
 
     fn exp(&self) -> Self;
     fn sin(&self) -> Self;
@@ -60,10 +63,7 @@ where
 ///
 /// This trait is deliberately not implemented for jets parameterised by
 /// [`super::HolomorphicParameter`].
-pub(crate) trait RealScalarAlgebra<T, D>: ScalarAlgebra<T, D> + ComplexJet
-where
-    D: Dimension,
-{
+pub(crate) trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
     fn conjugated(&self) -> Self;
 
     fn real(&self) -> Self::RealJet;
@@ -77,43 +77,31 @@ where
 // Variable-seeding capabilities
 // -------------------------------------------------------------------------
 
-pub(crate) trait UnivariateVariableAlgebra<T, D>: ScalarAlgebra<T, D>
-where
-    D: Dimension,
-{
-    fn variable(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
+pub(crate) trait UnivariateVariableAlgebra: ScalarAlgebra {
+    fn variable(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
 }
 
-pub(crate) trait BivariateVariableAlgebra<T, D>: ScalarAlgebra<T, D>
-where
-    D: Dimension,
-{
-    fn variable_axis0(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
+pub(crate) trait BivariateVariableAlgebra: ScalarAlgebra {
+    fn variable_axis0(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
 
-    fn variable_axis1(value: ArrayBase<OwnedRepr<T>, D>) -> Self;
+    fn variable_axis1(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
 }
 
 // -------------------------------------------------------------------------
 // Sampled unary-function composition
 // -------------------------------------------------------------------------
 
-pub(crate) trait FirstOrderFunctionAlgebra<C, D>: ScalarAlgebra<C, D>
-where
-    D: Dimension,
-{
+pub(crate) trait FirstOrderFunctionAlgebra: ScalarAlgebra {
     fn compose_sampled_function(
         argument: &Self,
-        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
+        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>>,
     ) -> Self;
 }
 
-pub(crate) trait SecondOrderFunctionAlgebra<C, D>: ScalarAlgebra<C, D>
-where
-    D: Dimension,
-{
+pub(crate) trait SecondOrderFunctionAlgebra: ScalarAlgebra {
     fn compose_sampled_function(
         argument: &Self,
-        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
+        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>>,
     ) -> Self;
 }
 
@@ -139,22 +127,27 @@ where
 // -------------------------------------------------------------------------
 // Plain sampled arrays
 // -------------------------------------------------------------------------
+//
+impl<C, D, P> Jet for ArrayJet0<C, D, P> {
+    type Scalar = C;
+    type Dimension = D;
+}
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJet0<C, D, P>
+impl<C, D, P> ScalarAlgebra for ArrayJet0<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
     P: Clone + Debug,
 {
-    fn value(&self) -> &ArrayBase<OwnedRepr<C>, D> {
+    fn value(&self) -> &ArrayBase<OwnedRepr<C>, Self::Dimension> {
         ArrayJet0::value(self)
     }
 
-    fn lift_constant(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
+    fn lift_constant(value: ArrayBase<OwnedRepr<C>, Self::Dimension>) -> Self {
         ArrayJet0::constant(value)
     }
 
-    fn filled_constant_like(source: &ArrayBase<OwnedRepr<C>, D>, value: C) -> Self {
+    fn filled_constant_like(source: &ArrayBase<OwnedRepr<C>, Self::Dimension>, value: C) -> Self {
         ArrayJet0::constant_like(source, value)
     }
 
@@ -214,7 +207,7 @@ where
     type RealJet = ArrayJet0<C::RealField, D, P>;
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJet0<C, D, RealParameter>
+impl<C, D> RealScalarAlgebra for ArrayJet0<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -232,7 +225,12 @@ where
 // First-order univariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJet1<C, D, P>
+impl<C, D, P> Jet for ArrayJet1<C, D, P> {
+    type Scalar = C;
+    type Dimension = D;
+}
+
+impl<C, D, P> ScalarAlgebra for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -306,7 +304,7 @@ where
     type RealJet = ArrayJet1<C::RealField, D, P>;
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJet1<C, D, RealParameter>
+impl<C, D> RealScalarAlgebra for ArrayJet1<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -320,7 +318,7 @@ where
     }
 }
 
-impl<C, D, P> UnivariateVariableAlgebra<C, D> for ArrayJet1<C, D, P>
+impl<C, D, P> UnivariateVariableAlgebra for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -331,7 +329,7 @@ where
     }
 }
 
-impl<C, D, P> FirstOrderFunctionAlgebra<C, D> for ArrayJet1<C, D, P>
+impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -349,7 +347,12 @@ where
 // Second-order univariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJet2<C, D, P>
+impl<C, D, P> Jet for ArrayJet2<C, D, P> {
+    type Scalar = C;
+    type Dimension = D;
+}
+
+impl<C, D, P> ScalarAlgebra for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -425,7 +428,7 @@ where
     type RealJet = ArrayJet2<C::RealField, D, P>;
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJet2<C, D, RealParameter>
+impl<C, D> RealScalarAlgebra for ArrayJet2<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -439,7 +442,7 @@ where
     }
 }
 
-impl<C, D, P> UnivariateVariableAlgebra<C, D> for ArrayJet2<C, D, P>
+impl<C, D, P> UnivariateVariableAlgebra for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -450,7 +453,7 @@ where
     }
 }
 
-impl<C, D, P> SecondOrderFunctionAlgebra<C, D> for ArrayJet2<C, D, P>
+impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -468,7 +471,12 @@ where
 // Second-order bivariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
+impl<C, D, P> Jet for ArrayJetBivariate1<C, D, P> {
+    type Scalar = C;
+    type Dimension = D;
+}
+
+impl<C, D, P> ScalarAlgebra for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -544,7 +552,7 @@ where
     type RealJet = ArrayJetBivariate1<C::RealField, D, P>;
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJetBivariate1<C, D, RealParameter>
+impl<C, D> RealScalarAlgebra for ArrayJetBivariate1<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -558,7 +566,7 @@ where
     }
 }
 
-impl<C, D, P> BivariateVariableAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
+impl<C, D, P> BivariateVariableAlgebra for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -573,7 +581,7 @@ where
     }
 }
 
-impl<C, D, P> FirstOrderFunctionAlgebra<C, D> for ArrayJetBivariate1<C, D, P>
+impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -587,7 +595,12 @@ where
     }
 }
 
-impl<C, D, P> ScalarAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
+impl<C, D, P> Jet for ArrayJetBivariate2<C, D, P> {
+    type Scalar = C;
+    type Dimension = D;
+}
+
+impl<C, D, P> ScalarAlgebra for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -666,7 +679,7 @@ where
     type RealJet = ArrayJetBivariate2<C::RealField, D, P>;
 }
 
-impl<C, D> RealScalarAlgebra<C, D> for ArrayJetBivariate2<C, D, RealParameter>
+impl<C, D> RealScalarAlgebra for ArrayJetBivariate2<C, D, RealParameter>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -680,7 +693,7 @@ where
     }
 }
 
-impl<C, D, P> BivariateVariableAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
+impl<C, D, P> BivariateVariableAlgebra for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -695,7 +708,7 @@ where
     }
 }
 
-impl<C, D, P> SecondOrderFunctionAlgebra<C, D> for ArrayJetBivariate2<C, D, P>
+impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -805,7 +818,7 @@ mod tests {
     fn array_scalar_algebra_lifts_values_unchanged() {
         let source = values();
 
-        let result = <Zero as ScalarAlgebra<C, D>>::lift_constant(source.clone());
+        let result = <Zero as ScalarAlgebra>::lift_constant(source.clone());
 
         assert_eq!(result.into_inner(), source);
     }

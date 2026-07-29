@@ -1,14 +1,14 @@
-//! Bivariate second-order differential jets.
+//! Bivariate first-order differential jets.
 //!
 //! [`JetBivariate`] propagates derivatives with respect to two independent
 //! scalar coordinates. It stores a value, a two-component gradient, and the
 //! three independent entries of a symmetric Hessian:
 //!
 //! ```text
-//! (f, fₓ, fᵧ, fₓₓ, fₓᵧ, fᵧᵧ)
+//! (f, fₓ, fᵧ,)
 //! ```
 //!
-//! The coordinates are abstractly named `x` and `y`. Application crates may
+//! The coordinates are abstractly named `axis0` and `axis1`. Application crates may
 //! provide aliases or constructors assigning physical meanings to them.
 //!
 //! Parameter semantics are represented by a marker type:
@@ -512,7 +512,6 @@ mod tests {
         let result = jet.sin();
 
         let first = value.cos();
-        let second = -value.sin();
 
         assert_close(result.value()[()], value.sin());
         assert_close(result.axis0()[()], first * x);
@@ -751,7 +750,6 @@ mod tests {
 
         let inverse = r(1.0) / value;
         let first = -r(1.0) / (value * value);
-        let second = r(2.0) / (value * value * value);
 
         assert_close(result.value()[()], inverse);
         assert_close(result.axis0()[()], first * x);
@@ -818,7 +816,6 @@ mod tests {
         let result = jet.sin();
 
         let first = value.cos();
-        let second = -value.sin();
 
         assert_close(result.value()[()], value.sin());
         assert_close(result.axis0()[()], first * x);

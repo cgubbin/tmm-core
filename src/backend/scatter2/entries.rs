@@ -14,6 +14,7 @@
 //! algebra.
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::{One, Zero};
 
 use crate::{
     ComplexScalar,
@@ -67,17 +68,17 @@ impl<A> Scatter2Entries<A> {
     /// S_identity = [0 1]
     ///              [1 0].
     /// ```
-    pub(crate) fn identity_like<C, D>(source: &SampleArray<C, D>) -> Self
+    pub(crate) fn identity_like(source: &SampleArray<A::Scalar, A::Dimension>) -> Self
     where
-        C: ComplexScalar,
-        D: Dimension,
-        A: ScalarAlgebra<C, D>,
+        A: ScalarAlgebra,
+        A::Scalar: One + Zero,
+        A::Dimension: Dimension,
     {
         Self {
-            s11: A::filled_constant_like(source, C::zero()),
-            s12: A::filled_constant_like(source, C::one()),
-            s21: A::filled_constant_like(source, C::one()),
-            s22: A::filled_constant_like(source, C::zero()),
+            s11: A::filled_constant_like(source, <A::Scalar as Zero>::zero()),
+            s12: A::filled_constant_like(source, <A::Scalar as One>::one()),
+            s21: A::filled_constant_like(source, <A::Scalar as One>::one()),
+            s22: A::filled_constant_like(source, <A::Scalar as Zero>::zero()),
         }
     }
 
@@ -137,16 +138,16 @@ impl<A> Scatter2Entries<A> {
 ///
 /// The operation is evaluated over [`ScalarAlgebra`], so the same
 /// implementation supports value-only, first-order, and second-order entries.
-pub(crate) fn cascade<C, D, A>(
+pub(crate) fn cascade<A>(
     left: &Scatter2Entries<A>,
     right: &Scatter2Entries<A>,
 ) -> Scatter2Entries<A>
 where
-    C: ComplexScalar,
-    D: Dimension,
-    A: ScalarAlgebra<C, D>,
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar + One,
+    A::Dimension: Dimension,
 {
-    let one = A::filled_constant_like(left.s11.value(), C::one());
+    let one = A::filled_constant_like(left.s11.value(), <A::Scalar as One>::one());
 
     let denominator = one.subtract(&left.s22.multiply(&right.s11));
 

@@ -1,3 +1,4 @@
+use nalgebra::ComplexField;
 use thiserror::Error;
 
 use crate::input::compile::{
@@ -5,21 +6,13 @@ use crate::input::compile::{
 };
 
 #[derive(Debug, Error)]
-pub enum CompilePlaneWaveError<R> {
+pub enum CompilePlaneWaveError<C: ComplexField> {
     #[error(transparent)]
     Assignment(#[from] ParameterAssignmentError),
 
     #[error(transparent)]
-    Coordinates(#[from] CoordinateCompileError<R>),
+    Coordinates(#[from] CoordinateCompileError<C>),
 
     #[error(transparent)]
-    Stack(#[from] StackCompileError<R>),
-    // #[error(
-    //     "failed to evaluate the incident-medium \
-    //      refractive index"
-    // )]
-    // IncidentIndex {
-    //     #[source]
-    //     source: E,
-    // },
+    Stack(#[from] StackCompileError<C::RealField>),
 }

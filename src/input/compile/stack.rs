@@ -76,18 +76,21 @@ pub(crate) trait ThicknessSlotMap {
     fn slot_for_layer(&self, layer: usize) -> Option<usize>;
 }
 
-pub(crate) fn compile_stack<M, C, D, J, A>(
-    stack: &Stack<M, C::RealField>,
-    sampled_shape: D,
-    validation: &ValidationConfig<C::RealField>,
+pub(crate) fn compile_stack<M, J, A>(
+    stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
+    sampled_shape: J::Dimension,
+    validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
     assignment: &A,
-) -> Result<CompiledStack<M, J, C::RealField>, StackCompileError<C::RealField>>
+) -> Result<
+    CompiledStack<M, J, <J::Scalar as ComplexField>::RealField>,
+    StackCompileError<<J::Scalar as ComplexField>::RealField>,
+>
 where
+    J: StackThicknessJet,
+    J::Scalar: ComplexField,
+    <J::Scalar as ComplexField>::RealField: Float + FromPrimitive + Copy + Debug,
+    J::Dimension: Dimension + Clone,
     M: Clone,
-    C: ComplexField,
-    C::RealField: Float + FromPrimitive + Copy + Debug,
-    D: Dimension + Clone,
-    J: StackThicknessJet<C, D>,
     A: ThicknessSlotMap + ?Sized,
 {
     stack.validate(validation)?;
@@ -103,7 +106,7 @@ where
 
         let (value, unit) = thickness.into_parts();
 
-        let sampled_thickness: Array<C, D> =
+        let sampled_thickness: Array<J::Scalar, J::Dimension> =
             super::complexify(&Array::from_elem(sampled_shape.clone(), value));
 
         let thickness_jet = if let Some(slot) = assignment.slot_for_layer(layer_index) {
@@ -112,10 +115,11 @@ where
                 source,
             })?
         } else {
-            <J as SeedJet<Array<C, D>>>::constant(sampled_thickness)
+            <J as SeedJet>::constant(sampled_thickness)
         };
 
-        let thickness_cm = thickness_jet.scale_real(unit.to_centimetres_factor::<C::RealField>());
+        let thickness_cm = thickness_jet
+            .scale_real(unit.to_centimetres_factor::<<J::Scalar as ComplexField>::RealField>());
 
         canonical_layers.push(CanonicalLayer::new(layer.material().clone(), thickness_cm));
     }
@@ -131,25 +135,14 @@ where
     Ok(CompiledStack::new(canonical, context))
 }
 
-pub(crate) trait StackThicknessJet<C, D>: SeedJet<Array<C, D>>
+pub(crate) trait StackThicknessJet: SeedJet
 where
-    C: ComplexField,
+    Self::Scalar: ComplexField,
 {
-    fn scale_real(&self, factor: C::RealField) -> Self;
+    fn scale_real(&self, factor: <Self::Scalar as ComplexField>::RealField) -> Self;
 }
 
-impl<C, D, P> StackThicknessJet<C, D> for ArrayJet0<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn scale_real(&self, factor: <C>::RealField) -> Self {
-        ScalarAlgebra::scale(self, C::from_real(factor))
-    }
-}
-
-impl<C, D, P> StackThicknessJet<C, D> for ArrayJet1<C, D, P>
+impl<C, D, P> StackThicknessJet for ArrayJet0<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -160,7 +153,7 @@ where
     }
 }
 
-impl<C, D, P> StackThicknessJet<C, D> for ArrayJet2<C, D, P>
+impl<C, D, P> StackThicknessJet for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -171,7 +164,7 @@ where
     }
 }
 
-impl<C, D, P> StackThicknessJet<C, D> for ArrayJetBivariate1<C, D, P>
+impl<C, D, P> StackThicknessJet for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -182,7 +175,18 @@ where
     }
 }
 
-impl<C, D, P> StackThicknessJet<C, D> for ArrayJetBivariate2<C, D, P>
+impl<C, D, P> StackThicknessJet for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField + Copy,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn scale_real(&self, factor: <C>::RealField) -> Self {
+        ScalarAlgebra::scale(self, C::from_real(factor))
+    }
+}
+
+impl<C, D, P> StackThicknessJet for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -226,14 +230,22 @@ mod tests {
         }
     }
 
-    impl<V> SeedJet<V> for RecordingJet<V> {
+    impl<D> crate::algebra::Jet for RecordingJet<Array<Complex64, D>> {
+        type Scalar = Complex64;
+        type Dimension = D;
+    }
+
+    impl<D> SeedJet for RecordingJet<Array<Complex64, D>> {
         const VARIABLE_SLOTS: usize = 2;
 
-        fn constant(value: V) -> Self {
+        fn constant(value: Array<Complex64, D>) -> Self {
             Self::constant(value)
         }
 
-        fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+        fn variable(
+            value: Array<Complex64, D>,
+            slot: usize,
+        ) -> Result<Self, UnsupportedDerivativeSlot> {
             if slot < Self::VARIABLE_SLOTS {
                 Ok(Self::variable(value, slot))
             } else {
@@ -245,7 +257,7 @@ mod tests {
         }
     }
 
-    impl<D> StackThicknessJet<Complex64, D> for RecordingJet<Array<Complex64, D>>
+    impl<D> StackThicknessJet for RecordingJet<Array<Complex64, D>>
     where
         D: Dimension,
     {
@@ -298,7 +310,7 @@ mod tests {
     fn preserves_exteriors_materials_and_layer_order() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -322,7 +334,7 @@ mod tests {
     fn converts_thicknesses_to_centimetres() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -355,7 +367,7 @@ mod tests {
             .map(|layer| layer.thickness())
             .collect::<Vec<_>>();
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -372,7 +384,7 @@ mod tests {
     fn unassigned_layers_are_compiled_as_constants() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -394,7 +406,7 @@ mod tests {
             assignments: &[(1, 0)],
         };
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -416,7 +428,7 @@ mod tests {
             assignments: &[(0, 1)],
         };
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -438,7 +450,7 @@ mod tests {
             assignments: &[(0, 1), (1, 0)],
         };
 
-        let compiled = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),
@@ -456,7 +468,7 @@ mod tests {
     fn creates_thickness_arrays_with_the_sampled_shape() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, Complex64, Ix1, RecordingJet<Array<Complex64, Ix1>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix1>>, _>(
             &stack,
             ndarray::Ix1(4),
             &validation(),
@@ -485,7 +497,7 @@ mod tests {
             assignments: &[(1, 2)],
         };
 
-        let error = compile_stack::<_, Complex64, Ix0, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let error = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
             &stack,
             Ix0(),
             &validation(),

@@ -1,3 +1,4 @@
+use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::input::CanonicalBackendInput;
@@ -11,21 +12,23 @@ use super::CompilationContext;
 /// permits repeated solves, field reconstruction, and subsequent analyses to
 /// share one compiled representation.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CompiledProblem<M, J, R, D>
+pub struct CompiledProblem<M, J, C, D>
 where
+    C: ComplexField,
     D: Dimension,
 {
     canonical: CanonicalBackendInput<M, J>,
-    context: CompilationContext<R, D>,
+    context: CompilationContext<C, D>,
 }
 
-impl<M, J, R, D> CompiledProblem<M, J, R, D>
+impl<M, J, C, D> CompiledProblem<M, J, C, D>
 where
+    C: ComplexField,
     D: Dimension,
 {
     pub(crate) fn new(
         canonical: CanonicalBackendInput<M, J>,
-        context: CompilationContext<R, D>,
+        context: CompilationContext<C, D>,
     ) -> Self {
         Self { canonical, context }
     }
@@ -36,11 +39,11 @@ where
     }
 
     /// Caller-facing information used to interpret results.
-    pub fn compilation_context(&self) -> &CompilationContext<R, D> {
+    pub fn compilation_context(&self) -> &CompilationContext<C, D> {
         &self.context
     }
 
-    pub fn into_parts(self) -> (CanonicalBackendInput<M, J>, CompilationContext<R, D>) {
+    pub fn into_parts(self) -> (CanonicalBackendInput<M, J>, CompilationContext<C, D>) {
         (self.canonical, self.context)
     }
 }

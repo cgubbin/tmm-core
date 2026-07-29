@@ -24,7 +24,7 @@ use ndarray::Dimension;
 use std::fmt::Debug;
 
 use crate::algebra::{
-    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet, ScalarAlgebra,
 };
 
 /// Jet operations required to convert caller-facing coordinates into canonical
@@ -39,17 +39,16 @@ use crate::algebra::{
 ///
 /// The scalar type `C` is the complex coefficient type used by the backend,
 /// while `D` is the sampled ndarray dimension carried by each jet coefficient.
-pub(crate) trait CanonicalCoordinateJet<C, D>: Sized + Clone
+pub(crate) trait CanonicalCoordinateJet: Sized + Clone + Jet
 where
-    C: ComplexField,
-    D: Dimension,
+    Self::Scalar: ComplexField,
 {
     /// Multiply every jet coefficient by a real scalar.
     ///
     /// This is used for unit conversions and fixed physical constants. Since
     /// `factor` is independent of the caller-facing coordinates, it does not
     /// introduce any additional derivative terms.
-    fn scale_real(self, factor: C::RealField) -> Self;
+    fn scale_real(self, factor: <Self::Scalar as ComplexField>::RealField) -> Self;
 
     /// Return the multiplicative reciprocal of this jet.
     ///
@@ -93,7 +92,7 @@ where
     fn multiply(self, rhs: Self) -> Self;
 }
 
-impl<C, D, P> CanonicalCoordinateJet<C, D> for ArrayJet0<C, D, P>
+impl<C, D, P> CanonicalCoordinateJet for ArrayJet0<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -116,7 +115,7 @@ where
     }
 }
 
-impl<C, D, P> CanonicalCoordinateJet<C, D> for ArrayJet1<C, D, P>
+impl<C, D, P> CanonicalCoordinateJet for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -139,7 +138,7 @@ where
     }
 }
 
-impl<C, D, P> CanonicalCoordinateJet<C, D> for ArrayJet2<C, D, P>
+impl<C, D, P> CanonicalCoordinateJet for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -162,7 +161,7 @@ where
     }
 }
 
-impl<C, D, P> CanonicalCoordinateJet<C, D> for ArrayJetBivariate1<C, D, P>
+impl<C, D, P> CanonicalCoordinateJet for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,
@@ -185,7 +184,7 @@ where
     }
 }
 
-impl<C, D, P> CanonicalCoordinateJet<C, D> for ArrayJetBivariate2<C, D, P>
+impl<C, D, P> CanonicalCoordinateJet for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
     D: Dimension,

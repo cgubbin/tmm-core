@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::input::compile::{
     coordinates::{
         CoordinateVariable,
-        in_plane::{CanonicaliseInPlaneError, InPlaneInputError},
+        in_plane::{InPlaneCanonicalisationError, InPlaneInputError},
         spectral::SpectralInputError,
     },
     seed::UnsupportedDerivativeSlot,
@@ -18,7 +18,7 @@ pub enum CoordinateCompileError<R> {
     InPlane(#[from] InPlaneInputError<R>),
 
     #[error(transparent)]
-    CanonicaliseInPlane(#[from] CanonicaliseInPlaneError),
+    InPlaneCanonicalisation(#[from] InPlaneCanonicalisationError),
 
     #[error("failed to seed {variable:?}: {source}")]
     Seed {
@@ -27,4 +27,10 @@ pub enum CoordinateCompileError<R> {
         #[source]
         source: UnsupportedDerivativeSlot,
     },
+
+    #[error("incident side must be specified to compile with an incident angle")]
+    MissingIncidentSide,
+
+    #[error("incident-angle coordinates are not supported for complex input")]
+    ComplexIncidentAngleUnsupported,
 }

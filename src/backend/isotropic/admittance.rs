@@ -77,14 +77,10 @@ mod tests {
     fn scalar_input(
         vacuum_angular_wavenumber: f64,
         parallel_angular_wavenumber: f64,
-        polarisation: Polarisation,
-    ) -> CanonicalSolverInput<Jet0<Array0<C>>> {
-        CanonicalSolverInput::new(
-            CanonicalCoordinates::new(
-                Jet0::new(arr0(c(vacuum_angular_wavenumber))),
-                Jet0::new(arr0(c(parallel_angular_wavenumber))),
-            ),
-            polarisation,
+    ) -> CanonicalCoordinates<Jet0<Array0<C>>> {
+        CanonicalCoordinates::new(
+            Jet0::new(arr0(c(vacuum_angular_wavenumber))),
+            Jet0::new(arr0(c(parallel_angular_wavenumber))),
         )
     }
 
@@ -110,11 +106,11 @@ mod tests {
         parallel_wavenumber: f64,
         polarisation: Polarisation,
     ) -> C {
-        let input = scalar_input(k0_squared.sqrt(), parallel_wavenumber, polarisation);
+        let coordinates = scalar_input(k0_squared.sqrt(), parallel_wavenumber);
 
-        let quantities = IsotropicLayerQuantities::real_axis(material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(material, &coordinates, polarisation);
 
-        quantities.into_admittance::<C, _>().into_inner()[()]
+        quantities.into_admittance().into_inner()[()]
     }
 
     fn value_admittance_at_parallel_squared(
@@ -123,22 +119,26 @@ mod tests {
         parallel_squared: f64,
         polarisation: Polarisation,
     ) -> C {
-        let input = scalar_input(vacuum_wavenumber, parallel_squared.sqrt(), polarisation);
+        let coordinates = scalar_input(vacuum_wavenumber, parallel_squared.sqrt());
 
-        let quantities = IsotropicLayerQuantities::real_axis(material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(material, &coordinates, polarisation);
 
-        quantities.into_admittance::<C, _>().into_inner()[()]
+        quantities.into_admittance().into_inner()[()]
     }
 
     #[test]
     fn value_admittance_is_kappa_over_factor() {
         let material = material(4.0, 2.0);
 
-        let input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
+        let coordinates = scalar_input(3.0, 1.0);
 
-        let quantities = IsotropicLayerQuantities::real_axis(&material, &input);
+        let quantities = IsotropicLayerQuantities::real_axis(
+            &material,
+            &coordinates,
+            Polarisation::TransverseMagnetic,
+        );
 
-        let admittance = quantities.clone().into_admittance::<C, _>();
+        let admittance = quantities.clone().into_admittance();
 
         assert_close(
             admittance[()],
@@ -151,15 +151,23 @@ mod tests {
     fn te_and_tm_use_different_factors() {
         let material = material(4.0, 2.0);
 
-        let te_input = scalar_input(3.0, 1.0, Polarisation::TransverseElectric);
+        let coordinates = scalar_input(3.0, 1.0);
 
-        let tm_input = scalar_input(3.0, 1.0, Polarisation::TransverseMagnetic);
+        let te = IsotropicLayerQuantities::real_axis(
+            &material,
+            &coordinates,
+            Polarisation::TransverseElectric,
+        )
+        .into_admittance()
+        .into_inner();
 
-        let te =
-            IsotropicLayerQuantities::real_axis(&material, &te_input).into_admittance::<C, _>();
-
-        let tm =
-            IsotropicLayerQuantities::real_axis(&material, &tm_input).into_admittance::<C, _>();
+        let tm = IsotropicLayerQuantities::real_axis(
+            &material,
+            &coordinates,
+            Polarisation::TransverseMagnetic,
+        )
+        .into_admittance()
+        .into_inner();
 
         let kappa = c((4.0_f64 * 2.0 * 9.0 - 1.0).sqrt());
 

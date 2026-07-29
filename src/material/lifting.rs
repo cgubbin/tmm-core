@@ -178,11 +178,11 @@ where
     }
 }
 
-pub(crate) trait ConstitutiveLift<C, D, E, M>: ScalarAlgebra<C, D>
+pub(crate) trait ConstitutiveLift<E, M>: ScalarAlgebra
 where
-    C: ComplexScalar,
-    D: Dimension,
-    E: ConstitutiveEvaluator<C, D, M>,
+    Self::Scalar: ComplexScalar,
+    Self::Dimension: Dimension,
+    E: ConstitutiveEvaluator<Self::Scalar, Self::Dimension, M>,
 {
     fn refractive_index(material: &M, vacuum_wavenumber: &Self) -> Self {
         ScalarAlgebra::sqrt(&Self::relative_permittivity(material, vacuum_wavenumber))
@@ -193,7 +193,7 @@ where
     fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self;
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJet0<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJet0<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,
@@ -209,7 +209,7 @@ where
     }
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJet1<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJet1<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,
@@ -239,7 +239,7 @@ where
     }
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJet2<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJet2<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,
@@ -285,7 +285,7 @@ where
     }
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJetBivariate1<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,
@@ -314,7 +314,7 @@ where
     }
 }
 
-impl<C, D, E, M, P> ConstitutiveLift<C, D, E, M> for ArrayJetBivariate2<C, D, P>
+impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexScalar + Copy,
     D: Dimension,

@@ -40,26 +40,50 @@ use crate::{IncidentSide, Polarisation};
 /// algebraic representation `J`.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct CanonicalBackendInput<M, J> {
-    solver_input: CanonicalSolverInput<J>,
-    stack: CanonicalStack<M, J>,
+    problem: CanonicalProblem<M, J>,
+    polarisation: Polarisation,
 }
 
 impl<M, J> CanonicalBackendInput<M, J> {
     /// Construct a canonical oriented problem.
-    pub(crate) fn new(
-        coordinates: CanonicalCoordinates<J>,
-        polarisation: Polarisation,
-        stack: CanonicalStack<M, J>,
-    ) -> Self {
+    pub(crate) fn new(problem: CanonicalProblem<M, J>, polarisation: Polarisation) -> Self {
         Self {
-            solver_input: CanonicalSolverInput::new(coordinates, polarisation),
-            stack,
+            problem,
+            polarisation,
         }
     }
 
     /// Return the canonical solver input.
-    pub(crate) fn solver_input(&self) -> &CanonicalSolverInput<J> {
-        &self.solver_input
+    pub(crate) fn problem(&self) -> &CanonicalProblem<M, J> {
+        &self.problem
+    }
+
+    /// Return the canonical oriented stack.
+    pub(crate) fn polarisation(&self) -> Polarisation {
+        self.polarisation
+    }
+
+    /// Consume the problem and return its components.
+    pub(crate) fn into_parts(self) -> (CanonicalProblem<M, J>, Polarisation) {
+        (self.problem, self.polarisation)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanonicalProblem<M, J> {
+    coordinates: CanonicalCoordinates<J>,
+    stack: CanonicalStack<M, J>,
+}
+
+impl<M, J> CanonicalProblem<M, J> {
+    /// Construct a canonical oriented problem.
+    pub(crate) fn new(coordinates: CanonicalCoordinates<J>, stack: CanonicalStack<M, J>) -> Self {
+        Self { coordinates, stack }
+    }
+
+    /// Return the canonical solver input.
+    pub(crate) fn coordinates(&self) -> &CanonicalCoordinates<J> {
+        &self.coordinates
     }
 
     /// Return the canonical oriented stack.
@@ -68,7 +92,7 @@ impl<M, J> CanonicalBackendInput<M, J> {
     }
 
     /// Consume the problem and return its components.
-    pub(crate) fn into_parts(self) -> (CanonicalSolverInput<J>, CanonicalStack<M, J>) {
-        (self.solver_input, self.stack)
+    pub(crate) fn into_parts(self) -> (CanonicalCoordinates<J>, CanonicalStack<M, J>) {
+        (self.coordinates, self.stack)
     }
 }

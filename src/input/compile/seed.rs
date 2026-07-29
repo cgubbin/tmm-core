@@ -9,9 +9,14 @@
 //! represents the spectral coordinate only when the active parameter
 //! assignment places that coordinate in slot zero.
 
+use nalgebra::ComplexField;
+use ndarray::{Array, Dimension};
 use thiserror::Error;
 
-use crate::algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2, JetOneLike, JetZeroLike};
+use crate::algebra::{
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet, Jet0, Jet1, Jet2,
+    JetBivariate1, JetBivariate2, JetOneLike, JetZeroLike,
+};
 
 /// A requested derivative slot is not represented by the selected jet algebra.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -46,32 +51,39 @@ impl UnsupportedDerivativeSlot {
 ///
 /// The physical meaning of each slot is supplied separately by a parameter
 /// assignment.
-pub(crate) trait SeedJet<V>: Sized {
+pub(crate) trait SeedJet: Sized + Jet {
     /// Number of independent-variable slots represented by this algebra.
     const VARIABLE_SLOTS: usize;
 
     /// Construct a jet with primal value `value` and all derivatives zero.
-    fn constant(value: V) -> Self;
+    fn constant(value: Array<Self::Scalar, Self::Dimension>) -> Self;
 
     /// Construct a jet with primal value `value`.
     ///
     /// The first derivative in `slot` is seeded to unity and all other
     /// represented derivatives are initialised consistently for an independent
     /// variable.
-    fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot>;
+    fn variable(
+        value: Array<Self::Scalar, Self::Dimension>,
+        slot: usize,
+    ) -> Result<Self, UnsupportedDerivativeSlot>;
 }
 
-impl<V, P> SeedJet<V> for Jet0<V, P>
+impl<C, D, P> SeedJet for ArrayJet0<C, D, P>
 where
-    V: JetOneLike + JetZeroLike,
+    C: ComplexField + Copy,
+    D: Dimension,
 {
     const VARIABLE_SLOTS: usize = 0;
 
-    fn constant(value: V) -> Self {
+    fn constant(value: Array<Self::Scalar, Self::Dimension>) -> Self {
         Jet0::constant(value)
     }
 
-    fn variable(_value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+    fn variable(
+        _value: Array<Self::Scalar, Self::Dimension>,
+        slot: usize,
+    ) -> Result<Self, UnsupportedDerivativeSlot> {
         Err(UnsupportedDerivativeSlot {
             slot,
             available: Self::VARIABLE_SLOTS,
@@ -79,17 +91,18 @@ where
     }
 }
 
-impl<V, P> SeedJet<V> for Jet1<V, P>
+impl<C, D, P> SeedJet for ArrayJet1<C, D, P>
 where
-    V: JetOneLike + JetZeroLike,
+    C: ComplexField + Copy,
+    D: Dimension,
 {
     const VARIABLE_SLOTS: usize = 1;
 
-    fn constant(value: V) -> Self {
+    fn constant(value: Array<C, D>) -> Self {
         Jet1::constant(value)
     }
 
-    fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+    fn variable(value: Array<C, D>, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
         match slot {
             0 => Ok(Jet1::variable(value)),
 
@@ -101,17 +114,18 @@ where
     }
 }
 
-impl<V, P> SeedJet<V> for Jet2<V, P>
+impl<C, D, P> SeedJet for ArrayJet2<C, D, P>
 where
-    V: JetOneLike + JetZeroLike,
+    C: ComplexField + Copy,
+    D: Dimension,
 {
     const VARIABLE_SLOTS: usize = 1;
 
-    fn constant(value: V) -> Self {
+    fn constant(value: Array<C, D>) -> Self {
         Jet2::constant(value)
     }
 
-    fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+    fn variable(value: Array<C, D>, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
         match slot {
             0 => Ok(Jet2::variable(value)),
 
@@ -123,17 +137,18 @@ where
     }
 }
 
-impl<V, P> SeedJet<V> for JetBivariate1<V, P>
+impl<C, D, P> SeedJet for ArrayJetBivariate1<C, D, P>
 where
-    V: JetOneLike + JetZeroLike,
+    C: ComplexField + Copy,
+    D: Dimension,
 {
     const VARIABLE_SLOTS: usize = 2;
 
-    fn constant(value: V) -> Self {
+    fn constant(value: Array<C, D>) -> Self {
         JetBivariate1::constant(value)
     }
 
-    fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+    fn variable(value: Array<C, D>, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
         match slot {
             0 => Ok(JetBivariate1::variable_axis0(value)),
             1 => Ok(JetBivariate1::variable_axis1(value)),
@@ -146,17 +161,18 @@ where
     }
 }
 
-impl<V, P> SeedJet<V> for JetBivariate2<V, P>
+impl<C, D, P> SeedJet for ArrayJetBivariate2<C, D, P>
 where
-    V: JetOneLike + JetZeroLike,
+    C: ComplexField + Copy,
+    D: Dimension,
 {
     const VARIABLE_SLOTS: usize = 2;
 
-    fn constant(value: V) -> Self {
+    fn constant(value: Array<C, D>) -> Self {
         JetBivariate2::constant(value)
     }
 
-    fn variable(value: V, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
+    fn variable(value: Array<C, D>, slot: usize) -> Result<Self, UnsupportedDerivativeSlot> {
         match slot {
             0 => Ok(JetBivariate2::variable_axis0(value)),
             1 => Ok(JetBivariate2::variable_axis1(value)),
@@ -186,16 +202,16 @@ mod tests {
 
     #[test]
     fn jet_families_report_supported_slot_counts() {
-        assert_eq!(<Jet0<Value> as SeedJet<Value>>::VARIABLE_SLOTS, 0);
-        assert_eq!(<First as SeedJet<Value>>::VARIABLE_SLOTS, 1);
-        assert_eq!(<Second as SeedJet<Value>>::VARIABLE_SLOTS, 1);
-        assert_eq!(<BivariateFirst as SeedJet<Value>>::VARIABLE_SLOTS, 2,);
-        assert_eq!(<BivariateSecond as SeedJet<Value>>::VARIABLE_SLOTS, 2,);
+        assert_eq!(<Jet0<Value> as SeedJet>::VARIABLE_SLOTS, 0);
+        assert_eq!(<First as SeedJet>::VARIABLE_SLOTS, 1);
+        assert_eq!(<Second as SeedJet>::VARIABLE_SLOTS, 1);
+        assert_eq!(<BivariateFirst as SeedJet>::VARIABLE_SLOTS, 2,);
+        assert_eq!(<BivariateSecond as SeedJet>::VARIABLE_SLOTS, 2,);
     }
 
     #[test]
     fn jet0_constructs_constants() {
-        let seeded = <Jet0<Value> as SeedJet<Value>>::constant(arr0(3.0));
+        let seeded = <Jet0<Value> as SeedJet>::constant(arr0(3.0));
 
         assert_eq!(seeded, Jet0::constant(arr0(3.0)));
     }
@@ -203,7 +219,7 @@ mod tests {
     #[test]
     fn jet0_rejects_every_variable_slot() {
         for slot in [0, 1, 4] {
-            let error = <Jet0<Value> as SeedJet<Value>>::variable(arr0(3.0), slot).unwrap_err();
+            let error = <Jet0<Value> as SeedJet>::variable(arr0(3.0), slot).unwrap_err();
 
             assert_eq!(error, UnsupportedDerivativeSlot { slot, available: 0 },);
         }
@@ -211,14 +227,14 @@ mod tests {
 
     #[test]
     fn univariate_first_seeds_slot_zero() {
-        let seeded = <First as SeedJet<Value>>::variable(arr0(3.0), 0).unwrap();
+        let seeded = <First as SeedJet>::variable(arr0(3.0), 0).unwrap();
 
         assert_eq!(seeded, Jet1::variable(arr0(3.0)));
     }
 
     #[test]
     fn univariate_second_seeds_slot_zero() {
-        let seeded = <Second as SeedJet<Value>>::variable(arr0(3.0), 0).unwrap();
+        let seeded = <Second as SeedJet>::variable(arr0(3.0), 0).unwrap();
 
         assert_eq!(seeded, Jet2::variable(arr0(3.0)));
     }
@@ -226,7 +242,7 @@ mod tests {
     #[test]
     fn univariate_jets_reject_slot_one() {
         assert_eq!(
-            <First as SeedJet<Value>>::variable(arr0(3.0), 1).unwrap_err(),
+            <First as SeedJet>::variable(arr0(3.0), 1).unwrap_err(),
             UnsupportedDerivativeSlot {
                 slot: 1,
                 available: 1,
@@ -234,7 +250,7 @@ mod tests {
         );
 
         assert_eq!(
-            <Second as SeedJet<Value>>::variable(arr0(3.0), 1).unwrap_err(),
+            <Second as SeedJet>::variable(arr0(3.0), 1).unwrap_err(),
             UnsupportedDerivativeSlot {
                 slot: 1,
                 available: 1,
@@ -245,12 +261,12 @@ mod tests {
     #[test]
     fn bivariate_first_maps_slots_to_x_and_y() {
         assert_eq!(
-            <BivariateFirst as SeedJet<Value>>::variable(arr0(3.0), 0).unwrap(),
+            <BivariateFirst as SeedJet>::variable(arr0(3.0), 0).unwrap(),
             JetBivariate1::variable_axis0(arr0(3.0)),
         );
 
         assert_eq!(
-            <BivariateFirst as SeedJet<Value>>::variable(arr0(3.0), 1).unwrap(),
+            <BivariateFirst as SeedJet>::variable(arr0(3.0), 1).unwrap(),
             JetBivariate1::variable_axis1(arr0(3.0)),
         );
     }
@@ -258,12 +274,12 @@ mod tests {
     #[test]
     fn bivariate_second_maps_slots_to_x_and_y() {
         assert_eq!(
-            <BivariateSecond as SeedJet<Value>>::variable(arr0(3.0), 0).unwrap(),
+            <BivariateSecond as SeedJet>::variable(arr0(3.0), 0).unwrap(),
             JetBivariate2::variable_axis0(arr0(3.0)),
         );
 
         assert_eq!(
-            <BivariateSecond as SeedJet<Value>>::variable(arr0(3.0), 1).unwrap(),
+            <BivariateSecond as SeedJet>::variable(arr0(3.0), 1).unwrap(),
             JetBivariate2::variable_axis1(arr0(3.0)),
         );
     }
@@ -271,7 +287,7 @@ mod tests {
     #[test]
     fn bivariate_jets_reject_slot_two() {
         assert_eq!(
-            <BivariateFirst as SeedJet<Value>>::variable(arr0(3.0), 2).unwrap_err(),
+            <BivariateFirst as SeedJet>::variable(arr0(3.0), 2).unwrap_err(),
             UnsupportedDerivativeSlot {
                 slot: 2,
                 available: 2,
@@ -279,7 +295,7 @@ mod tests {
         );
 
         assert_eq!(
-            <BivariateSecond as SeedJet<Value>>::variable(arr0(3.0), 2).unwrap_err(),
+            <BivariateSecond as SeedJet>::variable(arr0(3.0), 2).unwrap_err(),
             UnsupportedDerivativeSlot {
                 slot: 2,
                 available: 2,

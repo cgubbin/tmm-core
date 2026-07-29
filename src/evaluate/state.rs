@@ -1,8 +1,5 @@
 use crate::{
-    PlaneWaveObservables,
-    algebra::ComplexJet,
-    backend::{BuildPlaneWaveObservables, HasEntries},
-    input::{CanonicalPlaneWaveProblem, CompilationContext},
+    PlaneWaveObservables, algebra::ComplexJet, backend::HasEntries, input::CompilationContext,
 };
 
 /// A retained plane-wave solution.
@@ -63,43 +60,43 @@ impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx> {
     }
 }
 
-impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx>
-where
-    W: HasEntries,
-    W::Entries: BuildPlaneWaveObservables<J>,
-    J: ComplexJet,
-{
-    /// Construct the complete uncrystallised set of plane-wave observables.
-    ///
-    /// This is primarily an internal extension point. Most callers should use
-    /// the crystallised observable accessors.
-    pub fn raw_observable(&self) -> PlaneWaveObservables<J, J::RealJet> {
-        self.workspace
-            .entries()
-            .build_plane_wave_observables(&self.problem)
-    }
-}
-//     /// Compute and crystallise the complete external plane-wave response.
-//     pub fn observables(
-//         &self,
-//     ) -> Result<
-//         <
-//             crate::observables::PlaneWaveObservables<
-//                 J,
-//                 J::RealAlgebra,
-//             > as crate::crystallise::Crystallise<
-//                 Ctx,
-//             >
-//         >::Output,
-//         <
-//             crate::observables::PlaneWaveObservables<
-//                 J,
-//                 J::RealAlgebra,
-//             > as crate::crystallise::Crystallise<
-//                 Ctx,
-//             >
-//         >::Error,
-//     >{
-//         self.raw_observables().crystallise(&self.context)
+// impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx>
+// where
+//     W: HasEntries,
+//     W::Entries: BuildPlaneWaveObservables<J>,
+//     J: ComplexJet,
+// {
+//     /// Construct the complete uncrystallised set of plane-wave observables.
+//     ///
+//     /// This is primarily an internal extension point. Most callers should use
+//     /// the crystallised observable accessors.
+//     pub fn raw_observable(&self) -> PlaneWaveObservables<J, J::RealJet> {
+//         self.workspace
+//             .entries()
+//             .build_plane_wave_observables(&self.problem)
 //     }
 // }
+// //     /// Compute and crystallise the complete external plane-wave response.
+// //     pub fn observables(
+// //         &self,
+// //     ) -> Result<
+// //         <
+// //             crate::observables::PlaneWaveObservables<
+// //                 J,
+// //                 J::RealAlgebra,
+// //             > as crate::crystallise::Crystallise<
+// //                 Ctx,
+// //             >
+// //         >::Output,
+// //         <
+// //             crate::observables::PlaneWaveObservables<
+// //                 J,
+// //                 J::RealAlgebra,
+// //             > as crate::crystallise::Crystallise<
+// //                 Ctx,
+// //             >
+// //         >::Error,
+// //     >{
+// //         self.raw_observables().crystallise(&self.context)
+// //     }
+// // }

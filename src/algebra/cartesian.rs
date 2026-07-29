@@ -9,11 +9,8 @@ use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use std::fmt::Debug;
 
-pub trait CartesianScalarAlgebra<T, D>: ScalarAlgebra<T, D>
-where
-    D: Dimension,
-{
-    type Vector: CartesianVectorAlgebra<Coefficient = T, ScalarField = Self>;
+pub trait CartesianScalarAlgebra: ScalarAlgebra {
+    type Vector: CartesianVectorAlgebra<Coefficient = Self::Scalar, ScalarField = Self>;
 
     fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 }
@@ -51,7 +48,7 @@ pub trait RealCartesianVectorAlgebra: CartesianVectorAlgebra {
     fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField;
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet0<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra for ArrayJet0<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -68,7 +65,7 @@ where
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet1<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra for ArrayJet1<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -88,7 +85,7 @@ where
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJet2<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra for ArrayJet2<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -109,7 +106,7 @@ where
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetBivariate1<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra for ArrayJetBivariate1<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -134,7 +131,7 @@ where
     }
 }
 
-impl<T, D, P> CartesianScalarAlgebra<T, D> for ArrayJetBivariate2<T, D, P>
+impl<T, D, P> CartesianScalarAlgebra for ArrayJetBivariate2<T, D, P>
 where
     T: ComplexField + Copy,
     D: Dimension,
@@ -487,7 +484,7 @@ mod tests {
 
     fn assert_cartesian_scalar<S>()
     where
-        S: CartesianScalarAlgebra<C, D>,
+        S: CartesianScalarAlgebra,
     {
     }
 
@@ -539,7 +536,7 @@ mod tests {
 
         let z = arr1(&[c(9.0, 10.0), c(11.0, 12.0)]);
 
-        let result = <Scalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(
+        let result = <Scalar as CartesianScalarAlgebra>::into_cartesian_vector(
             Jet0::new(x.clone()),
             Jet0::new(y.clone()),
             Jet0::new(z.clone()),
@@ -558,7 +555,7 @@ mod tests {
 
         let z = Jet1::from_parts(arr1(&[c(5.0, 0.0)]), arr1(&[c(6.0, 0.0)]));
 
-        let result = <FirstScalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(x, y, z);
+        let result = <FirstScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),
@@ -591,7 +588,7 @@ mod tests {
             arr1(&[c(9.0, 0.0)]),
         );
 
-        let result = <SecondScalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(x, y, z);
+        let result = <SecondScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),
@@ -638,8 +635,7 @@ mod tests {
             arr1(&[c(18.0, 0.0)]),
         );
 
-        let result =
-            <BivariateScalar as CartesianScalarAlgebra<C, D>>::into_cartesian_vector(x, y, z);
+        let result = <BivariateScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),
