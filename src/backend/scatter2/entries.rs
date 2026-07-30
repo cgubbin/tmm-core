@@ -102,25 +102,6 @@ impl<A> Scatter2Entries<A> {
     }
 }
 
-// impl<C> Scatter2Entries<ndarray::Array0<C>>
-// where
-//     C: ComplexScalar,
-// {
-//     pub(crate) fn outgoing_mode_amplitudes(&self) -> OutgoingModeAmplitudes<C> {
-//         let left_norm = self.s11[()].modulus_squared() + self.s21[()].modulus_squared();
-
-//         let right_norm = self.s12[()].modulus_squared() + self.s22[()].modulus_squared();
-
-//         let (left_outgoing, right_outgoing) = if left_norm >= right_norm {
-//             (self.s11[()].clone(), self.s21[()].clone())
-//         } else {
-//             (self.s12[()].clone(), self.s22[()].clone())
-//         };
-
-//         OutgoingModeAmplitudes::normalised(left_outgoing, right_outgoing)
-//     }
-// }
-
 /// Compose two scalar-channel scattering networks.
 ///
 /// `left` is encountered first in physical propagation order and `right` is
@@ -174,354 +155,429 @@ where
     Scatter2Entries { s11, s12, s21, s22 }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use approx::assert_relative_eq;
-//     use ndarray::{Array0, ArrayBase, Dimension, Ix0, OwnedRepr, arr0, array};
-//     use num_complex::Complex64;
-
-//     use super::*;
-
-//     type C = Complex64;
-
-//     fn c(value: f64) -> C {
-//         C::new(value, 0.0)
-//     }
-
-//     fn scalar_entries(s11: C, s12: C, s21: C, s22: C) -> Scatter2Entries<Array0<C>> {
-//         Scatter2Entries {
-//             s11: arr0(s11),
-//             s12: arr0(s12),
-//             s21: arr0(s21),
-//             s22: arr0(s22),
-//         }
-//     }
-
-//     fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
-//         assert_relative_eq!(
-//             actual.re,
-//             expected.re,
-//             epsilon = tolerance,
-//             max_relative = tolerance,
-//         );
-
-//         assert_relative_eq!(
-//             actual.im,
-//             expected.im,
-//             epsilon = tolerance,
-//             max_relative = tolerance,
-//         );
-//     }
-
-//     fn assert_array_close<D>(
-//         actual: &ArrayBase<OwnedRepr<C>, D>,
-//         expected: &ArrayBase<OwnedRepr<C>, D>,
-//         tolerance: f64,
-//     ) where
-//         D: Dimension,
-//     {
-//         assert_eq!(actual.raw_dim(), expected.raw_dim());
-
-//         for (&actual, &expected) in actual.iter().zip(expected.iter()) {
-//             assert_complex_close(actual, expected, tolerance);
-//         }
-//     }
-
-//     fn assert_entries_close(
-//         actual: &Scatter2Entries<Array0<C>>,
-//         expected: &Scatter2Entries<Array0<C>>,
-//         tolerance: f64,
-//     ) {
-//         assert_array_close(&actual.s11, &expected.s11, tolerance);
-
-//         assert_array_close(&actual.s12, &expected.s12, tolerance);
-
-//         assert_array_close(&actual.s21, &expected.s21, tolerance);
+#[cfg(test)]
+mod tests {
+    use ndarray::{Array0, Ix0, arr0, array};
+    use num_complex::Complex64;
+
+    use super::{Scatter2Entries, cascade};
+
+    use crate::{
+        algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter, ScalarAlgebra},
+        input::IncidentSide,
+        test_support::{
+            C,
+            assertions::{assert_array_close, assert_complex_close},
+            c,
+            jet::{J0, J1, J2, P, zero_jet_from_value},
+        },
+    };
+
+    type ScalarEntries0 = Scatter2Entries<J0>;
+    type ScalarEntries1 = Scatter2Entries<J1>;
+    type ScalarEntries2 = Scatter2Entries<J2>;
+
+    const TOLERANCE: f64 = 1e-12;
+
+    fn scalar_entries(s11: C, s12: C, s21: C, s22: C) -> ScalarEntries0 {
+        Scatter2Entries {
+            s11: zero_jet_from_value(s11),
+            s12: zero_jet_from_value(s12),
+            s21: zero_jet_from_value(s21),
+            s22: zero_jet_from_value(s22),
+        }
+    }
+
+    fn assert_value_entries_close(
+        actual: &ScalarEntries0,
+        expected: &ScalarEntries0,
+        tolerance: f64,
+    ) {
+        assert_array_close(actual.s11.value(), expected.s11.value(), tolerance);
+
+        assert_array_close(actual.s12.value(), expected.s12.value(), tolerance);
+
+        assert_array_close(actual.s21.value(), expected.s21.value(), tolerance);
+
+        assert_array_close(actual.s22.value(), expected.s22.value(), tolerance);
+    }
+
+    fn assert_first_entries_close(
+        actual: &ScalarEntries1,
+        expected: &Scatter2Entries<Array0<C>>,
+        tolerance: f64,
+    ) {
+        assert_array_close(actual.s11.first(), &expected.s11, tolerance);
+        assert_array_close(actual.s12.first(), &expected.s12, tolerance);
+        assert_array_close(actual.s21.first(), &expected.s21, tolerance);
+        assert_array_close(actual.s22.first(), &expected.s22, tolerance);
+    }
+
+    fn assert_second_entries_close(
+        actual: &ScalarEntries2,
+        expected: &Scatter2Entries<Array0<C>>,
+        tolerance: f64,
+    ) {
+        assert_array_close(actual.s11.second(), &expected.s11, tolerance);
+        assert_array_close(actual.s12.second(), &expected.s12, tolerance);
+        assert_array_close(actual.s21.second(), &expected.s21, tolerance);
+        assert_array_close(actual.s22.second(), &expected.s22, tolerance);
+    }
+
+    fn scalar_array_entries(s11: C, s12: C, s21: C, s22: C) -> Scatter2Entries<Array0<C>> {
+        Scatter2Entries {
+            s11: arr0(s11),
+            s12: arr0(s12),
+            s21: arr0(s21),
+            s22: arr0(s22),
+        }
+    }
+
+    #[test]
+    fn identity_has_transparent_entries() {
+        let source = arr0(c(7.0));
+
+        let identity: ScalarEntries0 = Scatter2Entries::identity_like(&source);
+
+        assert_complex_close(identity.s11.value()[()], c(0.0), TOLERANCE);
+        assert_complex_close(identity.s12.value()[()], c(1.0), TOLERANCE);
+        assert_complex_close(identity.s21.value()[()], c(1.0), TOLERANCE);
+        assert_complex_close(identity.s22.value()[()], c(0.0), TOLERANCE);
+    }
+
+    #[test]
+    fn identity_has_zero_derivatives() {
+        let source = arr0(c(7.0));
+
+        let identity: ScalarEntries2 = Scatter2Entries::identity_like(&source);
+
+        for entry in [&identity.s11, &identity.s12, &identity.s21, &identity.s22] {
+            assert_complex_close(entry.first()[()], c(0.0), TOLERANCE);
+            assert_complex_close(entry.second()[()], c(0.0), TOLERANCE);
+        }
+    }
+
+    #[test]
+    fn identity_preserves_sample_shape() {
+        let source = array![c(1.0), c(2.0), c(3.0)];
+
+        let identity: Scatter2Entries<ArrayJet0<C, ndarray::Ix1, P>> =
+            Scatter2Entries::identity_like(&source);
 
-//         assert_array_close(&actual.s22, &expected.s22, tolerance);
-//     }
+        let expected = source.raw_dim();
+
+        assert_eq!(identity.s11.value().raw_dim(), expected);
+        assert_eq!(identity.s12.value().raw_dim(), expected);
+        assert_eq!(identity.s21.value().raw_dim(), expected);
+        assert_eq!(identity.s22.value().raw_dim(), expected);
+    }
 
-//     #[test]
-//     fn identity_has_transparent_entries() {
-//         let source = arr0(c(7.0));
+    #[test]
+    fn amplitudes_extract_left_incident_channels() {
+        let entries = scalar_entries(c(1.0), c(2.0), c(3.0), c(4.0));
 
-//         let identity: Scatter2Entries<Array0<C>> = ScatterEntries::identity_like(&source);
+        let (reflection, transmission) = entries.amplitudes(IncidentSide::Left);
 
-//         assert_eq!(identity.s11[()], c(0.0));
-//         assert_eq!(identity.s12[()], c(1.0));
-//         assert_eq!(identity.s21[()], c(1.0));
-//         assert_eq!(identity.s22[()], c(0.0));
-//     }
+        assert_complex_close(reflection.value()[()], c(1.0), TOLERANCE);
+        assert_complex_close(transmission.value()[()], c(3.0), TOLERANCE);
+    }
 
-//     #[test]
-//     fn identity_preserves_sample_shape() {
-//         let source = array![c(1.0), c(2.0), c(3.0)];
+    #[test]
+    fn amplitudes_extract_right_incident_channels() {
+        let entries = scalar_entries(c(1.0), c(2.0), c(3.0), c(4.0));
 
-//         let identity: Scatter2Entries<ArrayBase<OwnedRepr<C>, ndarray::Ix1>> =
-//             Scatter2Entries::identity_like(&source);
+        let (reflection, transmission) = entries.amplitudes(IncidentSide::Right);
 
-//         let expected = source.raw_dim();
+        assert_complex_close(reflection.value()[()], c(4.0), TOLERANCE);
+        assert_complex_close(transmission.value()[()], c(2.0), TOLERANCE);
+    }
 
-//         assert_eq!(identity.s11.raw_dim(), expected);
-//         assert_eq!(identity.s12.raw_dim(), expected);
-//         assert_eq!(identity.s21.raw_dim(), expected);
-//         assert_eq!(identity.s22.raw_dim(), expected);
-//     }
+    #[test]
+    fn cascade_matches_scalar_redheffer_formula() {
+        let left = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
 
-//     #[test]
-//     fn amplitudes_extract_left_incident_channels() {
-//         let entries = scalar_entries(c(1.0), c(2.0), c(3.0), c(4.0));
+        let right = scalar_entries(c(0.3), c(0.6), c(0.5), c(-0.1));
 
-//         let (reflection, transmission) = entries.amplitudes(IncidentSide::Left);
+        let actual = cascade(&left, &right);
 
-//         assert_eq!(reflection[()], c(1.0));
-//         assert_eq!(transmission[()], c(3.0));
-//     }
+        let l11 = left.s11.value()[()];
+        let l12 = left.s12.value()[()];
+        let l21 = left.s21.value()[()];
+        let l22 = left.s22.value()[()];
 
-//     #[test]
-//     fn amplitudes_extract_right_incident_channels() {
-//         let entries = scalar_entries(c(1.0), c(2.0), c(3.0), c(4.0));
+        let r11 = right.s11.value()[()];
+        let r12 = right.s12.value()[()];
+        let r21 = right.s21.value()[()];
+        let r22 = right.s22.value()[()];
 
-//         let (reflection, transmission) = entries.amplitudes(IncidentSide::Right);
+        let denominator = c(1.0) - l22 * r11;
 
-//         assert_eq!(reflection[()], c(4.0));
-//         assert_eq!(transmission[()], c(2.0));
-//     }
+        let expected = scalar_entries(
+            l11 + l12 * r11 * l21 / denominator,
+            l12 * r12 / denominator,
+            r21 * l21 / denominator,
+            r22 + r21 * l22 * r12 / denominator,
+        );
 
-//     #[test]
-//     fn cascade_matches_scalar_redheffer_formula() {
-//         let left = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
+        assert_value_entries_close(&actual, &expected, TOLERANCE);
+    }
 
-//         let right = scalar_entries(c(0.3), c(0.6), c(0.5), c(-0.1));
+    #[test]
+    fn cascade_preserves_complex_values() {
+        let left = scalar_entries(
+            C::new(0.1, 0.04),
+            C::new(0.8, -0.07),
+            C::new(0.7, 0.02),
+            C::new(-0.2, 0.03),
+        );
 
-//         let actual = cascade::<C, Ix0, _>(&left, &right);
+        let right = scalar_entries(
+            C::new(0.3, -0.05),
+            C::new(0.6, 0.08),
+            C::new(0.5, -0.04),
+            C::new(-0.1, 0.06),
+        );
 
-//         let l11 = left.s11[()];
-//         let l12 = left.s12[()];
-//         let l21 = left.s21[()];
-//         let l22 = left.s22[()];
+        let actual = cascade(&left, &right);
 
-//         let r11 = right.s11[()];
-//         let r12 = right.s12[()];
-//         let r21 = right.s21[()];
-//         let r22 = right.s22[()];
+        let l11 = left.s11.value()[()];
+        let l12 = left.s12.value()[()];
+        let l21 = left.s21.value()[()];
+        let l22 = left.s22.value()[()];
 
-//         let denominator = c(1.0) - l22 * r11;
+        let r11 = right.s11.value()[()];
+        let r12 = right.s12.value()[()];
+        let r21 = right.s21.value()[()];
+        let r22 = right.s22.value()[()];
 
-//         let expected = scalar_entries(
-//             l11 + l12 * r11 * l21 / denominator,
-//             l12 * r12 / denominator,
-//             r21 * l21 / denominator,
-//             r22 + r21 * l22 * r12 / denominator,
-//         );
+        let denominator = c(1.0) - l22 * r11;
 
-//         assert_entries_close(&actual, &expected, 1e-12);
-//     }
+        let expected = scalar_entries(
+            l11 + l12 * r11 * l21 / denominator,
+            l12 * r12 / denominator,
+            r21 * l21 / denominator,
+            r22 + r21 * l22 * r12 / denominator,
+        );
 
-//     #[test]
-//     fn identity_is_left_identity() {
-//         let source = arr0(c(0.0));
+        assert_value_entries_close(&actual, &expected, TOLERANCE);
+    }
 
-//         let identity: Scatter2Entries<Array0<C>> = ScatterEntries::identity_like(&source);
+    #[test]
+    fn identity_is_left_identity() {
+        let source = arr0(c(0.0));
 
-//         let network = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
+        let identity: ScalarEntries0 = Scatter2Entries::identity_like(&source);
 
-//         let actual = cascade::<C, Ix0, _>(&identity, &network);
+        let network = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
 
-//         assert_entries_close(&actual, &network, 1e-12);
-//     }
+        let actual = cascade(&identity, &network);
 
-//     #[test]
-//     fn identity_is_right_identity() {
-//         let source = arr0(c(0.0));
+        assert_value_entries_close(&actual, &network, TOLERANCE);
+    }
 
-//         let identity: Scatter2Entries<Array0<C>> = ScatterEntries::identity_like(&source);
+    #[test]
+    fn identity_is_right_identity() {
+        let source = arr0(c(0.0));
 
-//         let network = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
+        let identity: ScalarEntries0 = Scatter2Entries::identity_like(&source);
 
-//         let actual = cascade::<C, Ix0, _>(&network, &identity);
+        let network = scalar_entries(c(0.1), c(0.8), c(0.7), c(-0.2));
 
-//         assert_entries_close(&actual, &network, 1e-12);
-//     }
+        let actual = cascade(&network, &identity);
+
+        assert_value_entries_close(&actual, &network, TOLERANCE);
+    }
 
-//     #[test]
-//     fn cascade_is_associative_for_scalar_channels() {
-//         let first = scalar_entries(c(0.05), c(0.91), c(0.87), c(-0.03));
+    #[test]
+    fn cascade_is_associative_for_scalar_channels() {
+        let first = scalar_entries(c(0.05), c(0.91), c(0.87), c(-0.03));
 
-//         let second = scalar_entries(c(0.14), c(0.76), c(0.72), c(-0.11));
+        let second = scalar_entries(c(0.14), c(0.76), c(0.72), c(-0.11));
+
+        let third = scalar_entries(c(-0.08), c(0.83), c(0.79), c(0.06));
+
+        let first_second = cascade(&first, &second);
+        let left_associated = cascade(&first_second, &third);
+
+        let second_third = cascade(&second, &third);
+        let right_associated = cascade(&first, &second_third);
+
+        assert_value_entries_close(&left_associated, &right_associated, TOLERANCE);
+    }
+
+    #[test]
+    fn cascade_preserves_sample_shape_and_operates_pointwise() {
+        type J = ArrayJet0<C, ndarray::Ix1, P>;
+
+        let left = Scatter2Entries {
+            s11: J::new(array![c(0.1), c(0.2)]),
+            s12: J::new(array![c(0.8), c(0.7)]),
+            s21: J::new(array![c(0.7), c(0.6)]),
+            s22: J::new(array![c(-0.2), c(-0.1)]),
+        };
 
-//         let third = scalar_entries(c(-0.08), c(0.83), c(0.79), c(0.06));
+        let right = Scatter2Entries {
+            s11: J::new(array![c(0.3), c(0.4)]),
+            s12: J::new(array![c(0.6), c(0.5)]),
+            s21: J::new(array![c(0.5), c(0.4)]),
+            s22: J::new(array![c(-0.1), c(-0.2)]),
+        };
 
-//         let first_second = cascade::<C, Ix0, _>(&first, &second);
+        let result = cascade(&left, &right);
+
+        let expected_dimension = left.s11.value().raw_dim();
+
+        assert_eq!(result.s11.value().raw_dim(), expected_dimension);
+        assert_eq!(result.s12.value().raw_dim(), expected_dimension);
+        assert_eq!(result.s21.value().raw_dim(), expected_dimension);
+        assert_eq!(result.s22.value().raw_dim(), expected_dimension);
 
-//         let left_associated = cascade::<C, Ix0, _>(&first_second, &third);
-
-//         let second_third = cascade::<C, Ix0, _>(&second, &third);
-
-//         let right_associated = cascade::<C, Ix0, _>(&first, &second_third);
-
-//         assert_entries_close(&left_associated, &right_associated, 1e-12);
-//     }
-
-//     #[test]
-//     fn cascade_preserves_sample_shape() {
-//         let left = Scatter2Entries {
-//             s11: array![c(0.1), c(0.2)],
-//             s12: array![c(0.8), c(0.7)],
-//             s21: array![c(0.7), c(0.6)],
-//             s22: array![c(-0.2), c(-0.1)],
-//         };
-
-//         let right = Scatter2Entries {
-//             s11: array![c(0.3), c(0.4)],
-//             s12: array![c(0.6), c(0.5)],
-//             s21: array![c(0.5), c(0.4)],
-//             s22: array![c(-0.1), c(-0.2)],
-//         };
-
-//         let result = cascade::<C, ndarray::Ix1, _>(&left, &right);
-
-//         let expected = left.s11.raw_dim();
-
-//         assert_eq!(result.s11.raw_dim(), expected);
-//         assert_eq!(result.s12.raw_dim(), expected);
-//         assert_eq!(result.s21.raw_dim(), expected);
-//         assert_eq!(result.s22.raw_dim(), expected);
-//     }
-
-//     fn parameterised_entries(x: f64) -> (Scatter2Entries<Array0<C>>, ScatterEntries<Array0<C>>) {
-//         let left = scalar_entries(
-//             c(0.1 + 0.03 * x + 0.01 * x * x),
-//             c(0.8 - 0.04 * x + 0.02 * x * x),
-//             c(0.7 + 0.02 * x - 0.015 * x * x),
-//             c(-0.2 + 0.01 * x + 0.005 * x * x),
-//         );
-
-//         let right = scalar_entries(
-//             c(0.3 - 0.02 * x + 0.012 * x * x),
-//             c(0.6 + 0.05 * x - 0.01 * x * x),
-//             c(0.5 - 0.03 * x + 0.02 * x * x),
-//             c(-0.1 + 0.04 * x + 0.015 * x * x),
-//         );
-
-//         (left, right)
-//     }
-
-//     fn first_order_entry_jets() -> (
-//         Scatter2Entries<ArrayJetFirst<C, Ix0>>,
-//         Scatter2Entries<ArrayJetFirst<C, Ix0>>,
-//     ) {
-//         let (left, right) = parameterised_entries(0.0);
-
-//         let left = Scatter2Entries {
-//             s11: ArrayJetFirst::from_parts(left.s11, arr0(c(0.03))),
-//             s12: ArrayJetFirst::from_parts(left.s12, arr0(c(-0.04))),
-//             s21: ArrayJetFirst::from_parts(left.s21, arr0(c(0.02))),
-//             s22: ArrayJetFirst::from_parts(left.s22, arr0(c(0.01))),
-//         };
-
-//         let right = Scatter2Entries {
-//             s11: ArrayJetFirst::from_parts(right.s11, arr0(c(-0.02))),
-//             s12: ArrayJetFirst::from_parts(right.s12, arr0(c(0.05))),
-//             s21: ArrayJetFirst::from_parts(right.s21, arr0(c(-0.03))),
-//             s22: ArrayJetFirst::from_parts(right.s22, arr0(c(0.04))),
-//         };
-
-//         (left, right)
-//     }
-
-//     #[test]
-//     fn first_derivative_matches_finite_difference() {
-//         let (left, right) = first_order_entry_jets();
-
-//         let analytic = cascade::<C, Ix0, _>(&left, &right);
-
-//         let h = 1e-6;
-
-//         let (left_plus, right_plus) = parameterised_entries(h);
-
-//         let plus = cascade::<C, Ix0, _>(&left_plus, &right_plus);
-
-//         let (left_minus, right_minus) = parameterised_entries(-h);
-
-//         let minus = cascade::<C, Ix0, _>(&left_minus, &right_minus);
-
-//         let expected_s11 = (plus.s11[()] - minus.s11[()]) / (2.0 * h);
-
-//         let expected_s12 = (plus.s12[()] - minus.s12[()]) / (2.0 * h);
-
-//         let expected_s21 = (plus.s21[()] - minus.s21[()]) / (2.0 * h);
-
-//         let expected_s22 = (plus.s22[()] - minus.s22[()]) / (2.0 * h);
-
-//         assert_complex_close(analytic.s11.first()[()], expected_s11, 1e-8);
-
-//         assert_complex_close(analytic.s12.first()[()], expected_s12, 1e-8);
-
-//         assert_complex_close(analytic.s21.first()[()], expected_s21, 1e-8);
-
-//         assert_complex_close(analytic.s22.first()[()], expected_s22, 1e-8);
-//     }
-
-//     fn second_order_entry_jets() -> (
-//         Scatter2Entries<ArrayJet<C, Ix0>>,
-//         Scatter2Entries<ArrayJet<C, Ix0>>,
-//     ) {
-//         let (left, right) = parameterised_entries(0.0);
-
-//         let left = Scatter2Entries {
-//             s11: ArrayJet::from_parts(left.s11, arr0(c(0.03)), arr0(c(0.02))),
-//             s12: ArrayJet::from_parts(left.s12, arr0(c(-0.04)), arr0(c(0.04))),
-//             s21: ArrayJet::from_parts(left.s21, arr0(c(0.02)), arr0(c(-0.03))),
-//             s22: ArrayJet::from_parts(left.s22, arr0(c(0.01)), arr0(c(0.01))),
-//         };
-
-//         let right = Scatter2Entries {
-//             s11: ArrayJet::from_parts(right.s11, arr0(c(-0.02)), arr0(c(0.024))),
-//             s12: ArrayJet::from_parts(right.s12, arr0(c(0.05)), arr0(c(-0.02))),
-//             s21: ArrayJet::from_parts(right.s21, arr0(c(-0.03)), arr0(c(0.04))),
-//             s22: ArrayJet::from_parts(right.s22, arr0(c(0.04)), arr0(c(0.03))),
-//         };
-
-//         (left, right)
-//     }
-
-//     #[test]
-//     fn second_derivative_matches_finite_difference() {
-//         let (left, right) = second_order_entry_jets();
-
-//         let analytic = cascade::<C, Ix0, _>(&left, &right);
-
-//         let h = 1e-4;
-
-//         let (left_plus, right_plus) = parameterised_entries(h);
-
-//         let plus = cascade::<C, Ix0, _>(&left_plus, &right_plus);
-
-//         let (left_zero, right_zero) = parameterised_entries(0.0);
-
-//         let zero = cascade::<C, Ix0, _>(&left_zero, &right_zero);
-
-//         let (left_minus, right_minus) = parameterised_entries(-h);
-
-//         let minus = cascade::<C, Ix0, _>(&left_minus, &right_minus);
-
-//         let h2 = h * h;
-
-//         let expected_s11 = (plus.s11[()] - c(2.0) * zero.s11[()] + minus.s11[()]) / h2;
-
-//         let expected_s12 = (plus.s12[()] - c(2.0) * zero.s12[()] + minus.s12[()]) / h2;
-
-//         let expected_s21 = (plus.s21[()] - c(2.0) * zero.s21[()] + minus.s21[()]) / h2;
-
-//         let expected_s22 = (plus.s22[()] - c(2.0) * zero.s22[()] + minus.s22[()]) / h2;
-
-//         assert_complex_close(analytic.s11.second()[()], expected_s11, 2e-7);
-
-//         assert_complex_close(analytic.s12.second()[()], expected_s12, 2e-7);
-
-//         assert_complex_close(analytic.s21.second()[()], expected_s21, 2e-7);
-
-//         assert_complex_close(analytic.s22.second()[()], expected_s22, 2e-7);
-//     }
-// }
+        for index in 0..2 {
+            let l11 = left.s11.value()[index];
+            let l12 = left.s12.value()[index];
+            let l21 = left.s21.value()[index];
+            let l22 = left.s22.value()[index];
+
+            let r11 = right.s11.value()[index];
+            let r12 = right.s12.value()[index];
+            let r21 = right.s21.value()[index];
+            let r22 = right.s22.value()[index];
+
+            let denominator = c(1.0) - l22 * r11;
+
+            assert_complex_close(
+                result.s11.value()[index],
+                l11 + l12 * r11 * l21 / denominator,
+                TOLERANCE,
+            );
+
+            assert_complex_close(
+                result.s12.value()[index],
+                l12 * r12 / denominator,
+                TOLERANCE,
+            );
+
+            assert_complex_close(
+                result.s21.value()[index],
+                r21 * l21 / denominator,
+                TOLERANCE,
+            );
+
+            assert_complex_close(
+                result.s22.value()[index],
+                r22 + r21 * l22 * r12 / denominator,
+                TOLERANCE,
+            );
+        }
+    }
+
+    fn parameterised_entries(x: f64) -> (ScalarEntries0, ScalarEntries0) {
+        let left = scalar_entries(
+            c(0.1 + 0.03 * x + 0.01 * x * x),
+            c(0.8 - 0.04 * x + 0.02 * x * x),
+            c(0.7 + 0.02 * x - 0.015 * x * x),
+            c(-0.2 + 0.01 * x + 0.005 * x * x),
+        );
+
+        let right = scalar_entries(
+            c(0.3 - 0.02 * x + 0.012 * x * x),
+            c(0.6 + 0.05 * x - 0.01 * x * x),
+            c(0.5 - 0.03 * x + 0.02 * x * x),
+            c(-0.1 + 0.04 * x + 0.015 * x * x),
+        );
+
+        (left, right)
+    }
+
+    fn first_order_entry_jets() -> (ScalarEntries1, ScalarEntries1) {
+        let left = Scatter2Entries {
+            s11: J1::from_parts(arr0(c(0.1)), arr0(c(0.03))),
+            s12: J1::from_parts(arr0(c(0.8)), arr0(c(-0.04))),
+            s21: J1::from_parts(arr0(c(0.7)), arr0(c(0.02))),
+            s22: J1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
+        };
+
+        let right = Scatter2Entries {
+            s11: J1::from_parts(arr0(c(0.3)), arr0(c(-0.02))),
+            s12: J1::from_parts(arr0(c(0.6)), arr0(c(0.05))),
+            s21: J1::from_parts(arr0(c(0.5)), arr0(c(-0.03))),
+            s22: J1::from_parts(arr0(c(-0.1)), arr0(c(0.04))),
+        };
+
+        (left, right)
+    }
+
+    #[test]
+    fn first_derivative_matches_finite_difference() {
+        let (left, right) = first_order_entry_jets();
+
+        let analytic = cascade(&left, &right);
+
+        let h = 1e-6;
+
+        let (left_plus, right_plus) = parameterised_entries(h);
+        let plus = cascade(&left_plus, &right_plus);
+
+        let (left_minus, right_minus) = parameterised_entries(-h);
+        let minus = cascade(&left_minus, &right_minus);
+
+        let expected = scalar_array_entries(
+            (plus.s11.value()[()] - minus.s11.value()[()]) / (2.0 * h),
+            (plus.s12.value()[()] - minus.s12.value()[()]) / (2.0 * h),
+            (plus.s21.value()[()] - minus.s21.value()[()]) / (2.0 * h),
+            (plus.s22.value()[()] - minus.s22.value()[()]) / (2.0 * h),
+        );
+
+        assert_first_entries_close(&analytic, &expected, 1e-8);
+    }
+
+    fn second_order_entry_jets() -> (ScalarEntries2, ScalarEntries2) {
+        let left = Scatter2Entries {
+            s11: J2::from_parts(arr0(c(0.1)), arr0(c(0.03)), arr0(c(0.02))),
+            s12: J2::from_parts(arr0(c(0.8)), arr0(c(-0.04)), arr0(c(0.04))),
+            s21: J2::from_parts(arr0(c(0.7)), arr0(c(0.02)), arr0(c(-0.03))),
+            s22: J2::from_parts(arr0(c(-0.2)), arr0(c(0.01)), arr0(c(0.01))),
+        };
+
+        let right = Scatter2Entries {
+            s11: J2::from_parts(arr0(c(0.3)), arr0(c(-0.02)), arr0(c(0.024))),
+            s12: J2::from_parts(arr0(c(0.6)), arr0(c(0.05)), arr0(c(-0.02))),
+            s21: J2::from_parts(arr0(c(0.5)), arr0(c(-0.03)), arr0(c(0.04))),
+            s22: J2::from_parts(arr0(c(-0.1)), arr0(c(0.04)), arr0(c(0.03))),
+        };
+
+        (left, right)
+    }
+
+    #[test]
+    fn second_derivative_matches_finite_difference() {
+        let (left, right) = second_order_entry_jets();
+
+        let analytic = cascade(&left, &right);
+
+        let h = 1e-4;
+        let h_squared = h * h;
+
+        let (left_plus, right_plus) = parameterised_entries(h);
+        let plus = cascade(&left_plus, &right_plus);
+
+        let (left_zero, right_zero) = parameterised_entries(0.0);
+        let zero = cascade(&left_zero, &right_zero);
+
+        let (left_minus, right_minus) = parameterised_entries(-h);
+        let minus = cascade(&left_minus, &right_minus);
+
+        let expected = scalar_array_entries(
+            (plus.s11.value()[()] - c(2.0) * zero.s11.value()[()] + minus.s11.value()[()])
+                / h_squared,
+            (plus.s12.value()[()] - c(2.0) * zero.s12.value()[()] + minus.s12.value()[()])
+                / h_squared,
+            (plus.s21.value()[()] - c(2.0) * zero.s21.value()[()] + minus.s21.value()[()])
+                / h_squared,
+            (plus.s22.value()[()] - c(2.0) * zero.s22.value()[()] + minus.s22.value()[()])
+                / h_squared,
+        );
+
+        assert_second_entries_close(&analytic, &expected, 2e-7);
+    }
+}

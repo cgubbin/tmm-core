@@ -1,5 +1,4 @@
 mod backend;
-mod component;
 mod entries;
 mod error;
 mod workspace;
@@ -54,7 +53,7 @@ where
             problem.coordinates(),
             problem.stack(),
             polarisation,
-            RunMode::Evaluate,
+            RunMode::ResponseOnly,
         )?;
 
         Ok(workspace.into_entries())
@@ -73,7 +72,7 @@ where
             problem.coordinates(),
             problem.stack(),
             polarisation,
-            RunMode::Accumulate,
+            RunMode::InternalFields,
         )?;
 
         Ok(workspace)

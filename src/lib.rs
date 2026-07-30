@@ -19,6 +19,9 @@ pub mod spatial;
 pub mod stack;
 mod tensor;
 
+#[cfg(test)]
+mod test_support;
+
 pub(crate) use domain::{ComplexPlane, RealAxis};
 pub use error::TmmError;
 pub use input::{IncidentSide, Polarisation};

@@ -9,16 +9,19 @@ use ndarray::Dimension;
 
 mod isotropic;
 mod scatter2;
+mod waves;
+
+pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum RunMode {
-    Evaluate,
-    Accumulate,
+    ResponseOnly,
+    InternalFields,
 }
 
 impl RunMode {
     fn is_requested(&self) -> bool {
-        *self == RunMode::Accumulate
+        *self == RunMode::InternalFields
     }
 }
 

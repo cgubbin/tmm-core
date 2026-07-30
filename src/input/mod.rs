@@ -23,8 +23,8 @@ mod parameter;
 mod plane_wave;
 
 pub(crate) use canonical::{
-    CanonicalBackendInput, CanonicalCoordinates, CanonicalProblem, CanonicalSolverInput,
-    CanonicalStack,
+    CanonicalBackendInput, CanonicalCoordinates, CanonicalLayer, CanonicalProblem,
+    CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
     CompilationContext, CompileJet, CompilePlaneWaveError, ParameterAssignment,
