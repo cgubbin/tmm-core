@@ -1,7 +1,7 @@
 use nalgebra::ComplexField;
 use ndarray::Dimension;
 
-use crate::input::CanonicalBackendInput;
+use crate::input::{CanonicalBackendInput, JetEvaluation};
 
 use super::CompilationContext;
 
@@ -16,19 +16,21 @@ pub struct CompiledProblem<M, J, C, D>
 where
     C: ComplexField,
     D: Dimension,
+    J: JetEvaluation,
 {
     canonical: CanonicalBackendInput<M, J>,
-    context: CompilationContext<C, D>,
+    context: CompilationContext<C, D, J::Assignment>,
 }
 
 impl<M, J, C, D> CompiledProblem<M, J, C, D>
 where
     C: ComplexField,
     D: Dimension,
+    J: JetEvaluation,
 {
     pub(crate) fn new(
         canonical: CanonicalBackendInput<M, J>,
-        context: CompilationContext<C, D>,
+        context: CompilationContext<C, D, J::Assignment>,
     ) -> Self {
         Self { canonical, context }
     }
@@ -39,11 +41,16 @@ where
     }
 
     /// Caller-facing information used to interpret results.
-    pub fn compilation_context(&self) -> &CompilationContext<C, D> {
+    pub fn compilation_context(&self) -> &CompilationContext<C, D, J::Assignment> {
         &self.context
     }
 
-    pub fn into_parts(self) -> (CanonicalBackendInput<M, J>, CompilationContext<C, D>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        CanonicalBackendInput<M, J>,
+        CompilationContext<C, D, J::Assignment>,
+    ) {
         (self.canonical, self.context)
     }
 }

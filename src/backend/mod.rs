@@ -1,7 +1,6 @@
 use crate::{
     ComplexScalar, PlaneWaveObservables, Polarisation, RealAxis,
     algebra::Jet,
-    backend::solution::PlaneWaveSolutionView,
     input::{CanonicalBackendInput, CanonicalProblem, CanonicalSolverInput},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -12,9 +11,12 @@ mod isotropic;
 mod plane_wave;
 mod scatter2;
 mod solution;
+mod transfer2;
 mod waves;
 
-pub(crate) use solution::{PlaneWaveEntries, PlaneWaveSolution};
+pub use scatter2::{Scatter2, Scatter2Error};
+pub(crate) use scatter2::{Scatter2Entries, Scatter2ExteriorContext};
+pub(crate) use solution::{PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionView};
 pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -58,10 +60,12 @@ where
         J: ConstitutiveLift<Domain, M>;
 }
 
-pub trait SolutionWorkspace {
+pub trait PlaneWaveSolutionSource {
     type Entries: PlaneWaveEntries;
 
     fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries>;
+}
 
+pub trait SolutionWorkspace: PlaneWaveSolutionSource {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries>;
 }

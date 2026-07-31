@@ -30,7 +30,7 @@
 //! traits such as [`JetAdditive`], [`JetBilinear`], and [`JetField`].
 
 use crate::algebra::JetMultiplyByScalar;
-use crate::differential::{BivariateFirst, BivariateHessian};
+use crate::differential::{BivariateGradient, BivariateHessian};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
@@ -51,7 +51,7 @@ pub(crate) type ModeJetBivariate2<C, D> = ArrayJetBivariate2<C, D, HolomorphicPa
 pub(crate) struct JetBivariate2<A, P> {
     value: A,
 
-    first: BivariateFirst<A>,
+    first: BivariateGradient<A>,
 
     second: BivariateHessian<A>,
 
@@ -61,7 +61,7 @@ pub(crate) struct JetBivariate2<A, P> {
 impl<I, P> JetBivariate2<I, P> {
     pub(crate) fn from_parts(
         value: I,
-        first: BivariateFirst<I>,
+        first: BivariateGradient<I>,
         second: BivariateHessian<I>,
     ) -> Self {
         Self {
@@ -82,7 +82,7 @@ impl<I, P> JetBivariate2<I, P> {
     ) -> Self {
         Self::from_parts(
             value,
-            BivariateFirst::new(axis0, axis1),
+            BivariateGradient::new(axis0, axis1),
             BivariateHessian::new(axis0_axis0, axis0_axis1, axis1_axis1),
         )
     }
@@ -111,7 +111,7 @@ impl<I, P> JetBivariate2<I, P> {
         self.second.axis1_axis1()
     }
 
-    pub(crate) fn first(&self) -> &BivariateFirst<I> {
+    pub(crate) fn first(&self) -> &BivariateGradient<I> {
         &self.first
     }
 
@@ -119,7 +119,7 @@ impl<I, P> JetBivariate2<I, P> {
         &self.second
     }
 
-    pub(crate) fn into_parts(self) -> (I, BivariateFirst<I>, BivariateHessian<I>) {
+    pub(crate) fn into_parts(self) -> (I, BivariateGradient<I>, BivariateHessian<I>) {
         (self.value, self.first, self.second)
     }
 }

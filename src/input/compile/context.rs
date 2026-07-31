@@ -33,18 +33,18 @@ use crate::{
 /// interpret derivatives and project solved matrices into caller-facing
 /// observables.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CompilationContext<C, D>
+pub struct CompilationContext<C, D, A>
 where
     C: ComplexField,
     D: Dimension,
 {
     coordinates: CoordinateContext<C, D>,
     stack: StackContext<C::RealField>,
-    assignment: ParameterAssignment,
+    assignment: A,
     constraint: ProjectionConstraint,
 }
 
-impl<C, D> CompilationContext<C, D>
+impl<C, D, A> CompilationContext<C, D, A>
 where
     C: ComplexField,
     D: Dimension,
@@ -53,7 +53,7 @@ where
     pub(crate) fn new(
         coordinates: CoordinateContext<C, D>,
         stack: StackContext<C::RealField>,
-        assignment: ParameterAssignment,
+        assignment: A,
         constraint: ProjectionConstraint,
     ) -> Self {
         Self {
@@ -75,7 +75,7 @@ where
     }
 
     /// Return the mapping from derivative slots to physical parameters.
-    pub fn assignment(&self) -> &ParameterAssignment {
+    pub fn assignment(&self) -> &A {
         &self.assignment
     }
 
@@ -90,7 +90,7 @@ where
     ) -> (
         CoordinateContext<C, D>,
         StackContext<C::RealField>,
-        ParameterAssignment,
+        A,
         ProjectionConstraint,
     ) {
         (

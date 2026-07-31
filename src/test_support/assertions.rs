@@ -3,11 +3,11 @@ use super::{C, TOLERANCE, c};
 use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Data, Dimension};
 
-fn assert_real_close(actual: f64, expected: f64) {
+pub fn assert_real_close(actual: f64, expected: f64, tolerance: f64) {
     let error = (actual - expected).abs();
 
     assert!(
-        error <= TOLERANCE,
+        error <= tolerance,
         "expected {expected:e}, got {actual:e}; \
              absolute error = {error:e}",
     );

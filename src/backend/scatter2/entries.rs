@@ -64,6 +64,10 @@ pub(crate) struct Scatter2Entries<A> {
 }
 
 impl<A> Scatter2Entries<A> {
+    pub(crate) fn from_parts(s11: A, s12: A, s21: A, s22: A) -> Self {
+        Self { s11, s12, s21, s22 }
+    }
+
     /// Construct the transparent identity under Redheffer composition.
     ///
     /// The identity reflects neither incident channel and transmits both
@@ -130,6 +134,13 @@ pub(crate) struct Scatter2ExteriorContext<A> {
 }
 
 impl<J> Scatter2ExteriorContext<J> {
+    pub(crate) fn from_parts(left_admittance: J, right_admittance: J) -> Self {
+        Self {
+            left_admittance,
+            right_admittance,
+        }
+    }
+
     pub(super) fn new<E, M>(
         coordinates: &CanonicalCoordinates<J>,
         left_exterior: &M,
@@ -735,5 +746,104 @@ mod tests {
         );
 
         assert_second_entries_close(&analytic, &expected, 2e-7);
+    }
+}
+
+#[cfg(test)]
+mod determinant_helper_tests {
+    use crate::test_support::{
+        TOLERANCE,
+        assertions::assert_complex_close,
+        jet::{J0, zero_jet_from_value},
+    };
+
+    use super::*;
+
+    use ndarray::{Array0, Ix0, arr0};
+    use num_complex::Complex64;
+
+    type Algebra = J0;
+
+    fn scalar(value: impl Into<Complex64>) -> Algebra {
+        zero_jet_from_value(value.into())
+    }
+
+    fn value<J>(jet: &J) -> J::Scalar
+    where
+        J: ScalarAlgebra<Dimension = Ix0>,
+        J::Scalar: Copy,
+    {
+        jet.value()[()]
+    }
+
+    fn entries_with_s21(s21: impl Into<Complex64>) -> Scatter2Entries<Algebra> {
+        Scatter2Entries {
+            s11: scalar(0.0),
+            s12: scalar(0.0),
+            s21: scalar(s21),
+            s22: scalar(0.0),
+        }
+    }
+
+    #[test]
+    fn transfer_state_slope_is_minus_i_times_admittance() {
+        let admittance = scalar(Complex64::new(2.0, 3.0));
+
+        let slope = transfer_state_slope(&admittance);
+
+        let expected = -Complex64::i() * Complex64::new(2.0, 3.0);
+
+        assert_complex_close(value(&slope), expected, TOLERANCE);
+    }
+
+    #[test]
+    fn characteristic_function_matches_manual_formula() {
+        let entries = entries_with_s21(5.0);
+        let admittance = scalar(7.0);
+
+        let residual = characteristic_function(&entries, &admittance);
+
+        let expected = 2.0 * (-Complex64::i() * 7.0) / 5.0;
+
+        assert_complex_close(value(&residual), expected, TOLERANCE);
+    }
+
+    #[test]
+    fn characteristic_function_is_linear_in_left_admittance() {
+        let entries = entries_with_s21(Complex64::new(3.0, -1.0));
+
+        let admittance = scalar(Complex64::new(2.0, 0.5));
+        let scaled_admittance = scalar(4.0 * Complex64::new(2.0, 0.5));
+
+        let residual = characteristic_function(&entries, &admittance);
+        let scaled_residual = characteristic_function(&entries, &scaled_admittance);
+
+        assert_complex_close(value(&scaled_residual), 4.0 * residual[()], TOLERANCE);
+    }
+
+    #[test]
+    fn characteristic_function_is_inverse_in_s21() {
+        let admittance = scalar(Complex64::new(2.0, 0.5));
+
+        let first_entries = entries_with_s21(Complex64::new(3.0, -1.0));
+
+        let second_entries = entries_with_s21(2.0 * Complex64::new(3.0, -1.0));
+
+        let first = characteristic_function(&first_entries, &admittance);
+        let second = characteristic_function(&second_entries, &admittance);
+
+        assert_complex_close(value(&second), 0.5 * first[()], TOLERANCE);
+    }
+
+    #[test]
+    fn characteristic_function_for_unit_s21_is_twice_the_transfer_slope() {
+        let entries = entries_with_s21(1.0);
+        let admittance = scalar(Complex64::new(2.0, 3.0));
+
+        let residual = characteristic_function(&entries, &admittance);
+
+        let expected = 2.0 * (-Complex64::i() * Complex64::new(2.0, 3.0));
+
+        assert_complex_close(value(&residual), expected, TOLERANCE);
     }
 }

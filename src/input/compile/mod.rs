@@ -39,8 +39,8 @@ use crate::{
     algebra::ScalarAlgebra,
     domain::RealAxis,
     input::{
-        CanonicalBackendInput, CanonicalCoordinates, InPlaneCoordinate, PlaneWaveCoordinates,
-        PlaneWaveInput,
+        CanonicalBackendInput, CanonicalCoordinates, InPlaneCoordinate, JetEvaluation,
+        PlaneWaveCoordinates, PlaneWaveInput,
         canonical::CanonicalProblem,
         compile::{
             assignment::CoordinateAssignment, coordinates::CanonicalCoordinateJet,
@@ -56,7 +56,12 @@ use num_traits::{Float, FloatConst, FromPrimitive};
 use std::fmt::Debug;
 
 pub(crate) trait CompileJet<M, E>:
-    SeedJet + CanonicalCoordinateJet + ScalarAlgebra + StackThicknessJet + ConstitutiveLift<E, M>
+    SeedJet
+    + CanonicalCoordinateJet
+    + ScalarAlgebra
+    + StackThicknessJet
+    + ConstitutiveLift<E, M>
+    + JetEvaluation
 where
     Self::Scalar: ComplexScalar,
     <Self::Scalar as ComplexField>::RealField: Copy,
@@ -113,7 +118,8 @@ where
         + CanonicalCoordinateJet
         + ScalarAlgebra
         + StackThicknessJet
-        + ConstitutiveLift<E, M>,
+        + ConstitutiveLift<E, M>
+        + JetEvaluation,
     E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
 }
@@ -133,7 +139,7 @@ pub(crate) fn compile_real<M, J>(
 ) -> Result<
     (
         CanonicalProblem<M, J>,
-        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension>,
+        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Assignment>,
     ),
     CompilePlaneWaveError<J::Scalar>,
 >
@@ -165,6 +171,8 @@ where
         &assignment,
     )?;
 
+    let assignment = J::refine_assignment(assignment)?;
+
     Ok(finish_compilation(metadata, values, assignment, core))
 }
 
@@ -176,7 +184,7 @@ pub(crate) fn compile_complex<M, J>(
 ) -> Result<
     (
         CanonicalProblem<M, J>,
-        CompilationContext<J::Scalar, J::Dimension>,
+        CompilationContext<J::Scalar, J::Dimension, J::Assignment>,
     ),
     CompilePlaneWaveError<J::Scalar>,
 >
@@ -210,6 +218,8 @@ where
         validation,
         &assignment,
     )?;
+
+    let assignment = J::refine_assignment(assignment)?;
 
     Ok(finish_compilation(metadata, values, assignment, core))
 }
@@ -263,12 +273,16 @@ where
 fn finish_compilation<M, J, S, D>(
     metadata: PlaneWaveCoordinates,
     values: PlaneWaveCoordinateValues<S, D>,
-    assignment: ParameterAssignment,
+    assignment: J::Assignment,
     core: CompiledCore<M, J, S::RealField>,
-) -> (CanonicalProblem<M, J>, CompilationContext<S, D>)
+) -> (
+    CanonicalProblem<M, J>,
+    CompilationContext<S, D, J::Assignment>,
+)
 where
     S: ComplexField,
     D: Dimension,
+    J: JetEvaluation,
 {
     let coordinate_context = CoordinateContext::new(metadata, values);
 

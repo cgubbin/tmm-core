@@ -5,9 +5,10 @@
 //! [`Response`] with an appropriate observable type.
 
 use crate::differential::{
-    BivariateFirst, BivariateHessian, BivariateSecond, DifferentialResponse, DirectionalCoordinate,
+    BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
     DirectionalFirst, DirectionalSecond, NoDerivatives,
 };
+use crate::input::Parameter;
 
 /// Observable values together with optional differential information and metadata required for
 /// interpretation
@@ -66,7 +67,7 @@ impl<V, M> Response<V, NoDerivatives, M> {
 
 impl<V, M> Response<V, DirectionalFirst<V>, M> {
     /// Return the coordinate with respect to which the derivative was taken.
-    pub fn coordinate(&self) -> DirectionalCoordinate {
+    pub fn coordinate(&self) -> Parameter {
         self.inner.coordinate()
     }
 
@@ -78,7 +79,7 @@ impl<V, M> Response<V, DirectionalFirst<V>, M> {
 
 impl<V, M> Response<V, DirectionalSecond<V>, M> {
     /// Return the coordinate with respect to which the derivatives were taken.
-    pub fn coordinate(&self) -> DirectionalCoordinate {
+    pub fn coordinate(&self) -> Parameter {
         self.inner.coordinate()
     }
 
@@ -107,7 +108,7 @@ impl<V, M> Response<V, BivariateFirst<V>, M> {
 
 impl<V, M> Response<V, BivariateSecond<V>, M> {
     /// Return the spectral gradient of the observables.
-    pub fn gradient(&self) -> &BivariateFirst<V> {
+    pub fn gradient(&self) -> &BivariateGradient<V> {
         self.inner.gradient()
     }
 
@@ -158,13 +159,13 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 //     fn directional_first_exposes_coordinate_and_derivative() {
 //         let response = Response::new(DifferentialResponse::new(
 //             observable(1.0),
-//             DirectionalFirst::new(DirectionalCoordinate::VacuumWavenumber, observable(2.0)),
+//             DirectionalFirst::new(Parameter::Spectral, observable(2.0)),
 //         ));
 
 //         assert_eq!(response.observables(), &observable(1.0));
 //         assert_eq!(
 //             response.coordinate(),
-//             DirectionalCoordinate::VacuumWavenumber,
+//             Parameter::Spectral,
 //         );
 //         assert_eq!(response.first(), &observable(2.0));
 //     }
@@ -174,7 +175,7 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 //         let response = Response::new(DifferentialResponse::new(
 //             observable(1.0),
 //             DirectionalSecond::new(
-//                 DirectionalCoordinate::ParallelWavenumber,
+//                 Parameter::InPlane,
 //                 observable(2.0),
 //                 observable(3.0),
 //             ),
@@ -183,7 +184,7 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 //         assert_eq!(response.observables(), &observable(1.0));
 //         assert_eq!(
 //             response.coordinate(),
-//             DirectionalCoordinate::ParallelWavenumber,
+//             Parameter::InPlane,
 //         );
 //         assert_eq!(response.first(), &observable(2.0));
 //         assert_eq!(response.second(), &observable(3.0));

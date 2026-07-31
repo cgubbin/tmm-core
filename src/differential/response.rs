@@ -1,9 +1,10 @@
 use crate::{
     SpatialProfile, SpatialProfileError,
     differential::{
-        BivariateFirst, BivariateHessian, BivariateSecond, DirectionalCoordinate, DirectionalFirst,
+        BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DirectionalFirst,
         DirectionalSecond,
     },
+    input::Parameter,
 };
 
 use ndarray::Dimension;
@@ -81,7 +82,7 @@ impl<V, D> DifferentialResponse<V, D> {
 }
 
 impl<V, X> DifferentialResponse<V, DirectionalFirst<X>> {
-    pub(crate) fn coordinate(&self) -> DirectionalCoordinate {
+    pub(crate) fn coordinate(&self) -> Parameter {
         self.derivatives.coordinate()
     }
 
@@ -91,7 +92,7 @@ impl<V, X> DifferentialResponse<V, DirectionalFirst<X>> {
 }
 
 impl<V, X> DifferentialResponse<V, DirectionalSecond<X>> {
-    pub(crate) fn coordinate(&self) -> DirectionalCoordinate {
+    pub(crate) fn coordinate(&self) -> Parameter {
         self.derivatives.coordinate()
     }
 
@@ -115,7 +116,7 @@ impl<V, X> DifferentialResponse<V, BivariateFirst<X>> {
 }
 
 impl<V, X> DifferentialResponse<V, BivariateSecond<X>> {
-    pub(crate) fn gradient(&self) -> &BivariateFirst<X> {
+    pub(crate) fn gradient(&self) -> &BivariateGradient<X> {
         self.derivatives.first()
     }
 

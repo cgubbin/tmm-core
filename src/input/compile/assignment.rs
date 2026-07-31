@@ -27,6 +27,7 @@ use thiserror::Error;
 use crate::input::{
     Parameter, SolveRequest, ThicknessSeedError,
     compile::{coordinates::CoordinateVariable, stack::ThicknessSlotMap},
+    parameter::FiniteLayerIndex,
 };
 
 /// Mapping from jet derivative slots to caller-facing parameters.
@@ -115,7 +116,7 @@ impl ParameterAssignment {
         match parameter {
             Parameter::Spectral => Self::spectral(),
             Parameter::InPlane => Self::in_plane(),
-            Parameter::LayerThickness { layer } => Self::layer_thickness(layer),
+            Parameter::LayerThickness(FiniteLayerIndex(layer)) => Self::layer_thickness(layer),
         }
     }
 
@@ -136,7 +137,7 @@ impl ParameterAssignment {
     /// Construct a univariate layer-thickness assignment.
     pub(crate) fn layer_thickness(layer: usize) -> Self {
         Self {
-            slots: vec![Parameter::LayerThickness { layer }],
+            slots: vec![Parameter::LayerThickness(FiniteLayerIndex(layer))],
         }
     }
 
@@ -207,7 +208,11 @@ impl ParameterAssignment {
             .slots
             .iter()
             .filter_map(|parameter| match parameter {
-                Parameter::LayerThickness { layer } if *layer >= finite_layer_count => Some(*layer),
+                Parameter::LayerThickness(FiniteLayerIndex(layer))
+                    if *layer >= finite_layer_count =>
+                {
+                    Some(*layer)
+                }
 
                 _ => None,
             })
@@ -277,12 +282,14 @@ impl<'a> ThicknessAssignment<'a> {
 impl<'a> ThicknessSlotMap for ThicknessAssignment<'a> {
     fn slot_for_layer(&self, layer: usize) -> Option<usize> {
         self.assignment
-            .slot_for(Parameter::LayerThickness { layer })
+            .slot_for(Parameter::LayerThickness(FiniteLayerIndex(layer)))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::input::parameter::FiniteLayerIndex;
+
     use super::*;
 
     fn spectral() -> Parameter {
@@ -294,7 +301,7 @@ mod tests {
     }
 
     fn thickness(layer: usize) -> Parameter {
-        Parameter::LayerThickness { layer }
+        Parameter::LayerThickness(FiniteLayerIndex(layer))
     }
 
     #[test]

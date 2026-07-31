@@ -18,6 +18,28 @@
 
 use crate::algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2};
 
+/// A value
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ValueParts<T> {
+    pub(crate) value: T,
+}
+
+impl<T> ValueParts<T> {
+    /// Construct a value
+    pub(crate) fn new(value: T) -> Self {
+        Self { value }
+    }
+
+    pub(crate) fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// Consume the container and return `value`.
+    pub(crate) fn into_inner(self) -> T {
+        self.value
+    }
+}
+
 /// A value and one first directional derivative.
 ///
 /// Both fields have the same structural type. For a composite input, `value`
@@ -33,6 +55,14 @@ impl<T> DirectionalFirstParts<T> {
     /// Construct directional first-order parts.
     pub(crate) fn new(value: T, first: T) -> Self {
         Self { value, first }
+    }
+
+    pub(crate) fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub(crate) fn first(&self) -> &T {
+        &self.first
     }
 
     /// Consume the container and return `(value, first)`.
@@ -62,6 +92,18 @@ impl<T> DirectionalSecondParts<T> {
         }
     }
 
+    pub(crate) fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub(crate) fn first(&self) -> &T {
+        &self.first
+    }
+
+    pub(crate) fn second(&self) -> &T {
+        &self.second
+    }
+
     /// Consume the container and return `(value, first, second)`.
     pub(crate) fn into_parts(self) -> (T, T, T) {
         (self.value, self.first, self.second)
@@ -70,65 +112,111 @@ impl<T> DirectionalSecondParts<T> {
 
 /// A value and first derivatives with respect to two coordinates.
 ///
-/// The coordinate interpretation is supplied by the caller. The `x` and `y`
+/// The coordinate interpretation is supplied by the caller. The `axis0` and `y`
 /// fields denote the first and second coordinates of the underlying
 /// bivariate jet; they are not necessarily spatial coordinates.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BivariateGradientParts<T> {
+pub(crate) struct BivariateFirstParts<T> {
     pub(crate) value: T,
-    pub(crate) x: T,
-    pub(crate) y: T,
+    pub(crate) axis0: T,
+    pub(crate) axis1: T,
 }
 
-impl<T> BivariateGradientParts<T> {
+impl<T> BivariateFirstParts<T> {
     /// Construct bivariate first-order parts.
-    pub(crate) fn new(value: T, x: T, y: T) -> Self {
-        Self { value, x, y }
+    pub(crate) fn new(value: T, axis0: T, axis1: T) -> Self {
+        Self {
+            value,
+            axis0,
+            axis1,
+        }
     }
 
-    /// Consume the container and return `(value, x, y)`.
+    pub(crate) fn axis0(&self) -> &T {
+        &self.axis0
+    }
+
+    pub(crate) fn axis1(&self) -> &T {
+        &self.axis1
+    }
+
+    /// Consume the container and return `(value, axis0, axis1)`.
     pub(crate) fn into_parts(self) -> (T, T, T) {
-        (self.value, self.x, self.y)
+        (self.value, self.axis0, self.axis1)
     }
 }
 
 /// A value, gradient, and symmetric Hessian over two coordinates.
 ///
-/// The stored second derivatives are `x_x`, `x_y`, and `y_y`. Only one mixed
+/// The stored second derivatives are `axis0_axis0`, `axis0_axis1`, and `axis1_axis1`. Only one mixed
 /// component is stored because the underlying Hessian representation assumes
 /// symmetry.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BivariateHessianParts<T> {
+pub(crate) struct BivariateSecondParts<T> {
     pub(crate) value: T,
 
-    pub(crate) x: T,
-    pub(crate) y: T,
+    pub(crate) axis0: T,
+    pub(crate) axis1: T,
 
-    pub(crate) x_x: T,
-    pub(crate) x_y: T,
-    pub(crate) y_y: T,
+    pub(crate) axis0_axis0: T,
+    pub(crate) axis0_axis1: T,
+    pub(crate) axis1_axis1: T,
 }
 
-impl<T> BivariateHessianParts<T> {
+impl<T> BivariateSecondParts<T> {
     /// Construct bivariate second-order parts.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(value: T, x: T, y: T, x_x: T, x_y: T, y_y: T) -> Self {
+    pub(crate) fn new(
+        value: T,
+        axis0: T,
+        axis1: T,
+        axis0_axis0: T,
+        axis0_axis1: T,
+        axis1_axis1: T,
+    ) -> Self {
         Self {
             value,
-            x,
-            y,
-            x_x,
-            x_y,
-            y_y,
+            axis0,
+            axis1,
+            axis0_axis0,
+            axis0_axis1,
+            axis1_axis1,
         }
+    }
+
+    pub(crate) fn axis0(&self) -> &T {
+        &self.axis0
+    }
+
+    pub(crate) fn axis1(&self) -> &T {
+        &self.axis1
+    }
+
+    pub(crate) fn axis0_axis0(&self) -> &T {
+        &self.axis0_axis0
+    }
+
+    pub(crate) fn axis0_axis1(&self) -> &T {
+        &self.axis0_axis1
+    }
+
+    pub(crate) fn axis1_axis1(&self) -> &T {
+        &self.axis1_axis1
     }
 
     /// Consume the container.
     ///
     /// Components are returned in the order
-    /// `(value, x, y, x_x, x_y, y_y)`.
+    /// `(value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1)`.
     pub(crate) fn into_parts(self) -> (T, T, T, T, T, T) {
-        (self.value, self.x, self.y, self.x_x, self.x_y, self.y_y)
+        (
+            self.value,
+            self.axis0,
+            self.axis1,
+            self.axis0_axis0,
+            self.axis0_axis1,
+            self.axis1_axis1,
+        )
     }
 }
 
@@ -156,13 +244,13 @@ pub(crate) trait IntoSecond: IntoFirst {
 /// Extract a value and first derivatives over two coordinates.
 pub(crate) trait IntoGradient: IntoValue {
     /// Consume the input and return its bivariate first-order parts.
-    fn into_gradient(self) -> BivariateGradientParts<Self::Value>;
+    fn into_gradient(self) -> BivariateFirstParts<Self::Value>;
 }
 
 /// Extract a value, gradient, and Hessian over two coordinates.
 pub(crate) trait IntoHessian: IntoGradient {
     /// Consume the input and return its bivariate second-order parts.
-    fn into_hessian(self) -> BivariateHessianParts<Self::Value>;
+    fn into_hessian(self) -> BivariateSecondParts<Self::Value>;
 }
 
 impl<I, P> IntoValue for Jet0<I, P> {
@@ -231,30 +319,30 @@ impl<I, P> IntoSecond for Jet2<I, P> {
 }
 
 impl<I, P> IntoGradient for JetBivariate1<I, P> {
-    fn into_gradient(self) -> BivariateGradientParts<Self::Value> {
+    fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
         let (value, gradient) = self.into_parts();
-        let (x, y) = gradient.into_parts();
+        let (axis0, axis1) = gradient.into_parts();
 
-        BivariateGradientParts::new(value, x, y)
+        BivariateFirstParts::new(value, axis0, axis1)
     }
 }
 
 impl<I, P> IntoGradient for JetBivariate2<I, P> {
-    fn into_gradient(self) -> BivariateGradientParts<Self::Value> {
+    fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
         let (value, gradient, ..) = self.into_parts();
-        let (x, y) = gradient.into_parts();
+        let (axis0, axis1) = gradient.into_parts();
 
-        BivariateGradientParts::new(value, x, y)
+        BivariateFirstParts::new(value, axis0, axis1)
     }
 }
 
 impl<I, P> IntoHessian for JetBivariate2<I, P> {
-    fn into_hessian(self) -> BivariateHessianParts<Self::Value> {
+    fn into_hessian(self) -> BivariateSecondParts<Self::Value> {
         let (value, gradient, hessian) = self.into_parts();
-        let (x, y) = gradient.into_parts();
-        let (x_x, x_y, y_y) = hessian.into_parts();
+        let (axis0, axis1) = gradient.into_parts();
+        let (axis0_axis0, axis0_axis1, axis1_axis1) = hessian.into_parts();
 
-        BivariateHessianParts::new(value, x, y, x_x, x_y, y_y)
+        BivariateSecondParts::new(value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -278,14 +366,14 @@ mod tests {
 
     #[test]
     fn gradient_parts_preserve_component_order() {
-        let parts = BivariateGradientParts::new(1, 2, 3);
+        let parts = BivariateFirstParts::new(1, 2, 3);
 
         assert_eq!(parts.into_parts(), (1, 2, 3));
     }
 
     #[test]
     fn hessian_parts_preserve_component_order() {
-        let parts = BivariateHessianParts::new(1, 2, 3, 4, 5, 6);
+        let parts = BivariateSecondParts::new(1, 2, 3, 4, 5, 6);
 
         assert_eq!(parts.into_parts(), (1, 2, 3, 4, 5, 6),);
     }
@@ -307,7 +395,7 @@ mod jet_tests {
 
     // Replace these two imports with the actual internal derivative storage
     // types used by the bivariate jets.
-    use crate::differential::{BivariateFirst as JetGradient, BivariateHessian as JetHessian};
+    use crate::differential::{BivariateGradient as JetGradient, BivariateHessian as JetHessian};
 
     #[test]
     fn jet0_into_value_extracts_value() {

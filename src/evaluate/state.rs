@@ -1,5 +1,13 @@
 use crate::{
-    PlaneWaveObservables, algebra::ComplexJet, backend::HasEntries, input::CompilationContext,
+    IncidentSide, PlaneWaveObservables,
+    algebra::{ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet},
+    backend::{PlaneWaveSolutionSource, PlaneWaveSolutionView},
+    crystallise::{Crystallise, CrystallisePolicy},
+    differential::{
+        BivariateFirst, BivariateSecond, DirectionalFirst, DirectionalSecond, NoDerivatives,
+    },
+    input::{CanonicalProblem, CompilationContext, JetEvaluation},
+    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
 /// A retained plane-wave solution.
@@ -10,33 +18,42 @@ use crate::{
 ///
 /// No derived quantity is crystallised during evaluation.
 #[derive(Clone, Debug)]
-pub struct PlaneWaveState<M, J, W, Ctx> {
-    problem: CanonicalPlaneWaveProblem<M, J>,
-    workspace: W,
+pub struct PlaneWaveState<M, J, R, Ctx>
+where
+    J: JetEvaluation,
+{
+    problem: CanonicalProblem<M, J>,
+    result: R,
     context: Ctx,
 }
 
-impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx> {
-    pub(crate) fn new(
-        problem: CanonicalPlaneWaveProblem<M, J>,
-        workspace: W,
-        context: Ctx,
-    ) -> Self {
+impl<M, J, R, Ctx> PlaneWaveState<M, J, R, Ctx>
+where
+    J: JetEvaluation,
+{
+    pub(crate) fn new(problem: CanonicalProblem<M, J>, result: R, context: Ctx) -> Self {
         Self {
             problem,
-            workspace,
+            result,
             context,
         }
     }
 
     /// Return the compiled canonical plane-wave problem.
-    pub fn problem(&self) -> &CanonicalPlaneWaveProblem<M, J> {
+    pub fn problem(&self) -> &CanonicalProblem<M, J> {
         &self.problem
     }
 
-    /// Return the retained backend-specific workspace.
-    pub fn workspace(&self) -> &W {
-        &self.workspace
+    /// Return the computed result
+    pub fn result(&self) -> &R {
+        &self.result
+    }
+
+    pub fn solution(&self) -> PlaneWaveSolutionView<'_, R::Entries>
+    where
+        R: PlaneWaveSolutionSource,
+    {
+        self.result.solution()
     }
 
     /// Return the retained compilation metadata.
@@ -45,58 +62,91 @@ impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx> {
     }
 
     /// Consume the state and return its components.
-    pub fn into_parts(self) -> (CanonicalPlaneWaveProblem<M, J>, W, Ctx) {
-        (self.problem, self.workspace, self.context)
+    pub fn into_parts(self) -> (CanonicalProblem<M, J>, R, Ctx) {
+        (self.problem, self.result, self.context)
     }
 
     /// Transform the retained workspace while preserving the canonical
     /// problem and compilation context.
-    pub fn map_workspace<W2>(self, map: impl FnOnce(W) -> W2) -> PlaneWaveState<M, J, W2, Ctx> {
+    pub fn map_result<R2>(self, map: impl FnOnce(R) -> R2) -> PlaneWaveState<M, J, R2, Ctx> {
         PlaneWaveState {
             problem: self.problem,
-            workspace: map(self.workspace),
+            result: map(self.result),
             context: self.context,
         }
     }
-}
 
-// impl<M, J, W, Ctx> PlaneWaveState<M, J, W, Ctx>
-// where
-//     W: HasEntries,
-//     W::Entries: BuildPlaneWaveObservables<J>,
-//     J: ComplexJet,
-// {
-//     /// Construct the complete uncrystallised set of plane-wave observables.
-//     ///
-//     /// This is primarily an internal extension point. Most callers should use
-//     /// the crystallised observable accessors.
-//     pub fn raw_observable(&self) -> PlaneWaveObservables<J, J::RealJet> {
-//         self.workspace
-//             .entries()
-//             .build_plane_wave_observables(&self.problem)
-//     }
-// }
-// //     /// Compute and crystallise the complete external plane-wave response.
-// //     pub fn observables(
-// //         &self,
-// //     ) -> Result<
-// //         <
-// //             crate::observables::PlaneWaveObservables<
-// //                 J,
-// //                 J::RealAlgebra,
-// //             > as crate::crystallise::Crystallise<
-// //                 Ctx,
-// //             >
-// //         >::Output,
-// //         <
-// //             crate::observables::PlaneWaveObservables<
-// //                 J,
-// //                 J::RealAlgebra,
-// //             > as crate::crystallise::Crystallise<
-// //                 Ctx,
-// //             >
-// //         >::Error,
-// //     >{
-// //         self.raw_observables().crystallise(&self.context)
-// //     }
-// // }
+    fn raw_amplitudes(
+        &self,
+        incident_side: IncidentSide,
+    ) -> <R::Entries as ProjectAmplitudes>::Amplitudes
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectAmplitudes,
+    {
+        self.solution().amplitudes(incident_side)
+    }
+
+    pub fn amplitudes(
+        &self,
+        incident_side: IncidentSide,
+    ) -> <J::Policy as CrystallisePolicy<
+        <<R as PlaneWaveSolutionSource>::Entries as ProjectAmplitudes>::Amplitudes,
+    >>::Output
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectAmplitudes,
+        J::Policy: CrystallisePolicy<
+            <<R as PlaneWaveSolutionSource>::Entries as ProjectAmplitudes>::Amplitudes,
+        >,
+    {
+        let raw = self.raw_amplitudes(incident_side);
+        raw.crystallise(&J::Policy::default())
+    }
+
+    fn raw_power(&self, incident_side: IncidentSide) -> <R::Entries as ProjectPower>::Power
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectPower,
+    {
+        self.solution().power(incident_side)
+    }
+
+    pub fn power(
+        &self,
+        incident_side: IncidentSide,
+    ) -> <J::Policy as CrystallisePolicy<
+        <<R as PlaneWaveSolutionSource>::Entries as ProjectPower>::Power,
+    >>::Output
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectPower,
+        J::Policy:
+            CrystallisePolicy<<<R as PlaneWaveSolutionSource>::Entries as ProjectPower>::Power>,
+    {
+        let raw = self.raw_power(incident_side);
+        raw.crystallise(&J::Policy::default())
+    }
+
+    fn raw_determinant(&self) -> <R::Entries as ProjectPlaneWaveModeDeterminant>::Determinant
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectPlaneWaveModeDeterminant,
+    {
+        self.solution().determinant()
+    }
+
+    pub fn determinant(
+        &self,
+    ) -> <J::Policy as CrystallisePolicy<
+        <<R as PlaneWaveSolutionSource>::Entries as ProjectPlaneWaveModeDeterminant>::Determinant,
+    >>::Output
+    where
+        R: PlaneWaveSolutionSource,
+        R::Entries: ProjectPlaneWaveModeDeterminant,
+        J::Policy: CrystallisePolicy<<<R as PlaneWaveSolutionSource>::Entries as ProjectPlaneWaveModeDeterminant>::Determinant>
+    {
+        let raw = self.raw_determinant();
+        raw.crystallise(&J::Policy::default())
+    }
+}

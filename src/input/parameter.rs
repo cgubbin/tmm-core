@@ -75,13 +75,16 @@ pub enum Parameter {
     InPlane,
 
     /// The physical thickness of one finite layer.
-    LayerThickness { layer: usize },
+    LayerThickness(FiniteLayerIndex),
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FiniteLayerIndex(pub(crate) usize);
 
 impl Parameter {
     pub(crate) fn validate(self, finite_layer_count: usize) -> Result<(), ThicknessSeedError> {
         match self {
-            Parameter::LayerThickness { layer } if layer >= finite_layer_count => {
+            Parameter::LayerThickness(FiniteLayerIndex(layer)) if layer >= finite_layer_count => {
                 Err(ThicknessSeedError::LayerOutOfBounds {
                     index: layer,
                     finite_layer_count,

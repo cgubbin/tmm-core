@@ -1,21 +1,19 @@
-use crate::{SpatialProfile, SpatialProfileError};
-
-use super::DirectionalCoordinate;
+use crate::{SpatialProfile, SpatialProfileError, input::Parameter};
 
 use ndarray::Dimension;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectionalFirst<T> {
-    coordinate: DirectionalCoordinate,
+    coordinate: Parameter,
     first: T,
 }
 
 impl<T> DirectionalFirst<T> {
-    pub(crate) fn new(coordinate: DirectionalCoordinate, first: T) -> Self {
+    pub(crate) fn new(coordinate: Parameter, first: T) -> Self {
         Self { coordinate, first }
     }
 
-    pub fn coordinate(&self) -> DirectionalCoordinate {
+    pub fn coordinate(&self) -> Parameter {
         self.coordinate
     }
 
@@ -58,13 +56,13 @@ where
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectionalSecond<T> {
-    coordinate: DirectionalCoordinate,
+    coordinate: Parameter,
     first: T,
     second: T,
 }
 
 impl<T> DirectionalSecond<T> {
-    pub(crate) fn new(coordinate: DirectionalCoordinate, first: T, second: T) -> Self {
+    pub(crate) fn new(coordinate: Parameter, first: T, second: T) -> Self {
         Self {
             coordinate,
             first,
@@ -72,7 +70,7 @@ impl<T> DirectionalSecond<T> {
         }
     }
 
-    pub fn coordinate(&self) -> DirectionalCoordinate {
+    pub fn coordinate(&self) -> Parameter {
         self.coordinate
     }
     pub fn first(&self) -> &T {
@@ -124,7 +122,7 @@ where
 mod tests {
     use crate::{EnergyDensity, differential::DirectionalSecond, field::ScalarField};
 
-    use super::{DirectionalCoordinate, DirectionalFirst, SpatialProfile};
+    use super::{DirectionalFirst, Parameter, SpatialProfile};
 
     use ndarray::{Array2, Ix1, Ix2, arr1};
 
@@ -148,7 +146,7 @@ mod tests {
 
         let density = EnergyDensity::new(electric, magnetic, coupling, total);
 
-        let first = DirectionalFirst::new(DirectionalCoordinate::VacuumWavenumber, density);
+        let first = DirectionalFirst::new(Parameter::Spectral, density);
 
         let profile = first
             .spatial_profile(&Ix1(1))
@@ -193,8 +191,7 @@ mod tests {
         let first = density(1_000.0);
         let second = density(2_000.0);
 
-        let derivatives =
-            DirectionalSecond::new(DirectionalCoordinate::VacuumWavenumber, first, second);
+        let derivatives = DirectionalSecond::new(Parameter::Spectral, first, second);
 
         let profile = derivatives
             .spatial_profile(&Ix1(1))
@@ -234,9 +231,6 @@ mod tests {
             arr1(&[2310.0, 2311.0, 2312.0]).view(),
         );
 
-        assert_eq!(
-            profile.coordinate(),
-            DirectionalCoordinate::VacuumWavenumber,
-        );
+        assert_eq!(profile.coordinate(), Parameter::Spectral,);
     }
 }

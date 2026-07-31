@@ -1,10 +1,11 @@
-use crate::{SpatialProfile, SpatialProfileError};
+use crate::{SpatialProfile, SpatialProfileError, input::Parameter};
 
 use ndarray::Dimension;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BivariateSecond<T> {
-    gradient: BivariateFirst<T>,
+    axes: [Parameter; 2],
+    gradient: BivariateGradient<T>,
     hessian: BivariateHessian<T>,
 }
 
@@ -23,6 +24,7 @@ where
         excitation_index: &ED,
     ) -> Result<Self::Profile<'_>, SpatialProfileError> {
         Ok(BivariateSecond {
+            axes: self.axes.clone(),
             gradient: self.gradient.spatial_profile(excitation_index)?,
             hessian: self.hessian.spatial_profile(excitation_index)?,
         })
@@ -30,11 +32,23 @@ where
 }
 
 impl<T> BivariateSecond<T> {
-    pub(crate) fn new(gradient: BivariateFirst<T>, hessian: BivariateHessian<T>) -> Self {
-        Self { gradient, hessian }
+    pub(crate) fn new(
+        axes: [Parameter; 2],
+        gradient: BivariateGradient<T>,
+        hessian: BivariateHessian<T>,
+    ) -> Self {
+        Self {
+            axes,
+            gradient,
+            hessian,
+        }
     }
 
-    pub fn first(&self) -> &BivariateFirst<T> {
+    pub fn axes(&self) -> &[Parameter; 2] {
+        &self.axes
+    }
+
+    pub fn first(&self) -> &BivariateGradient<T> {
         &self.gradient
     }
 
@@ -44,6 +58,7 @@ impl<T> BivariateSecond<T> {
 
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> BivariateSecond<U> {
         BivariateSecond {
+            axes: self.axes,
             gradient: self.gradient.map(&mut f),
             hessian: self.hessian.map(f),
         }
@@ -52,6 +67,7 @@ impl<T> BivariateSecond<T> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BivariateFirst<T> {
+    axes: [Parameter; 2],
     axis0: T,
     axis1: T,
 }
@@ -71,6 +87,7 @@ where
         excitation_index: &ED,
     ) -> Result<Self::Profile<'_>, SpatialProfileError> {
         Ok(BivariateFirst {
+            axes: self.axes.clone(),
             axis0: self.axis0.spatial_profile(excitation_index)?,
             axis1: self.axis1.spatial_profile(excitation_index)?,
         })
@@ -78,8 +95,8 @@ where
 }
 
 impl<T> BivariateFirst<T> {
-    pub(crate) fn new(axis0: T, axis1: T) -> Self {
-        Self { axis0, axis1 }
+    pub(crate) fn new(axes: [Parameter; 2], axis0: T, axis1: T) -> Self {
+        Self { axes, axis0, axis1 }
     }
 
     pub fn axis0(&self) -> &T {
@@ -92,13 +109,66 @@ impl<T> BivariateFirst<T> {
 
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> BivariateFirst<U> {
         BivariateFirst {
+            axes: self.axes,
             axis0: f(self.axis0),
             axis1: f(self.axis1),
         }
     }
 
+    pub fn into_parts(self) -> ([Parameter; 2], T, T) {
+        (self.axes, self.axis0, self.axis1)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BivariateGradient<T> {
+    axis0: T,
+    axis1: T,
+}
+
+impl<V, ED> SpatialProfile<ED> for BivariateGradient<V>
+where
+    V: SpatialProfile<ED>,
+    ED: Dimension,
+{
+    type Profile<'a>
+        = BivariateGradient<V::Profile<'a>>
+    where
+        Self: 'a;
+
+    fn spatial_profile(
+        &self,
+        excitation_index: &ED,
+    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
+        Ok(BivariateGradient {
+            axis0: self.axis0.spatial_profile(excitation_index)?,
+            axis1: self.axis1.spatial_profile(excitation_index)?,
+        })
+    }
+}
+
+impl<T> BivariateGradient<T> {
+    pub(crate) fn new(axis0: T, axis1: T) -> Self {
+        Self { axis0, axis1 }
+    }
+
+    pub fn axis0(&self) -> &T {
+        &self.axis0
+    }
+
+    pub fn axis1(&self) -> &T {
+        &self.axis1
+    }
+
     pub fn into_parts(self) -> (T, T) {
         (self.axis0, self.axis1)
+    }
+
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> BivariateGradient<U> {
+        BivariateGradient {
+            axis0: f(self.axis0),
+            axis1: f(self.axis1),
+        }
     }
 }
 
@@ -195,7 +265,7 @@ mod tests {
             EnergyDensity::new(electric, magnetic, coupling, total)
         }
 
-        let gradient = BivariateFirst::new(
+        let gradient = BivariateGradient::new(
             density(1_000.0), // dx
             density(2_000.0), // dy
         );
@@ -206,7 +276,8 @@ mod tests {
             density(5_000.0), // dydy
         );
 
-        let derivatives = BivariateSecond::new(gradient, hessian);
+        let derivatives =
+            BivariateSecond::new([Parameter::Spectral, Parameter::InPlane], gradient, hessian);
 
         let profile = derivatives
             .spatial_profile(&Ix1(1))

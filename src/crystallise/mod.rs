@@ -56,13 +56,14 @@
 //! - crystallisation policies in `policy`;
 //! - recursive implementations for evaluated quantities in `quantity`.
 
+mod assemble;
 mod parts;
 mod policy;
 mod quantity;
 
 pub(crate) use parts::{
-    BivariateGradientParts, BivariateHessianParts, DirectionalFirstParts, DirectionalSecondParts,
-    IntoFirst, IntoGradient, IntoHessian, IntoSecond, IntoValue,
+    BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
+    IntoFirst, IntoGradient, IntoHessian, IntoSecond, IntoValue, ValueParts,
 };
 pub(crate) use policy::{
     Crystallise, CrystallisePolicy, FirstBivariate, FirstDirectional, SecondBivariate,

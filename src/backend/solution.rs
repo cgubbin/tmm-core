@@ -1,6 +1,6 @@
 use crate::{
     IncidentSide, PlaneWaveAmplitudes,
-    observable::{ProjectAmplitudes, ProjectPower},
+    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
 pub trait PlaneWaveEntries {
@@ -55,6 +55,13 @@ impl<E: PlaneWaveEntries> PlaneWaveSolution<E> {
         self.entries().project_power(self.context(), incident_side)
     }
 
+    pub fn determinant(&self) -> E::Determinant
+    where
+        E: ProjectPlaneWaveModeDeterminant,
+    {
+        self.entries().project_determinant(self.context())
+    }
+
     pub fn into_parts(self) -> (E, E::ExteriorContext) {
         (self.entries, self.context)
     }
@@ -91,5 +98,12 @@ impl<'a, E: PlaneWaveEntries> PlaneWaveSolutionView<'a, E> {
         E: ProjectPower,
     {
         self.entries().project_power(self.context(), incident_side)
+    }
+
+    pub fn determinant(&self) -> E::Determinant
+    where
+        E: ProjectPlaneWaveModeDeterminant,
+    {
+        self.entries().project_determinant(self.context())
     }
 }

@@ -19,6 +19,7 @@ mod canonical;
 mod compile;
 mod coordinate;
 mod error;
+mod jet;
 mod parameter;
 mod plane_wave;
 
@@ -27,11 +28,12 @@ pub(crate) use canonical::{
     CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, ParameterAssignment,
+    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, ParameterAssignment,
     ParameterAssignmentError, SeedJet, compile_complex, compile_real,
 };
 pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};
 pub use error::{PlaneWaveInputError, SpectralTransformError};
+pub(crate) use jet::{BivariateAssignment, DirectionalAssignment, JetEvaluation, ValueAssignment};
 pub use parameter::SolveRequest;
 pub(crate) use parameter::{Parameter, ThicknessSeedError};
 pub use plane_wave::{PlaneWaveInput, PlaneWavePoint};

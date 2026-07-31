@@ -4,8 +4,8 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionView, RunMode,
-        SolutionWorkspace,
+        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionSource,
+        PlaneWaveSolutionView, RunMode, SolutionWorkspace,
         scatter2::{
             Scatter2ExteriorContext,
             entries::{Scatter2Entries, cascade},
@@ -75,13 +75,15 @@ pub(crate) struct Scatter2Workspace<A> {
     retained: Option<RetainedScatterComponents<A>>,
 }
 
-impl<A> SolutionWorkspace for Scatter2Workspace<A> {
+impl<A> PlaneWaveSolutionSource for Scatter2Workspace<A> {
     type Entries = Scatter2Entries<A>;
 
     fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
         self.solution.as_view()
     }
+}
 
+impl<A> SolutionWorkspace for Scatter2Workspace<A> {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries> {
         let (solution, ..) = self.into_parts();
         solution
