@@ -1,7 +1,7 @@
 use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
-    backend::{RunMode, isotropic::IsotropicLayerQuantities},
+    backend::{RunMode, isotropic::IsotropicLayerQuantities, scatter2::Scatter2ExteriorContext},
     input::{CanonicalCoordinates, CanonicalSolverInput, CanonicalStack},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -66,8 +66,16 @@ impl<J> Scatter2<J> {
         J::Dimension: Dimension,
         E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
     {
+        let context = Scatter2ExteriorContext::new(
+            coordinates,
+            stack.left_exterior(),
+            stack.right_exterior(),
+            polarisation,
+        );
+
         let mut workspace = Scatter2Workspace::new(
             coordinates.vacuum_angular_wavenumber().value(),
+            context,
             request,
             stack.layer_count(),
         );

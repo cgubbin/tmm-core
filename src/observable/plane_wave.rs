@@ -1,3 +1,31 @@
+use crate::{
+    IncidentSide,
+    algebra::{ComplexJet, RealScalarAlgebra, ScalarAlgebra},
+    backend::PlaneWaveEntries,
+};
+
+use num_traits::One;
+
+pub trait ProjectAmplitudes: PlaneWaveEntries {
+    type Amplitudes;
+
+    fn project_amplitudes(
+        &self,
+        exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Amplitudes;
+}
+
+pub trait ProjectPower: PlaneWaveEntries {
+    type Power;
+
+    fn project_power(
+        &self,
+        exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Power;
+}
+
 /// Backend-neutral physical plane-wave observables.
 ///
 /// This type groups the physically observable quantities associated with the
@@ -184,6 +212,37 @@ impl<R> PlaneWavePower<R> {
             reflectance: f(self.reflectance),
             transmittance: f(self.transmittance),
             absorptance: f(self.absorptance),
+        }
+    }
+
+    pub fn from_amplitudes_and_admittance<C>(
+        reflection: &C,
+        transmission: &C,
+        incident_admittance: &C,
+        transmitted_admittance: &C,
+    ) -> Self
+    where
+        C: RealScalarAlgebra<RealJet = R>,
+        R: ScalarAlgebra,
+        R::Scalar: One,
+    {
+        let flux_ratio = transmitted_admittance
+            .real()
+            .divide(&incident_admittance.real());
+
+        let reflectance = reflection.magnitude_squared();
+
+        let transmittance = transmission.magnitude_squared().multiply(&flux_ratio);
+
+        let absorptance = transmittance
+            .constant(<R::Scalar as One>::one())
+            .subtract(&reflectance)
+            .subtract(&transmittance);
+
+        Self {
+            reflectance,
+            transmittance,
+            absorptance,
         }
     }
 

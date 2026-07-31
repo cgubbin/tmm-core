@@ -6,11 +6,11 @@ mod workspace;
 use crate::{
     ComplexPlane, ComplexScalar, Polarisation, RealAxis,
     algebra::ScalarAlgebra,
-    backend::{Backend, BackendWorkspace, RunMode},
+    backend::{Backend, PlaneWaveSolution, RunMode, SolutionWorkspace},
     input::CanonicalProblem,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
-pub(crate) use entries::Scatter2Entries;
+pub(crate) use entries::{Scatter2Entries, Scatter2ExteriorContext};
 pub use error::Scatter2Error;
 pub(crate) use workspace::Scatter2Workspace;
 
@@ -44,7 +44,7 @@ where
         &self,
         problem: &CanonicalProblem<M, J>,
         polarisation: Polarisation,
-    ) -> Result<Self::Entries, Self::Error>
+    ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
     where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         J: ConstitutiveLift<Domain, M>,
@@ -56,7 +56,7 @@ where
             RunMode::ResponseOnly,
         )?;
 
-        Ok(workspace.into_entries())
+        Ok(workspace.into_solution())
     }
 
     fn retain<M>(

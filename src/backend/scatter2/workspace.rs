@@ -4,8 +4,12 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        BackendWorkspace, BidirectionalWaves, LayerBoundaryWaves, RunMode,
-        scatter2::entries::{Scatter2Entries, cascade},
+        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionView, RunMode,
+        SolutionWorkspace,
+        scatter2::{
+            Scatter2ExteriorContext,
+            entries::{Scatter2Entries, cascade},
+        },
     },
     input::IncidentSide,
 };
@@ -64,23 +68,23 @@ impl LayerCutIndices {
 /// - first-order jets for first derivatives;
 /// - second-order jets for first and second derivatives.
 ///
-/// The workspace always accumulates `total`. Individual components and layer
+/// The workspace always accumulates `solution`. Individual components and layer
 /// cut positions are retained only when internal fields were requested.
 pub(crate) struct Scatter2Workspace<A> {
-    total: Scatter2Entries<A>,
+    solution: PlaneWaveSolution<Scatter2Entries<A>>,
     retained: Option<RetainedScatterComponents<A>>,
 }
 
-impl<A> BackendWorkspace for Scatter2Workspace<A> {
+impl<A> SolutionWorkspace for Scatter2Workspace<A> {
     type Entries = Scatter2Entries<A>;
 
-    fn entries(&self) -> &Self::Entries {
-        &self.total
+    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
+        self.solution.as_view()
     }
 
-    fn into_entries(self) -> Self::Entries {
-        let (entries, ..) = self.into_parts();
-        entries
+    fn into_solution(self) -> PlaneWaveSolution<Self::Entries> {
+        let (solution, ..) = self.into_parts();
+        solution
     }
 }
 
@@ -92,6 +96,7 @@ pub(crate) struct RetainedScatterComponents<A> {
 impl<A> Scatter2Workspace<A> {
     pub(crate) fn new(
         source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+        context: Scatter2ExteriorContext<A>,
         mode: RunMode,
         layer_count: usize,
     ) -> Self
@@ -101,7 +106,7 @@ impl<A> Scatter2Workspace<A> {
         A::Dimension: Dimension,
     {
         Self {
-            total: Scatter2Entries::identity_like(source),
+            solution: PlaneWaveSolution::new(Scatter2Entries::identity_like(source), context),
 
             retained: mode.is_requested().then(|| RetainedScatterComponents {
                 components: Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1)),
@@ -110,8 +115,17 @@ impl<A> Scatter2Workspace<A> {
         }
     }
 
-    pub(crate) fn into_parts(self) -> (Scatter2Entries<A>, Option<RetainedScatterComponents<A>>) {
-        (self.total, self.retained)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        PlaneWaveSolution<Scatter2Entries<A>>,
+        Option<RetainedScatterComponents<A>>,
+    ) {
+        (self.solution, self.retained)
+    }
+
+    pub(crate) fn total(&self) -> &Scatter2Entries<A> {
+        self.solution.entries()
     }
 
     pub(crate) fn append(&mut self, component: Scatter2Entries<A>)
@@ -120,7 +134,9 @@ impl<A> Scatter2Workspace<A> {
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
-        self.total = cascade(&self.total, &component);
+        let total = cascade(self.solution.entries(), &component);
+
+        self.solution.replace_entries(total);
 
         if let Some(retained) = &mut self.retained {
             retained.components.push(component);
@@ -170,40 +186,6 @@ impl<A> Scatter2Workspace<A> {
     //             .reconstruct_layer_boundary_waves(incident_side, source),
     //     )
     // }
-
-    /// Transform every scattering-entry representation in the workspace.
-    ///
-    /// The transformation is applied to both the accumulated response and all
-    /// retained physical components. Layer cut indices remain unchanged because
-    /// the component topology is preserved.
-    fn map_entries<B>(
-        self,
-        mut map: impl FnMut(Scatter2Entries<A>) -> Scatter2Entries<B>,
-    ) -> Scatter2Workspace<B> {
-        let total = map(self.total);
-
-        if let Some(retained) = self.retained {
-            let retained = retained.map_entries(map);
-
-            return Scatter2Workspace {
-                total,
-                retained: Some(retained),
-            };
-        }
-
-        Scatter2Workspace {
-            total,
-            retained: None,
-        }
-    }
-
-    pub(crate) fn total(&self) -> &Scatter2Entries<A> {
-        &self.total
-    }
-
-    pub(crate) fn into_total(self) -> Scatter2Entries<A> {
-        self.total
-    }
 }
 
 impl<A> RetainedScatterComponents<A> {
@@ -379,17 +361,22 @@ mod tests {
     };
 
     use crate::{
+        Polarisation, RealAxis,
         algebra::{ArrayJet0, ArrayJet1, RealParameter, ScalarAlgebra},
         backend::{
-            BackendWorkspace, RunMode,
-            scatter2::entries::{Scatter2Entries, cascade},
+            RunMode, SolutionWorkspace,
+            scatter2::{
+                Scatter2ExteriorContext,
+                entries::{Scatter2Entries, cascade},
+            },
         },
-        input::IncidentSide,
+        input::{CanonicalCoordinates, CanonicalStack, IncidentSide},
+        material::{Constant, ConstitutiveLift},
         test_support::{
             C, TOLERANCE,
             assertions::{assert_array_close, assert_complex_close},
             c,
-            jet::{J0, J1, P, zero_jet_from_value},
+            jet::{J0, J1, P, zero_jet_from_array, zero_jet_from_value},
         },
     };
 
@@ -421,6 +408,26 @@ mod tests {
         scalar_entries(c(-0.08), c(0.83), c(0.79), c(0.06))
     }
 
+    fn make_context<J>(source: &J) -> Scatter2ExteriorContext<J>
+    where
+        J: ScalarAlgebra<Scalar = C> + ConstitutiveLift<RealAxis, Constant<f64>>,
+        J::Dimension: ndarray::Dimension,
+    {
+        let left_exterior = Constant::vacuum();
+        let right_exterior = Constant::vacuum();
+
+        let coordinates = CanonicalCoordinates::new(source.clone(), source.clone());
+
+        let polarisation = Polarisation::TransverseMagnetic;
+
+        Scatter2ExteriorContext::new::<RealAxis, _>(
+            &coordinates,
+            &left_exterior,
+            &right_exterior,
+            polarisation,
+        )
+    }
+
     fn assert_entries_close(actual: &Entries0, expected: &Entries0, tolerance: f64) {
         assert_array_close(actual.s11.value(), expected.s11.value(), tolerance);
 
@@ -443,8 +450,10 @@ mod tests {
     fn new_workspace_starts_with_redheffer_identity() {
         let source = arr0(c(4.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 3);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 3);
 
         assert_complex_close(workspace.total().s11.value()[()], c(0.0), TOLERANCE);
 
@@ -459,8 +468,10 @@ mod tests {
     fn response_only_workspace_does_not_retain_components() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 2);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 2);
 
         let (_, retained) = workspace.into_parts();
 
@@ -471,8 +482,10 @@ mod tests {
     fn internal_field_workspace_creates_retained_storage() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::InternalFields, 2);
+            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
         let (_, retained) = workspace.into_parts();
 
@@ -486,38 +499,45 @@ mod tests {
     fn entries_returns_accumulated_total() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 1);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let component = first_component();
 
         workspace.append(component.clone());
 
-        assert_entries_close(workspace.entries(), &component, TOLERANCE);
+        assert_entries_close(workspace.total(), &component, TOLERANCE);
     }
 
     #[test]
     fn into_entries_returns_accumulated_total() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 1);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let component = first_component();
 
         workspace.append(component.clone());
 
-        let result = workspace.into_entries();
+        let solution = workspace.into_solution();
+        let (entries, ..) = solution.into_parts();
 
-        assert_entries_close(&result, &component, TOLERANCE);
+        assert_entries_close(&entries, &component, TOLERANCE);
     }
 
     #[test]
     fn append_cascades_component_onto_total() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 2);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 2);
 
         let first = first_component();
         let second = second_component();
@@ -534,8 +554,10 @@ mod tests {
     fn append_retains_component_when_requested() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::InternalFields, 1);
+            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 1);
 
         let component = first_component();
 
@@ -554,8 +576,10 @@ mod tests {
     fn append_does_not_create_retention_in_response_only_mode() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 1);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         workspace.append(first_component());
 
@@ -568,8 +592,10 @@ mod tests {
     fn append_layer_cascades_interface_then_propagation() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::ResponseOnly, 1);
+            Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let interface = first_component();
         let propagation = second_component();
@@ -585,8 +611,10 @@ mod tests {
     fn append_layer_retains_both_components() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::InternalFields, 1);
+            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 1);
 
         let interface = first_component();
         let propagation = second_component();
@@ -608,8 +636,10 @@ mod tests {
     fn append_layer_records_cuts_around_propagation() {
         let source = arr0(c(0.0));
 
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
         let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, RunMode::InternalFields, 2);
+            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
         workspace.append_layer(first_component(), second_component());
 

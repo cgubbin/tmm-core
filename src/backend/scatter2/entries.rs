@@ -17,12 +17,17 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, PlaneWaveAmplitudes, PlaneWavePower, Polarisation,
     algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
+        RealScalarAlgebra, ScalarAlgebra,
     },
-    // backend::mode::OutgoingModeAmplitudes,
-    input::IncidentSide,
+    backend::{PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
+    input::{CanonicalCoordinates, CanonicalProblem, IncidentSide},
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
+    observable::{
+        PlaneWaveDeterminant, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
+    },
 };
 
 /// Owned sampled scalar array used by the scattering backend.
@@ -93,13 +98,72 @@ impl<A> Scatter2Entries<A> {
     /// ```
     ///
     /// the returned tuple is `(reflection, transmission)`.
-    pub(crate) fn amplitudes(self, side: IncidentSide) -> (A, A) {
+    pub(crate) fn amplitudes(&self, side: IncidentSide) -> (A, A)
+    where
+        A: Clone,
+    {
+        let (reflection, transmission) = self.amplitudes_ref(side);
+
+        (reflection.clone(), transmission.clone())
+    }
+
+    pub(crate) fn amplitudes_ref(&self, side: IncidentSide) -> (&'_ A, &'_ A) {
+        match side {
+            IncidentSide::Left => (&self.s11, &self.s21),
+
+            IncidentSide::Right => (&self.s22, &self.s12),
+        }
+    }
+
+    pub(crate) fn into_amplitudes(self, side: IncidentSide) -> (A, A) {
         match side {
             IncidentSide::Left => (self.s11, self.s21),
 
             IncidentSide::Right => (self.s22, self.s12),
         }
     }
+}
+
+pub(crate) struct Scatter2ExteriorContext<A> {
+    left_admittance: A,
+    right_admittance: A,
+}
+
+impl<J> Scatter2ExteriorContext<J> {
+    pub(super) fn new<E, M>(
+        coordinates: &CanonicalCoordinates<J>,
+        left_exterior: &M,
+        right_exterior: &M,
+        polarisation: Polarisation,
+    ) -> Self
+    where
+        J: ScalarAlgebra + ConstitutiveLift<E, M> + Clone,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+    {
+        let left_quantities =
+            IsotropicLayerQuantities::evaluate::<E, M>(left_exterior, coordinates, polarisation);
+
+        let right_quantities =
+            IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
+
+        Self {
+            left_admittance: left_quantities.into_admittance().into_inner(),
+            right_admittance: right_quantities.into_admittance().into_inner(),
+        }
+    }
+
+    pub(super) fn incident_and_transmitted_admittances(&self, side: IncidentSide) -> (&J, &J) {
+        match side {
+            IncidentSide::Left => (&self.left_admittance, &self.right_admittance),
+            IncidentSide::Right => (&self.right_admittance, &self.left_admittance),
+        }
+    }
+}
+
+impl<A> PlaneWaveEntries for Scatter2Entries<A> {
+    type ExteriorContext = Scatter2ExteriorContext<A>;
 }
 
 /// Compose two scalar-channel scattering networks.
@@ -153,6 +217,98 @@ where
     );
 
     Scatter2Entries { s11, s12, s21, s22 }
+}
+
+impl<J> ProjectAmplitudes for Scatter2Entries<J>
+where
+    J: Clone,
+{
+    type Amplitudes = PlaneWaveAmplitudes<J>;
+
+    fn project_amplitudes(
+        &self,
+        _exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Amplitudes {
+        let (reflection, transmission) = self.amplitudes(incident_side);
+
+        PlaneWaveAmplitudes::new(reflection, transmission)
+    }
+}
+
+impl<J> ProjectPower for Scatter2Entries<J>
+where
+    J: Clone + RealScalarAlgebra,
+    J::RealJet: ScalarAlgebra,
+    <J::RealJet as Jet>::Scalar: One,
+{
+    type Power = PlaneWavePower<J::RealJet>;
+
+    fn project_power(
+        &self,
+        exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Power {
+        let (reflection, transmission) = self.amplitudes_ref(incident_side);
+
+        let (incident_admittance, transmitted_admittance) =
+            exterior.incident_and_transmitted_admittances(incident_side);
+
+        PlaneWavePower::from_amplitudes_and_admittance(
+            reflection,
+            transmission,
+            incident_admittance,
+            transmitted_admittance,
+        )
+    }
+}
+
+impl<J> ProjectPlaneWaveModeDeterminant for Scatter2Entries<J>
+where
+    J: ScalarAlgebra,
+    J::Scalar: ComplexScalar + One,
+    J::Dimension: Dimension,
+{
+    type Determinant = PlaneWaveDeterminant<J>;
+
+    fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
+        let value = characteristic_function(self, &exterior.left_admittance);
+
+        PlaneWaveDeterminant::new(value)
+    }
+}
+
+pub(crate) fn transfer_state_slope<A>(admittance: &A) -> A
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    admittance.scale(-<A::Scalar as ComplexScalar>::i())
+}
+
+/// Construct the outgoing-mode residual from scattering entries.
+///
+/// The entry type may be a sampled array, first-order jet, or second-order jet.
+fn characteristic_function<A>(entries: &Scatter2Entries<A>, left_admittance: &A) -> A
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar + One,
+    A::Dimension: Dimension,
+{
+    let slope = transfer_state_slope(left_admittance);
+
+    let two = A::filled_constant_like(
+        slope.value(),
+        <A::Scalar as One>::one() + <A::Scalar as One>::one(),
+    );
+
+    let numerator = two.multiply(&slope);
+
+    /*
+     * s21 is transmission from left to right.
+     */
+    numerator.divide(&entries.s21)
 }
 
 #[cfg(test)]
