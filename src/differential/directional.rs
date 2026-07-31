@@ -1,4 +1,4 @@
-use crate::{SpatialProfile, SpatialProfileError, input::Parameter};
+use crate::{SpatialProfile, SpatialProfileError, parameter::Parameter};
 
 use ndarray::Dimension;
 

@@ -19,24 +19,23 @@ mod canonical;
 mod compile;
 mod coordinate;
 mod error;
-mod jet;
-mod parameter;
+// mod jet;
 mod plane_wave;
+mod request;
 
 pub(crate) use canonical::{
     CanonicalBackendInput, CanonicalCoordinates, CanonicalLayer, CanonicalProblem,
     CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, ParameterAssignment,
-    ParameterAssignmentError, SeedJet, compile_complex, compile_real,
+    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, SeedJet,
+    compile_complex, compile_real,
 };
 pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};
 pub use error::{PlaneWaveInputError, SpectralTransformError};
-pub(crate) use jet::{BivariateAssignment, DirectionalAssignment, JetEvaluation, ValueAssignment};
-pub use parameter::SolveRequest;
-pub(crate) use parameter::{Parameter, ThicknessSeedError};
+// pub(crate) use jet::{BivariateAssignment, DirectionalAssignment, JetEvaluation, ValueAssignment};
 pub use plane_wave::{PlaneWaveInput, PlaneWavePoint};
+pub use request::SolveRequest;
 
 /// Polarisation supported by isotropic planar backends.
 ///

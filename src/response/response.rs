@@ -4,11 +4,13 @@
 //! differential representation. Domain-specific response types are aliases of
 //! [`Response`] with an appropriate observable type.
 
-use crate::differential::{
-    BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
-    DirectionalFirst, DirectionalSecond, NoDerivatives,
+use crate::{
+    differential::{
+        BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
+        DirectionalFirst, DirectionalSecond, NoDerivatives,
+    },
+    parameter::Parameter,
 };
-use crate::input::Parameter;
 
 /// Observable values together with optional differential information and metadata required for
 /// interpretation

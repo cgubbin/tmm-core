@@ -23,11 +23,9 @@ use crate::{
     },
     input::{
         canonical::{CanonicalLayer, CanonicalStack},
-        compile::{
-            assignment::ThicknessAssignment,
-            seed::{SeedJet, UnsupportedDerivativeSlot},
-        },
+        compile::seed::{SeedJet, UnsupportedDerivativeSlot},
     },
+    parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},
     stack::{Stack, ValidationConfig, ValidationError},
 };
 
@@ -76,11 +74,11 @@ pub(crate) trait ThicknessSlotMap {
     fn slot_for_layer(&self, layer: usize) -> Option<usize>;
 }
 
-pub(crate) fn compile_stack<M, J, A>(
+pub(crate) fn compile_stack<M, J>(
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     sampled_shape: J::Dimension,
     validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
-    assignment: &A,
+    mapping: &DerivativeMapping,
 ) -> Result<
     CompiledStack<M, J, <J::Scalar as ComplexField>::RealField>,
     StackCompileError<<J::Scalar as ComplexField>::RealField>,
@@ -91,8 +89,9 @@ where
     <J::Scalar as ComplexField>::RealField: Float + FromPrimitive + Copy + Debug,
     J::Dimension: Dimension + Clone,
     M: Clone,
-    A: ThicknessSlotMap + ?Sized,
 {
+    let assignment = ThicknessAssignment::new(mapping);
+
     stack.validate(validation)?;
 
     let mut canonical_layers = Vec::with_capacity(stack.len());
@@ -133,6 +132,23 @@ where
     let context = StackContext::new(caller_thicknesses);
 
     Ok(CompiledStack::new(canonical, context))
+}
+
+/// Layer-thickness-specific view over a parameter assignment.
+#[derive(Clone, Copy, Debug)]
+pub struct ThicknessAssignment<'a> {
+    mapping: &'a DerivativeMapping,
+}
+
+impl<'a> ThicknessAssignment<'a> {
+    pub(crate) const fn new(mapping: &'a DerivativeMapping) -> Self {
+        Self { mapping }
+    }
+
+    fn slot_for_layer(&self, layer: usize) -> Option<usize> {
+        self.mapping
+            .slot_for(Parameter::LayerThickness(FiniteLayerIndex(layer)))
+    }
 }
 
 pub(crate) trait StackThicknessJet: SeedJet
@@ -273,24 +289,6 @@ mod tests {
         }
     }
 
-    /// Simple mapping independent of ParameterAssignment.
-    #[derive(Clone, Copy, Debug, Default)]
-    struct TestSlotMap {
-        assignments: &'static [(usize, usize)],
-    }
-
-    impl ThicknessSlotMap for TestSlotMap {
-        fn slot_for_layer(&self, layer: usize) -> Option<usize> {
-            self.assignments
-                .iter()
-                .find_map(|&(assigned_layer, slot)| (assigned_layer == layer).then_some(slot))
-        }
-    }
-
-    fn no_assignments() -> TestSlotMap {
-        TestSlotMap { assignments: &[] }
-    }
-
     fn stack_with_two_layers() -> Stack<&'static str, f64> {
         Stack::new(
             "left exterior",
@@ -306,202 +304,268 @@ mod tests {
         ValidationConfig::default()
     }
 
+    fn no_derivatives() -> DerivativeMapping {
+        DerivativeMapping::none()
+    }
+
+    fn thickness_derivative(layer: usize) -> DerivativeMapping {
+        DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex(layer))]).unwrap()
+    }
+
+    fn mixed_mapping() -> DerivativeMapping {
+        DerivativeMapping::new([
+            Parameter::Spectral,
+            Parameter::LayerThickness(FiniteLayerIndex(1)),
+        ])
+        .unwrap()
+    }
+
+    fn assert_complex_close(actual: Complex64, expected: Complex64, tolerance: f64) {
+        let error = (actual - expected).norm();
+
+        assert!(
+            error <= tolerance,
+            "expected {expected:?}, got {actual:?}; absolute error {error:e}",
+        );
+    }
+
     #[test]
-    fn preserves_exteriors_materials_and_layer_order() {
+    fn thickness_assignment_finds_matching_layer_slot() {
+        let mapping = DerivativeMapping::new([
+            Parameter::Spectral,
+            Parameter::LayerThickness(FiniteLayerIndex(4)),
+            Parameter::LayerThickness(FiniteLayerIndex(1)),
+        ])
+        .unwrap();
+
+        let assignment = ThicknessAssignment::new(&mapping);
+
+        assert_eq!(assignment.slot_for_layer(4), Some(1));
+        assert_eq!(assignment.slot_for_layer(1), Some(2));
+        assert_eq!(assignment.slot_for_layer(0), None);
+        assert_eq!(assignment.slot_for_layer(2), None);
+    }
+
+    #[test]
+    fn compile_stack_preserves_exterior_materials_and_layer_order() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
             &stack,
             Ix0(),
             &validation(),
-            &no_assignments(),
+            &no_derivatives(),
         )
         .unwrap();
 
-        let (canonical, context) = compiled.into_parts();
+        let canonical = compiled.canonical();
 
         assert_eq!(canonical.left_exterior(), &"left exterior");
         assert_eq!(canonical.right_exterior(), &"right exterior");
         assert_eq!(canonical.layer_count(), 2);
 
         assert_eq!(canonical.layers()[0].material(), &"first material",);
-        assert_eq!(canonical.layers()[1].material(), &"second material",);
 
-        assert_eq!(context.layer_count(), 2);
+        assert_eq!(canonical.layers()[1].material(), &"second material",);
     }
 
     #[test]
-    fn converts_thicknesses_to_centimetres() {
+    fn compile_stack_converts_thicknesses_to_centimetres() {
         let stack = stack_with_two_layers();
 
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
             &stack,
             Ix0(),
             &validation(),
-            &no_assignments(),
+            &no_derivatives(),
         )
         .unwrap();
 
-        let (canonical, _) = compiled.into_parts();
-
-        let first = canonical.layers()[0].thickness_cm();
-        let second = canonical.layers()[1].thickness_cm();
-
-        assert_eq!(first.slot, None);
-        assert_eq!(second.slot, None);
+        let layers = compiled.canonical().layers();
 
         // 500 nm = 5e-5 cm
-        assert!((first.value[()] - Complex64::new(5.0e-5, 0.0)).norm() < 1.0e-14);
+        assert_complex_close(
+            layers[0].thickness_cm().value[()],
+            Complex64::new(5.0e-5, 0.0),
+            1.0e-15,
+        );
 
         // 2 µm = 2e-4 cm
-        assert!((second.value[()] - Complex64::new(2.0e-4, 0.0)).norm() < 1.0e-14);
-    }
-
-    #[test]
-    fn retains_caller_facing_thicknesses_and_units() {
-        let stack = stack_with_two_layers();
-
-        let expected = stack
-            .layers_left_to_right()
-            .iter()
-            .map(|layer| layer.thickness())
-            .collect::<Vec<_>>();
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
-            &stack,
-            Ix0(),
-            &validation(),
-            &no_assignments(),
-        )
-        .unwrap();
-
-        let (_, context) = compiled.into_parts();
-
-        assert_eq!(context.layer_thicknesses(), expected.as_slice(),);
-    }
-
-    #[test]
-    fn unassigned_layers_are_compiled_as_constants() {
-        let stack = stack_with_two_layers();
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
-            &stack,
-            Ix0(),
-            &validation(),
-            &no_assignments(),
-        )
-        .unwrap();
-
-        let (canonical, _) = compiled.into_parts();
-
-        assert_eq!(canonical.layers()[0].thickness_cm().slot, None,);
-        assert_eq!(canonical.layers()[1].thickness_cm().slot, None,);
-    }
-
-    #[test]
-    fn seeds_only_the_assigned_layer() {
-        let stack = stack_with_two_layers();
-
-        let assignment = TestSlotMap {
-            assignments: &[(1, 0)],
-        };
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
-            &stack,
-            Ix0(),
-            &validation(),
-            &assignment,
-        )
-        .unwrap();
-
-        let (canonical, _) = compiled.into_parts();
-
-        assert_eq!(canonical.layers()[0].thickness_cm().slot, None,);
-        assert_eq!(canonical.layers()[1].thickness_cm().slot, Some(0),);
-    }
-
-    #[test]
-    fn preserves_assigned_derivative_slot() {
-        let stack = stack_with_two_layers();
-
-        let assignment = TestSlotMap {
-            assignments: &[(0, 1)],
-        };
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
-            &stack,
-            Ix0(),
-            &validation(),
-            &assignment,
-        )
-        .unwrap();
-
-        let (canonical, _) = compiled.into_parts();
-
-        assert_eq!(canonical.layers()[0].thickness_cm().slot, Some(1),);
-        assert_eq!(canonical.layers()[1].thickness_cm().slot, None,);
-    }
-
-    #[test]
-    fn can_seed_multiple_layer_thicknesses() {
-        let stack = stack_with_two_layers();
-
-        let assignment = TestSlotMap {
-            assignments: &[(0, 1), (1, 0)],
-        };
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
-            &stack,
-            Ix0(),
-            &validation(),
-            &assignment,
-        )
-        .unwrap();
-
-        let (canonical, _) = compiled.into_parts();
-
-        assert_eq!(canonical.layers()[0].thickness_cm().slot, Some(1),);
-        assert_eq!(canonical.layers()[1].thickness_cm().slot, Some(0),);
-    }
-
-    #[test]
-    fn creates_thickness_arrays_with_the_sampled_shape() {
-        let stack = stack_with_two_layers();
-
-        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix1>>, _>(
-            &stack,
-            ndarray::Ix1(4),
-            &validation(),
-            &no_assignments(),
-        )
-        .unwrap();
-
-        let (canonical, _) = compiled.into_parts();
-
-        assert_eq!(canonical.layers()[0].thickness_cm().value.shape(), &[4],);
-
-        assert!(
-            canonical.layers()[0]
-                .thickness_cm()
-                .value
-                .iter()
-                .all(|value| { (*value - Complex64::new(5.0e-5, 0.0)).norm() < 1.0e-14 })
+        assert_complex_close(
+            layers[1].thickness_cm().value[()],
+            Complex64::new(2.0e-4, 0.0),
+            1.0e-15,
         );
     }
 
     #[test]
-    fn reports_layer_when_assigned_slot_is_unsupported() {
+    fn compile_stack_compiles_unmapped_thicknesses_as_constants() {
         let stack = stack_with_two_layers();
 
-        let assignment = TestSlotMap {
-            assignments: &[(1, 2)],
-        };
-
-        let error = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>, _>(
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
             &stack,
             Ix0(),
             &validation(),
-            &assignment,
+            &no_derivatives(),
+        )
+        .unwrap();
+
+        let layers = compiled.canonical().layers();
+
+        assert_eq!(layers[0].thickness_cm().slot, None);
+        assert_eq!(layers[1].thickness_cm().slot, None);
+    }
+
+    #[test]
+    fn compile_stack_seeds_requested_layer_in_mapped_slot() {
+        let stack = stack_with_two_layers();
+        let mapping = thickness_derivative(1);
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &validation(),
+            &mapping,
+        )
+        .unwrap();
+
+        let layers = compiled.canonical().layers();
+
+        assert_eq!(layers[0].thickness_cm().slot, None);
+        assert_eq!(layers[1].thickness_cm().slot, Some(0));
+    }
+
+    #[test]
+    fn compile_stack_uses_mapping_slot_not_layer_index() {
+        let stack = stack_with_two_layers();
+        let mapping = mixed_mapping();
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &validation(),
+            &mapping,
+        )
+        .unwrap();
+
+        let layers = compiled.canonical().layers();
+
+        // Slot zero belongs to the spectral parameter. Layer one therefore
+        // occupies slot one, even though its geometric layer index is also one.
+        assert_eq!(layers[0].thickness_cm().slot, None);
+        assert_eq!(layers[1].thickness_cm().slot, Some(1));
+    }
+
+    #[test]
+    fn compile_stack_preserves_sampled_shape() {
+        let stack = stack_with_two_layers();
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix1>>>(
+            &stack,
+            Ix1(3),
+            &validation(),
+            &no_derivatives(),
+        )
+        .unwrap();
+
+        for layer in compiled.canonical().layers() {
+            assert_eq!(layer.thickness_cm().value.raw_dim(), Ix1(3));
+        }
+
+        let first = &compiled.canonical().layers()[0].thickness_cm().value;
+
+        assert!(
+            first
+                .iter()
+                .all(|&value| { (value - Complex64::new(5.0e-5, 0.0)).norm() <= 1.0e-15 })
+        );
+    }
+
+    #[test]
+    fn compile_stack_preserves_mapping_slot_across_sampled_shape() {
+        let stack = stack_with_two_layers();
+        let mapping = mixed_mapping();
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix1>>>(
+            &stack,
+            Ix1(4),
+            &validation(),
+            &mapping,
+        )
+        .unwrap();
+
+        let layers = compiled.canonical().layers();
+
+        assert_eq!(layers[0].thickness_cm().slot, None);
+        assert_eq!(layers[1].thickness_cm().slot, Some(1));
+        assert_eq!(layers[1].thickness_cm().value.raw_dim(), Ix1(4),);
+    }
+
+    #[test]
+    fn compile_stack_retains_caller_facing_thicknesses_in_context() {
+        let stack = stack_with_two_layers();
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &validation(),
+            &no_derivatives(),
+        )
+        .unwrap();
+
+        let context = compiled.context();
+
+        assert_eq!(context.layer_count(), 2);
+
+        assert_eq!(
+            context.layer_thickness(0),
+            Some(&Thickness::nanometres(500.0)),
+        );
+
+        assert_eq!(
+            context.layer_thickness(1),
+            Some(&Thickness::micrometres(2.0)),
+        );
+
+        assert_eq!(context.layer_thickness(2), None);
+    }
+
+    #[test]
+    fn into_parts_returns_canonical_stack_and_context() {
+        let stack = stack_with_two_layers();
+
+        let compiled = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &validation(),
+            &no_derivatives(),
+        )
+        .unwrap();
+
+        let (canonical, context) = compiled.into_parts();
+
+        assert_eq!(canonical.layer_count(), 2);
+        assert_eq!(context.layer_count(), 2);
+        assert_eq!(canonical.left_exterior(), &"left exterior");
+        assert_eq!(canonical.right_exterior(), &"right exterior");
+    }
+
+    #[test]
+    fn compile_stack_reports_unsupported_derivative_slot() {
+        let stack = stack_with_two_layers();
+
+        let mapping = DerivativeMapping::new([
+            Parameter::Spectral,
+            Parameter::InPlane,
+            Parameter::LayerThickness(FiniteLayerIndex(1)),
+        ])
+        .unwrap();
+
+        let error = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &validation(),
+            &mapping,
         )
         .unwrap_err();
 
@@ -515,5 +579,24 @@ mod tests {
                 },
             },
         );
+    }
+
+    #[test]
+    fn compile_stack_forwards_stack_validation_errors() {
+        let stack = Stack::new(
+            "left",
+            vec![Layer::new("invalid", Thickness::nanometres(-1.0))],
+            "right",
+        );
+
+        let error = compile_stack::<_, RecordingJet<Array<Complex64, Ix0>>>(
+            &stack,
+            Ix0(),
+            &ValidationConfig::strict(),
+            &no_derivatives(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, StackCompileError::Validation(_)));
     }
 }

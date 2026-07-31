@@ -13,10 +13,7 @@ use ndarray::{Array, Dimension};
 
 use crate::{
     IncidentSide, Polarisation,
-    input::{
-        PlaneWaveCoordinates, compile::assignment::ParameterAssignment,
-        plane_wave::PlaneWaveCoordinateValues,
-    },
+    input::{PlaneWaveCoordinates, plane_wave::PlaneWaveCoordinateValues},
     stack::Thickness,
 };
 
@@ -33,18 +30,18 @@ use crate::{
 /// interpret derivatives and project solved matrices into caller-facing
 /// observables.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CompilationContext<C, D, A>
+pub struct CompilationContext<C, D, M>
 where
     C: ComplexField,
     D: Dimension,
 {
     coordinates: CoordinateContext<C, D>,
     stack: StackContext<C::RealField>,
-    assignment: A,
+    mapping: M,
     constraint: ProjectionConstraint,
 }
 
-impl<C, D, A> CompilationContext<C, D, A>
+impl<C, D, M> CompilationContext<C, D, M>
 where
     C: ComplexField,
     D: Dimension,
@@ -53,13 +50,13 @@ where
     pub(crate) fn new(
         coordinates: CoordinateContext<C, D>,
         stack: StackContext<C::RealField>,
-        assignment: A,
+        mapping: M,
         constraint: ProjectionConstraint,
     ) -> Self {
         Self {
             coordinates,
             stack,
-            assignment,
+            mapping,
             constraint,
         }
     }
@@ -75,8 +72,8 @@ where
     }
 
     /// Return the mapping from derivative slots to physical parameters.
-    pub fn assignment(&self) -> &A {
-        &self.assignment
+    pub fn mapping(&self) -> &M {
+        &self.mapping
     }
 
     /// Return the attached projection constraint
@@ -90,15 +87,10 @@ where
     ) -> (
         CoordinateContext<C, D>,
         StackContext<C::RealField>,
-        A,
+        M,
         ProjectionConstraint,
     ) {
-        (
-            self.coordinates,
-            self.stack,
-            self.assignment,
-            self.constraint,
-        )
+        (self.coordinates, self.stack, self.mapping, self.constraint)
     }
 }
 

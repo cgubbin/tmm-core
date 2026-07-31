@@ -14,19 +14,20 @@
 //! canonical vacuum angular wavenumber may be required when evaluating
 //! dispersive material properties.
 
-mod assignment;
+// mod assignment;
 mod context;
 mod coordinates;
 mod error;
+mod layout;
 mod problem;
 mod seed;
 mod stack;
 
-pub(crate) use assignment::{ParameterAssignment, ParameterAssignmentError};
 pub(crate) use context::{
     CompilationContext, CoordinateContext, ProjectionConstraint, StackContext,
 };
 pub use error::CompilePlaneWaveError;
+pub(crate) use layout::JetMapping;
 pub(crate) use problem::CompiledProblem;
 pub(crate) use seed::SeedJet;
 
@@ -39,16 +40,16 @@ use crate::{
     algebra::ScalarAlgebra,
     domain::RealAxis,
     input::{
-        CanonicalBackendInput, CanonicalCoordinates, InPlaneCoordinate, JetEvaluation,
-        PlaneWaveCoordinates, PlaneWaveInput,
+        CanonicalBackendInput, CanonicalCoordinates, InPlaneCoordinate, PlaneWaveCoordinates,
+        PlaneWaveInput,
         canonical::CanonicalProblem,
         compile::{
-            assignment::CoordinateAssignment, coordinates::CanonicalCoordinateJet,
-            stack::StackThicknessJet,
+            coordinates::CanonicalCoordinateJet, error::MappingError, stack::StackThicknessJet,
         },
         plane_wave::{PlaneWaveCoordinateValues, PlaneWaveCoordinatesInput},
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
+    parameter::{DerivativeMapping, DerivativeMappingError, FiniteLayerIndex, Parameter},
 };
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
@@ -61,7 +62,7 @@ pub(crate) trait CompileJet<M, E>:
     + ScalarAlgebra
     + StackThicknessJet
     + ConstitutiveLift<E, M>
-    + JetEvaluation
+    + JetMapping
 where
     Self::Scalar: ComplexScalar,
     <Self::Scalar as ComplexField>::RealField: Copy,
@@ -119,7 +120,7 @@ where
         + ScalarAlgebra
         + StackThicknessJet
         + ConstitutiveLift<E, M>
-        + JetEvaluation,
+        + JetMapping,
     E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
 }
@@ -135,11 +136,11 @@ pub(crate) fn compile_real<M, J>(
     input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
-    assignment: ParameterAssignment,
+    mapping: &DerivativeMapping,
 ) -> Result<
     (
         CanonicalProblem<M, J>,
-        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Assignment>,
+        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
     ),
     CompilePlaneWaveError<J::Scalar>,
 >
@@ -151,7 +152,7 @@ where
     M: Clone,
     RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
-    assignment.validate(J::VARIABLE_SLOTS, stack.len())?;
+    mapping.validate_against_stack(J::VARIABLE_SLOTS, stack.len())?;
 
     let (metadata, values, reference) = input.into_parts();
 
@@ -168,23 +169,23 @@ where
         sampled_shape,
         stack,
         validation,
-        &assignment,
+        mapping,
     )?;
 
-    let assignment = J::refine_assignment(assignment)?;
+    let mapping = J::compile_mapping(mapping).map_err(|e| MappingError::Mapping(e))?;
 
-    Ok(finish_compilation(metadata, values, assignment, core))
+    Ok(finish_compilation(metadata, values, mapping, core))
 }
 
 pub(crate) fn compile_complex<M, J>(
     input: CoordinateInput<J::Scalar, J::Dimension>,
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
-    assignment: ParameterAssignment,
+    mapping: &DerivativeMapping,
 ) -> Result<
     (
         CanonicalProblem<M, J>,
-        CompilationContext<J::Scalar, J::Dimension, J::Assignment>,
+        CompilationContext<J::Scalar, J::Dimension, J::Mapping>,
     ),
     CompilePlaneWaveError<J::Scalar>,
 >
@@ -196,7 +197,7 @@ where
     M: Clone,
     ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
-    assignment.validate(J::VARIABLE_SLOTS, stack.len())?;
+    mapping.validate_against_stack(J::VARIABLE_SLOTS, stack.len())?;
 
     let (metadata, values, reference) = input.into_parts();
 
@@ -216,12 +217,12 @@ where
         sampled_shape,
         stack,
         validation,
-        &assignment,
+        mapping,
     )?;
 
-    let assignment = J::refine_assignment(assignment)?;
+    let mapping = J::compile_mapping(mapping).map_err(|e| MappingError::Mapping(e))?;
 
-    Ok(finish_compilation(metadata, values, assignment, core))
+    Ok(finish_compilation(metadata, values, mapping, core))
 }
 
 fn compile_core<M, J, E>(
@@ -232,7 +233,7 @@ fn compile_core<M, J, E>(
     sampled_shape: J::Dimension,
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
-    assignment: &ParameterAssignment,
+    mapping: &DerivativeMapping,
 ) -> Result<
     CompiledCore<M, J, <J::Scalar as ComplexField>::RealField>,
     CompilePlaneWaveError<J::Scalar>,
@@ -251,13 +252,12 @@ where
         in_plane_values,
         reference,
         stack,
-        &assignment.coordinates(),
+        mapping,
     )?;
 
     let (canonical_coordinates, projection_constraint) = compiled_coordinates.into_parts();
 
-    let compiled_stack =
-        compile_stack::<M, J, _>(stack, sampled_shape, validation, &assignment.thicknesses())?;
+    let compiled_stack = compile_stack::<M, J>(stack, sampled_shape, validation, mapping)?;
 
     let (canonical_stack, stack_context) = compiled_stack.into_parts();
 
@@ -273,23 +273,20 @@ where
 fn finish_compilation<M, J, S, D>(
     metadata: PlaneWaveCoordinates,
     values: PlaneWaveCoordinateValues<S, D>,
-    assignment: J::Assignment,
+    mapping: J::Mapping,
     core: CompiledCore<M, J, S::RealField>,
-) -> (
-    CanonicalProblem<M, J>,
-    CompilationContext<S, D, J::Assignment>,
-)
+) -> (CanonicalProblem<M, J>, CompilationContext<S, D, J::Mapping>)
 where
     S: ComplexField,
     D: Dimension,
-    J: JetEvaluation,
+    J: JetMapping,
 {
     let coordinate_context = CoordinateContext::new(metadata, values);
 
     let context = CompilationContext::new(
         coordinate_context,
         core.stack_context,
-        assignment,
+        mapping,
         core.projection_constraint,
     );
 
@@ -310,6 +307,44 @@ where
     D: Dimension,
 {
     values.mapv(C::from_real)
+}
+
+impl DerivativeMapping {
+    fn validate_against_stack(
+        &self,
+        derivative_dimension: usize,
+        finite_layer_count: usize,
+    ) -> Result<(), MappingError> {
+        if derivative_dimension != self.parameter_count() {
+            return Err(DerivativeMappingError::IncompatibleShape {
+                assigned_slots: self.parameter_count(),
+                derivative_dimension,
+            }
+            .into());
+        }
+
+        if let Some(layer) = self
+            .slots()
+            .iter()
+            .filter_map(|parameter| match parameter {
+                Parameter::LayerThickness(FiniteLayerIndex(layer))
+                    if *layer >= finite_layer_count =>
+                {
+                    Some(*layer)
+                }
+
+                _ => None,
+            })
+            .next()
+        {
+            return Err(MappingError::LayerOutOfBounds {
+                layer,
+                finite_layer_count,
+            });
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -380,12 +415,14 @@ mod tests {
         )
     }
 
-    fn assignment() -> ParameterAssignment {
-        ParameterAssignment::none()
+    fn assignment() -> DerivativeMapping {
+        DerivativeMapping::none()
     }
 
-    fn assignment_with_out_of_range_layer(layer_count: usize) -> ParameterAssignment {
-        ParameterAssignment::layer_thickness(layer_count)
+    fn assignment_with_out_of_range_layer(layer_count: usize) -> DerivativeMapping {
+        DerivativeMapping::none()
+            .with(Parameter::LayerThickness(FiniteLayerIndex(layer_count)))
+            .unwrap()
     }
 
     fn validation() -> ValidationConfig<R> {
@@ -446,7 +483,7 @@ mod tests {
             input,
             &stack,
             &ValidationConfig::permissive(),
-            ParameterAssignment::default(),
+            &DerivativeMapping::default(),
         )
         .unwrap_err();
 
@@ -478,7 +515,7 @@ mod tests {
             input,
             &stack,
             &ValidationConfig::permissive(),
-            ParameterAssignment::default(),
+            &DerivativeMapping::default(),
         )
         .unwrap_err();
 
@@ -503,7 +540,7 @@ mod tests {
         let stack = test_stack();
 
         let compiled =
-            compile_real::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_real::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         let canonical = compiled.0;
 
@@ -538,7 +575,7 @@ mod tests {
         let stack = test_stack();
 
         let compiled =
-            compile_real::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_real::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         assert_eq!(compiled.1.coordinates().values(), &values,);
     }
@@ -556,7 +593,7 @@ mod tests {
         let stack = test_stack();
 
         let error =
-            compile_real::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap_err();
+            compile_real::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap_err();
 
         assert!(matches!(
             error,
@@ -577,7 +614,7 @@ mod tests {
         let stack = test_stack_with_constant_exterior_index(1.5);
 
         let compiled =
-            compile_real::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_real::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         assert_eq!(
             compiled.1.projection_constraint(),
@@ -597,10 +634,10 @@ mod tests {
 
         let invalid_assignment = assignment_with_out_of_range_layer(stack.len());
 
-        let error = compile_real::<_, TestJet>(input, &stack, &validation(), invalid_assignment)
+        let error = compile_real::<_, TestJet>(input, &stack, &validation(), &invalid_assignment)
             .unwrap_err();
 
-        assert!(matches!(error, CompilePlaneWaveError::Assignment(_)));
+        assert!(matches!(error, CompilePlaneWaveError::Mapping(_)));
     }
 
     #[test]
@@ -616,7 +653,7 @@ mod tests {
         let stack = test_stack();
 
         let compiled =
-            compile_complex::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         assert_complex_array_eq(
             compiled.0.coordinates().vacuum_angular_wavenumber().value(),
@@ -646,7 +683,7 @@ mod tests {
         let stack = test_stack();
 
         let compiled =
-            compile_complex::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         assert_eq!(compiled.1.coordinates().values(), &values,);
     }
@@ -665,7 +702,7 @@ mod tests {
         let stack = test_stack();
 
         let error =
-            compile_complex::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap_err();
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap_err();
 
         assert!(matches!(
             error,
@@ -689,7 +726,7 @@ mod tests {
         let stack = test_stack();
 
         let error =
-            compile_complex::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap_err();
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap_err();
 
         assert!(matches!(
             error,
@@ -714,7 +751,7 @@ mod tests {
         let stack = test_stack();
 
         let compiled =
-            compile_complex::<_, TestJet>(input, &stack, &validation(), assignment()).unwrap();
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &assignment()).unwrap();
 
         let expected = values.spectral()[0] * values.in_plane()[0];
 
@@ -748,10 +785,11 @@ mod tests {
 
         let invalid_assignment = assignment_with_out_of_range_layer(stack.len());
 
-        let error = compile_complex::<_, TestJet>(input, &stack, &validation(), invalid_assignment)
-            .unwrap_err();
+        let error =
+            compile_complex::<_, TestJet>(input, &stack, &validation(), &invalid_assignment)
+                .unwrap_err();
 
-        assert!(matches!(error, CompilePlaneWaveError::Assignment(_)));
+        assert!(matches!(error, CompilePlaneWaveError::Mapping(_)));
     }
 
     #[test]
@@ -922,7 +960,7 @@ mod tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::spectral();
+        let assignment = DerivativeMapping::none().with(Parameter::Spectral).unwrap();
 
         let core = compile_core::<_, FirstJet, RealAxis>(
             metadata,

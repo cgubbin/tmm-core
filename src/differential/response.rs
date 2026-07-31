@@ -4,7 +4,7 @@ use crate::{
         BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DirectionalFirst,
         DirectionalSecond,
     },
-    input::Parameter,
+    parameter::Parameter,
 };
 
 use ndarray::Dimension;

@@ -6,7 +6,7 @@ use crate::{
         BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
         DirectionalFirst, DirectionalSecond, NoDerivatives,
     },
-    input::{BivariateAssignment, DirectionalAssignment, ValueAssignment},
+    parameter::{BivariateMapping, DirectionalMapping, ValueMapping},
 };
 
 use super::ValueParts;
@@ -17,18 +17,18 @@ pub trait AssembleDifferentialResponse<A> {
     fn assemble(self, assignment: &A) -> Self::Response;
 }
 
-impl<T> AssembleDifferentialResponse<ValueAssignment> for ValueParts<T> {
+impl<T> AssembleDifferentialResponse<ValueMapping> for ValueParts<T> {
     type Response = DifferentialResponse<T, NoDerivatives>;
 
-    fn assemble(self, _assignment: &ValueAssignment) -> Self::Response {
+    fn assemble(self, _assignment: &ValueMapping) -> Self::Response {
         DifferentialResponse::new(self.into_inner(), NoDerivatives)
     }
 }
 
-impl<T> AssembleDifferentialResponse<DirectionalAssignment> for DirectionalFirstParts<T> {
+impl<T> AssembleDifferentialResponse<DirectionalMapping> for DirectionalFirstParts<T> {
     type Response = DifferentialResponse<T, DirectionalFirst<T>>;
 
-    fn assemble(self, assignment: &DirectionalAssignment) -> Self::Response {
+    fn assemble(self, assignment: &DirectionalMapping) -> Self::Response {
         let (value, first) = self.into_parts();
         DifferentialResponse::new(
             value,
@@ -37,10 +37,10 @@ impl<T> AssembleDifferentialResponse<DirectionalAssignment> for DirectionalFirst
     }
 }
 
-impl<T> AssembleDifferentialResponse<DirectionalAssignment> for DirectionalSecondParts<T> {
+impl<T> AssembleDifferentialResponse<DirectionalMapping> for DirectionalSecondParts<T> {
     type Response = DifferentialResponse<T, DirectionalSecond<T>>;
 
-    fn assemble(self, assignment: &DirectionalAssignment) -> Self::Response {
+    fn assemble(self, assignment: &DirectionalMapping) -> Self::Response {
         let (value, first, second) = self.into_parts();
         DifferentialResponse::new(
             value,
@@ -49,10 +49,10 @@ impl<T> AssembleDifferentialResponse<DirectionalAssignment> for DirectionalSecon
     }
 }
 
-impl<T> AssembleDifferentialResponse<BivariateAssignment> for BivariateFirstParts<T> {
+impl<T> AssembleDifferentialResponse<BivariateMapping> for BivariateFirstParts<T> {
     type Response = DifferentialResponse<T, BivariateFirst<T>>;
 
-    fn assemble(self, assignment: &BivariateAssignment) -> Self::Response {
+    fn assemble(self, assignment: &BivariateMapping) -> Self::Response {
         let (value, axis0, axis1) = self.into_parts();
 
         let (parameter0, parameter1) = assignment.parameters();
@@ -63,10 +63,10 @@ impl<T> AssembleDifferentialResponse<BivariateAssignment> for BivariateFirstPart
     }
 }
 
-impl<T> AssembleDifferentialResponse<BivariateAssignment> for BivariateSecondParts<T> {
+impl<T> AssembleDifferentialResponse<BivariateMapping> for BivariateSecondParts<T> {
     type Response = DifferentialResponse<T, BivariateSecond<T>>;
 
-    fn assemble(self, assignment: &BivariateAssignment) -> Self::Response {
+    fn assemble(self, assignment: &BivariateMapping) -> Self::Response {
         let (value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1) = self.into_parts();
 
         let gradient = BivariateGradient::new(axis0, axis1);

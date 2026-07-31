@@ -45,11 +45,11 @@ use crate::{
         CanonicalCoordinates, CompileJet, InPlaneCoordinate, PlaneWaveCoordinates,
         SpectralCoordinate,
         compile::{
-            CoordinateReference, ProjectionConstraint, assignment::CoordinateAssignment,
-            context::CoordinateContext, seed::SeedJet,
+            CoordinateReference, ProjectionConstraint, context::CoordinateContext, seed::SeedJet,
         },
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
+    parameter::{DerivativeMapping, Parameter},
 };
 use in_plane::{canonicalise_in_plane, validate_in_plane};
 use spectral::{canonicalise_spectral, validate_spectral};
@@ -133,7 +133,7 @@ pub(crate) fn compile_coordinates<M, J, E>(
     in_plane_values: &Array<J::Scalar, J::Dimension>,
     reference: CoordinateReference,
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
-    assignment: &CoordinateAssignment,
+    mapping: &DerivativeMapping,
 ) -> Result<CompiledCoordinateProblem<J>, CoordinateCompileError<J::Scalar>>
 where
     J: CompileJet<M, E>,
@@ -142,6 +142,8 @@ where
     J::Dimension: Dimension,
     E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
+    let assignment = CoordinateAssignment::new(mapping);
+
     let spectral = compile_spectral(
         spectral_values,
         metadata.spectral,
@@ -309,6 +311,37 @@ where
         vacuum_angular_wavenumber,
         incident_index,
     )?)
+}
+
+/// Coordinate-specific view over a parameter assignment.
+///
+/// This translates canonical coordinate variables into their assigned jet
+/// slots without exposing coordinate compilation to layer parameters.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CoordinateAssignment<'a> {
+    mapping: &'a DerivativeMapping,
+}
+
+impl<'a> CoordinateAssignment<'a> {
+    pub(crate) const fn new(mapping: &'a DerivativeMapping) -> Self {
+        Self { mapping }
+    }
+
+    pub(crate) fn spectral_slot(&self) -> Option<usize> {
+        self.mapping.slot_for(Parameter::Spectral)
+    }
+
+    pub(crate) fn in_plane_slot(&self) -> Option<usize> {
+        self.mapping.slot_for(Parameter::InPlane)
+    }
+
+    pub(crate) fn slot_for(&self, variable: CoordinateVariable) -> Option<usize> {
+        match variable {
+            CoordinateVariable::Spectral => self.spectral_slot(),
+
+            CoordinateVariable::InPlane => self.in_plane_slot(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -605,7 +638,7 @@ mod full_coordinate_compilation_tests {
 
     use crate::{
         ComplexPlane, Constant, IncidentSide,
-        input::compile::{ParameterAssignment, ProjectionConstraint},
+        input::compile::{DerivativeMapping, ProjectionConstraint},
         stack::{Layer, Thickness},
     };
 
@@ -712,7 +745,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let compiled = compile_coordinates::<_, TestJet, RealAxis>(
             intrinsic_metadata(),
@@ -720,7 +753,7 @@ mod full_coordinate_compilation_tests {
             &in_plane,
             CoordinateReference::Intrinsic,
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -740,7 +773,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_asymmetric_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let compiled = compile_coordinates::<_, TestJet, RealAxis>(
             intrinsic_metadata(),
@@ -748,7 +781,7 @@ mod full_coordinate_compilation_tests {
             &in_plane,
             CoordinateReference::IncidentSide(IncidentSide::Right),
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -767,7 +800,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let compiled = compile_coordinates::<_, TestJet, ComplexPlane>(
             effective_index_metadata(),
@@ -775,7 +808,7 @@ mod full_coordinate_compilation_tests {
             &effective_index,
             CoordinateReference::Intrinsic,
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -795,7 +828,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let error = compile_coordinates::<_, TestJet, RealAxis>(
             angle_metadata(),
@@ -803,7 +836,7 @@ mod full_coordinate_compilation_tests {
             &angle,
             CoordinateReference::Intrinsic,
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap_err();
 
@@ -817,7 +850,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack_with_constant_exterior_index(1.5);
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let compiled = compile_coordinates::<_, TestJet, RealAxis>(
             angle_metadata(),
@@ -825,7 +858,7 @@ mod full_coordinate_compilation_tests {
             &angle,
             CoordinateReference::IncidentSide(IncidentSide::Left),
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -841,7 +874,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack_with_exterior_indices(1.5, 2.0);
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let left = compile_coordinates::<_, TestJet, RealAxis>(
             angle_metadata(),
@@ -849,7 +882,7 @@ mod full_coordinate_compilation_tests {
             &angle,
             CoordinateReference::IncidentSide(IncidentSide::Left),
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -859,7 +892,7 @@ mod full_coordinate_compilation_tests {
             &angle,
             CoordinateReference::IncidentSide(IncidentSide::Right),
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -900,7 +933,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack_with_constant_exterior_index(1.5);
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let compiled = compile_coordinates::<_, TestJet, ComplexPlane>(
             angle_metadata(),
@@ -908,7 +941,7 @@ mod full_coordinate_compilation_tests {
             &angle,
             CoordinateReference::IncidentSide(IncidentSide::Left),
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap();
 
@@ -931,7 +964,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let error = compile_coordinates::<_, TestJet, ComplexPlane>(
             intrinsic_metadata(),
@@ -939,7 +972,7 @@ mod full_coordinate_compilation_tests {
             &in_plane,
             CoordinateReference::Intrinsic,
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap_err();
 
@@ -956,7 +989,7 @@ mod full_coordinate_compilation_tests {
 
         let stack = test_stack();
 
-        let assignment = ParameterAssignment::none();
+        let assignment = DerivativeMapping::none();
 
         let error = compile_coordinates::<_, TestJet, RealAxis>(
             intrinsic_metadata(),
@@ -964,7 +997,7 @@ mod full_coordinate_compilation_tests {
             &in_plane,
             CoordinateReference::Intrinsic,
             &stack,
-            &assignment.coordinates(),
+            &assignment,
         )
         .unwrap_err();
 

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::input::{ParameterAssignmentError, ThicknessSeedError};
+use crate::{input::ParameterAssignmentError, parameter::ThicknessSeedError};
 
 /// An invalid high-level evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
