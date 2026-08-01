@@ -14,8 +14,9 @@
 use crate::algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2};
 
 /// A value with all derivative storage removed.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ValuePart<T> {
+pub struct ValuePart<T> {
     value: T,
 }
 
@@ -40,8 +41,9 @@ impl<T> ValuePart<T> {
 /// Both fields have the same structural type. For a composite input, `value`
 /// contains the values of every component and `first` contains the
 /// corresponding first derivatives.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DirectionalFirstParts<T> {
+pub struct DirectionalFirstParts<T> {
     value: T,
     first: T,
 }
@@ -70,8 +72,9 @@ impl<T> DirectionalFirstParts<T> {
 ///
 /// `second` is the repeated derivative along the same direction as `first`,
 /// rather than a mixed derivative.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DirectionalSecondParts<T> {
+pub struct DirectionalSecondParts<T> {
     value: T,
     first: T,
     second: T,
@@ -110,8 +113,9 @@ impl<T> DirectionalSecondParts<T> {
 /// The coordinate interpretation is supplied by the caller. The `axis0` and `axis1`
 /// fields denote the first and second coordinates of the underlying
 /// bivariate jet; they are not necessarily spatial coordinates.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BivariateFirstParts<T> {
+pub struct BivariateFirstParts<T> {
     value: T,
     axis0: T,
     axis1: T,
@@ -150,8 +154,9 @@ impl<T> BivariateFirstParts<T> {
 /// The stored second derivatives are `axis0_axis0`, `axis0_axis1`, and `axis1_axis1`. Only one mixed
 /// component is stored because the underlying Hessian representation assumes
 /// symmetry.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BivariateSecondParts<T> {
+pub struct BivariateSecondParts<T> {
     value: T,
 
     axis0: T,

@@ -7,6 +7,7 @@ pub trait PlaneWaveEntries {
     type ExteriorContext;
 }
 
+#[derive(Clone, Debug)]
 pub struct PlaneWaveSolution<E: PlaneWaveEntries> {
     entries: E,
     context: E::ExteriorContext,

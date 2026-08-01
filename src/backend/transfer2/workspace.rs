@@ -19,7 +19,7 @@ use crate::{
 /// The state is represented by the field-like component and its corresponding
 /// slope-like component. A transfer matrix maps the state at its right
 /// boundary to the state at its left boundary.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TransferState<A> {
     field: A,
     slope: A,
@@ -249,7 +249,9 @@ impl<A> RetainedTransferLayers<A> {
 }
 
 /// State accumulated while evaluating a transfer-matrix stack.
-pub(crate) struct Transfer2Workspace<A> {
+#[doc(hidden)]
+#[derive(Clone, Debug)]
+pub struct Transfer2Workspace<A> {
     solution: PlaneWaveSolution<Transfer2Entries<A>>,
     retained: Option<RetainedTransferLayers<A>>,
 }
@@ -506,9 +508,209 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    // TODO: Should be minus for outgoing
-    let imaginary_unit =
-        A::filled_constant_like(admittance.value(), -<A::Scalar as ComplexScalar>::i());
+    let minus_i = A::filled_constant_like(admittance.value(), -<A::Scalar as ComplexScalar>::i());
 
-    imaginary_unit.multiply(admittance)
+    minus_i.multiply(admittance)
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
+
+    use super::*;
+    use crate::{
+        Polarisation,
+        algebra::{ArrayJet0, Jet0, RealParameter},
+        backend::RunMode,
+        input::CanonicalCoordinates,
+        test_support::{
+            C, TOLERANCE, assertions::assert_complex_close, c, jet::zero_jet_from_value,
+            materials::constant,
+        },
+    };
+
+    type A = ArrayJet0<C, Ix0, RealParameter>;
+
+    fn matrix(m11: f64, m12: f64, m21: f64, m22: f64) -> Transfer2Entries<A> {
+        Transfer2Entries::new(
+            zero_jet_from_value(c(m11)),
+            zero_jet_from_value(c(m12)),
+            zero_jet_from_value(c(m21)),
+            zero_jet_from_value(c(m22)),
+        )
+    }
+
+    fn coordinates() -> CanonicalCoordinates<A> {
+        CanonicalCoordinates::new(zero_jet_from_value(c(2.0)), zero_jet_from_value(c(0.0)))
+    }
+
+    fn quantities() -> IsotropicLayerQuantities<A> {
+        IsotropicLayerQuantities::real_axis(
+            &constant(4.0, 1.0),
+            &coordinates(),
+            Polarisation::TransverseElectric,
+        )
+    }
+
+    fn context() -> Transfer2ExteriorContext<A> {
+        Transfer2ExteriorContext::new::<crate::domain::RealAxis, _>(
+            &coordinates(),
+            &constant(1.0, 1.0),
+            &constant(1.0, 1.0),
+            Polarisation::TransverseElectric,
+        )
+    }
+
+    #[test]
+    fn response_only_workspace_starts_at_identity() {
+        let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 2);
+
+        assert!(!workspace.retains_layers());
+
+        assert_complex_close(workspace.entries().m11()[()], c(1.0), TOLERANCE);
+        assert_complex_close(workspace.entries().m12()[()], c(0.0), TOLERANCE);
+        assert_complex_close(workspace.entries().m21()[()], c(0.0), TOLERANCE);
+        assert_complex_close(workspace.entries().m22()[()], c(1.0), TOLERANCE);
+    }
+
+    #[test]
+    fn internal_fields_workspace_retains_layers() {
+        let workspace =
+            Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::InternalFields, 3);
+
+        assert!(workspace.retains_layers());
+        assert_eq!(workspace.retained().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn append_multiplies_layers_in_left_to_right_order() {
+        let mut workspace =
+            Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::InternalFields, 2);
+
+        let left = matrix(1.0, 2.0, 0.0, 1.0);
+        let right = matrix(1.0, 0.0, 3.0, 1.0);
+
+        workspace.append(left.clone(), quantities());
+        workspace.append(right.clone(), quantities());
+
+        assert_eq!(workspace.entries(), &left.multiply(&right),);
+
+        assert_ne!(workspace.entries(), &right.multiply(&left),);
+    }
+
+    #[test]
+    fn response_only_append_does_not_retain_layer() {
+        let mut workspace =
+            Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 1);
+
+        workspace.append(matrix(1.0, 2.0, 3.0, 4.0), quantities());
+
+        assert!(workspace.retained().is_none());
+    }
+
+    #[test]
+    fn retained_append_preserves_physical_layer_order() {
+        let mut workspace =
+            Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::InternalFields, 2);
+
+        let first = matrix(1.0, 2.0, 0.0, 1.0);
+        let second = matrix(1.0, 0.0, 3.0, 1.0);
+
+        workspace.append(first.clone(), quantities());
+        workspace.append(second.clone(), quantities());
+
+        let retained = workspace.retained().unwrap();
+
+        assert_eq!(retained.len(), 2);
+        assert_eq!(retained.layers()[0].matrix(), &first);
+        assert_eq!(retained.layers()[1].matrix(), &second);
+    }
+
+    #[test]
+    fn apply_state_uses_transfer_matrix_convention() {
+        let matrix = matrix(1.0, 2.0, 3.0, 4.0);
+
+        let state = TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+
+        let result = matrix.apply_state(&state);
+
+        assert_complex_close(result.field()[()], c(1.0 * 5.0 + 2.0 * 7.0), TOLERANCE);
+        assert_complex_close(result.slope()[()], c(3.0 * 5.0 + 4.0 * 7.0), TOLERANCE);
+    }
+
+    #[test]
+    fn retained_layers_propagate_from_right_to_left() {
+        let mut retained = RetainedTransferLayers::new();
+
+        let left = matrix(1.0, 2.0, 0.0, 1.0);
+        let right = matrix(1.0, 0.0, 3.0, 1.0);
+
+        retained.push(left.clone(), quantities());
+        retained.push(right.clone(), quantities());
+
+        let right_exterior =
+            TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+
+        let states = retained.propagate_right_state(right_exterior.clone());
+
+        assert_eq!(states.len(), 2);
+
+        let expected_right_layer_left = right.apply_state(&right_exterior);
+
+        assert_eq!(states[1].right(), &right_exterior,);
+
+        assert_eq!(states[1].left(), &expected_right_layer_left,);
+
+        let expected_left_exterior = left.apply_state(&expected_right_layer_left);
+
+        assert_eq!(states[0].right(), &expected_right_layer_left,);
+
+        assert_eq!(states[0].left(), &expected_left_exterior,);
+    }
+
+    #[test]
+    fn state_to_waves_recovers_forward_and_backward_amplitudes() {
+        let admittance = zero_jet_from_value(c(3.0));
+        let characteristic_slope = boundary_slope(&admittance);
+
+        let forward = zero_jet_from_value(c(2.0));
+        let backward = zero_jet_from_value(c(-0.5));
+
+        let field = forward.add(&backward);
+
+        let slope = characteristic_slope.multiply(&backward.subtract(&forward));
+
+        let state = TransferState::new(field, slope);
+
+        let waves = bidirectional_waves_from_state(&state, &characteristic_slope);
+
+        assert_complex_close(waves.forward()[()], c(2.0), TOLERANCE);
+        assert_complex_close(waves.backward()[()], c(-0.5), TOLERANCE);
+    }
+
+    #[test]
+    fn right_outgoing_state_has_forward_slope() {
+        let outgoing = zero_jet_from_value(c(2.0));
+        let admittance = zero_jet_from_value(c(3.0));
+
+        let state = right_outgoing_transfer_state(&outgoing, &admittance);
+
+        assert_complex_close(state.field()[()], c(2.0), TOLERANCE);
+
+        // ξ = -iY, so right-going slope is -ξa = +iYa.
+        assert_complex_close(state.slope()[()], C::new(0.0, 6.0), TOLERANCE);
+    }
+
+    #[test]
+    #[should_panic(expected = "transfer layers were not retained")]
+    fn propagation_panics_without_retention() {
+        let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 0);
+
+        workspace.propagate_right_state(TransferState::new(
+            zero_jet_from_value(c(1.0)),
+            zero_jet_from_value(c(0.0)),
+        ));
+    }
 }

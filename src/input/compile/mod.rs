@@ -56,7 +56,8 @@ use ndarray::{Array, Dimension};
 use num_traits::{Float, FloatConst, FromPrimitive};
 use std::fmt::Debug;
 
-pub(crate) trait CompileJet<M, E>:
+#[doc(hidden)]
+pub trait CompileJet<M, E>:
     SeedJet
     + CanonicalCoordinateJet
     + ScalarAlgebra

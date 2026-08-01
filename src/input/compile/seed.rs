@@ -24,7 +24,7 @@ use crate::algebra::{
     "derivative slot {slot} is unsupported by this jet algebra; \
      the algebra provides {available} slot(s)"
 )]
-pub(crate) struct UnsupportedDerivativeSlot {
+pub struct UnsupportedDerivativeSlot {
     /// Requested zero-based derivative slot.
     pub(crate) slot: usize,
 
@@ -51,7 +51,8 @@ impl UnsupportedDerivativeSlot {
 ///
 /// The physical meaning of each slot is supplied separately by a parameter
 /// assignment.
-pub(crate) trait SeedJet: Sized + Jet {
+#[doc(hidden)]
+pub trait SeedJet: Sized + Jet {
     /// Number of independent-variable slots represented by this algebra.
     const VARIABLE_SLOTS: usize;
 

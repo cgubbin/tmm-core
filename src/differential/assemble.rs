@@ -48,7 +48,8 @@ use crate::{
 /// Implementations exist only for compatible pairs of derivative-parts and
 /// mapping types. This makes mismatched derivative cardinalities
 /// unrepresentable at the assembly boundary.
-pub(crate) trait AssembleDifferentialResponse<M>: Sized {
+#[doc(hidden)]
+pub trait AssembleDifferentialResponse<M>: Sized {
     /// Public response produced by the assembly.
     type Output;
 
@@ -61,7 +62,8 @@ pub(crate) trait AssembleDifferentialResponse<M>: Sized {
 ///
 /// This combines derivative-parts extraction through `P` with response
 /// assembly through `M`.
-pub(crate) trait IntoDifferentialResponse<P, M>: Sized
+#[doc(hidden)]
+pub trait IntoDifferentialResponse<P, M>: Sized
 where
     P: DerivativePartsPolicy<Self>,
 {

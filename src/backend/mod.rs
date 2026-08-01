@@ -31,7 +31,8 @@ impl RunMode {
     }
 }
 
-pub(crate) trait Backend<J, Domain>
+#[doc(hidden)]
+pub trait Backend<J, Domain>
 where
     J: Jet,
     J::Scalar: ComplexScalar,

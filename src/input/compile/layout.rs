@@ -9,7 +9,12 @@ use crate::{
     },
 };
 
-pub(crate) trait JetMapping {
+mod sealed {
+    pub trait Sealed {}
+}
+
+#[doc(hidden)]
+pub trait JetMapping: sealed::Sealed {
     type Policy: Default;
     type Mapping;
 
@@ -17,6 +22,8 @@ pub(crate) trait JetMapping {
         mapping: &DerivativeMapping,
     ) -> Result<Self::Mapping, DerivativeMappingError>;
 }
+
+impl<I, P> sealed::Sealed for Jet0<I, P> {}
 
 impl<I, P> JetMapping for Jet0<I, P> {
     type Policy = ValueOnly;
@@ -29,6 +36,8 @@ impl<I, P> JetMapping for Jet0<I, P> {
     }
 }
 
+impl<I, P> sealed::Sealed for Jet1<I, P> {}
+
 impl<I, P> JetMapping for Jet1<I, P> {
     type Policy = FirstDirectional;
     type Mapping = DirectionalMapping;
@@ -39,6 +48,8 @@ impl<I, P> JetMapping for Jet1<I, P> {
         DirectionalMapping::try_from_mapping(mapping)
     }
 }
+
+impl<I, P> sealed::Sealed for Jet2<I, P> {}
 
 impl<I, P> JetMapping for Jet2<I, P> {
     type Policy = SecondDirectional;
@@ -51,6 +62,8 @@ impl<I, P> JetMapping for Jet2<I, P> {
     }
 }
 
+impl<I, P> sealed::Sealed for JetBivariate1<I, P> {}
+
 impl<I, P> JetMapping for JetBivariate1<I, P> {
     type Policy = FirstBivariate;
     type Mapping = BivariateMapping;
@@ -61,6 +74,8 @@ impl<I, P> JetMapping for JetBivariate1<I, P> {
         BivariateMapping::try_from_mapping(mapping)
     }
 }
+
+impl<I, P> sealed::Sealed for JetBivariate2<I, P> {}
 
 impl<I, P> JetMapping for JetBivariate2<I, P> {
     type Policy = SecondBivariate;

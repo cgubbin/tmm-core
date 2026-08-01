@@ -47,7 +47,8 @@ use crate::{
 ///
 /// It operates only on ordinary sampled values. Algebraic lifting into jets is
 /// handled separately by `EvaluateConstitutive`.
-pub(crate) trait ConstitutiveEvaluator<C, D, M>
+#[doc(hidden)]
+pub trait ConstitutiveEvaluator<C, D, M>
 where
     C: ComplexScalar,
     D: Dimension,
@@ -178,7 +179,8 @@ where
     }
 }
 
-pub(crate) trait ConstitutiveLift<E, M>: ScalarAlgebra
+#[doc(hidden)]
+pub trait ConstitutiveLift<E, M>: ScalarAlgebra
 where
     Self::Scalar: ComplexScalar,
     Self::Dimension: Dimension,

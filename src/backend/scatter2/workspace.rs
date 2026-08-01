@@ -70,7 +70,8 @@ impl LayerCutIndices {
 ///
 /// The workspace always accumulates `solution`. Individual components and layer
 /// cut positions are retained only when internal fields were requested.
-pub(crate) struct Scatter2Workspace<A> {
+#[doc(hidden)]
+pub struct Scatter2Workspace<A> {
     solution: PlaneWaveSolution<Scatter2Entries<A>>,
     retained: Option<RetainedScatterComponents<A>>,
 }

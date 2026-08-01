@@ -47,8 +47,9 @@ pub(crate) type ArrayJetBivariate2<C, D, P> = JetBivariate2<ArrayBase<OwnedRepr<
 pub(crate) type PhysicalJetBivariate2<C, D> = ArrayJetBivariate2<C, D, RealParameter>;
 pub(crate) type ModeJetBivariate2<C, D> = ArrayJetBivariate2<C, D, HolomorphicParameter>;
 
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct JetBivariate2<A, P> {
+pub struct JetBivariate2<A, P> {
     value: A,
 
     first: BivariateGradient<A>,

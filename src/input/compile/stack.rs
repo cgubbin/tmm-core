@@ -151,7 +151,8 @@ impl<'a> ThicknessAssignment<'a> {
     }
 }
 
-pub(crate) trait StackThicknessJet: SeedJet
+#[doc(hidden)]
+pub trait StackThicknessJet: SeedJet
 where
     Self::Scalar: ComplexField,
 {

@@ -39,7 +39,8 @@ use crate::algebra::{
 ///
 /// The scalar type `C` is the complex coefficient type used by the backend,
 /// while `D` is the sampled ndarray dimension carried by each jet coefficient.
-pub(crate) trait CanonicalCoordinateJet: Sized + Clone + Jet
+#[doc(hidden)]
+pub trait CanonicalCoordinateJet: Sized + Clone + Jet
 where
     Self::Scalar: ComplexField,
 {

@@ -55,8 +55,9 @@ pub(crate) type PhysicalJet1<C, D> = ArrayJet1<C, D, RealParameter>;
 pub(crate) type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
 /// A value and its first derivative.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Jet1<I, P = RealParameter> {
+pub struct Jet1<I, P = RealParameter> {
     value: I,
     first: I,
     parameter: PhantomData<P>,

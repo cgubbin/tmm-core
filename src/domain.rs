@@ -1,2 +1,5 @@
-pub(crate) struct RealAxis;
-pub(crate) struct ComplexPlane;
+#[doc(hidden)]
+pub struct RealAxis;
+
+#[doc(hidden)]
+pub struct ComplexPlane;

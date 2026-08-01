@@ -62,27 +62,27 @@ where
     }
 
     /// Return the caller-facing plane-wave coordinate context.
-    pub fn coordinates(&self) -> &CoordinateContext<C, D> {
+    pub(crate) fn coordinates(&self) -> &CoordinateContext<C, D> {
         &self.coordinates
     }
 
     /// Return the caller-facing finite-layer geometry.
-    pub fn stack(&self) -> &StackContext<C::RealField> {
+    pub(crate) fn stack(&self) -> &StackContext<C::RealField> {
         &self.stack
     }
 
     /// Return the mapping from derivative slots to physical parameters.
-    pub fn mapping(&self) -> &M {
+    pub(crate) fn mapping(&self) -> &M {
         &self.mapping
     }
 
     /// Return the attached projection constraint
-    pub fn projection_constraint(&self) -> ProjectionConstraint {
+    pub(crate) fn projection_constraint(&self) -> ProjectionConstraint {
         self.constraint
     }
 
     /// Consume the context and return its components.
-    pub fn into_parts(
+    pub(crate) fn into_parts(
         self,
     ) -> (
         CoordinateContext<C, D>,
@@ -120,27 +120,27 @@ impl<R> StackContext<R> {
     }
 
     /// Return all finite-layer thicknesses in left-to-right order.
-    pub fn layer_thicknesses(&self) -> &[Thickness<R>] {
+    pub(crate) fn layer_thicknesses(&self) -> &[Thickness<R>] {
         &self.layer_thicknesses
     }
 
     /// Return the thickness of finite layer `index`.
-    pub fn layer_thickness(&self, index: usize) -> Option<&Thickness<R>> {
+    pub(crate) fn layer_thickness(&self, index: usize) -> Option<&Thickness<R>> {
         self.layer_thicknesses.get(index)
     }
 
     /// Return the number of finite layers.
-    pub fn layer_count(&self) -> usize {
+    pub(crate) fn layer_count(&self) -> usize {
         self.layer_thicknesses.len()
     }
 
     /// Whether the stack contains no finite layers.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.layer_thicknesses.is_empty()
     }
 
     /// Consume the context and return the finite-layer thicknesses.
-    pub fn into_layer_thicknesses(self) -> Vec<Thickness<R>> {
+    pub(crate) fn into_layer_thicknesses(self) -> Vec<Thickness<R>> {
         self.layer_thicknesses
     }
 }
@@ -154,7 +154,7 @@ impl<R> StackContext<R> {
 /// Polarisation is retained for result interpretation and reporting even
 /// though it is also present in the canonical backend input.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CoordinateContext<R, D>
+pub(crate) struct CoordinateContext<R, D>
 where
     D: Dimension,
 {
@@ -175,27 +175,27 @@ where
     }
 
     /// Return the coordinate parameterisations supplied by the caller.
-    pub fn values(&self) -> &CoordinateValues<R, D> {
+    pub(crate) fn values(&self) -> &CoordinateValues<R, D> {
         &self.values
     }
 
     /// Return the coordinate parameterisations supplied by the caller.
-    pub fn coordinates(&self) -> Coordinates {
+    pub(crate) fn coordinates(&self) -> Coordinates {
         self.coordinates
     }
 
     /// Return the supplied spectral-coordinate values.
-    pub fn spectral_values(&self) -> &Array<R, D> {
+    pub(crate) fn spectral_values(&self) -> &Array<R, D> {
         self.values.spectral()
     }
 
     /// Return the supplied in-plane-coordinate values.
-    pub fn in_plane_values(&self) -> &Array<R, D> {
+    pub(crate) fn in_plane_values(&self) -> &Array<R, D> {
         self.values.in_plane()
     }
 
     /// Consume the context and return its caller-facing components.
-    pub fn into_parts(self) -> (Coordinates, Array<R, D>, Array<R, D>) {
+    pub(crate) fn into_parts(self) -> (Coordinates, Array<R, D>, Array<R, D>) {
         let (spectral_values, in_plane_values) = self.values.into_parts();
 
         (self.coordinates, spectral_values, in_plane_values)

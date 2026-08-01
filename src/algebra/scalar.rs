@@ -16,7 +16,8 @@ pub trait ComplexJet: Jet {
     type RealJet;
 }
 
-pub(crate) trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
+#[doc(hidden)]
+pub trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
     fn value(&self) -> &ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>;
 
     fn lift_constant(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;

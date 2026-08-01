@@ -12,7 +12,8 @@ use crate::{
 
 use super::{PlaneWaveResult, PlaneWaveState};
 
-pub(crate) trait PlaneWaveQuery<J>
+#[doc(hidden)]
+pub trait PlaneWaveQuery<J>
 where
     J: Jet + JetMapping,
 {

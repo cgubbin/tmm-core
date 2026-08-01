@@ -55,8 +55,9 @@ pub(crate) type Scatter2JetBivariate2<C, D, P> = Scatter2Entries<ArrayJetBivaria
 /// - a value-only scattering matrix;
 /// - a scattering matrix and its first derivative;
 /// - a scattering matrix and its first two derivatives.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Scatter2Entries<A> {
+pub struct Scatter2Entries<A> {
     pub(crate) s11: A,
     pub(crate) s12: A,
     pub(crate) s21: A,
@@ -128,7 +129,8 @@ impl<A> Scatter2Entries<A> {
     }
 }
 
-pub(crate) struct Scatter2ExteriorContext<A> {
+#[doc(hidden)]
+pub struct Scatter2ExteriorContext<A> {
     left_admittance: A,
     right_admittance: A,
 }

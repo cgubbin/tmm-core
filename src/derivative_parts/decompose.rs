@@ -21,7 +21,8 @@ use super::{
 };
 
 /// Extract the value component from an internal algebraic quantity.
-pub(crate) trait IntoValue {
+#[doc(hidden)]
+pub trait IntoValue {
     /// Structure obtained after removing all derivative storage.
     type Value;
 
@@ -30,25 +31,29 @@ pub(crate) trait IntoValue {
 }
 
 /// Extract a value and one directional first derivative.
-pub(crate) trait IntoFirst: IntoValue {
+#[doc(hidden)]
+pub trait IntoFirst: IntoValue {
     /// Consume the input and return its directional first-order parts.
     fn into_first(self) -> DirectionalFirstParts<Self::Value>;
 }
 
 /// Extract a value and directional derivatives through second order.
-pub(crate) trait IntoSecond: IntoFirst {
+#[doc(hidden)]
+pub trait IntoSecond: IntoFirst {
     /// Consume the input and return its directional second-order parts.
     fn into_second(self) -> DirectionalSecondParts<Self::Value>;
 }
 
 /// Extract a value and first derivatives over two coordinates.
-pub(crate) trait IntoBivariateFirst: IntoValue {
+#[doc(hidden)]
+pub trait IntoBivariateFirst: IntoValue {
     /// Consume the input and return its bivariate first-order parts.
     fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value>;
 }
 
 /// Extract a value, gradient, and Hessian over two coordinates.
-pub(crate) trait IntoBivariateSecond: IntoBivariateFirst {
+#[doc(hidden)]
+pub trait IntoBivariateSecond: IntoBivariateFirst {
     /// Consume the input and return its bivariate second-order parts.
     fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value>;
 }

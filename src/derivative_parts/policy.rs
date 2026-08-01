@@ -29,28 +29,34 @@ use super::{
 };
 
 /// Retain values while discarding all derivative components.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ValueOnly;
+pub struct ValueOnly;
 
 /// Retain values and one first directional derivative.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct FirstDirectional;
+pub struct FirstDirectional;
 
 /// Retain values and directional derivatives through second order.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct SecondDirectional;
+pub struct SecondDirectional;
 
 /// Retain values and first derivatives with respect to two coordinates.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct FirstBivariate;
+pub struct FirstBivariate;
 
 /// Retain values, a bivariate gradient, and a symmetric bivariate Hessian.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct SecondBivariate;
+pub struct SecondBivariate;
 
 /// Extension trait for extracting coordinate-free derivative parts from an
 /// internal algebraic quantity.
-pub(crate) trait IntoDerivativeParts: Sized {
+#[doc(hidden)]
+pub trait IntoDerivativeParts: Sized {
     /// Consume `self` and extract the components selected by `policy`.
     fn into_derivative_parts<P>(self, policy: &P) -> P::Output
     where
@@ -67,7 +73,8 @@ impl<T> IntoDerivativeParts for T {}
 /// Implementations select the required decomposition capability and determine
 /// the derivative representation stored in the resulting
 /// [`DifferentialResponse`].
-pub(crate) trait DerivativePartsPolicy<T> {
+#[doc(hidden)]
+pub trait DerivativePartsPolicy<T> {
     /// Public response produced by this policy.
     type Output;
 

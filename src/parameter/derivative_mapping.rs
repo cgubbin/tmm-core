@@ -13,8 +13,9 @@ use thiserror::Error;
 /// - each parameter appears at most once;
 /// - layer indices are validated against the compiled stack before seeding;
 /// - the number of assigned parameters matches the selected jet algebra.
+#[doc(hidden)]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct DerivativeMapping {
+pub struct DerivativeMapping {
     slots: Vec<Parameter>,
 }
 

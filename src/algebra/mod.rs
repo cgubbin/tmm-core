@@ -122,7 +122,7 @@ pub trait JetRealPart {
     fn jet_real(&self) -> Self::RealOutput;
 }
 
-pub(crate) trait JetMultiplyByScalar<S> {
+pub trait JetMultiplyByScalar<S> {
     fn jet_multiply_by_scalar(&self, scalar: &S) -> Self;
 }
 
