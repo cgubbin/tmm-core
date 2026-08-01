@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{input::ParameterAssignmentError, parameter::ThicknessSeedError};
+use crate::parameter::{DerivativeMappingError, ThicknessSeedError};
 
 /// An invalid high-level evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
@@ -9,7 +9,7 @@ pub enum RequestError {
     ThicknessSeed(#[from] ThicknessSeedError),
 
     #[error(transparent)]
-    ParameterAssignment(#[from] ParameterAssignmentError),
+    DerivativeMapping(#[from] DerivativeMappingError),
 }
 
 /// Failure while preparing or solving a plane-wave problem.

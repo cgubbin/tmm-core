@@ -38,7 +38,7 @@ impl<V, D, M> Response<V, D, M> {
 
     /// Return the observable values.
     pub fn observables(&self) -> &V {
-        self.inner.values()
+        self.inner.value()
     }
 
     /// Return the derivative values.
@@ -68,9 +68,9 @@ impl<V, M> Response<V, NoDerivatives, M> {
 }
 
 impl<V, M> Response<V, DirectionalFirst<V>, M> {
-    /// Return the coordinate with respect to which the derivative was taken.
-    pub fn coordinate(&self) -> Parameter {
-        self.inner.coordinate()
+    /// Return the parameter with respect to which the derivative was taken.
+    pub fn parameter(&self) -> Parameter {
+        self.inner.parameter()
     }
 
     /// Return the first directional derivative of the observables.
@@ -80,9 +80,9 @@ impl<V, M> Response<V, DirectionalFirst<V>, M> {
 }
 
 impl<V, M> Response<V, DirectionalSecond<V>, M> {
-    /// Return the coordinate with respect to which the derivatives were taken.
-    pub fn coordinate(&self) -> Parameter {
-        self.inner.coordinate()
+    /// Return the parameter with respect to which the derivatives were taken.
+    pub fn parameter(&self) -> Parameter {
+        self.inner.parameter()
     }
 
     /// Return the first directional derivative of the observables.
@@ -158,7 +158,7 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 //     }
 
 //     #[test]
-//     fn directional_first_exposes_coordinate_and_derivative() {
+//     fn directional_first_exposes_parameter_and_derivative() {
 //         let response = Response::new(DifferentialResponse::new(
 //             observable(1.0),
 //             DirectionalFirst::new(Parameter::Spectral, observable(2.0)),
@@ -166,7 +166,7 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 
 //         assert_eq!(response.observables(), &observable(1.0));
 //         assert_eq!(
-//             response.coordinate(),
+//             response.parameter(),
 //             Parameter::Spectral,
 //         );
 //         assert_eq!(response.first(), &observable(2.0));
@@ -185,7 +185,7 @@ impl<V, M> Response<V, BivariateSecond<V>, M> {
 
 //         assert_eq!(response.observables(), &observable(1.0));
 //         assert_eq!(
-//             response.coordinate(),
+//             response.parameter(),
 //             Parameter::InPlane,
 //         );
 //         assert_eq!(response.first(), &observable(2.0));

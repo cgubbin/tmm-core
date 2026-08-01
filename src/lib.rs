@@ -3,11 +3,11 @@
 
 pub(crate) mod algebra;
 pub mod backend;
-pub(crate) mod crystallise;
+pub(crate) mod derivative_parts;
 mod differential;
 mod domain;
 mod error;
-// mod evaluate;
+mod evaluate;
 pub mod field;
 mod input;
 pub mod material;

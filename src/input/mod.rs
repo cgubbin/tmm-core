@@ -28,7 +28,7 @@ pub(crate) use canonical::{
     CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, SeedJet,
+    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, JetMapping, SeedJet,
     compile_complex, compile_real,
 };
 pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};

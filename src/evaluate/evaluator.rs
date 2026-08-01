@@ -1,18 +1,20 @@
 use std::marker::PhantomData;
 
 use crate::{
-    DifferentiableMaterial, Material, Polarisation, ValidationConfig,
+    ComplexPlane, DifferentiableMaterial, EvaluateMeromorphicMaterial, Material, Polarisation,
+    ValidationConfig,
     algebra::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet,
         RealParameter, ScalarAlgebra,
     },
-    backend::Backend,
+    backend::{Backend, PlaneWaveSolution},
     domain::RealAxis,
     input::{
-        CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, Parameter,
-        ParameterAssignment, ParameterAssignmentError, PlaneWaveInput, compile_real,
+        CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, PlaneWaveInput,
+        compile_complex, compile_real,
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
+    parameter::{DerivativeMapping, Parameter},
     scalar::ComplexScalar,
     stack::Stack,
 };
@@ -60,10 +62,9 @@ impl<B> PlaneWaveEvaluator<B> {
         input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
         stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
         polarisation: Polarisation,
-        assignment: ParameterAssignment,
+        mapping: &DerivativeMapping,
     ) -> Result<
-        (),
-        //     PlaneWaveState<M, J, W, CompilationContext<C::RealField, D>, Pol>,
+        PlaneWaveState<M, J, <J::Scalar as ComplexField>::RealField, PlaneWaveSolution<B::Entries>>,
         PlaneWaveEvaluationError<
             CompilePlaneWaveError<J::Scalar>,
             <B as Backend<J, RealAxis>>::Error,
@@ -79,7 +80,7 @@ impl<B> PlaneWaveEvaluator<B> {
         B: Backend<J, RealAxis>,
     {
         let (canonical_problem, context) =
-            compile_real::<M, J>(input, stack, &ValidationConfig::permissive(), assignment)
+            compile_real::<M, J>(input, stack, &ValidationConfig::permissive(), mapping)
                 .map_err(PlaneWaveEvaluationError::compile)?;
 
         let workspace = self
@@ -87,7 +88,40 @@ impl<B> PlaneWaveEvaluator<B> {
             .solve(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
-        todo!()
-        // Ok(PlaneWaveState::new(canonical_problem, workspace, context))
+        Ok(PlaneWaveState::new(canonical_problem, workspace, context))
+    }
+
+    fn solve_complex_coordinate_space<J, M, E>(
+        &self,
+        input: CoordinateInput<J::Scalar, J::Dimension>,
+        stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
+        polarisation: Polarisation,
+        mapping: &DerivativeMapping,
+    ) -> Result<
+        PlaneWaveState<M, J, J::Scalar, PlaneWaveSolution<B::Entries>>,
+        PlaneWaveEvaluationError<
+            CompilePlaneWaveError<J::Scalar>,
+            <B as Backend<J, ComplexPlane>>::Error,
+        >,
+    >
+    where
+        J: CompileJet<M, ComplexPlane>,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        J::Dimension: Dimension,
+        M: Clone,
+        ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        B: Backend<J, ComplexPlane>,
+    {
+        let (canonical_problem, context) =
+            compile_complex::<M, J>(input, stack, &ValidationConfig::permissive(), mapping)
+                .map_err(PlaneWaveEvaluationError::compile)?;
+
+        let workspace = self
+            .backend
+            .solve(&canonical_problem, polarisation)
+            .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
+
+        Ok(PlaneWaveState::new(canonical_problem, workspace, context))
     }
 }

@@ -8,8 +8,8 @@
 //! computed and crystallised from that state only when requested.
 
 mod error;
-// mod evaluator;
-// mod result;
+mod evaluator;
+mod result;
 mod state;
 
 pub use error::{PlaneWaveEvaluationError, RequestError};

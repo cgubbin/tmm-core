@@ -30,7 +30,7 @@ impl<'a, F, D, R> FieldProfile<'a, F, D, R> {
     }
 
     pub fn observables(&self) -> &F {
-        self.response.values()
+        self.response.value()
     }
 
     pub fn derivatives(&self) -> &D {

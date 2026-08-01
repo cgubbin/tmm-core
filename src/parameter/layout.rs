@@ -6,6 +6,21 @@ use super::{
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValueMapping;
 
+impl ValueMapping {
+    pub(crate) fn try_from_mapping(
+        mapping: &DerivativeMapping,
+    ) -> Result<Self, DerivativeMappingError> {
+        if !mapping.is_empty() {
+            return Err(DerivativeMappingError::IncompatibleShape {
+                derivative_dimension: 0,
+                assigned_slots: mapping.parameter_count(),
+            });
+        }
+
+        Ok(Self)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DirectionalMapping {
     parameter: Parameter,
@@ -27,8 +42,8 @@ impl DirectionalMapping {
         Ok(Self { parameter })
     }
 
-    pub fn parameter(&self) -> &Parameter {
-        &self.parameter
+    pub fn parameter(&self) -> Parameter {
+        self.parameter
     }
 }
 
@@ -54,7 +69,7 @@ impl BivariateMapping {
         Ok(Self { first, second })
     }
 
-    pub fn parameters(&self) -> (&Parameter, &Parameter) {
-        (&self.first, &self.second)
+    pub fn parameters(&self) -> (Parameter, Parameter) {
+        (self.first, self.second)
     }
 }

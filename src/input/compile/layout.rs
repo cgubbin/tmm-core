@@ -1,6 +1,6 @@
 use crate::{
     algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2},
-    crystallise::{
+    derivative_parts::{
         FirstBivariate, FirstDirectional, SecondBivariate, SecondDirectional, ValueOnly,
     },
     parameter::{
@@ -25,14 +25,7 @@ impl<I, P> JetMapping for Jet0<I, P> {
     fn compile_mapping(
         mapping: &DerivativeMapping,
     ) -> Result<Self::Mapping, DerivativeMappingError> {
-        if mapping.is_empty() {
-            Ok(ValueMapping)
-        } else {
-            Err(DerivativeMappingError::IncompatibleShape {
-                derivative_dimension: 0,
-                assigned_slots: mapping.parameter_count(),
-            })
-        }
+        ValueMapping::try_from_mapping(mapping)
     }
 }
 

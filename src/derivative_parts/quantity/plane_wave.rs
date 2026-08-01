@@ -33,13 +33,12 @@
 //! leaves.
 
 use crate::{
-    PlaneWaveAmplitudes, PlaneWavePower,
-    algebra::ComplexJet,
-    crystallise::{
-        BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
-        IntoFirst, IntoGradient, IntoHessian, IntoSecond, IntoValue,
-    },
-    observable::PlaneWaveObservables,
+    PlaneWaveAmplitudes, PlaneWavePower, algebra::ComplexJet, observable::PlaneWaveObservables,
+};
+
+use super::super::{
+    BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
+    IntoBivariateFirst, IntoBivariateSecond, IntoFirst, IntoSecond, IntoValue, ValuePart,
 };
 
 /// Extract the value components of a complete plane-wave observable set.
@@ -50,10 +49,13 @@ where
 {
     type Value = PlaneWaveObservables<J::Value, <J::RealJet as IntoValue>::Value>;
 
-    fn into_value(self) -> Self::Value {
+    fn into_value(self) -> ValuePart<Self::Value> {
         let (amplitudes, power) = self.into_parts();
 
-        PlaneWaveObservables::new(amplitudes.into_value(), power.into_value())
+        ValuePart::new(PlaneWaveObservables::new(
+            amplitudes.into_value().into_inner(),
+            power.into_value().into_inner(),
+        ))
     }
 }
 
@@ -64,10 +66,13 @@ where
 {
     type Value = PlaneWaveAmplitudes<J::Value>;
 
-    fn into_value(self) -> Self::Value {
+    fn into_value(self) -> ValuePart<Self::Value> {
         let (reflection, transmission) = self.into_parts();
 
-        PlaneWaveAmplitudes::new(reflection.into_value(), transmission.into_value())
+        ValuePart::new(PlaneWaveAmplitudes::new(
+            reflection.into_value().into_inner(),
+            transmission.into_value().into_inner(),
+        ))
     }
 }
 
@@ -78,14 +83,14 @@ where
 {
     type Value = PlaneWavePower<J::Value>;
 
-    fn into_value(self) -> Self::Value {
+    fn into_value(self) -> ValuePart<Self::Value> {
         let (reflectance, transmittance, absorptance) = self.into_parts();
 
-        PlaneWavePower::new(
-            reflectance.into_value(),
-            transmittance.into_value(),
-            absorptance.into_value(),
-        )
+        ValuePart::new(PlaneWavePower::new(
+            reflectance.into_value().into_inner(),
+            transmittance.into_value().into_inner(),
+            absorptance.into_value().into_inner(),
+        ))
     }
 }
 
@@ -224,17 +229,18 @@ where
 
 /// Separate complete plane-wave observables into values and first derivatives
 /// with respect to two coordinates.
-impl<J> IntoGradient for PlaneWaveObservables<J, J::RealJet>
+impl<J> IntoBivariateFirst for PlaneWaveObservables<J, J::RealJet>
 where
-    J: ComplexJet + IntoGradient,
-    J::RealJet: IntoGradient,
+    J: ComplexJet + IntoBivariateFirst,
+    J::RealJet: IntoBivariateFirst,
 {
-    fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
+    fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value> {
         let (amplitudes, power) = self.into_parts();
 
-        let (amplitudes, amplitudes_x, amplitudes_y) = amplitudes.into_gradient().into_parts();
+        let (amplitudes, amplitudes_x, amplitudes_y) =
+            amplitudes.into_bivariate_first().into_parts();
 
-        let (power, power_x, power_y) = power.into_gradient().into_parts();
+        let (power, power_x, power_y) = power.into_bivariate_first().into_parts();
 
         BivariateFirstParts::new(
             PlaneWaveObservables::new(amplitudes, power),
@@ -246,17 +252,18 @@ where
 
 /// Separate amplitudes into values and first derivatives with respect to two
 /// coordinates.
-impl<J> IntoGradient for PlaneWaveAmplitudes<J>
+impl<J> IntoBivariateFirst for PlaneWaveAmplitudes<J>
 where
-    J: IntoGradient,
+    J: IntoBivariateFirst,
 {
-    fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
+    fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value> {
         let (reflection, transmission) = self.into_parts();
 
-        let (reflection, reflection_x, reflection_y) = reflection.into_gradient().into_parts();
+        let (reflection, reflection_x, reflection_y) =
+            reflection.into_bivariate_first().into_parts();
 
         let (transmission, transmission_x, transmission_y) =
-            transmission.into_gradient().into_parts();
+            transmission.into_bivariate_first().into_parts();
 
         BivariateFirstParts::new(
             PlaneWaveAmplitudes::new(reflection, transmission),
@@ -268,19 +275,21 @@ where
 
 /// Separate power observables into values and first derivatives with respect
 /// to two coordinates.
-impl<J> IntoGradient for PlaneWavePower<J>
+impl<J> IntoBivariateFirst for PlaneWavePower<J>
 where
-    J: IntoGradient,
+    J: IntoBivariateFirst,
 {
-    fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
+    fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value> {
         let (reflectance, transmittance, absorptance) = self.into_parts();
 
-        let (reflectance, reflectance_x, reflectance_y) = reflectance.into_gradient().into_parts();
+        let (reflectance, reflectance_x, reflectance_y) =
+            reflectance.into_bivariate_first().into_parts();
 
         let (transmittance, transmittance_x, transmittance_y) =
-            transmittance.into_gradient().into_parts();
+            transmittance.into_bivariate_first().into_parts();
 
-        let (absorptance, absorptance_x, absorptance_y) = absorptance.into_gradient().into_parts();
+        let (absorptance, absorptance_x, absorptance_y) =
+            absorptance.into_bivariate_first().into_parts();
 
         BivariateFirstParts::new(
             PlaneWavePower::new(reflectance, transmittance, absorptance),
@@ -292,12 +301,12 @@ where
 
 /// Separate complete plane-wave observables into values, a bivariate gradient,
 /// and a symmetric bivariate Hessian.
-impl<J> IntoHessian for PlaneWaveObservables<J, J::RealJet>
+impl<J> IntoBivariateSecond for PlaneWaveObservables<J, J::RealJet>
 where
-    J: ComplexJet + IntoHessian,
-    J::RealJet: IntoHessian,
+    J: ComplexJet + IntoBivariateSecond,
+    J::RealJet: IntoBivariateSecond,
 {
-    fn into_hessian(self) -> BivariateSecondParts<Self::Value> {
+    fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value> {
         let (amplitudes, power) = self.into_parts();
 
         let (
@@ -307,10 +316,10 @@ where
             amplitudes_x_x,
             amplitudes_x_y,
             amplitudes_y_y,
-        ) = amplitudes.into_hessian().into_parts();
+        ) = amplitudes.into_bivariate_second().into_parts();
 
         let (power, power_x, power_y, power_x_x, power_x_y, power_y_y) =
-            power.into_hessian().into_parts();
+            power.into_bivariate_second().into_parts();
 
         BivariateSecondParts::new(
             PlaneWaveObservables::new(amplitudes, power),
@@ -325,11 +334,11 @@ where
 
 /// Separate amplitudes into values, a bivariate gradient, and a symmetric
 /// bivariate Hessian.
-impl<J> IntoHessian for PlaneWaveAmplitudes<J>
+impl<J> IntoBivariateSecond for PlaneWaveAmplitudes<J>
 where
-    J: IntoHessian,
+    J: IntoBivariateSecond,
 {
-    fn into_hessian(self) -> BivariateSecondParts<Self::Value> {
+    fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value> {
         let (reflection, transmission) = self.into_parts();
 
         let (
@@ -339,7 +348,7 @@ where
             reflection_x_x,
             reflection_x_y,
             reflection_y_y,
-        ) = reflection.into_hessian().into_parts();
+        ) = reflection.into_bivariate_second().into_parts();
 
         let (
             transmission,
@@ -348,7 +357,7 @@ where
             transmission_x_x,
             transmission_x_y,
             transmission_y_y,
-        ) = transmission.into_hessian().into_parts();
+        ) = transmission.into_bivariate_second().into_parts();
 
         BivariateSecondParts::new(
             PlaneWaveAmplitudes::new(reflection, transmission),
@@ -363,11 +372,11 @@ where
 
 /// Separate power observables into values, a bivariate gradient, and a
 /// symmetric bivariate Hessian.
-impl<J> IntoHessian for PlaneWavePower<J>
+impl<J> IntoBivariateSecond for PlaneWavePower<J>
 where
-    J: IntoHessian,
+    J: IntoBivariateSecond,
 {
-    fn into_hessian(self) -> BivariateSecondParts<Self::Value> {
+    fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value> {
         let (reflectance, transmittance, absorptance) = self.into_parts();
 
         let (
@@ -377,7 +386,7 @@ where
             reflectance_x_x,
             reflectance_x_y,
             reflectance_y_y,
-        ) = reflectance.into_hessian().into_parts();
+        ) = reflectance.into_bivariate_second().into_parts();
 
         let (
             transmittance,
@@ -386,7 +395,7 @@ where
             transmittance_x_x,
             transmittance_x_y,
             transmittance_y_y,
-        ) = transmittance.into_hessian().into_parts();
+        ) = transmittance.into_bivariate_second().into_parts();
 
         let (
             absorptance,
@@ -395,7 +404,7 @@ where
             absorptance_x_x,
             absorptance_x_y,
             absorptance_y_y,
-        ) = absorptance.into_hessian().into_parts();
+        ) = absorptance.into_bivariate_second().into_parts();
 
         BivariateSecondParts::new(
             PlaneWavePower::new(reflectance, transmittance, absorptance),
@@ -444,8 +453,8 @@ mod tests {
     impl IntoValue for Leaf {
         type Value = i32;
 
-        fn into_value(self) -> Self::Value {
-            self.value
+        fn into_value(self) -> ValuePart<Self::Value> {
+            ValuePart::new(self.value)
         }
     }
 
@@ -461,14 +470,14 @@ mod tests {
         }
     }
 
-    impl IntoGradient for Leaf {
-        fn into_gradient(self) -> BivariateFirstParts<Self::Value> {
+    impl IntoBivariateFirst for Leaf {
+        fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value> {
             BivariateFirstParts::new(self.value, self.x, self.y)
         }
     }
 
-    impl IntoHessian for Leaf {
-        fn into_hessian(self) -> BivariateSecondParts<Self::Value> {
+    impl IntoBivariateSecond for Leaf {
+        fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value> {
             BivariateSecondParts::new(self.value, self.x, self.y, self.x_x, self.x_y, self.y_y)
         }
     }
@@ -478,7 +487,7 @@ mod tests {
         let amplitudes = PlaneWaveAmplitudes::new(Leaf::new(0), Leaf::new(10));
 
         let amplitudes = amplitudes.into_value();
-        let (reflection, transmission) = amplitudes.into_parts();
+        let (reflection, transmission) = amplitudes.into_inner().into_parts();
 
         assert_eq!(reflection, 1);
         assert_eq!(transmission, 11);
@@ -490,7 +499,7 @@ mod tests {
 
         let power = power.into_value();
 
-        let (reflectance, transmittance, absorptance) = power.into_parts();
+        let (reflectance, transmittance, absorptance) = power.into_inner().into_parts();
 
         assert_eq!(reflectance, 1);
         assert_eq!(transmittance, 11);
@@ -547,10 +556,10 @@ mod tests {
     }
 
     #[test]
-    fn amplitudes_into_gradient_transposes_both_coordinates() {
+    fn amplitudes_into_bivariate_first_transposes_both_coordinates() {
         let amplitudes = PlaneWaveAmplitudes::new(Leaf::new(0), Leaf::new(10));
 
-        let (values, x, y) = amplitudes.into_gradient().into_parts();
+        let (values, x, y) = amplitudes.into_bivariate_first().into_parts();
 
         assert_eq!(values.into_parts(), (1, 11));
         assert_eq!(x.into_parts(), (4, 14));
@@ -558,10 +567,10 @@ mod tests {
     }
 
     #[test]
-    fn power_into_gradient_transposes_both_coordinates() {
+    fn power_into_bivariate_first_transposes_both_coordinates() {
         let power = PlaneWavePower::new(Leaf::new(0), Leaf::new(10), Leaf::new(20));
 
-        let (values, x, y) = power.into_gradient().into_parts();
+        let (values, x, y) = power.into_bivariate_first().into_parts();
 
         assert_eq!(values.into_parts(), (1, 11, 21));
         assert_eq!(x.into_parts(), (4, 14, 24));
@@ -569,10 +578,10 @@ mod tests {
     }
 
     #[test]
-    fn amplitudes_into_hessian_preserves_component_order() {
+    fn amplitudes_into_bivariate_second_preserves_component_order() {
         let amplitudes = PlaneWaveAmplitudes::new(Leaf::new(0), Leaf::new(10));
 
-        let (values, x, y, x_x, x_y, y_y) = amplitudes.into_hessian().into_parts();
+        let (values, x, y, x_x, x_y, y_y) = amplitudes.into_bivariate_second().into_parts();
 
         assert_eq!(values.into_parts(), (1, 11));
         assert_eq!(x.into_parts(), (4, 14));
@@ -583,10 +592,10 @@ mod tests {
     }
 
     #[test]
-    fn power_into_hessian_preserves_component_order() {
+    fn power_into_bivariate_second_preserves_component_order() {
         let power = PlaneWavePower::new(Leaf::new(0), Leaf::new(10), Leaf::new(20));
 
-        let (values, x, y, x_x, x_y, y_y) = power.into_hessian().into_parts();
+        let (values, x, y, x_x, x_y, y_y) = power.into_bivariate_second().into_parts();
 
         assert_eq!(values.into_parts(), (1, 11, 21));
         assert_eq!(x.into_parts(), (4, 14, 24));

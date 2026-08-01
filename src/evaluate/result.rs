@@ -1,4 +1,11 @@
-use crate::{algebra::ComplexJet, observable::PlaneWaveObservables};
+use nalgebra::ComplexField;
+use ndarray::Dimension;
+
+use crate::{
+    algebra::ComplexJet,
+    input::{CompilationContext, JetMapping},
+    observable::PlaneWaveObservables,
+};
 
 /// A non-retained plane-wave evaluation.
 ///
@@ -6,19 +13,26 @@ use crate::{algebra::ComplexJet, observable::PlaneWaveObservables};
 /// context needed to crystallise them. No backend workspace or canonical
 /// problem is retained.
 #[derive(Clone, Debug)]
-pub struct PlaneWaveResult<J, Ctx>
+pub struct PlaneWaveResult<J>
 where
-    J: ComplexJet,
+    J: ComplexJet + JetMapping,
+    J::Scalar: ComplexField,
+    J::Dimension: Dimension,
 {
     observables: PlaneWaveObservables<J, J::RealJet>,
-    context: Ctx,
+    context: CompilationContext<J::Scalar, J::Dimension, J::Mapping>,
 }
 
-impl<J, Ctx> PlaneWaveResult<J, Ctx>
+impl<J> PlaneWaveResult<J>
 where
-    J: ComplexJet,
+    J: ComplexJet + JetMapping,
+    J::Scalar: ComplexField,
+    J::Dimension: Dimension,
 {
-    pub(crate) fn new(observables: PlaneWaveObservables<J, J::RealJet>, context: Ctx) -> Self {
+    pub(crate) fn new(
+        observables: PlaneWaveObservables<J, J::RealJet>,
+        context: CompilationContext<J::Scalar, J::Dimension, J::Mapping>,
+    ) -> Self {
         Self {
             observables,
             context,
@@ -31,12 +45,17 @@ where
     }
 
     /// Return the retained compilation context.
-    pub fn context(&self) -> &Ctx {
+    pub fn context(&self) -> &CompilationContext<J::Scalar, J::Dimension, J::Mapping> {
         &self.context
     }
 
     /// Consume the result and return its components.
-    pub fn into_parts(self) -> (PlaneWaveObservables<J, J::RealJet>, Ctx) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        PlaneWaveObservables<J, J::RealJet>,
+        CompilationContext<J::Scalar, J::Dimension, J::Mapping>,
+    ) {
         (self.observables, self.context)
     }
 }
