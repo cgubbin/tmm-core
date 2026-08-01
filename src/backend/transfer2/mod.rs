@@ -12,6 +12,7 @@
 mod backend;
 mod entries;
 mod error;
+mod projection;
 mod workspace;
 
 pub(crate) use entries::Transfer2Entries;

@@ -38,15 +38,22 @@ use ndarray::{ArrayBase, Dimension, IntoDimension, OwnedRepr};
 use num_traits::{One, Zero};
 
 use crate::{
-    ComplexScalar, Polarisation,
+    ComplexScalar, IncidentSide, PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower,
+    Polarisation,
     algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
+        RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
         PlaneWaveEntries, isotropic::IsotropicLayerQuantities, transfer2::error::Transfer2Entry,
     },
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
+    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+};
+
+use super::projection::{
+    outgoing_residual, right_incoming_column, right_outgoing_column, transfer_state_slope,
 };
 
 /// Zero-order entry-wise transfer representation.
@@ -274,10 +281,158 @@ impl<J> Transfer2ExteriorContext<J> {
     pub(crate) fn right_quantities(&self) -> &IsotropicLayerQuantities<J> {
         &self.right_quantities
     }
+
+    pub(crate) fn left_admittance(&self) -> J
+    where
+        J: Clone + ScalarAlgebra,
+    {
+        self.left_quantities.clone().into_admittance().into_inner()
+    }
+
+    pub(crate) fn right_admittance(&self) -> J
+    where
+        J: Clone + ScalarAlgebra,
+    {
+        self.right_quantities.clone().into_admittance().into_inner()
+    }
 }
 
 impl<A> PlaneWaveEntries for Transfer2Entries<A> {
     type ExteriorContext = Transfer2ExteriorContext<A>;
+}
+
+impl<J> ProjectAmplitudes for Transfer2Entries<J>
+where
+    J: ScalarAlgebra,
+    J::Scalar: ComplexScalar,
+    J::Dimension: Dimension,
+{
+    type Amplitudes = PlaneWaveAmplitudes<J>;
+
+    fn project_amplitudes(
+        &self,
+        exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Amplitudes {
+        let left_slope = transfer_state_slope(&exterior.left_admittance());
+
+        let right_slope = transfer_state_slope(&exterior.right_admittance());
+
+        let (right_outgoing_field, right_outgoing_slope) =
+            right_outgoing_column(self, &right_slope);
+
+        let denominator = left_slope
+            .multiply(&right_outgoing_field)
+            .subtract(&right_outgoing_slope);
+
+        let two = J::filled_constant_like(
+            denominator.value(),
+            <J::Scalar as One>::one() + <J::Scalar as One>::one(),
+        );
+
+        match incident_side {
+            IncidentSide::Left => {
+                /*
+                 * At the left boundary:
+                 *
+                 *   field = 1 + r
+                 *   slope = ξL (r - 1)
+                 *
+                 * At the right boundary only the transmitted right-going wave
+                 * remains. This gives:
+                 *
+                 *   t = 2 ξL / D
+                 *   r = t p - 1.
+                 */
+                let transmission = two.multiply(&left_slope).divide(&denominator);
+
+                let reflection = transmission
+                    .multiply(&right_outgoing_field)
+                    .subtract(&transmission.constant(<J::Scalar as One>::one()));
+
+                PlaneWaveAmplitudes::new(reflection, transmission)
+            }
+
+            IncidentSide::Right => {
+                /*
+                 * At the right boundary the incident left-going basis state is
+                 * [1, +ξR], while the reflected right-going basis state is
+                 * [1, -ξR].
+                 */
+                let (right_incoming_field, right_incoming_slope) =
+                    right_incoming_column(self, &right_slope);
+
+                let reflection = right_incoming_slope
+                    .subtract(&left_slope.multiply(&right_incoming_field))
+                    .divide(&denominator);
+
+                /*
+                 * Compute transmission from the propagated field rather than
+                 * assuming det(M) = 1:
+                 *
+                 *   t = a + r p.
+                 *
+                 * This remains correct for any transfer representation using
+                 * the documented state convention.
+                 */
+                let transmission =
+                    right_incoming_field.add(&reflection.multiply(&right_outgoing_field));
+
+                PlaneWaveAmplitudes::new(reflection, transmission)
+            }
+        }
+    }
+}
+
+impl<J> ProjectPower for Transfer2Entries<J>
+where
+    J: Clone + RealScalarAlgebra,
+    J::Scalar: ComplexScalar,
+    J::Dimension: Dimension,
+    J::RealJet: ScalarAlgebra,
+    <J::RealJet as Jet>::Scalar: One,
+{
+    type Power = PlaneWavePower<J::RealJet>;
+
+    fn project_power(
+        &self,
+        exterior: &Self::ExteriorContext,
+        incident_side: IncidentSide,
+    ) -> Self::Power {
+        let (reflection, transmission) = self
+            .project_amplitudes(exterior, incident_side)
+            .into_parts();
+
+        let (incident_admittance, transmitted_admittance) = match incident_side {
+            IncidentSide::Left => (exterior.left_admittance(), exterior.right_admittance()),
+
+            IncidentSide::Right => (exterior.right_admittance(), exterior.left_admittance()),
+        };
+
+        PlaneWavePower::from_amplitudes_and_admittance(
+            &reflection,
+            &transmission,
+            &incident_admittance,
+            &transmitted_admittance,
+        )
+    }
+}
+
+impl<J> ProjectPlaneWaveModeDeterminant for Transfer2Entries<J>
+where
+    J: ScalarAlgebra,
+    J::Scalar: ComplexScalar + One,
+    J::Dimension: Dimension,
+{
+    type Determinant = PlaneWaveDeterminant<J>;
+
+    fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
+        let left_slope = transfer_state_slope(&exterior.left_admittance());
+
+        let right_slope = transfer_state_slope(&exterior.right_admittance());
+
+        PlaneWaveDeterminant::new(outgoing_residual(self, &left_slope, &right_slope))
+    }
 }
 
 #[cfg(test)]
@@ -502,5 +657,165 @@ mod tests {
             matrix.first_non_finite(),
             Some((Transfer2Entry::M12, Vec::new(),)),
         );
+    }
+}
+
+#[cfg(test)]
+mod projection_tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
+
+    use super::*;
+
+    use crate::{
+        algebra::{ArrayJet0, Jet0, RealParameter},
+        backend::isotropic::IsotropicLayerQuantities,
+        input::{CanonicalCoordinates, IncidentSide},
+        test_support::materials::constant,
+    };
+
+    type C = Complex64;
+    type J = ArrayJet0<C, Ix0, RealParameter>;
+
+    const TOLERANCE: f64 = 1.0e-12;
+
+    fn c(real: f64) -> C {
+        C::new(real, 0.0)
+    }
+
+    fn jet(value: C) -> J {
+        Jet0::new(arr0(value))
+    }
+
+    fn assert_close(actual: C, expected: C) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    fn coordinates() -> CanonicalCoordinates<J> {
+        CanonicalCoordinates::new(jet(c(2.0)), jet(c(0.0)))
+    }
+
+    fn exterior_context(
+        left_epsilon: f64,
+        right_epsilon: f64,
+        polarisation: Polarisation,
+    ) -> Transfer2ExteriorContext<J> {
+        Transfer2ExteriorContext::new::<crate::domain::RealAxis, _>(
+            &coordinates(),
+            &constant(left_epsilon, 1.0),
+            &constant(right_epsilon, 1.0),
+            polarisation,
+        )
+    }
+
+    fn identity() -> Transfer2Entries<J> {
+        Transfer2Entries::identity_like(coordinates().vacuum_angular_wavenumber().value())
+    }
+
+    #[test]
+    fn equal_exteriors_and_identity_give_unit_transmission() {
+        let entries = identity();
+
+        let exterior = exterior_context(1.0, 1.0, Polarisation::TransverseElectric);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let amplitudes = entries.project_amplitudes(&exterior, side);
+
+            assert_close(amplitudes.reflection()[()], c(0.0));
+
+            assert_close(amplitudes.transmission()[()], c(1.0));
+        }
+    }
+
+    #[test]
+    fn identity_with_different_exteriors_matches_interface_fresnel_amplitudes() {
+        let entries = identity();
+
+        let exterior = exterior_context(1.0, 4.0, Polarisation::TransverseElectric);
+
+        let left = entries.project_amplitudes(&exterior, IncidentSide::Left);
+
+        assert_close(left.reflection()[()], c(-1.0 / 3.0));
+
+        assert_close(left.transmission()[()], c(2.0 / 3.0));
+
+        let right = entries.project_amplitudes(&exterior, IncidentSide::Right);
+
+        assert_close(right.reflection()[()], c(1.0 / 3.0));
+
+        assert_close(right.transmission()[()], c(4.0 / 3.0));
+    }
+
+    #[test]
+    fn identity_interface_conserves_power() {
+        let entries = identity();
+
+        let exterior = exterior_context(1.0, 4.0, Polarisation::TransverseElectric);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let power = entries.project_power(&exterior, side);
+
+            let total =
+                power.reflectance()[()] + power.transmittance()[()] + power.absorptance()[()];
+
+            assert_relative_eq!(total, 1.0, epsilon = TOLERANCE, max_relative = TOLERANCE,);
+
+            assert_relative_eq!(
+                power.absorptance()[()],
+                0.0,
+                epsilon = TOLERANCE,
+                max_relative = TOLERANCE,
+            );
+        }
+    }
+
+    #[test]
+    fn outgoing_residual_matches_direct_boundary_condition() {
+        let entries = Transfer2Entries::new(jet(c(2.0)), jet(c(3.0)), jet(c(5.0)), jet(c(7.0)));
+
+        let left_slope = jet(C::new(0.0, -2.0));
+        let right_slope = jet(C::new(0.0, -3.0));
+
+        let residual = outgoing_residual(&entries, &left_slope, &right_slope);
+
+        let p = c(2.0) - c(3.0) * C::new(0.0, -3.0);
+
+        let q = c(5.0) - c(7.0) * C::new(0.0, -3.0);
+
+        let expected = C::new(0.0, -2.0) * p - q;
+
+        assert_close(residual[()], expected);
+    }
+
+    #[test]
+    fn determinant_projection_uses_both_exterior_admittances() {
+        let entries = Transfer2Entries::new(jet(c(1.0)), jet(c(0.2)), jet(c(0.3)), jet(c(1.1)));
+
+        let first = entries.project_determinant(&exterior_context(
+            1.0,
+            2.25,
+            Polarisation::TransverseElectric,
+        ));
+
+        let second = entries.project_determinant(&exterior_context(
+            1.0,
+            4.0,
+            Polarisation::TransverseElectric,
+        ));
+
+        assert_ne!(first.value(), second.value(),);
     }
 }

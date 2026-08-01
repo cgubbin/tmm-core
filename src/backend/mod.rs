@@ -17,6 +17,7 @@ mod waves;
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use scatter2::{Scatter2Entries, Scatter2ExteriorContext};
 pub(crate) use solution::{PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionView};
+pub use transfer2::{Transfer2, Transfer2Error};
 pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -40,7 +41,7 @@ where
 {
     type Entries: PlaneWaveEntries;
     type Workspace: SolutionWorkspace<Entries = Self::Entries>;
-    type Error;
+    type Error: std::fmt::Debug;
 
     fn solve<M>(
         &self,

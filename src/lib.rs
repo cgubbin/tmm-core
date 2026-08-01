@@ -49,7 +49,7 @@ pub use field::VectorField;
 pub use observable::{
     ConstitutiveFields, DirectedPower, DissipationDensity, ElectromagneticFields, EnergyDensity,
     FieldIndexError, InterfacePower, LayerDissipation, LayerPower, ModeResidual,
-    PlaneWaveAmplitudes, PlaneWavePower, StoredEnergy,
+    PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower, StoredEnergy,
 };
 pub use parameter::{FiniteLayerIndex, Parameter};
 pub use response::Response;
