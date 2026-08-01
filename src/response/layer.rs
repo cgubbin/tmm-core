@@ -2,7 +2,7 @@ use crate::{
     LayerDissipation, LayerPower, Response, SpatialProfile, SpatialProfileError, StoredEnergy,
     differential::DifferentialResponse,
     field::ScalarField,
-    input::PlaneWavePoint,
+    input::CoordinatePoint,
     response::{LayerLocation, LayerMetadata},
 };
 
@@ -23,7 +23,7 @@ pub type LayerDissipationResponse<R, ED, D> =
 /// Both observable values and requested derivatives are retained.
 pub struct LayerProfile<'a, F, D, R> {
     response: DifferentialResponse<F, D>,
-    excitation: PlaneWavePoint<R>,
+    excitation: CoordinatePoint<R>,
     layers: ArrayView1<'a, LayerLocation<R>>,
 }
 
@@ -40,7 +40,7 @@ impl<'a, F, D, R> LayerProfile<'a, F, D, R> {
         self.response.derivatives()
     }
 
-    pub fn excitation(&self) -> &PlaneWavePoint<R> {
+    pub fn excitation(&self) -> &CoordinatePoint<R> {
         &self.excitation
     }
 

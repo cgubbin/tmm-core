@@ -15,7 +15,7 @@ pub use field::{ConstitutiveFields, ElectromagneticFields, FieldIndexError};
 pub use interface_power::{DirectedPower, InterfacePower};
 pub use layer_power::LayerPower;
 pub use mode::ModeResidual;
-pub use plane_wave::{PlaneWaveAmplitudes, PlaneWaveObservables, PlaneWavePower};
+pub use plane_wave::{PlaneWaveAmplitudes, PlaneWavePower};
 
 pub(crate) use determinant::ProjectPlaneWaveModeDeterminant;
 pub(crate) use plane_wave::{ProjectAmplitudes, ProjectPower};

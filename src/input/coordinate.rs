@@ -50,22 +50,48 @@ pub enum InPlaneCoordinate {
     IncidentAngle(AngleUnit),
 }
 
+impl InPlaneCoordinate {
+    pub(crate) const fn reference_requirement(self) -> ReferenceRequirement {
+        match self {
+            Self::IncidentAngle(_) => ReferenceRequirement::IncidentSide,
+            _ => ReferenceRequirement::Intrinsic,
+        }
+    }
+}
+
 /// Coordinate system used for a plane-wave input.
 ///
 /// The two coordinates jointly describe each sampled plane-wave state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PlaneWaveCoordinates {
+pub struct Coordinates {
     /// Spectral coordinate supplied by the caller.
-    pub spectral: SpectralCoordinate,
+    spectral: SpectralCoordinate,
 
     /// In-plane coordinate supplied by the caller.
-    pub in_plane: InPlaneCoordinate,
+    in_plane: InPlaneCoordinate,
 }
 
-impl PlaneWaveCoordinates {
+pub(crate) enum ReferenceRequirement {
+    Intrinsic,
+    IncidentSide,
+}
+
+impl Coordinates {
     /// Construct a plane-wave coordinate system.
     pub const fn new(spectral: SpectralCoordinate, in_plane: InPlaneCoordinate) -> Self {
         Self { spectral, in_plane }
+    }
+
+    pub const fn in_plane(&self) -> InPlaneCoordinate {
+        self.in_plane
+    }
+
+    pub const fn spectral(&self) -> SpectralCoordinate {
+        self.spectral
+    }
+
+    pub(crate) const fn reference_requirement(self) -> ReferenceRequirement {
+        self.in_plane().reference_requirement()
     }
 }
 
@@ -79,7 +105,7 @@ mod tests {
 
         let in_plane = InPlaneCoordinate::IncidentAngle(AngleUnit::Degree);
 
-        let coordinates = PlaneWaveCoordinates::new(spectral, in_plane);
+        let coordinates = Coordinates::new(spectral, in_plane);
 
         assert_eq!(coordinates.spectral, spectral);
         assert_eq!(coordinates.in_plane, in_plane);

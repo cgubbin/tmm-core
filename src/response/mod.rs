@@ -190,22 +190,3 @@ pub use metadata::{
     LayerMetadata, StackRegion,
 };
 pub use response::Response;
-
-use crate::{
-    ConstitutiveFields, DissipationDensity, EnergyDensity, InterfacePower, LayerDissipation,
-    LayerPower, ModeResidual, PlaneWaveObservables, StoredEnergy, VectorField,
-    field::ScalarField,
-    input::{CanonicalSolverInput, PlaneWaveInput},
-};
-
-use nalgebra::ComplexField;
-use ndarray::{Array, Dimension};
-
-pub type PlaneWaveResponse<C, ED, Diff> = Response<
-    PlaneWaveObservables<Array<C, ED>, Array<<C as ComplexField>::RealField, ED>>,
-    Diff,
-    PlaneWaveInput<<C as ComplexField>::RealField, ED>,
->;
-
-pub type ModeResidualResponse<C, ED, D> =
-    Response<ModeResidual<Array<C, ED>>, CanonicalSolverInput<Array<C, ED>>, D>;

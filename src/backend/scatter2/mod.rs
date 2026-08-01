@@ -20,16 +20,16 @@ use std::marker::PhantomData;
 
 /// Scalar-channel isotropic 2×2 scattering backend.
 #[derive(Copy, Clone, Debug, Default)]
-pub struct Scatter2<J>(PhantomData<J>);
+pub struct Scatter2;
 
-impl<J> Scatter2<J> {
+impl Scatter2 {
     /// Construct a scattering backend.
     pub const fn new() -> Self {
-        Self(PhantomData)
+        Self
     }
 }
 
-impl<J, Domain> Backend<J, Domain> for Scatter2<J>
+impl<J, Domain> Backend<J, Domain> for Scatter2
 where
     J: ScalarAlgebra + Clone,
     J::Scalar: ComplexScalar,
@@ -49,7 +49,7 @@ where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         J: ConstitutiveLift<Domain, M>,
     {
-        let workspace = self.accumulate::<Domain, M>(
+        let workspace = self.accumulate::<J, Domain, M>(
             problem.coordinates(),
             problem.stack(),
             polarisation,
@@ -68,7 +68,7 @@ where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         J: ConstitutiveLift<Domain, M>,
     {
-        let workspace = self.accumulate::<Domain, M>(
+        let workspace = self.accumulate::<J, Domain, M>(
             problem.coordinates(),
             problem.stack(),
             polarisation,

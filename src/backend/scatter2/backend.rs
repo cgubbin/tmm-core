@@ -12,7 +12,7 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 use num_traits::{One, Zero};
 
-impl<J> Scatter2<J> {
+impl Scatter2 {
     /// Construct the complete scattering representation of a planar stack.
     ///
     /// Components are accumulated from left to right:
@@ -52,7 +52,7 @@ impl<J> Scatter2<J> {
     /// - only the accumulated scattering response, or
     /// - the accumulated response together with the component decomposition used
     ///   for field reconstruction.
-    pub(crate) fn accumulate<E, M>(
+    pub(crate) fn accumulate<J, E, M>(
         &self,
         coordinates: &CanonicalCoordinates<J>,
         stack: &CanonicalStack<M, J>,
@@ -1024,7 +1024,7 @@ mod accumulate_tests {
         let stack = empty_stack();
 
         let workspace = backend
-            .accumulate::<RealAxis, _>(
+            .accumulate::<_, RealAxis, _>(
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
@@ -1045,7 +1045,7 @@ mod accumulate_tests {
         let stack = empty_stack();
 
         let workspace = backend
-            .accumulate::<RealAxis, _>(
+            .accumulate::<_, RealAxis, _>(
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
@@ -1069,7 +1069,7 @@ mod accumulate_tests {
         let stack = single_layer_stack();
 
         let workspace = backend
-            .accumulate::<RealAxis, _>(
+            .accumulate::<_, RealAxis, _>(
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
@@ -1102,7 +1102,7 @@ mod accumulate_tests {
         let stack = two_layer_stack();
 
         let workspace = backend
-            .accumulate::<RealAxis, _>(
+            .accumulate::<_, RealAxis, _>(
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
@@ -1135,7 +1135,7 @@ mod accumulate_tests {
             let stack = stack_with_layers(layer_count);
 
             let workspace = backend
-                .accumulate::<RealAxis, _>(
+                .accumulate::<_, RealAxis, _>(
                     &coordinates,
                     &stack,
                     Polarisation::TransverseElectric,

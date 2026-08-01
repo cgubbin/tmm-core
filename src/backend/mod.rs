@@ -1,5 +1,5 @@
 use crate::{
-    ComplexScalar, PlaneWaveObservables, Polarisation, RealAxis,
+    ComplexScalar, Polarisation, RealAxis,
     algebra::Jet,
     input::{CanonicalBackendInput, CanonicalProblem, CanonicalSolverInput},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
@@ -20,7 +20,7 @@ pub(crate) use solution::{PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolution
 pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum RunMode {
+pub(crate) enum RunMode {
     ResponseOnly,
     InternalFields,
 }
@@ -68,4 +68,12 @@ pub trait PlaneWaveSolutionSource {
 
 pub trait SolutionWorkspace: PlaneWaveSolutionSource {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries>;
+}
+
+impl<E: PlaneWaveEntries> PlaneWaveSolutionSource for PlaneWaveSolution<E> {
+    type Entries = E;
+
+    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
+        self.as_view()
+    }
 }

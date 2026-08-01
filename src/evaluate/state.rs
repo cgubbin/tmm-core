@@ -2,7 +2,7 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
-    IncidentSide, PlaneWaveObservables,
+    IncidentSide,
     algebra::{ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet, Jet},
     backend::{PlaneWaveSolutionSource, PlaneWaveSolutionView},
     derivative_parts::{DerivativePartsPolicy, IntoDerivativeParts},
@@ -12,6 +12,11 @@ use crate::{
     },
     input::{CanonicalProblem, CompilationContext, JetMapping},
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+};
+
+use super::query::{
+    DifferentialResponseFor, PlaneWaveExternalQueries, PlaneWaveQuery, RawAmplitudes,
+    RawModeDeterminant, RawPower,
 };
 
 /// A completed plane-wave evaluation.
@@ -28,7 +33,7 @@ use crate::{
 /// finally assemble a caller-facing
 /// [`DifferentialResponse`](crate::differential::DifferentialResponse).
 #[derive(Clone, Debug)]
-pub struct PlaneWaveState<M, J, I, R>
+pub struct PlaneWaveState<J, I, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
@@ -36,11 +41,11 @@ where
     I: ComplexField,
 {
     problem: CanonicalProblem<M, J>,
-    result: R,
+    workspace: W,
     context: CompilationContext<I, J::Dimension, J::Mapping>,
 }
 
-impl<M, J, I, R> PlaneWaveState<M, J, I, R>
+impl<J, I, M, W> PlaneWaveState<J, I, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
@@ -49,12 +54,12 @@ where
 {
     pub(crate) fn new(
         problem: CanonicalProblem<M, J>,
-        result: R,
+        workspace: W,
         context: CompilationContext<I, J::Dimension, J::Mapping>,
     ) -> Self {
         Self {
             problem,
-            result,
+            workspace,
             context,
         }
     }
@@ -64,16 +69,16 @@ where
         &self.problem
     }
 
-    /// Return the computed result
-    pub fn result(&self) -> &R {
-        &self.result
+    /// Return the computed workspace
+    pub fn workspace(&self) -> &W {
+        &self.workspace
     }
 
-    pub fn solution(&self) -> PlaneWaveSolutionView<'_, R::Entries>
+    pub fn solution(&self) -> PlaneWaveSolutionView<'_, W::Entries>
     where
-        R: PlaneWaveSolutionSource,
+        W: PlaneWaveSolutionSource,
     {
-        self.result.solution()
+        self.workspace.solution()
     }
 
     /// Return the retained compilation metadata.
@@ -86,116 +91,74 @@ where
         self,
     ) -> (
         CanonicalProblem<M, J>,
-        R,
+        W,
         CompilationContext<I, J::Dimension, J::Mapping>,
     ) {
-        (self.problem, self.result, self.context)
+        (self.problem, self.workspace, self.context)
     }
 
     /// Transform the retained workspace while preserving the canonical
     /// problem and compilation context.
-    pub fn map_result<R2>(self, map: impl FnOnce(R) -> R2) -> PlaneWaveState<M, J, I, R2> {
+    pub fn map_result<W2>(self, map: impl FnOnce(W) -> W2) -> PlaneWaveState<J, I, M, W2> {
         PlaneWaveState {
             problem: self.problem,
-            result: map(self.result),
+            workspace: map(self.workspace),
             context: self.context,
         }
     }
-
-    fn assemble<T>(&self, value: T) -> DifferentialResponseFor<J, T>
-    where
-        T: IntoDifferentialResponse<J::Policy, J::Mapping>,
-        J::Policy: DerivativePartsPolicy<T>,
-    {
-        value.into_differential_response(&J::Policy::default(), self.context.mapping())
-    }
 }
 
-impl<M, J, R> PlaneWaveState<M, J, <J::Scalar as ComplexField>::RealField, R>
+impl<J, M, W> PlaneWaveState<J, <J::Scalar as ComplexField>::RealField, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
+    J::Policy: Default,
     <J::Scalar as ComplexField>::RealField: ComplexField,
+    W: PlaneWaveSolutionSource,
 {
-    fn raw_amplitudes(
-        &self,
-        incident_side: IncidentSide,
-    ) -> <R::Entries as ProjectAmplitudes>::Amplitudes
-    where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectAmplitudes,
-    {
-        self.solution().amplitudes(incident_side)
-    }
-
-    fn raw_power(&self, incident_side: IncidentSide) -> <R::Entries as ProjectPower>::Power
-    where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectPower,
-    {
-        self.solution().power(incident_side)
-    }
-
     pub fn amplitudes(
         &self,
         incident_side: IncidentSide,
-    ) -> DifferentialResponseFor<J, RawAmplitudes<R>>
+    ) -> DifferentialResponseFor<J, RawAmplitudes<Self, J>>
     where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectAmplitudes,
-        J::Policy: DerivativePartsPolicy<RawAmplitudes<R>>,
-        RawAmplitudes<R>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W::Entries: ProjectAmplitudes,
+        J::Policy: DerivativePartsPolicy<RawAmplitudes<Self, J>>,
+        RawAmplitudes<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         self.raw_amplitudes(incident_side)
-            .into_differential_response(&J::Policy::default(), self.context.mapping())
+            .into_differential_response(&J::Policy::default(), self.mapping())
     }
 
-    pub fn power(&self, incident_side: IncidentSide) -> DifferentialResponseFor<J, RawPower<R>>
+    pub fn power(
+        &self,
+        incident_side: IncidentSide,
+    ) -> DifferentialResponseFor<J, RawPower<Self, J>>
     where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectPower,
-        J::Policy: DerivativePartsPolicy<RawPower<R>>,
-        RawPower<R>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W::Entries: ProjectPower,
+        J::Policy: DerivativePartsPolicy<RawPower<Self, J>>,
+        RawPower<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         self.raw_power(incident_side)
-            .into_differential_response(&J::Policy::default(), self.context.mapping())
+            .into_differential_response(&J::Policy::default(), self.mapping())
     }
 }
 
-impl<M, J, R> PlaneWaveState<M, J, J::Scalar, R>
+impl<J, M, W> PlaneWaveState<J, J::Scalar, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
+    J::Policy: Default,
+    W: PlaneWaveSolutionSource,
 {
-    fn raw_determinant(&self) -> <R::Entries as ProjectPlaneWaveModeDeterminant>::Determinant
+    pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<Self, J>>
     where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectPlaneWaveModeDeterminant,
-    {
-        self.solution().determinant()
-    }
-
-    pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<R>>
-    where
-        R: PlaneWaveSolutionSource,
-        R::Entries: ProjectPlaneWaveModeDeterminant,
-        J::Policy: DerivativePartsPolicy<RawModeDeterminant<R>>,
-        RawModeDeterminant<R>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W::Entries: ProjectPlaneWaveModeDeterminant,
+        J::Policy: DerivativePartsPolicy<RawModeDeterminant<Self, J>>,
+        RawModeDeterminant<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         self.raw_determinant()
-            .into_differential_response(&J::Policy::default(), self.context.mapping())
+            .into_differential_response(&J::Policy::default(), self.mapping())
     }
 }
-
-type EntriesOf<R> = <R as PlaneWaveSolutionSource>::Entries;
-
-type RawAmplitudes<R> = <EntriesOf<R> as ProjectAmplitudes>::Amplitudes;
-
-type RawPower<R> = <EntriesOf<R> as ProjectPower>::Power;
-
-type RawModeDeterminant<R> = <EntriesOf<R> as ProjectPlaneWaveModeDeterminant>::Determinant;
-
-type DifferentialResponseFor<J, T> =
-    <T as IntoDifferentialResponse<<J as JetMapping>::Policy, <J as JetMapping>::Mapping>>::Output;

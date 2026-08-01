@@ -1,6 +1,6 @@
 use ndarray::{Array1, Dimension};
 
-use crate::input::PlaneWaveInput;
+use crate::input::CoordinateInput;
 
 /// Index of a finite layer in a planar stack.
 ///
@@ -79,7 +79,7 @@ pub struct LayerMetadata<R, D>
 where
     D: Dimension,
 {
-    input: PlaneWaveInput<R, D>,
+    input: CoordinateInput<R, D>,
     layers: Array1<LayerLocation<R>>,
 }
 
@@ -87,12 +87,12 @@ impl<R, D> LayerMetadata<R, D>
 where
     D: Dimension,
 {
-    pub(crate) fn new(input: PlaneWaveInput<R, D>, layers: Array1<LayerLocation<R>>) -> Self {
+    pub(crate) fn new(input: CoordinateInput<R, D>, layers: Array1<LayerLocation<R>>) -> Self {
         Self { input, layers }
     }
 
     /// Return the canonical external-excitation input.
-    pub fn input(&self) -> &PlaneWaveInput<R, D> {
+    pub fn input(&self) -> &CoordinateInput<R, D> {
         &self.input
     }
 
@@ -114,7 +114,7 @@ where
     }
 
     /// Consume the metadata and return its components.
-    pub fn into_parts(self) -> (PlaneWaveInput<R, D>, Array1<LayerLocation<R>>) {
+    pub fn into_parts(self) -> (CoordinateInput<R, D>, Array1<LayerLocation<R>>) {
         (self.input, self.layers)
     }
 }

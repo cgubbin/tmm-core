@@ -42,11 +42,9 @@ use crate::{
     ComplexScalar, IncidentSide, Material, RealAxis, Stack,
     algebra::ScalarAlgebra,
     input::{
-        CanonicalCoordinates, CompileJet, InPlaneCoordinate, PlaneWaveCoordinates,
+        CanonicalCoordinates, CompileJet, CoordinateReference, Coordinates, InPlaneCoordinate,
         SpectralCoordinate,
-        compile::{
-            CoordinateReference, ProjectionConstraint, context::CoordinateContext, seed::SeedJet,
-        },
+        compile::{ProjectionConstraint, context::CoordinateContext, seed::SeedJet},
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     parameter::{DerivativeMapping, Parameter},
@@ -63,7 +61,7 @@ use spectral::{canonicalise_spectral, validate_spectral};
 /// respect to vacuum or parallel angular wavenumber.
 ///
 /// The precise physical meaning and units of each variable are supplied by
-/// [`PlaneWaveCoordinates`](crate::input::PlaneWaveCoordinates).
+/// [`Coordinates`](crate::input::Coordinates).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CoordinateVariable {
     /// The caller-facing spectral coordinate.
@@ -128,7 +126,7 @@ impl<J> CompiledCoordinateProblem<J> {
 }
 
 pub(crate) fn compile_coordinates<M, J, E>(
-    metadata: PlaneWaveCoordinates,
+    metadata: Coordinates,
     spectral_values: &Array<J::Scalar, J::Dimension>,
     in_plane_values: &Array<J::Scalar, J::Dimension>,
     reference: CoordinateReference,
@@ -146,11 +144,11 @@ where
 
     let spectral = compile_spectral(
         spectral_values,
-        metadata.spectral,
+        metadata.spectral(),
         assignment.spectral_slot(),
     )?;
 
-    let (incident_index, projection_constraint) = match (metadata.in_plane, reference) {
+    let (incident_index, projection_constraint) = match (metadata.in_plane(), reference) {
         (InPlaneCoordinate::IncidentAngle(_), CoordinateReference::Intrinsic) => {
             return Err(CoordinateCompileError::MissingIncidentSide);
         }
@@ -169,7 +167,7 @@ where
 
     let parallel_angular_wavenumber = compile_in_plane(
         in_plane_values,
-        metadata.in_plane,
+        metadata.in_plane(),
         spectral.vacuum_angular_wavenumber(),
         incident_index.as_ref(),
         assignment.in_plane_slot(),
@@ -654,22 +652,22 @@ mod full_coordinate_compilation_tests {
     // Replace this with the crate's zero-derivative jet.
     type TestJet = crate::algebra::Jet0<Array<C, D>>;
 
-    fn intrinsic_metadata() -> PlaneWaveCoordinates {
-        PlaneWaveCoordinates::new(
+    fn intrinsic_metadata() -> Coordinates {
+        Coordinates::new(
             SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
             InPlaneCoordinate::ParallelAngularWavenumber(InverseLengthUnit::PerCentimetre),
         )
     }
 
-    fn effective_index_metadata() -> PlaneWaveCoordinates {
-        PlaneWaveCoordinates::new(
+    fn effective_index_metadata() -> Coordinates {
+        Coordinates::new(
             SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
             InPlaneCoordinate::EffectiveIndex,
         )
     }
 
-    fn angle_metadata() -> PlaneWaveCoordinates {
-        PlaneWaveCoordinates::new(
+    fn angle_metadata() -> Coordinates {
+        Coordinates::new(
             SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
             InPlaneCoordinate::IncidentAngle(AngleUnit::Radian),
         )

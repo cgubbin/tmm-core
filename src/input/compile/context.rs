@@ -13,7 +13,7 @@ use ndarray::{Array, Dimension};
 
 use crate::{
     IncidentSide, Polarisation,
-    input::{PlaneWaveCoordinates, plane_wave::PlaneWaveCoordinateValues},
+    input::{Coordinates, coordinate_input::CoordinateValues},
     stack::Thickness,
 };
 
@@ -158,8 +158,8 @@ pub struct CoordinateContext<R, D>
 where
     D: Dimension,
 {
-    coordinates: PlaneWaveCoordinates,
-    values: PlaneWaveCoordinateValues<R, D>,
+    coordinates: Coordinates,
+    values: CoordinateValues<R, D>,
 }
 
 impl<R, D> CoordinateContext<R, D>
@@ -167,10 +167,7 @@ where
     D: Dimension,
 {
     /// Construct caller-facing coordinate context.
-    pub(crate) fn new(
-        coordinates: PlaneWaveCoordinates,
-        values: PlaneWaveCoordinateValues<R, D>,
-    ) -> Self {
+    pub(crate) fn new(coordinates: Coordinates, values: CoordinateValues<R, D>) -> Self {
         Self {
             coordinates,
             values,
@@ -178,12 +175,12 @@ where
     }
 
     /// Return the coordinate parameterisations supplied by the caller.
-    pub fn values(&self) -> &PlaneWaveCoordinateValues<R, D> {
+    pub fn values(&self) -> &CoordinateValues<R, D> {
         &self.values
     }
 
     /// Return the coordinate parameterisations supplied by the caller.
-    pub fn coordinates(&self) -> PlaneWaveCoordinates {
+    pub fn coordinates(&self) -> Coordinates {
         self.coordinates
     }
 
@@ -198,7 +195,7 @@ where
     }
 
     /// Consume the context and return its caller-facing components.
-    pub fn into_parts(self) -> (PlaneWaveCoordinates, Array<R, D>, Array<R, D>) {
+    pub fn into_parts(self) -> (Coordinates, Array<R, D>, Array<R, D>) {
         let (spectral_values, in_plane_values) = self.values.into_parts();
 
         (self.coordinates, spectral_values, in_plane_values)
@@ -248,12 +245,12 @@ where
 //         let spectral = arr1(&[1000.0, 1100.0]);
 //         let in_plane = arr1(&[0.1, 0.2]);
 
-//         let coordinates = PlaneWaveCoordinates::new(
+//         let coordinates = Coordinates::new(
 //             SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
 //             InPlaneCoordinate::EffectiveIndex,
 //         );
 
-//         let values = PlaneWaveCoordinateValues::new(spectral.clone(), in_plane.clone());
+//         let values = CoordinateValues::new(spectral.clone(), in_plane.clone());
 
 //         let context = CoordinateContext::new(coordinates, values, Polarisation::TransverseMagnetic);
 
@@ -274,11 +271,11 @@ where
 //     #[test]
 //     fn compilation_context_preserves_all_components() {
 //         let coordinate_context = CoordinateContext::new(
-//             PlaneWaveCoordinates::new(
+//             Coordinates::new(
 //                 SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
 //                 InPlaneCoordinate::ParallelWavenumber(InverseLengthUnit::PerMetre),
 //             ),
-//             PlaneWaveCoordinateValues::new(arr1(&[1000.0]), arr1(&[100.0])),
+//             CoordinateValues::new(arr1(&[1000.0]), arr1(&[100.0])),
 //             Polarisation::TransverseElectric,
 //         );
 

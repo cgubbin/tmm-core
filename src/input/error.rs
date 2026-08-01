@@ -10,6 +10,12 @@ pub enum PlaneWaveInputError {
 
     #[error("in-plane input contains a non-finite value at index {index:?}")]
     NonFiniteInPlaneValue { index: Vec<usize> },
+
+    #[error("incident-angle coordinates require an incident-side reference")]
+    IncidentReferenceRequired,
+
+    #[error("an incident-side reference is only valid for incident-angle coordinates")]
+    UnexpectedIncidentReference,
 }
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]

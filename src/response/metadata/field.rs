@@ -1,6 +1,6 @@
 use ndarray::{Array1, Dimension};
 
-use crate::input::PlaneWaveInput;
+use crate::input::CoordinateInput;
 
 use super::LayerIndex;
 
@@ -39,7 +39,7 @@ pub struct FieldMetadata<R, ED>
 where
     ED: Dimension,
 {
-    input: PlaneWaveInput<R, ED>,
+    input: CoordinateInput<R, ED>,
     positions_cm: Array1<R>,
     regions: Array1<StackRegion>,
 }
@@ -49,7 +49,7 @@ where
     ED: Dimension,
 {
     pub(crate) fn new(
-        input: PlaneWaveInput<R, ED>,
+        input: CoordinateInput<R, ED>,
         positions_cm: Array1<R>,
         regions: Array1<StackRegion>,
     ) -> Self {
@@ -63,7 +63,7 @@ where
     }
 
     /// Return the canonical external-excitation input.
-    pub fn input(&self) -> &PlaneWaveInput<R, ED> {
+    pub fn input(&self) -> &CoordinateInput<R, ED> {
         &self.input
     }
 
@@ -78,7 +78,7 @@ where
     }
 
     /// Consume the metadata and return its components.
-    pub fn into_parts(self) -> (PlaneWaveInput<R, ED>, Array1<R>, Array1<StackRegion>) {
+    pub fn into_parts(self) -> (CoordinateInput<R, ED>, Array1<R>, Array1<StackRegion>) {
         (self.input, self.positions_cm, self.regions)
     }
 }

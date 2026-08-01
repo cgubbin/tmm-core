@@ -25,7 +25,9 @@ mod test_support;
 
 pub(crate) use domain::{ComplexPlane, RealAxis};
 pub use error::TmmError;
-pub use input::{IncidentSide, Polarisation};
+pub use input::{
+    CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
+};
 // pub use backend::{
 //     ArrayJet, ArrayJet1, DerivativeVariable, IncidentSide, OutgoingModeResidualBackend,
 //     PlanarInput, PlaneWaveAmplitudeDifferential, PlaneWaveAmplitudes, PlaneWaveBackend,
@@ -36,6 +38,7 @@ pub use input::{IncidentSide, Polarisation};
 
 // pub use backend::scatter2::Scatter2;
 // // pub use backend::transfer2::Transfer2;
+pub use evaluate::PlaneWaveEvaluator;
 pub use material::{
     Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
@@ -46,8 +49,9 @@ pub use field::VectorField;
 pub use observable::{
     ConstitutiveFields, DirectedPower, DissipationDensity, ElectromagneticFields, EnergyDensity,
     FieldIndexError, InterfacePower, LayerDissipation, LayerPower, ModeResidual,
-    PlaneWaveAmplitudes, PlaneWaveObservables, PlaneWavePower, StoredEnergy,
+    PlaneWaveAmplitudes, PlaneWavePower, StoredEnergy,
 };
+pub use parameter::{FiniteLayerIndex, Parameter};
 pub use response::Response;
 pub use scalar::ComplexScalar;
 

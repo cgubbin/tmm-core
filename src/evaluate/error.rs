@@ -4,7 +4,7 @@ use crate::parameter::{DerivativeMappingError, ThicknessSeedError};
 
 /// An invalid high-level evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum RequestError {
+pub enum SolveRequestError {
     #[error(transparent)]
     ThicknessSeed(#[from] ThicknessSeedError),
 
@@ -19,7 +19,7 @@ pub enum RequestError {
 #[derive(Debug, Error)]
 pub enum PlaneWaveEvaluationError<C, B> {
     #[error(transparent)]
-    Request(#[from] RequestError),
+    Request(#[from] SolveRequestError),
 
     #[error("failed to compile the plane-wave problem")]
     Compile {

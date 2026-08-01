@@ -1,10 +1,10 @@
 use crate::{
     ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, FieldIndexError,
-    InterfacePower, LayerDissipation, LayerPower, ModeResidual, PlaneWaveObservables,
-    SpatialProfile, SpatialProfileError, StoredEnergy, VectorField,
+    InterfacePower, LayerDissipation, LayerPower, ModeResidual, SpatialProfile,
+    SpatialProfileError, StoredEnergy, VectorField,
     differential::{DifferentialResponse, NoDerivatives},
     field::{ScalarField, ScalarFieldView1, VectorFieldView1},
-    input::{IncidentSide, PlaneWavePoint},
+    input::{CoordinatePoint, IncidentSide},
     response::StackRegion,
 };
 
@@ -19,7 +19,7 @@ use ndarray::{ArrayView1, Dimension, IntoDimension};
 /// Both observable values and requested derivatives are retained.
 pub struct FieldProfile<'a, F, D, R> {
     response: DifferentialResponse<F, D>,
-    excitation: PlaneWavePoint<R>,
+    excitation: CoordinatePoint<R>,
     positions_cm: ArrayView1<'a, R>,
     regions: ArrayView1<'a, StackRegion>,
 }
@@ -37,7 +37,7 @@ impl<'a, F, D, R> FieldProfile<'a, F, D, R> {
         self.response.derivatives()
     }
 
-    pub fn excitation(&self) -> &PlaneWavePoint<R> {
+    pub fn excitation(&self) -> &CoordinatePoint<R> {
         &self.excitation
     }
 

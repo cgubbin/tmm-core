@@ -32,32 +32,12 @@
 //! only reorganise derivative components already present in the observable
 //! leaves.
 
-use crate::{
-    PlaneWaveAmplitudes, PlaneWavePower, algebra::ComplexJet, observable::PlaneWaveObservables,
-};
+use crate::{PlaneWaveAmplitudes, PlaneWavePower, algebra::ComplexJet};
 
 use super::super::{
     BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
     IntoBivariateFirst, IntoBivariateSecond, IntoFirst, IntoSecond, IntoValue, ValuePart,
 };
-
-/// Extract the value components of a complete plane-wave observable set.
-impl<J> IntoValue for PlaneWaveObservables<J, J::RealJet>
-where
-    J: ComplexJet + IntoValue,
-    J::RealJet: IntoValue,
-{
-    type Value = PlaneWaveObservables<J::Value, <J::RealJet as IntoValue>::Value>;
-
-    fn into_value(self) -> ValuePart<Self::Value> {
-        let (amplitudes, power) = self.into_parts();
-
-        ValuePart::new(PlaneWaveObservables::new(
-            amplitudes.into_value().into_inner(),
-            power.into_value().into_inner(),
-        ))
-    }
-}
 
 /// Extract the value components of reflection and transmission amplitudes.
 impl<J> IntoValue for PlaneWaveAmplitudes<J>
@@ -91,27 +71,6 @@ where
             transmittance.into_value().into_inner(),
             absorptance.into_value().into_inner(),
         ))
-    }
-}
-
-/// Separate complete plane-wave observables into values and first directional
-/// derivatives.
-impl<J> IntoFirst for PlaneWaveObservables<J, J::RealJet>
-where
-    J: ComplexJet + IntoFirst,
-    J::RealJet: IntoFirst,
-{
-    fn into_first(self) -> DirectionalFirstParts<Self::Value> {
-        let (amplitudes, power) = self.into_parts();
-
-        let (amplitudes, amplitudes_first) = amplitudes.into_first().into_parts();
-
-        let (power, power_first) = power.into_first().into_parts();
-
-        DirectionalFirstParts::new(
-            PlaneWaveObservables::new(amplitudes, power),
-            PlaneWaveObservables::new(amplitudes_first, power_first),
-        )
     }
 }
 
@@ -151,29 +110,6 @@ where
         DirectionalFirstParts::new(
             PlaneWavePower::new(reflectance, transmittance, absorptance),
             PlaneWavePower::new(reflectance_first, transmittance_first, absorptance_first),
-        )
-    }
-}
-
-/// Separate complete plane-wave observables into values and directional
-/// derivatives through second order.
-impl<J> IntoSecond for PlaneWaveObservables<J, J::RealJet>
-where
-    J: ComplexJet + IntoSecond,
-    J::RealJet: IntoSecond,
-{
-    fn into_second(self) -> DirectionalSecondParts<Self::Value> {
-        let (amplitudes, power) = self.into_parts();
-
-        let (amplitudes, amplitudes_first, amplitudes_second) =
-            amplitudes.into_second().into_parts();
-
-        let (power, power_first, power_second) = power.into_second().into_parts();
-
-        DirectionalSecondParts::new(
-            PlaneWaveObservables::new(amplitudes, power),
-            PlaneWaveObservables::new(amplitudes_first, power_first),
-            PlaneWaveObservables::new(amplitudes_second, power_second),
         )
     }
 }
@@ -227,29 +163,6 @@ where
     }
 }
 
-/// Separate complete plane-wave observables into values and first derivatives
-/// with respect to two coordinates.
-impl<J> IntoBivariateFirst for PlaneWaveObservables<J, J::RealJet>
-where
-    J: ComplexJet + IntoBivariateFirst,
-    J::RealJet: IntoBivariateFirst,
-{
-    fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value> {
-        let (amplitudes, power) = self.into_parts();
-
-        let (amplitudes, amplitudes_x, amplitudes_y) =
-            amplitudes.into_bivariate_first().into_parts();
-
-        let (power, power_x, power_y) = power.into_bivariate_first().into_parts();
-
-        BivariateFirstParts::new(
-            PlaneWaveObservables::new(amplitudes, power),
-            PlaneWaveObservables::new(amplitudes_x, power_x),
-            PlaneWaveObservables::new(amplitudes_y, power_y),
-        )
-    }
-}
-
 /// Separate amplitudes into values and first derivatives with respect to two
 /// coordinates.
 impl<J> IntoBivariateFirst for PlaneWaveAmplitudes<J>
@@ -295,39 +208,6 @@ where
             PlaneWavePower::new(reflectance, transmittance, absorptance),
             PlaneWavePower::new(reflectance_x, transmittance_x, absorptance_x),
             PlaneWavePower::new(reflectance_y, transmittance_y, absorptance_y),
-        )
-    }
-}
-
-/// Separate complete plane-wave observables into values, a bivariate gradient,
-/// and a symmetric bivariate Hessian.
-impl<J> IntoBivariateSecond for PlaneWaveObservables<J, J::RealJet>
-where
-    J: ComplexJet + IntoBivariateSecond,
-    J::RealJet: IntoBivariateSecond,
-{
-    fn into_bivariate_second(self) -> BivariateSecondParts<Self::Value> {
-        let (amplitudes, power) = self.into_parts();
-
-        let (
-            amplitudes,
-            amplitudes_x,
-            amplitudes_y,
-            amplitudes_x_x,
-            amplitudes_x_y,
-            amplitudes_y_y,
-        ) = amplitudes.into_bivariate_second().into_parts();
-
-        let (power, power_x, power_y, power_x_x, power_x_y, power_y_y) =
-            power.into_bivariate_second().into_parts();
-
-        BivariateSecondParts::new(
-            PlaneWaveObservables::new(amplitudes, power),
-            PlaneWaveObservables::new(amplitudes_x, power_x),
-            PlaneWaveObservables::new(amplitudes_y, power_y),
-            PlaneWaveObservables::new(amplitudes_x_x, power_x_x),
-            PlaneWaveObservables::new(amplitudes_x_y, power_x_y),
-            PlaneWaveObservables::new(amplitudes_y_y, power_y_y),
         )
     }
 }
@@ -610,62 +490,5 @@ mod tests {
 
     fn c(real: f64, imag: f64) -> Complex64 {
         Complex64::new(real, imag)
-    }
-
-    #[test]
-    fn complete_observables_transpose_directional_second_jets() {
-        let reflection = Jet2::from_parts(arr0(c(2.0, 0.5)), arr0(c(1.0, 0.1)), arr0(c(5.0, 0.25)));
-        let transmission =
-            Jet2::from_parts(arr0(c(20.0, 5.0)), arr0(c(1.5, 0.2)), arr0(c(-5.0, -0.25)));
-
-        let reflectance: Jet2<_, RealParameter> = Jet2::from_parts(arr0(2.0), arr0(1.0), arr0(5.0));
-        let transmittance = Jet2::from_parts(arr0(3.0), arr0(4.0), arr0(6.0));
-        let absorptance = Jet2::from_parts(arr0(7.0), arr0(8.0), arr0(9.0));
-        // Construct actual complex and real ArrayJet1 leaves here.
-        let observables = PlaneWaveObservables::new(
-            PlaneWaveAmplitudes::new(reflection.clone(), transmission.clone()),
-            PlaneWavePower::new(
-                reflectance.clone(),
-                transmittance.clone(),
-                absorptance.clone(),
-            ),
-        );
-
-        let (values, first) = observables.clone().into_first().into_parts();
-
-        assert_eq!(values.reflection()[()], reflection.value()[()]);
-        assert_eq!(values.transmission()[()], transmission.value()[()]);
-        assert_eq!(values.reflectance()[()], reflectance.value()[()]);
-        assert_eq!(values.transmittance()[()], transmittance.value()[()]);
-        assert_eq!(values.absorptance()[()], absorptance.value()[()]);
-
-        assert_eq!(first.reflection()[()], reflection.first()[()]);
-        assert_eq!(first.transmission()[()], transmission.first()[()]);
-        assert_eq!(first.reflectance()[()], reflectance.first()[()]);
-        assert_eq!(first.transmittance()[()], transmittance.first()[()]);
-        assert_eq!(first.absorptance()[()], absorptance.first()[()]);
-
-        let (values, first, second) = observables.into_second().into_parts();
-
-        assert_eq!(values.reflection()[()], reflection.value()[()]);
-        assert_eq!(values.transmission()[()], transmission.value()[()]);
-        assert_eq!(values.reflectance()[()], reflectance.value()[()]);
-        assert_eq!(values.transmittance()[()], transmittance.value()[()]);
-        assert_eq!(values.absorptance()[()], absorptance.value()[()]);
-
-        assert_eq!(first.reflection()[()], reflection.first()[()]);
-        assert_eq!(first.transmission()[()], transmission.first()[()]);
-        assert_eq!(first.reflectance()[()], reflectance.first()[()]);
-        assert_eq!(first.transmittance()[()], transmittance.first()[()]);
-        assert_eq!(first.absorptance()[()], absorptance.first()[()]);
-
-        assert_eq!(second.reflection()[()], reflection.second()[()]);
-        assert_eq!(second.transmission()[()], transmission.second()[()]);
-        assert_eq!(second.reflectance()[()], reflectance.second()[()]);
-        assert_eq!(second.transmittance()[()], transmittance.second()[()]);
-        assert_eq!(second.absorptance()[()], absorptance.second()[()]);
-
-        // Assert at least one amplitude and every power field, ensuring the
-        // outer observable structure was also transposed.
     }
 }

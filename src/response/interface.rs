@@ -3,7 +3,7 @@ use crate::{
     StoredEnergy,
     differential::DifferentialResponse,
     field::ScalarField,
-    input::PlaneWavePoint,
+    input::CoordinatePoint,
     response::{InterfaceLocation, InterfaceMetadata, LayerLocation, LayerMetadata},
 };
 
@@ -21,7 +21,7 @@ pub type InterfacePowerResponse<R, ED, D> = Response<
 /// Both observable values and requested derivatives are retained
 pub struct InterfaceProfile<'a, F, D, R> {
     response: DifferentialResponse<F, D>,
-    excitation: PlaneWavePoint<R>,
+    excitation: CoordinatePoint<R>,
     interfaces: ArrayView1<'a, InterfaceLocation<R>>,
 }
 
@@ -38,7 +38,7 @@ impl<'a, F, D, R> InterfaceProfile<'a, F, D, R> {
         self.response.derivatives()
     }
 
-    pub fn excitation(&self) -> &PlaneWavePoint<R> {
+    pub fn excitation(&self) -> &CoordinatePoint<R> {
         &self.excitation
     }
 

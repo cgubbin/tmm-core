@@ -1,6 +1,6 @@
 use ndarray::{Array1, Dimension};
 
-use crate::input::PlaneWaveInput;
+use crate::input::CoordinateInput;
 
 /// Index of an interface in a planar stack.
 ///
@@ -71,7 +71,7 @@ pub struct InterfaceMetadata<R, D>
 where
     D: Dimension,
 {
-    input: PlaneWaveInput<R, D>,
+    input: CoordinateInput<R, D>,
     interfaces: Array1<InterfaceLocation<R>>,
 }
 
@@ -80,14 +80,14 @@ where
     D: Dimension,
 {
     pub(crate) fn new(
-        input: PlaneWaveInput<R, D>,
+        input: CoordinateInput<R, D>,
         interfaces: Array1<InterfaceLocation<R>>,
     ) -> Self {
         Self { input, interfaces }
     }
 
     /// Return the canonical external-excitation input.
-    pub fn input(&self) -> &PlaneWaveInput<R, D> {
+    pub fn input(&self) -> &CoordinateInput<R, D> {
         &self.input
     }
 
@@ -109,7 +109,7 @@ where
     }
 
     /// Consume the metadata and return its components.
-    pub fn into_parts(self) -> (PlaneWaveInput<R, D>, Array1<InterfaceLocation<R>>) {
+    pub fn into_parts(self) -> (CoordinateInput<R, D>, Array1<InterfaceLocation<R>>) {
         (self.input, self.interfaces)
     }
 }

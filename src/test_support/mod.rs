@@ -4,6 +4,7 @@ pub(crate) mod expected;
 pub(crate) mod finite_difference;
 pub(crate) mod jet;
 pub(crate) mod materials;
+pub(crate) mod planar;
 pub(crate) mod stack;
 
 use num_complex::Complex64;

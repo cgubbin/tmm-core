@@ -283,32 +283,9 @@ impl<A> Transfer2Workspace<A> {
     {
         Self {
             solution: PlaneWaveSolution::new(Transfer2Entries::identity_like(source), context),
-            retained: None,
-        }
-    }
-
-    /// Construct a workspace that retains every finite layer for subsequent
-    /// field reconstruction.
-    pub(crate) fn retaining_layers(
-        entries: Transfer2Entries<A>,
-        context: Transfer2ExteriorContext<A>,
-    ) -> Self {
-        Self {
-            solution: PlaneWaveSolution::new(entries, context),
-            retained: Some(RetainedTransferLayers::new()),
-        }
-    }
-
-    /// Construct a retaining workspace with storage reserved for `capacity`
-    /// finite layers.
-    pub(crate) fn retaining_layers_with_capacity(
-        entries: Transfer2Entries<A>,
-        context: Transfer2ExteriorContext<A>,
-        capacity: usize,
-    ) -> Self {
-        Self {
-            solution: PlaneWaveSolution::new(entries, context),
-            retained: Some(RetainedTransferLayers::with_capacity(capacity)),
+            retained: mode
+                .is_requested()
+                .then(|| RetainedTransferLayers::with_capacity(layer_count)),
         }
     }
 

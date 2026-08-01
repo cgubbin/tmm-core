@@ -1,0 +1,126 @@
+use crate::{
+    IncidentSide, PlaneWaveEvaluator, Polarisation, backend::Scatter2, differential::NoDerivatives,
+};
+
+use crate::test_support::{
+    C, TOLERANCE,
+    assertions::{assert_complex_close, assert_real_close},
+    planar::{dielectric_interface, fresnel_amplitudes, fresnel_power, scalar_real_input},
+};
+
+fn evaluator() -> PlaneWaveEvaluator<Scatter2> {
+    PlaneWaveEvaluator::new(Scatter2::new())
+}
+
+#[test]
+fn value_evaluation_matches_te_fresnel_interface() {
+    let evaluator = evaluator();
+
+    let stack = dielectric_interface(2.0);
+    let input = scalar_real_input(2.0, 0.0);
+
+    let result = evaluator
+        .evaluate(input, &stack, Polarisation::TransverseElectric)
+        .expect("evaluation should succeed");
+
+    let amplitudes = result.amplitudes(IncidentSide::Left);
+
+    let (expected_r, expected_t) = fresnel_amplitudes(1.0, 2.0, Polarisation::TransverseElectric);
+
+    assert_complex_close(amplitudes.value().reflection()[()], expected_r, TOLERANCE);
+
+    assert_complex_close(amplitudes.value().transmission()[()], expected_t, TOLERANCE);
+
+    assert_eq!(amplitudes.derivatives(), &NoDerivatives,);
+}
+
+#[test]
+fn value_evaluation_matches_tm_fresnel_interface() {
+    let evaluator = evaluator();
+
+    let stack = dielectric_interface(2.0);
+    let input = scalar_real_input(2.0, 0.0);
+
+    let result = evaluator
+        .evaluate(input, &stack, Polarisation::TransverseMagnetic)
+        .expect("evaluation should succeed");
+
+    let amplitudes = result.amplitudes(IncidentSide::Left);
+
+    let (expected_r, expected_t) = fresnel_amplitudes(1.0, 2.0, Polarisation::TransverseMagnetic);
+
+    assert_complex_close(amplitudes.value().reflection()[()], expected_r, TOLERANCE);
+
+    assert_complex_close(amplitudes.value().transmission()[()], expected_t, TOLERANCE);
+}
+
+#[test]
+fn power_matches_fresnel_coefficients() {
+    let evaluator = evaluator();
+
+    let stack = dielectric_interface(2.0);
+    let input = scalar_real_input(2.0, 0.0);
+
+    let result = evaluator
+        .evaluate(input, &stack, Polarisation::TransverseElectric)
+        .expect("evaluation should succeed");
+
+    let power = result.power(IncidentSide::Left);
+
+    let (expected_r, expected_t, expected_a) =
+        fresnel_power(1.0, 2.0, Polarisation::TransverseElectric);
+
+    assert_real_close(power.value().reflectance()[()], expected_r, TOLERANCE);
+
+    assert_real_close(power.value().transmittance()[()], expected_t, TOLERANCE);
+
+    assert_real_close(power.value().absorptance()[()], expected_a, TOLERANCE);
+}
+
+#[test]
+fn lossless_interface_conserves_power() {
+    let evaluator = evaluator();
+
+    let stack = dielectric_interface(2.0);
+    let input = scalar_real_input(2.0, 0.0);
+
+    let result = evaluator
+        .evaluate(input, &stack, Polarisation::TransverseElectric)
+        .expect("evaluation should succeed");
+
+    let power = result.power(IncidentSide::Left);
+    let power = power.value();
+
+    let total = power.reflectance()[()] + power.transmittance()[()] + power.absorptance()[()];
+
+    assert_real_close(total, 1.0, TOLERANCE);
+    assert_real_close(power.absorptance()[()], 0.0, TOLERANCE);
+}
+
+#[test]
+fn right_incidence_uses_reversed_exterior_normalisation() {
+    let evaluator = evaluator();
+
+    let stack = dielectric_interface(2.0);
+    let input = scalar_real_input(2.0, 0.0);
+
+    let result = evaluator
+        .evaluate(input, &stack, Polarisation::TransverseElectric)
+        .expect("evaluation should succeed");
+
+    let amplitudes = result.amplitudes(IncidentSide::Right);
+
+    let (expected_r, expected_t) = fresnel_amplitudes(2.0, 1.0, Polarisation::TransverseElectric);
+
+    assert_complex_close(amplitudes.value().reflection()[()], expected_r, TOLERANCE);
+
+    assert_complex_close(amplitudes.value().transmission()[()], expected_t, TOLERANCE);
+
+    let power = result.power(IncidentSide::Right);
+
+    let total = power.value().reflectance()[()]
+        + power.value().transmittance()[()]
+        + power.value().absorptance()[()];
+
+    assert_real_close(total, 1.0, TOLERANCE);
+}

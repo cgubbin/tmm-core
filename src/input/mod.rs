@@ -20,7 +20,7 @@ mod compile;
 mod coordinate;
 mod error;
 // mod jet;
-mod plane_wave;
+mod coordinate_input;
 mod request;
 
 pub(crate) use canonical::{
@@ -28,13 +28,15 @@ pub(crate) use canonical::{
     CanonicalSolverInput, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, JetMapping, SeedJet,
-    compile_complex, compile_real,
+    CompilationContext, CompileJet, CompilePlaneWaveError, JetMapping, SeedJet, compile_complex,
+    compile_real,
 };
-pub(crate) use coordinate::{InPlaneCoordinate, PlaneWaveCoordinates, SpectralCoordinate};
+pub(crate) use coordinate::ReferenceRequirement;
+pub(crate) use coordinate_input::{CoordinateReference, CoordinateValues};
+
+pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
+pub use coordinate_input::{CoordinateGrid, CoordinateInput, CoordinatePoint, CoordinateSamples};
 pub use error::{PlaneWaveInputError, SpectralTransformError};
-// pub(crate) use jet::{BivariateAssignment, DirectionalAssignment, JetEvaluation, ValueAssignment};
-pub use plane_wave::{PlaneWaveInput, PlaneWavePoint};
 pub use request::SolveRequest;
 
 /// Polarisation supported by isotropic planar backends.
