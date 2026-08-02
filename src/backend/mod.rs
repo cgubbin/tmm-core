@@ -18,7 +18,8 @@ pub(crate) use isotropic::{IsotropicLayerAdmittance, IsotropicLayerQuantities};
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use scatter2::{Scatter2Entries, Scatter2ExteriorContext};
 pub(crate) use solution::{
-    PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource, PlaneWaveSolutionView,
+    ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
+    PlaneWaveSolutionView,
 };
 pub use transfer2::{Transfer2, Transfer2Error};
 pub(crate) use transfer2::{

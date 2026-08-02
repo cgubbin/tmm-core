@@ -45,7 +45,8 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
-        PlaneWaveEntries, isotropic::IsotropicLayerQuantities, transfer2::error::Transfer2Entry,
+        ExteriorAdmittanceProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities,
+        transfer2::error::Transfer2Entry,
     },
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
@@ -253,8 +254,20 @@ impl<A> Transfer2Entries<A> {
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transfer2ExteriorContext<A> {
-    left_quantities: IsotropicLayerQuantities<A>,
-    right_quantities: IsotropicLayerQuantities<A>,
+    left_admittance: A,
+    right_admittance: A,
+}
+
+impl<A> ExteriorAdmittanceProvider for Transfer2ExteriorContext<A> {
+    type Algebra = A;
+
+    fn left_admittance(&self) -> &A {
+        &self.left_admittance
+    }
+
+    fn right_admittance(&self) -> &A {
+        &self.right_admittance
+    }
 }
 
 impl<J> Transfer2ExteriorContext<J> {
@@ -277,31 +290,9 @@ impl<J> Transfer2ExteriorContext<J> {
             IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
 
         Self {
-            left_quantities,
-            right_quantities,
+            left_admittance: left_quantities.into_admittance().into_inner(),
+            right_admittance: right_quantities.into_admittance().into_inner(),
         }
-    }
-
-    pub(crate) fn left_quantities(&self) -> &IsotropicLayerQuantities<J> {
-        &self.left_quantities
-    }
-
-    pub(crate) fn right_quantities(&self) -> &IsotropicLayerQuantities<J> {
-        &self.right_quantities
-    }
-
-    pub(crate) fn left_admittance(&self) -> J
-    where
-        J: Clone + ScalarAlgebra,
-    {
-        self.left_quantities.clone().into_admittance().into_inner()
-    }
-
-    pub(crate) fn right_admittance(&self) -> J
-    where
-        J: Clone + ScalarAlgebra,
-    {
-        self.right_quantities.clone().into_admittance().into_inner()
     }
 }
 
@@ -323,9 +314,9 @@ where
         exterior: &Self::ExteriorContext,
         incident_side: IncidentSide,
     ) -> Self::Amplitudes {
-        let left_slope = transfer_state_slope(&exterior.left_admittance());
+        let left_slope = transfer_state_slope(exterior.left_admittance());
 
-        let right_slope = transfer_state_slope(&exterior.right_admittance());
+        let right_slope = transfer_state_slope(exterior.right_admittance());
 
         let (right_outgoing_field, right_outgoing_slope) =
             right_outgoing_column(self, &right_slope);
@@ -436,9 +427,9 @@ where
     type Determinant = PlaneWaveDeterminant<J>;
 
     fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
-        let left_slope = transfer_state_slope(&exterior.left_admittance());
+        let left_slope = transfer_state_slope(exterior.left_admittance());
 
-        let right_slope = transfer_state_slope(&exterior.right_admittance());
+        let right_slope = transfer_state_slope(exterior.right_admittance());
 
         PlaneWaveDeterminant::new(outgoing_residual(self, &left_slope, &right_slope))
     }

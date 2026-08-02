@@ -80,8 +80,9 @@ use crate::{
 ///
 /// Every array has the same sampled dimension as the corresponding
 /// [`PlanarInput`].
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IsotropicLayerQuantities<A> {
+pub struct IsotropicLayerQuantities<A> {
     epsilon: A,
     mu: A,
     kappa: A,

@@ -6,8 +6,8 @@ use crate::{
     ComplexScalar, PlaneWaveAmplitudes, RealAxis,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, IsotropicLayerQuantities, PlaneWaveSolutionSource,
-        ReconstructLayerBoundaryWaves, Scatter2, Transfer2, TransferState,
+        BidirectionalWaves, ExteriorAdmittanceProvider, IsotropicLayerQuantities,
+        PlaneWaveSolutionSource, ReconstructLayerBoundaryWaves, Scatter2, Transfer2, TransferState,
         bidirectional_waves_from_state, right_exterior_waves, transfer_state_from_waves,
         transfer_state_slope,
     },

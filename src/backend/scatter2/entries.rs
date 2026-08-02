@@ -22,7 +22,7 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
         RealScalarAlgebra, ScalarAlgebra,
     },
-    backend::{PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
+    backend::{ExteriorAdmittanceProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
     input::{CanonicalCoordinates, CanonicalProblem, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{
@@ -156,6 +156,17 @@ impl<A> Scatter2Entries<A> {
 pub struct Scatter2ExteriorContext<A> {
     left_admittance: A,
     right_admittance: A,
+}
+
+impl<A> ExteriorAdmittanceProvider for Scatter2ExteriorContext<A> {
+    type Algebra = A;
+    fn left_admittance(&self) -> &Self::Algebra {
+        &self.left_admittance
+    }
+
+    fn right_admittance(&self) -> &Self::Algebra {
+        &self.right_admittance
+    }
 }
 
 impl<J> Scatter2ExteriorContext<J> {

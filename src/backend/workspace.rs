@@ -9,7 +9,7 @@ pub trait SolutionWorkspace: PlaneWaveSolutionSource {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries>;
 }
 
-pub(crate) trait ReconstructLayerBoundaryWaves {
+pub trait ReconstructLayerBoundaryWaves {
     type Algebra;
 
     fn reconstruct_layer_boundary_waves(
@@ -18,7 +18,7 @@ pub(crate) trait ReconstructLayerBoundaryWaves {
     ) -> Option<Vec<LayerBoundaryWaves<Self::Algebra>>>;
 }
 
-pub(crate) trait RetainedIsotropicLayers {
+pub trait RetainedIsotropicLayers {
     type Algebra;
 
     fn retained_layer_count(&self) -> Option<usize>;

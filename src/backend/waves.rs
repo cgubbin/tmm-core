@@ -51,7 +51,7 @@ where
 /// Bidirectional wave amplitudes at the left and right boundaries of one
 /// finite layer.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LayerBoundaryWaves<A> {
+pub struct LayerBoundaryWaves<A> {
     left: BidirectionalWaves<A>,
     right: BidirectionalWaves<A>,
 }

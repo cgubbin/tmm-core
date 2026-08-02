@@ -6,8 +6,8 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveEntries, PlaneWaveSolution,
-        PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
+        BidirectionalWaves, ExteriorAdmittanceProvider, LayerBoundaryWaves, PlaneWaveEntries,
+        PlaneWaveSolution, PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
         isotropic::IsotropicLayerQuantities,
         solution::PlaneWaveSolutionView,
         workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
