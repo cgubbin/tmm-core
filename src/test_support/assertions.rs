@@ -5,14 +5,24 @@ use crate::{
     },
     backend::BidirectionalWaves,
     observable::{
-        BoundaryState, BoundaryWaves, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves,
+        BoundaryState, BoundaryWaves, InterfaceStates, Interfaces, LayerBoundaries,
+        LayerBoundaryStates, LayerBoundaryWaves,
     },
+    test_support::jet::J0,
 };
 
-use super::{C, TOLERANCE, c};
+use super::{C, c};
 
 use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Data, Dimension, Ix0, OwnedRepr};
+
+pub fn assert_real_zero(actual: f64, tolerance: f64) {
+    assert!(
+        actual.abs() <= tolerance,
+        "expected 0.0, got {actual:e}; \
+             absolute error = {actual:e}",
+    );
+}
 
 pub fn assert_real_close(actual: f64, expected: f64, tolerance: f64) {
     let error = (actual - expected).abs();
@@ -38,6 +48,20 @@ pub fn assert_complex_close(actual: C, expected: C, tolerance: f64) {
         epsilon = tolerance,
         max_relative = tolerance,
     );
+}
+
+pub fn assert_real_array_close<D>(
+    actual: &ArrayBase<impl Data<Elem = f64>, D>,
+    expected: &ArrayBase<impl Data<Elem = f64>, D>,
+    tolerance: f64,
+) where
+    D: Dimension,
+{
+    assert_eq!(actual.raw_dim(), expected.raw_dim());
+
+    for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+        assert_real_close(actual, expected, tolerance);
+    }
 }
 
 pub fn assert_array_close<D>(
@@ -144,6 +168,10 @@ pub(crate) fn assert_zero_jet_close(actual: &ZeroJet, expected: &ZeroJet) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 }
 
+pub(crate) fn assert_zero_jet_zero(actual: &ZeroJet) {
+    assert_complex_close(actual.value()[()], c(0.0), VALUE_TOLERANCE);
+}
+
 pub(crate) fn assert_first_jet_close(actual: &FirstJet, expected: &FirstJet) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 
@@ -229,7 +257,7 @@ pub(crate) fn assert_zero_layers_close(
         "backends returned different layer counts",
     );
 
-    for (layer_index, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+    for (_layer_index, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
         assert_zero_layer_close(actual, expected, tolerance);
     }
 }
@@ -322,7 +350,30 @@ pub(crate) fn assert_bivariate_second_layers_close(
     }
 }
 
-type ValueArray = ArrayBase<OwnedRepr<C>, Ix0>;
+pub(crate) type ValueArray = ArrayBase<OwnedRepr<C>, Ix0>;
+
+pub(crate) fn assert_interface_continuity(
+    interfaces: &Interfaces<InterfaceStates<ValueArray>>,
+    tolerance: f64,
+) {
+    assert!(
+        !interfaces.is_empty(),
+        "a valid stack must contain at least one interface",
+    );
+
+    for (_index, interface) in interfaces.iter().enumerate() {
+        assert_boundary_state_close(interface.left(), interface.right(), tolerance);
+    }
+}
+
+pub(crate) fn assert_boundary_state_jet_close(
+    actual: &BoundaryState<J0>,
+    expected: &BoundaryState<J0>,
+    tolerance: f64,
+) {
+    assert_array_close(actual.field(), expected.field(), tolerance);
+    assert_array_close(actual.secondary(), expected.secondary(), tolerance);
+}
 
 pub(crate) fn assert_boundary_state_close(
     actual: &BoundaryState<ValueArray>,

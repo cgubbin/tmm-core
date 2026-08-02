@@ -35,7 +35,6 @@ use crate::differential::BivariateGradient;
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
     JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
-    SecondOrderExpansion,
 };
 
 use nalgebra::ComplexField;
@@ -265,6 +264,14 @@ where
             self.value.jet_real(),
             self.axis0().jet_real(),
             self.axis1().jet_real(),
+        )
+    }
+
+    pub(crate) fn imaginary(&self) -> JetBivariate1<I::RealOutput, RealParameter> {
+        JetBivariate1::from_components(
+            self.value.jet_imaginary(),
+            self.axis0().jet_imaginary(),
+            self.axis1().jet_imaginary(),
         )
     }
 }

@@ -14,7 +14,7 @@
 //! taken with respect to the caller-facing coordinate rather than with respect
 //! to the canonical backend coordinate.
 
-use ndarray::{Array, Dimension};
+use ndarray::Array;
 
 use crate::input::compile::seed::{SeedJet, UnsupportedDerivativeSlot};
 

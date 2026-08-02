@@ -4,7 +4,7 @@ use crate::{
         FirstBivariate, FirstDirectional, SecondBivariate, SecondDirectional, ValueOnly,
     },
     parameter::{
-        BivariateMapping, DerivativeMapping, DerivativeMappingError, DirectionalMapping, Parameter,
+        BivariateMapping, DerivativeMapping, DerivativeMappingError, DirectionalMapping,
         ValueMapping,
     },
 };

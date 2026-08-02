@@ -23,7 +23,7 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{ExteriorAdmittanceProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
-    input::{CanonicalCoordinates, CanonicalProblem, IncidentSide},
+    input::{CanonicalCoordinates, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{
         PlaneWaveDeterminant, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
@@ -361,13 +361,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array0, Ix0, arr0, array};
-    use num_complex::Complex64;
+    use ndarray::{Array0, arr0, array};
 
     use super::{Scatter2Entries, cascade};
 
     use crate::{
-        algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter, ScalarAlgebra},
+        algebra::ArrayJet0,
         input::IncidentSide,
         test_support::{
             C,
@@ -796,7 +795,7 @@ mod determinant_helper_tests {
 
     use super::*;
 
-    use ndarray::{Array0, Ix0, arr0};
+    use ndarray::Ix0;
     use num_complex::Complex64;
 
     type Algebra = J0;

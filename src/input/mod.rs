@@ -15,29 +15,26 @@
 //! The public types in this module describe a problem; they do not perform
 //! coordinate conversion or numerical evaluation themselves.
 
-mod canonical;
+pub(crate) mod canonical;
 mod compile;
 mod coordinate;
-mod error;
-// mod jet;
 mod coordinate_input;
+mod error;
 mod request;
 
 pub(crate) use canonical::{
-    CanonicalBackendInput, CanonicalCoordinates, CanonicalLayer, CanonicalProblem,
-    CanonicalSolverInput, CanonicalStack,
+    CanonicalBackendInput, CanonicalCoordinates, CanonicalProblem, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, JetMapping, SeedJet, compile_complex,
+    CompilationContext, CompileJet, CompilePlaneWaveError, JetMapping, compile_complex,
     compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
-pub(crate) use coordinate_input::{CoordinateReference, CoordinateValues};
+pub(crate) use coordinate_input::CoordinateReference;
 
 pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
-pub use coordinate_input::{CoordinateGrid, CoordinateInput, CoordinatePoint, CoordinateSamples};
-pub use error::{PlaneWaveInputError, SpectralTransformError};
-pub use request::SolveRequest;
+pub use coordinate_input::{CoordinateInput, CoordinatePoint};
+pub use error::PlaneWaveInputError;
 
 /// Polarisation supported by isotropic planar backends.
 ///

@@ -1,10 +1,9 @@
 use crate::{
-    InterfacePower, LayerDissipation, LayerPower, Response, SpatialProfile, SpatialProfileError,
-    StoredEnergy,
+    InterfacePower, Response, SpatialProfile, SpatialProfileError,
     differential::DifferentialResponse,
     field::ScalarField,
     input::CoordinatePoint,
-    response::{InterfaceLocation, InterfaceMetadata, LayerLocation, LayerMetadata},
+    response::{InterfaceLocation, InterfaceMetadata},
 };
 
 use ndarray::{ArrayView1, Dimension, IntoDimension};

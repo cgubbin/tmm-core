@@ -1,10 +1,9 @@
 use crate::{
-    ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, FieldIndexError,
-    InterfacePower, LayerDissipation, LayerPower, ModeResidual, SpatialProfile,
-    SpatialProfileError, StoredEnergy, VectorField,
-    differential::{DifferentialResponse, NoDerivatives},
-    field::{ScalarField, ScalarFieldView1, VectorFieldView1},
-    input::{CoordinatePoint, IncidentSide},
+    ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, SpatialProfile,
+    SpatialProfileError, VectorField,
+    differential::DifferentialResponse,
+    field::ScalarField,
+    input::CoordinatePoint,
     response::StackRegion,
 };
 

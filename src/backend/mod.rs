@@ -1,32 +1,27 @@
 use crate::{
-    ComplexScalar, Polarisation, RealAxis,
+    ComplexScalar, Polarisation,
     algebra::Jet,
-    input::{CanonicalBackendInput, CanonicalProblem, CanonicalSolverInput},
+    input::CanonicalProblem,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
 use ndarray::Dimension;
 
 mod isotropic;
-mod scatter2;
+pub(crate) mod scatter2;
 mod solution;
-mod transfer2;
+pub(crate) mod transfer2;
 mod waves;
 mod workspace;
 
-pub(crate) use isotropic::{IsotropicLayerAdmittance, IsotropicLayerQuantities};
+pub(crate) use isotropic::IsotropicLayerQuantities;
 pub use scatter2::{Scatter2, Scatter2Error};
-pub(crate) use scatter2::{Scatter2Entries, Scatter2ExteriorContext};
 pub(crate) use solution::{
     ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
     PlaneWaveSolutionView,
 };
 pub use transfer2::{Transfer2, Transfer2Error};
-pub(crate) use transfer2::{
-    TransferState, bidirectional_waves_from_state, right_exterior_waves, transfer_state_from_waves,
-    transfer_state_slope,
-};
-pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
+pub(crate) use waves::{BidirectionalWaves, LayerBoundaryWaves};
 pub(crate) use workspace::{
     ReconstructLayerBoundaryWaves, RetainedIsotropicLayers, SolutionWorkspace,
 };

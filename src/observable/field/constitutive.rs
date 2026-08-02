@@ -1,8 +1,7 @@
 use ndarray::Dimension;
-use num_traits::One;
 
 use crate::{
-    SpatialProfile, SpatialProfileError, VectorField, algebra::RealCartesianVectorAlgebra,
+    SpatialProfile, SpatialProfileError, VectorField,
     field::VectorFieldView1,
 };
 

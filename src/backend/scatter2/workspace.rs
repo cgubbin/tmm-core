@@ -4,9 +4,9 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        BidirectionalWaves, IsotropicLayerQuantities, LayerBoundaryWaves, PlaneWaveEntries,
-        PlaneWaveSolution, PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers,
-        RunMode, SolutionWorkspace,
+        BidirectionalWaves, IsotropicLayerQuantities, LayerBoundaryWaves, PlaneWaveSolution,
+        PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers, RunMode,
+        SolutionWorkspace,
         scatter2::{
             Scatter2ExteriorContext,
             entries::{Scatter2Entries, cascade},
@@ -435,8 +435,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array0, ArrayBase, Ix0, OwnedRepr, arr0};
-    use num_complex::Complex64;
+    use ndarray::{ArrayBase, Ix0, OwnedRepr, arr0};
 
     use super::{
         LayerCutIndices, RetainedScatterComponents, Scatter2Workspace, prefix_cascades,
@@ -444,8 +443,8 @@ mod tests {
     };
 
     use crate::{
-        Material, Polarisation, RealAxis,
-        algebra::{ArrayJet0, ArrayJet1, RealParameter, ScalarAlgebra},
+        Polarisation, RealAxis,
+        algebra::ScalarAlgebra,
         backend::{
             IsotropicLayerQuantities, RunMode, Scatter2, SolutionWorkspace,
             scatter2::{
@@ -463,11 +462,10 @@ mod tests {
                 assert_zero_jet_close,
             },
             c,
-            jet::{J0, J1, P, zero_jet_from_array, zero_jet_from_real_value, zero_jet_from_value},
+            jet::{J0, J1, zero_jet_from_array, zero_jet_from_real_value, zero_jet_from_value},
             planar::{
                 boundary_test_empty_stack, boundary_test_single_layer_stack,
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
-                scalar_complex_input,
             },
         },
     };

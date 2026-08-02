@@ -11,7 +11,6 @@
 //! Parts are assembled into public differential responses in a later stage,
 //! where the derivative axes are associated with their physical parameters.
 
-use crate::algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2};
 
 /// A value with all derivative storage removed.
 #[doc(hidden)]

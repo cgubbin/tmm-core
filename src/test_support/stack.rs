@@ -1,10 +1,9 @@
-use ndarray::{Array, Ix0, arr0};
-use num_complex::Complex64;
+use ndarray::{Array, Ix0};
 
 use crate::{
     Constant,
     algebra::Jet0,
-    input::{CanonicalLayer, CanonicalStack},
+    input::canonical::{CanonicalLayer, CanonicalStack},
     test_support::jet::zero_jet_from_real_value,
 };
 

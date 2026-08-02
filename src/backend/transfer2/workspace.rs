@@ -6,8 +6,8 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, ExteriorAdmittanceProvider, LayerBoundaryWaves, PlaneWaveEntries,
-        PlaneWaveSolution, PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
+        BidirectionalWaves, ExteriorAdmittanceProvider, LayerBoundaryWaves, PlaneWaveSolution,
+        PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
         isotropic::IsotropicLayerQuantities,
         solution::PlaneWaveSolutionView,
         workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
@@ -390,7 +390,7 @@ where
             right_exterior_waves(&amplitudes, incident_side, right_admittance.value());
 
         let right_exterior_state =
-            transfer_state_from_waves(&right_exterior_waves, &right_admittance);
+            transfer_state_from_waves(&right_exterior_waves, right_admittance);
 
         Some(retained.reconstruct_layer_boundary_waves(right_exterior_state))
     }
@@ -456,15 +456,14 @@ impl<A> Transfer2Entries<A> {
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_relative_eq;
     use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
 
     use super::*;
     use crate::{
         Constant, Polarisation, RealAxis,
-        algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::{RunMode, Transfer2, transfer2::state::transfer_state_slope},
+        algebra::{ArrayJet0, RealParameter},
+        backend::{RunMode, Transfer2},
         input::{CanonicalCoordinates, CanonicalStack},
         test_support::{
             C, TOLERANCE,

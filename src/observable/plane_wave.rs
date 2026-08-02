@@ -1,6 +1,6 @@
 use crate::{
     IncidentSide,
-    algebra::{ComplexJet, RealScalarAlgebra, ScalarAlgebra},
+    algebra::{RealScalarAlgebra, ScalarAlgebra},
     backend::PlaneWaveEntries,
 };
 
@@ -351,7 +351,7 @@ mod tests {
 #[cfg(test)]
 mod projection_tests {
     use crate::{
-        backend::{Scatter2Entries, Scatter2ExteriorContext},
+        backend::scatter2::{Scatter2Entries, Scatter2ExteriorContext},
         test_support::{
             C, TOLERANCE,
             assertions::{assert_complex_close, assert_real_close},
@@ -361,7 +361,7 @@ mod projection_tests {
 
     use super::*;
 
-    use ndarray::{Array0, Ix0, arr0};
+    use ndarray::Ix0;
 
     type Algebra = J0;
 

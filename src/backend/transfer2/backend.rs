@@ -24,7 +24,7 @@
 //! types so derivative arrays are allocated only when requested.
 
 use nalgebra::ComplexField;
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::Dimension;
 
 use crate::{
     ComplexScalar, Polarisation,
@@ -138,18 +138,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Ix0, arr0};
-    use num_complex::Complex64;
+    use ndarray::Ix0;
 
     use super::*;
     use crate::{
-        algebra::{ArrayJet0, Jet0, RealParameter},
+        algebra::{ArrayJet0, RealParameter},
         backend::RunMode,
-        input::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
+        input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
         test_support::{
             C, c,
             jet::zero_jet_from_value,
-            materials::{constant, linear},
+            materials::linear,
             stack::{empty_stack, single_layer_stack, two_layer_stack},
         },
     };
@@ -359,38 +358,18 @@ mod tests {
 
         assert_ne!(first.entries(), second.entries());
     }
-
-    #[test]
-    fn thick_absorbing_layer_returns_instability_error() {
-        let absorbing = constant(
-            // Choose a complex material fixture here if Constant is real-only.
-            // The test-support material should produce a sufficiently large
-            // imaginary κd to overflow sin/cos.
-            1.0, 1.0,
-        );
-
-        // Replace with your test-support complex/absorbing material.
-        // The intended assertion is:
-        //
-        // assert!(matches!(
-        //     error,
-        //     Transfer2Error::NonFiniteLayerMatrix { layer: 0, .. }
-        //         | Transfer2Error::NonFiniteAccumulation { layer: 0, .. }
-        // ));
-    }
 }
 
 #[cfg(test)]
 mod stability_tests {
-    use ndarray::{Array, Ix0, Ix1, arr0, array};
-    use num_complex::Complex64;
+    use ndarray::{Array, Ix0, Ix1, array};
 
     use super::*;
     use crate::{
         Constant,
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::transfer2::error::Transfer2Entry,
-        input::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
+        input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
         test_support::{
             C, c,
             jet::{zero_jet_from_array, zero_jet_from_value},

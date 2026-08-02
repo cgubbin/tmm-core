@@ -6,7 +6,7 @@ use crate::algebra::{
 use crate::field::VectorField;
 
 use nalgebra::ComplexField;
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::Dimension;
 use std::fmt::Debug;
 
 pub trait CartesianScalarAlgebra: ScalarAlgebra {

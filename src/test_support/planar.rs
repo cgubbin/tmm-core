@@ -1,7 +1,6 @@
 //! Shared planar-system fixtures for evaluator tests.
 
-use approx::assert_relative_eq;
-use ndarray::{Array0, Ix0, arr0};
+use ndarray::{Ix0, arr0};
 use num_complex::Complex64;
 use tmm_units::InverseLengthUnit;
 
@@ -9,7 +8,7 @@ use crate::{
     Constant, CoordinateInput, Coordinates, InPlaneCoordinate, Polarisation, SpectralCoordinate,
     Stack,
     algebra::{ArrayJet0, Jet0, RealParameter},
-    input::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
+    input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
     stack::{Layer, Thickness},
 };
 

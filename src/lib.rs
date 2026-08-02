@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
+// #![allow(unused_imports)]
 
 pub(crate) mod algebra;
 pub mod backend;
@@ -23,21 +23,12 @@ mod tensor;
 #[cfg(test)]
 mod test_support;
 
-pub(crate) use domain::{ComplexPlane, RealAxis};
+pub use domain::{ComplexPlane, RealAxis};
 pub use error::TmmError;
 pub use input::{
     CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
 };
-// pub use backend::{
-//     ArrayJet, ArrayJet1, DerivativeVariable, IncidentSide, OutgoingModeResidualBackend,
-//     PlanarInput, PlaneWaveAmplitudeDifferential, PlaneWaveAmplitudes, PlaneWaveBackend,
-//     PlaneWaveFieldBackend, PlaneWaveInput, PlaneWavePower, PlaneWavePowerDifferential,
-//     PlaneWaveResponse, PlaneWaveResponseDerivatives, PlaneWaveResponseDifferential, Polarisation,
-//     SpectralDerivativeVariable, StructuralDerivativeVariable,
-// };
 
-// pub use backend::scatter2::Scatter2;
-// // pub use backend::transfer2::Transfer2;
 pub use evaluate::PlaneWaveEvaluator;
 pub use material::{
     Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,

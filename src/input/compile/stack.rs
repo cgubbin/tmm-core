@@ -10,7 +10,6 @@
 //! Only finite-layer thicknesses participate in derivative seeding.
 
 use std::fmt::Debug;
-use std::ops::Mul;
 
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
@@ -216,9 +215,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
-    use ndarray::{Array, Dimension, Ix0, Ix1, arr0};
+    use ndarray::{Array, Dimension, Ix0, Ix1};
     use num_complex::Complex64;
 
     use super::*;

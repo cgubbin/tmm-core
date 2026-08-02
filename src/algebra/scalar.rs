@@ -1,5 +1,5 @@
 use nalgebra::ComplexField;
-use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use std::fmt::Debug;
 
 use super::{
@@ -69,8 +69,14 @@ pub(crate) trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
 
     fn real(&self) -> Self::RealJet;
 
+    fn imaginary(&self) -> Self::RealJet;
+
     fn magnitude_squared(&self) -> Self::RealJet {
         self.multiply(&self.conjugated()).real()
+    }
+
+    fn hermitian_product(&self, other: &Self) -> Self {
+        self.conjugated().multiply(other)
     }
 }
 
@@ -220,6 +226,10 @@ where
     fn real(&self) -> Self::RealJet {
         ArrayJet0::real(self)
     }
+
+    fn imaginary(&self) -> Self::RealJet {
+        ArrayJet0::imaginary(self)
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -316,6 +326,10 @@ where
 
     fn real(&self) -> Self::RealJet {
         ArrayJet1::real(self)
+    }
+
+    fn imaginary(&self) -> Self::RealJet {
+        ArrayJet1::imaginary(self)
     }
 }
 
@@ -441,6 +455,10 @@ where
     fn real(&self) -> Self::RealJet {
         ArrayJet2::real(self)
     }
+
+    fn imaginary(&self) -> Self::RealJet {
+        ArrayJet2::imaginary(self)
+    }
 }
 
 impl<C, D, P> UnivariateVariableAlgebra for ArrayJet2<C, D, P>
@@ -564,6 +582,10 @@ where
 
     fn real(&self) -> Self::RealJet {
         ArrayJetBivariate1::real(self)
+    }
+
+    fn imaginary(&self) -> Self::RealJet {
+        ArrayJetBivariate1::imaginary(self)
     }
 }
 
@@ -692,6 +714,10 @@ where
     fn real(&self) -> Self::RealJet {
         ArrayJetBivariate2::real(self)
     }
+
+    fn imaginary(&self) -> Self::RealJet {
+        ArrayJetBivariate2::imaginary(self)
+    }
 }
 
 impl<C, D, P> BivariateVariableAlgebra for ArrayJetBivariate2<C, D, P>
@@ -731,10 +757,7 @@ mod tests {
     use ndarray::{Array1, Ix1, array};
     use num_complex::Complex64;
 
-    use crate::algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, Jet1, Jet2, JetBivariate2,
-        RealParameter,
-    };
+    use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, RealParameter};
 
     type C = Complex64;
     type D = Ix1;

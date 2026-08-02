@@ -179,14 +179,8 @@ mod metadata;
 mod response;
 mod spatial;
 
-pub use field::{
-    ConstitutiveFieldResponse, DissipationDensityResponse, ElectromagneticFieldResponse,
-    EnergyDensityResponse, FieldProfile,
-};
-pub use interface::{InterfacePowerResponse, InterfaceProfile};
-pub use layer::{LayerDissipationResponse, LayerPowerResponse, LayerProfile, StoredEnergyResponse};
 pub use metadata::{
-    FieldMetadata, InterfaceIndex, InterfaceLocation, InterfaceMetadata, LayerIndex, LayerLocation,
+    FieldMetadata, InterfaceLocation, InterfaceMetadata, LayerLocation,
     LayerMetadata, StackRegion,
 };
 pub use response::Response;

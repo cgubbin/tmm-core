@@ -20,7 +20,6 @@
 //! This keeps the material layer completely independent of the automatic
 //! differentiation implementation.
 
-use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
 use std::fmt::Debug;
 

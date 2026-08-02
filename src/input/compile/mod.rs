@@ -28,20 +28,17 @@ pub(crate) use context::{
 };
 pub use error::CompilePlaneWaveError;
 pub(crate) use layout::JetMapping;
-pub(crate) use problem::CompiledProblem;
 pub(crate) use seed::SeedJet;
 
-use coordinates::{CoordinateCompileError, compile_coordinates};
+use coordinates::CoordinateCompileError;
 use stack::{StackCompileError, compile_stack};
 
 use crate::{
-    ComplexPlane, ComplexScalar, IncidentSide, Material, MeromorphicMaterial, Polarisation, Stack,
-    ValidationConfig,
+    ComplexPlane, ComplexScalar, Stack, ValidationConfig,
     algebra::ScalarAlgebra,
     domain::RealAxis,
     input::{
-        CanonicalBackendInput, CanonicalCoordinates, CoordinateReference, Coordinates,
-        InPlaneCoordinate,
+        CoordinateReference, Coordinates, InPlaneCoordinate,
         canonical::CanonicalProblem,
         compile::{
             coordinates::CanonicalCoordinateJet, error::MappingError, stack::StackThicknessJet,
@@ -134,7 +131,7 @@ where
         mapping,
     )?;
 
-    let mapping = J::compile_mapping(mapping).map_err(|e| MappingError::Mapping(e))?;
+    let mapping = J::compile_mapping(mapping).map_err(MappingError::Mapping)?;
 
     Ok(finish_compilation(metadata, values, mapping, core))
 }
@@ -182,7 +179,7 @@ where
         mapping,
     )?;
 
-    let mapping = J::compile_mapping(mapping).map_err(|e| MappingError::Mapping(e))?;
+    let mapping = J::compile_mapping(mapping).map_err(MappingError::Mapping)?;
 
     Ok(finish_compilation(metadata, values, mapping, core))
 }
@@ -322,6 +319,7 @@ mod tests {
         algebra::{ArrayJet0, ArrayJet1, HolomorphicParameter, RealParameter},
         input::{
             CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, SpectralCoordinate,
+            compile::coordinates::SpectralInputError,
         },
         parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},
         stack::{Layer, Stack, Thickness, ValidationConfig},
@@ -836,7 +834,7 @@ mod tests {
         assert!(matches!(
             error,
             CompilePlaneWaveError::Coordinates(CoordinateCompileError::Spectral(
-                coordinates::SpectralInputError::NonPositive { .. }
+                SpectralInputError::NonPositive { .. }
             ))
         ));
     }

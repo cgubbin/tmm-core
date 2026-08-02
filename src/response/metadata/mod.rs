@@ -16,5 +16,5 @@ mod interface;
 mod layer;
 
 pub use field::{FieldMetadata, StackRegion};
-pub use interface::{InterfaceIndex, InterfaceLocation, InterfaceMetadata};
+pub use interface::{InterfaceLocation, InterfaceMetadata};
 pub use layer::{LayerIndex, LayerLocation, LayerMetadata};

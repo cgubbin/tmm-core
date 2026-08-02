@@ -1,6 +1,18 @@
+mod power;
+mod project;
 mod state;
+mod wave_data;
 
+pub use power::{DirectedPower, InterfacePower};
 pub use state::InterfaceStates;
+
+pub(crate) use wave_data::{InterfaceSide, InterfaceWaveData};
+
+pub(crate) use power::project_interface_power;
+pub(crate) use project::{
+    assemble_interface_wave_data, exterior_boundary_waves, project_boundary_states,
+    project_layer_admittances,
+};
 
 use crate::observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates};
 

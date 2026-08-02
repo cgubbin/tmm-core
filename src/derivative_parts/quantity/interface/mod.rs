@@ -1,3 +1,4 @@
+mod power;
 mod state;
 
 use crate::{

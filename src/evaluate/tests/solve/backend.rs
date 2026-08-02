@@ -1,22 +1,12 @@
-use approx::assert_relative_eq;
-use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr};
-use num_complex::Complex;
+use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
-    ComplexScalar, FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveAmplitudes,
-    PlaneWaveDeterminant, PlaneWaveEvaluator, PlaneWavePower, Polarisation,
-    algebra::{ArrayJet0, Jet0, RealParameter},
-    backend::{Backend, PlaneWaveSolution, Scatter2, Transfer2},
-    derivative_parts::DerivativePartsPolicy,
-    differential::IntoDifferentialResponse,
-    domain::{ComplexPlane, RealAxis},
-    evaluate::PlaneWaveResult,
-    input::{CoordinateInput, JetMapping},
-    observable::ProjectAmplitudes,
+    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveAmplitudes, PlaneWaveDeterminant,
+    PlaneWaveEvaluator, PlaneWavePower, Polarisation,
+    backend::{Scatter2, Transfer2},
     test_support::{
-        C, TOLERANCE,
+        C,
         assertions::{assert_complex_close, assert_real_close},
-        finite_difference::FIRST_DERIVATIVE_TOLERANCE,
         planar::{
             dielectric_interface, scalar_complex_input, scalar_real_input, single_layer_stack,
             two_layer_stack,

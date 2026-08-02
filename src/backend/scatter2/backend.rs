@@ -2,7 +2,7 @@ use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
     backend::{RunMode, isotropic::IsotropicLayerQuantities, scatter2::Scatter2ExteriorContext},
-    input::{CanonicalCoordinates, CanonicalSolverInput, CanonicalStack},
+    input::{CanonicalCoordinates, CanonicalStack},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
@@ -239,8 +239,7 @@ mod interface_tests {
         },
     };
 
-    use ndarray::{Ix0, Ix1, arr0, array};
-    use num_complex::Complex64;
+    use ndarray::{arr0, array};
 
     fn assert_entries_close(actual: &Scatter2Entries<J0>, expected: &Scatter2Entries<J0>) {
         assert_array_close(actual.s11.value(), expected.s11.value(), TOLERANCE);
@@ -710,12 +709,11 @@ mod propagation_tests {
         },
         jet::{
             constant_first, constant_second, independent_first, independent_second,
-            quadratic_second, zero_jet_from_array, zero_jet_from_real_value, zero_jet_from_value,
+            quadratic_second, zero_jet_from_array, zero_jet_from_value,
         },
     };
 
     use ndarray::{arr0, array};
-    use num_complex::Complex64;
 
     #[test]
     fn zero_exponent_is_transparent() {
@@ -1005,8 +1003,6 @@ mod propagation_tests {
 
 #[cfg(test)]
 mod accumulate_tests {
-    use super::*;
-
     use crate::{
         Polarisation, RealAxis,
         backend::{RunMode, scatter2::Scatter2},

@@ -28,11 +28,11 @@
 mod coordinate;
 mod stack;
 
-pub(crate) use coordinate::{CanonicalCoordinates, CanonicalSolverInput};
+pub(crate) use coordinate::CanonicalCoordinates;
 
 pub(crate) use stack::{CanonicalLayer, CanonicalStack};
 
-use crate::{IncidentSide, Polarisation};
+use crate::Polarisation;
 
 /// Complete canonical problem consumed by an oriented backend.
 ///

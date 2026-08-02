@@ -346,8 +346,8 @@ mod tests {
 #[cfg(test)]
 mod spatial_profile_tests {
     use super::*;
-    use crate::{SpatialProfile, SpatialProfileError};
-    use ndarray::{Array1, Array2, Array3, IntoDimension, Ix0, Ix1, Ix2, arr1, arr2, array};
+    use crate::SpatialProfileError;
+    use ndarray::{Array2, Array3, IntoDimension, Ix0, Ix1, Ix2, arr1, arr2, array};
 
     #[test]
     fn extracts_profile_from_scalar_field() {

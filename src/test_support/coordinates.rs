@@ -1,9 +1,7 @@
 use crate::input::CanonicalCoordinates;
 use crate::{algebra::Jet0, test_support::jet::zero_jet_from_real_value};
 
-use super::{C, TestAlgebra, jet::P};
-
-use ndarray::arr0;
+use super::{TestAlgebra, jet::P};
 
 pub fn test_coordinates() -> CanonicalCoordinates<Jet0<TestAlgebra, P>> {
     CanonicalCoordinates::new(

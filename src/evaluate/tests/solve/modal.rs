@@ -1,7 +1,6 @@
 use crate::{Parameter, PlaneWaveEvaluator, Polarisation, backend::Scatter2};
 
 use crate::test_support::{
-    TOLERANCE,
     assertions::assert_complex_close,
     planar::{dielectric_interface, scalar_complex_input},
 };

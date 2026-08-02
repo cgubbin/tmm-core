@@ -34,17 +34,17 @@ impl<J> PlaneWaveDeterminant<J> {
 mod projection_tests {
     use crate::{
         algebra::ScalarAlgebra,
-        backend::{Scatter2Entries, Scatter2ExteriorContext},
+        backend::scatter2::{Scatter2Entries, Scatter2ExteriorContext},
         test_support::{
             C, TOLERANCE,
-            assertions::{assert_complex_close, assert_real_close},
+            assertions::assert_complex_close,
             jet::{J0, zero_jet_from_value},
         },
     };
 
     use super::*;
 
-    use ndarray::{Array0, Ix0, arr0};
+    use ndarray::Ix0;
 
     type Algebra = J0;
 

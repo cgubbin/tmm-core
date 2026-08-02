@@ -1,28 +1,26 @@
+use std::ops::Neg;
+
 use nalgebra::ComplexField;
 use ndarray::Dimension;
 use num_traits::{One, Zero};
 
 use crate::{
-    ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
-    algebra::{
-        ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet, Jet,
-        ScalarAlgebra,
-    },
+    ComplexScalar, IncidentSide, InterfacePower, PlaneWaveAmplitudes,
+    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::{
         ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
         PlaneWaveSolutionView, ReconstructLayerBoundaryWaves, RetainedIsotropicLayers,
     },
-    derivative_parts::{DerivativePartsPolicy, IntoDerivativeParts},
-    differential::{
-        BivariateFirst, BivariateSecond, DirectionalFirst, DirectionalSecond,
-        IntoDifferentialResponse, NoDerivatives,
-    },
+    derivative_parts::DerivativePartsPolicy,
+    differential::IntoDifferentialResponse,
     input::{CanonicalProblem, CompilationContext, JetMapping},
     observable::{
-        BoundaryProjectionError, InterfaceStates, Interfaces, LayerBoundaries, LayerBoundaryStates,
-        LayerBoundaryWaves, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
-        assemble_interface_states, exterior_boundary_states, project_boundary_states,
-        project_boundary_waves,
+        BoundaryProjectionError, InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries,
+        LayerBoundaryStates, LayerBoundaryWaves, ProjectAmplitudes,
+        ProjectPlaneWaveModeDeterminant, ProjectPower, assemble_interface_states,
+        assemble_interface_wave_data, exterior_boundary_states, exterior_boundary_waves,
+        project_boundary_states, project_boundary_waves, project_interface_power,
+        project_layer_admittances,
     },
 };
 
@@ -238,6 +236,46 @@ where
 
         Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
     }
+
+    pub(crate) fn raw_interface_wave_data(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Interfaces<InterfaceWaveData<J>>, BoundaryProjectionError>
+    where
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        J: ScalarAlgebra + Clone,
+        J::Scalar: ComplexScalar + One + Zero,
+        J::Dimension: Dimension,
+    {
+        let layer_waves = self.raw_layer_boundary_waves(incident_side)?;
+
+        let layer_admittances = project_layer_admittances(&self.workspace)?;
+
+        let solution = self.solution();
+
+        let amplitudes = solution.amplitudes(incident_side);
+
+        let exterior = solution.context();
+
+        let left_admittance = exterior.left_admittance().clone();
+
+        let right_admittance = exterior.right_admittance().clone();
+
+        let exterior_waves =
+            exterior_boundary_waves(&amplitudes, incident_side, left_admittance.value());
+
+        assemble_interface_wave_data(
+            layer_waves,
+            layer_admittances,
+            exterior_waves,
+            left_admittance,
+            right_admittance,
+        )
+    }
 }
 
 impl<J, M, W> PlaneWaveState<J, <J::Scalar as ComplexField>::RealField, M, W>
@@ -274,6 +312,64 @@ where
         self.raw_power(incident_side)
             .into_differential_response(&J::Policy::default(), self.mapping())
     }
+
+    pub(crate) fn raw_interface_power(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Interfaces<InterfacePower<J::RealJet>>, BoundaryProjectionError>
+    where
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        J: RealScalarAlgebra + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar + One + Zero,
+        J::Dimension: Dimension,
+        <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
+    {
+        let interface_data = self.raw_interface_wave_data(incident_side)?;
+
+        let solution = self.solution();
+        let exterior = solution.context();
+
+        let incident_admittance = match incident_side {
+            IncidentSide::Left => exterior.left_admittance(),
+
+            IncidentSide::Right => exterior.right_admittance(),
+        };
+
+        let incident_flux_magnitude = RealScalarAlgebra::real(incident_admittance);
+
+        Ok(project_interface_power(
+            interface_data,
+            &incident_flux_magnitude,
+        ))
+    }
+
+    pub fn interface_power(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<DifferentialResponseFor<J, RawInterfacePower<J>>, BoundaryProjectionError>
+    where
+        J: JetMapping + RealScalarAlgebra + Clone,
+        J::Policy: Default + DerivativePartsPolicy<RawInterfacePower<J>>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar + One + Zero,
+        J::Dimension: Dimension,
+        <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
+        RawInterfacePower<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+    {
+        let raw = self.raw_interface_power(incident_side)?;
+
+        Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
+    }
 }
 
 impl<J, M, W> PlaneWaveState<J, J::Scalar, M, W>
@@ -294,3 +390,5 @@ where
             .into_differential_response(&J::Policy::default(), self.mapping())
     }
 }
+
+type RawInterfacePower<J> = Interfaces<InterfacePower<<J as ComplexJet>::RealJet>>;

@@ -1,21 +1,20 @@
 use num_complex::Complex;
-use std::marker::PhantomData;
 
 use crate::{
-    ComplexPlane, DifferentiableMaterial, EvaluateMeromorphicMaterial, Material, Polarisation,
+    ComplexPlane, Polarisation,
     ValidationConfig,
     algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet,
-        HolomorphicParameter, Jet, RealParameter, ScalarAlgebra,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
+        HolomorphicParameter, Jet, RealParameter,
     },
     backend::{Backend, PlaneWaveSolution},
     domain::RealAxis,
     evaluate::PlaneWaveResult,
     input::{
-        CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateInput, compile_complex,
+        CompileJet, CompilePlaneWaveError, CoordinateInput, compile_complex,
         compile_real,
     },
-    material::{ConstitutiveEvaluator, ConstitutiveLift},
+    material::ConstitutiveEvaluator,
     parameter::{DerivativeMapping, Parameter},
     scalar::ComplexScalar,
     stack::Stack,

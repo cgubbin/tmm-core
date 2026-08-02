@@ -1,5 +1,5 @@
 use crate::{
-    IncidentSide, PlaneWaveAmplitudes,
+    IncidentSide,
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 

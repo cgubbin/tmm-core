@@ -346,6 +346,19 @@ where
             self.second.jet_real(),
         )
     }
+
+    /// Extract the imaginary parts of a jet differentiated with respect to a real
+    /// parameter.
+    ///
+    /// This operation is intentionally unavailable for holomorphic-parameter
+    /// jets.
+    pub(crate) fn imaginary(&self) -> Jet2<I::RealOutput, RealParameter> {
+        Jet2::from_parts(
+            self.value.jet_imaginary(),
+            self.first.jet_imaginary(),
+            self.second.jet_imaginary(),
+        )
+    }
 }
 
 impl<I, P> Jet2<I, P> {

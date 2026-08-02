@@ -4,7 +4,7 @@ mod error;
 mod workspace;
 
 use crate::{
-    ComplexPlane, ComplexScalar, Polarisation, RealAxis,
+    ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
     backend::{Backend, PlaneWaveSolution, RunMode, SolutionWorkspace},
     input::CanonicalProblem,
@@ -16,7 +16,6 @@ pub(crate) use workspace::Scatter2Workspace;
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
-use std::marker::PhantomData;
 
 /// Scalar-channel isotropic 2×2 scattering backend.
 #[derive(Copy, Clone, Debug, Default)]

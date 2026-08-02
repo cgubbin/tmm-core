@@ -3,7 +3,7 @@ use crate::{
     backend::{IsotropicLayerQuantities, LayerBoundaryWaves},
 };
 
-use super::{PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource};
+use super::{PlaneWaveSolution, PlaneWaveSolutionSource};
 
 pub trait SolutionWorkspace: PlaneWaveSolutionSource {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries>;

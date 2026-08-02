@@ -32,7 +32,7 @@
 //! only reorganise derivative components already present in the observable
 //! leaves.
 
-use crate::{PlaneWaveAmplitudes, PlaneWavePower, algebra::ComplexJet};
+use crate::{PlaneWaveAmplitudes, PlaneWavePower};
 
 use super::super::{
     BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
@@ -299,8 +299,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::algebra::{Jet0, Jet2, RealParameter};
-
     use super::*;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -485,7 +483,6 @@ mod tests {
         assert_eq!(y_y.into_parts(), (8, 18, 28));
     }
 
-    use ndarray::arr0;
     use num_complex::Complex64;
 
     fn c(real: f64, imag: f64) -> Complex64 {

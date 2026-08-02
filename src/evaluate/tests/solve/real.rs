@@ -3,7 +3,7 @@ use crate::{
 };
 
 use crate::test_support::{
-    C, TOLERANCE,
+    TOLERANCE,
     assertions::{assert_complex_close, assert_real_close},
     planar::{dielectric_interface, fresnel_amplitudes, fresnel_power, scalar_real_input},
 };

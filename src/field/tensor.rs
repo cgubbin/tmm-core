@@ -2,10 +2,10 @@
 
 use crate::{
     SpatialProfileError,
-    field::{FieldShapeError, ScalarField},
+    field::FieldShapeError,
     spatial::array_profile,
 };
-use ndarray::{Array, ArrayView1, Dimension, Ix1, Zip};
+use ndarray::{Array, ArrayView1, Dimension, Ix1};
 
 /// One Cartesian rank-two tensor value.
 ///

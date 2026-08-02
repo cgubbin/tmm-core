@@ -27,7 +27,7 @@ mod bivariate;
 mod directional;
 mod response;
 
-pub(crate) use assemble::{AssembleDifferentialResponse, IntoDifferentialResponse};
+pub(crate) use assemble::IntoDifferentialResponse;
 
 pub use bivariate::{BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond};
 

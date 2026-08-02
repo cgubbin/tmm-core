@@ -3,7 +3,7 @@ mod project;
 mod state;
 mod waves;
 
-pub(crate) use exterior::{ExteriorBoundaryStates, exterior_boundary_states};
+pub(crate) use exterior::exterior_boundary_states;
 pub use project::BoundaryProjectionError;
 pub(crate) use project::{project_boundary_states, project_boundary_waves};
 pub use state::{BoundaryState, LayerBoundaryStates};

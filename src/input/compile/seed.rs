@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use crate::algebra::{
     ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet, Jet0, Jet1, Jet2,
-    JetBivariate1, JetBivariate2, JetOneLike, JetZeroLike,
+    JetBivariate1, JetBivariate2,
 };
 
 /// A requested derivative slot is not represented by the selected jet algebra.

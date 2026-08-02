@@ -87,7 +87,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::{Array0, Array3, IntoDimension, array};
+    use ndarray::{Array3, IntoDimension, array};
 
     #[test]
     fn extracts_last_axis_from_three_dimensional_array() {

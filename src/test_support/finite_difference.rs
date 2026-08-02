@@ -1,13 +1,11 @@
 use crate::{
-    ComplexScalar,
-    algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ScalarAlgebra},
-    test_support::assertions::{assert_array_close, assert_complex_close},
+    algebra::{ArrayJet1, ArrayJet2},
+    test_support::assertions::assert_array_close,
 };
 
 use super::{C, c, jet::P};
 
-use ndarray::{Array, ArrayBase, Data, Dimension, OwnedRepr};
-use num_complex::Complex64;
+use ndarray::{Array, ArrayBase, Data, Dimension};
 
 pub const VALUE_TOLERANCE: f64 = 1e-12;
 pub const FIRST_DERIVATIVE_TOLERANCE: f64 = 1e-7;

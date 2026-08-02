@@ -45,7 +45,7 @@ use super::{
 };
 
 use nalgebra::ComplexField;
-use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
+use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJet0<C, D, P> = Jet0<ArrayBase<OwnedRepr<C>, D>, P>;
@@ -245,6 +245,15 @@ where
     /// jets.
     pub(crate) fn real(&self) -> Jet0<I::RealOutput, RealParameter> {
         Jet0::new(self.value.jet_real())
+    }
+
+    /// Extract the imaginary parts of a jet differentiated with respect to a real
+    /// parameter.
+    ///
+    /// This operation is intentionally unavailable for holomorphic-parameter
+    /// jets.
+    pub(crate) fn imaginary(&self) -> Jet0<I::RealOutput, RealParameter> {
+        Jet0::new(self.value.jet_imaginary())
     }
 }
 

@@ -327,6 +327,15 @@ where
     pub(crate) fn real(&self) -> Jet1<I::RealOutput, RealParameter> {
         Jet1::from_parts(self.value.jet_real(), self.first.jet_real())
     }
+
+    /// Extract the imaginary parts of a jet differentiated with respect to a real
+    /// parameter.
+    ///
+    /// This operation is intentionally unavailable for holomorphic-parameter
+    /// jets.
+    pub(crate) fn imaginary(&self) -> Jet1<I::RealOutput, RealParameter> {
+        Jet1::from_parts(self.value.jet_imaginary(), self.first.jet_imaginary())
+    }
 }
 
 impl<C, D, P> ArrayJet1<C, D, P>

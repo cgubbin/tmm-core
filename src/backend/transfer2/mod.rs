@@ -18,14 +18,19 @@ mod workspace;
 
 pub(crate) use entries::Transfer2Entries;
 pub use error::Transfer2Error;
+
+#[cfg(test)]
 pub(crate) use state::{
     TransferState, bidirectional_waves_from_state, transfer_state_from_waves, transfer_state_slope,
 };
-pub(crate) use workspace::{Transfer2Workspace, right_exterior_waves};
+
+#[cfg(test)]
+pub(crate) use workspace::right_exterior_waves;
+
+pub(crate) use workspace::Transfer2Workspace;
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
-use std::marker::PhantomData;
 
 use crate::{
     ComplexScalar, Polarisation,

@@ -6,23 +6,14 @@ mod jet_two;
 mod jet_zero;
 mod scalar;
 
-pub(crate) use jet_bivariate_one::{
-    ArrayJetBivariate1, JetBivariate1, ModeJetBivariate1, PhysicalJetBivariate1,
-};
-pub(crate) use jet_bivariate_two::{
-    ArrayJetBivariate2, JetBivariate2, ModeJetBivariate2, PhysicalJetBivariate2,
-};
-pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1, ModeJet1, PhysicalJet1};
-pub(crate) use jet_two::{ArrayJet2, Jet2, ModeJet2, PhysicalJet2, SecondOrderExpansion};
-pub(crate) use jet_zero::{ArrayJet0, Jet0, ModeJet0, PhysicalJet0};
-pub(crate) use scalar::{
-    BivariateVariableAlgebra, ComplexJet, FirstOrderFunctionAlgebra, Jet, RealScalarAlgebra,
-    ScalarAlgebra, SecondOrderFunctionAlgebra, UnivariateVariableAlgebra,
-};
+pub(crate) use jet_bivariate_one::{ArrayJetBivariate1, JetBivariate1};
+pub(crate) use jet_bivariate_two::{ArrayJetBivariate2, JetBivariate2};
+pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1};
+pub(crate) use jet_two::{ArrayJet2, Jet2, SecondOrderExpansion};
+pub(crate) use jet_zero::{ArrayJet0, Jet0};
+pub(crate) use scalar::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra};
 
-pub(crate) use cartesian::{
-    CartesianScalarAlgebra, CartesianVectorAlgebra, RealCartesianVectorAlgebra,
-};
+pub(crate) use cartesian::RealCartesianVectorAlgebra;
 
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
@@ -120,6 +111,7 @@ pub trait JetRealPart {
     type RealOutput;
 
     fn jet_real(&self) -> Self::RealOutput;
+    fn jet_imaginary(&self) -> Self::RealOutput;
 }
 
 pub trait JetMultiplyByScalar<S> {
@@ -207,6 +199,10 @@ where
 
     fn jet_real(&self) -> Self::RealOutput {
         self.mapv(|z| z.real())
+    }
+
+    fn jet_imaginary(&self) -> Self::RealOutput {
+        self.mapv(|z| z.imaginary())
     }
 }
 

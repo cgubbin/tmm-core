@@ -29,9 +29,10 @@ mod seed;
 mod spectral;
 
 pub(crate) use error::CoordinateCompileError;
-pub(crate) use in_plane::InPlaneInputError;
 pub(crate) use jet::CanonicalCoordinateJet;
 use seed::seed_coordinate;
+
+#[cfg(test)]
 pub(crate) use spectral::SpectralInputError;
 
 use nalgebra::ComplexField;
@@ -39,8 +40,7 @@ use ndarray::{Array, Dimension};
 use num_traits::{Float, FloatConst, FromPrimitive};
 
 use crate::{
-    ComplexScalar, IncidentSide, Material, RealAxis, Stack,
-    algebra::ScalarAlgebra,
+    ComplexScalar, Stack,
     input::{
         CanonicalCoordinates, CompileJet, CoordinateReference, Coordinates, InPlaneCoordinate,
         SpectralCoordinate,
@@ -635,7 +635,7 @@ mod full_coordinate_compilation_tests {
     use super::*;
 
     use crate::{
-        ComplexPlane, Constant, IncidentSide,
+        ComplexPlane, Constant, IncidentSide, RealAxis,
         input::compile::{DerivativeMapping, ProjectionConstraint},
         stack::{Layer, Thickness},
     };

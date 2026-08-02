@@ -4,8 +4,6 @@ mod electromagnetic;
 pub use constitutive::ConstitutiveFields;
 pub use electromagnetic::ElectromagneticFields;
 
-use ndarray::{Array, ArrayView1, Axis, Dimension, Ix0, Ix1, IxDyn};
-use std::marker::PhantomData;
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum FieldIndexError {

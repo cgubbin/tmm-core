@@ -669,6 +669,10 @@ where
     fn jet_real(&self) -> Self::RealOutput {
         self.map(|x| nalgebra::ComplexField::real(*x))
     }
+
+    fn jet_imaginary(&self) -> Self::RealOutput {
+        self.map(|x| nalgebra::ComplexField::imaginary(*x))
+    }
 }
 
 #[cfg(test)]

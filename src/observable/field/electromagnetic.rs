@@ -1,8 +1,6 @@
-use ndarray::{Axis, Dimension, Ix0, Ix1, arr0};
+use ndarray::Dimension;
 use num_traits::One;
-use std::marker::PhantomData;
 
-use super::FieldIndexError;
 use crate::algebra::RealCartesianVectorAlgebra;
 use crate::field::{VectorField, VectorFieldView1};
 use crate::{SpatialProfile, SpatialProfileError};

@@ -412,8 +412,8 @@ where
         PlaneWavePower::from_amplitudes_and_admittance(
             &reflection,
             &transmission,
-            &incident_admittance,
-            &transmitted_admittance,
+            incident_admittance,
+            transmitted_admittance,
         )
     }
 }
@@ -437,13 +437,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_relative_eq;
-    use ndarray::{Array0, Ix0, arr0};
-    use num_complex::Complex64;
+    use ndarray::{Ix0, arr0};
 
     use super::*;
     use crate::{
-        algebra::{ArrayJet0, Jet0, RealParameter},
+        algebra::{ArrayJet0, RealParameter},
         input::{CanonicalCoordinates, Polarisation},
         test_support::{
             C, TOLERANCE,
@@ -670,7 +668,6 @@ mod projection_tests {
 
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::isotropic::IsotropicLayerQuantities,
         input::{CanonicalCoordinates, IncidentSide},
         test_support::materials::constant,
     };

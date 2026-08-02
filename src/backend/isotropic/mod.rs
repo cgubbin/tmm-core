@@ -63,7 +63,6 @@
 
 mod admittance;
 
-use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 pub(crate) use admittance::IsotropicLayerAdmittance;
@@ -72,7 +71,7 @@ use crate::{
     ComplexScalar,
     algebra::ScalarAlgebra,
     domain::{ComplexPlane, RealAxis},
-    input::{CanonicalCoordinates, CanonicalSolverInput, Polarisation},
+    input::{CanonicalCoordinates, Polarisation},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
@@ -206,12 +205,11 @@ impl<A> IsotropicLayerQuantities<A> {
 mod tests {
     use approx::assert_relative_eq;
     use ndarray::{Array0, Array1, arr0, array};
-    use num_complex::Complex64;
 
     use crate::{
         algebra::Jet0,
         backend::isotropic::IsotropicLayerQuantities,
-        input::{CanonicalCoordinates, CanonicalSolverInput, Polarisation},
+        input::{CanonicalCoordinates, Polarisation},
         test_support::{
             C,
             assertions::{assert_complex_close, assert_dispersion_relation},

@@ -1,7 +1,7 @@
 use crate::{
     ComplexScalar, IncidentSide,
     algebra::ScalarAlgebra,
-    backend::{PlaneWaveEntries, ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+    backend::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
     observable::{LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves},
 };
 
@@ -35,6 +35,16 @@ pub enum BoundaryProjectionError {
     LayerOutOfBounds {
         requested: usize,
         layer_count: usize,
+    },
+
+    #[error(
+        "finite-layer boundary data are inconsistent: \
+     {wave_count} wave records, and \
+     {admittance_count} admittances"
+    )]
+    LayerDataCountMismatch {
+        wave_count: usize,
+        admittance_count: usize,
     },
 }
 
@@ -113,8 +123,7 @@ mod tests {
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::{
             BidirectionalWaves as BackendBoundaryWaves, IsotropicLayerQuantities,
-            LayerBoundaryWaves as BackendLayerBoundaryWaves, PlaneWaveSolutionSource,
-            Scatter2Entries, SolutionWorkspace,
+            LayerBoundaryWaves as BackendLayerBoundaryWaves,
         },
         input::CanonicalCoordinates,
         material::Constant,

@@ -3,7 +3,7 @@ use ndarray::Dimension;
 
 use crate::{
     IncidentSide,
-    algebra::{ComplexJet, Jet},
+    algebra::Jet,
     backend::PlaneWaveSolutionSource,
     differential::IntoDifferentialResponse,
     input::JetMapping,

@@ -1,5 +1,5 @@
 use super::{C, c};
-use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter};
+use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter, ScalarAlgebra};
 
 use ndarray::{Array, ArrayBase, Dimension, Ix0, OwnedRepr, arr0};
 
@@ -8,6 +8,10 @@ pub type P = RealParameter;
 pub type J0 = ArrayJet0<C, Ix0, P>;
 pub type J1 = ArrayJet1<C, Ix0, P>;
 pub type J2 = ArrayJet2<C, Ix0, P>;
+
+pub fn unit_jet_like<D: Dimension>(source: &ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, P> {
+    ArrayJet0::filled_constant_like(source, c(1.0))
+}
 
 pub fn zero_jet_from_real_value(value: f64) -> ArrayJet0<C, Ix0, RealParameter> {
     ArrayJet0::new(arr0(c(value)))

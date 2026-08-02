@@ -378,6 +378,17 @@ where
             self.axis1_axis1().jet_real(),
         )
     }
+
+    pub(crate) fn imaginary(&self) -> JetBivariate2<I::RealOutput, RealParameter> {
+        JetBivariate2::from_components(
+            self.value.jet_imaginary(),
+            self.axis0().jet_imaginary(),
+            self.axis1().jet_imaginary(),
+            self.axis0_axis0().jet_imaginary(),
+            self.axis0_axis1().jet_imaginary(),
+            self.axis1_axis1().jet_imaginary(),
+        )
+    }
 }
 
 impl<I, P> JetBivariate2<I, P>

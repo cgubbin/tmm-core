@@ -12,7 +12,7 @@ use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
 
 use crate::{
-    IncidentSide, Polarisation,
+    IncidentSide,
     input::{Coordinates, coordinate_input::CoordinateValues},
     stack::Thickness,
 };

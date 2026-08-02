@@ -59,7 +59,7 @@ mod tests {
     use crate::{
         algebra::Jet0,
         backend::isotropic::IsotropicLayerQuantities,
-        input::{CanonicalCoordinates, CanonicalSolverInput, Polarisation},
+        input::{CanonicalCoordinates, Polarisation},
         test_support::{
             assertions::assert_complex_close,
             expected::{linear_admittance, quadratic_admittance},

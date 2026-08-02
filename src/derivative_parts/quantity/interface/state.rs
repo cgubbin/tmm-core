@@ -3,7 +3,7 @@ use crate::{
         BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
         IntoBivariateFirst, IntoBivariateSecond, IntoFirst, IntoSecond, IntoValue, ValuePart,
     },
-    observable::{BoundaryState, InterfaceStates},
+    observable::InterfaceStates,
 };
 
 impl<A> IntoValue for InterfaceStates<A>
@@ -112,6 +112,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::observable::BoundaryState;
+
     use super::*;
 
     #[derive(Clone, Copy, Debug, PartialEq)]
