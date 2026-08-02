@@ -1,13 +1,15 @@
 //! Shared planar-system fixtures for evaluator tests.
 
 use approx::assert_relative_eq;
-use ndarray::{Array0, arr0};
+use ndarray::{Array0, Ix0, arr0};
 use num_complex::Complex64;
 use tmm_units::InverseLengthUnit;
 
 use crate::{
     Constant, CoordinateInput, Coordinates, InPlaneCoordinate, Polarisation, SpectralCoordinate,
     Stack,
+    algebra::{ArrayJet0, Jet0, RealParameter},
+    input::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
     stack::{Layer, Thickness},
 };
 
@@ -145,4 +147,76 @@ pub fn fresnel_power(left_index: R, right_index: R, polarisation: Polarisation) 
     let absorptance = 1.0 - reflectance - transmittance;
 
     (reflectance, transmittance, absorptance)
+}
+
+pub(crate) type BoundaryTestScalar = Complex64;
+pub(crate) type BoundaryTestJet = ArrayJet0<Complex64, Ix0, RealParameter>;
+
+pub(crate) fn boundary_test_jet(value: Complex64) -> BoundaryTestJet {
+    Jet0::new(arr0(value))
+}
+
+pub(crate) fn boundary_test_coordinates() -> CanonicalCoordinates<BoundaryTestJet> {
+    CanonicalCoordinates::new(
+        boundary_test_jet(Complex64::new(2.3, 0.0)),
+        boundary_test_jet(Complex64::new(0.37, 0.0)),
+    )
+}
+
+/// An asymmetric one-layer stack.
+///
+/// Asymmetric exteriors and nonzero parallel wavenumber make sign, incidence,
+/// and exterior-normalisation errors visible.
+pub(crate) fn boundary_test_single_layer_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
+    CanonicalStack::new(
+        Constant::new(1.0, 1.0),
+        Constant::new(2.25, 1.0),
+        vec![CanonicalLayer::new(
+            Constant::new(3.24, 1.0),
+            boundary_test_jet(Complex64::new(0.23, 0.0)),
+        )],
+    )
+}
+
+/// An asymmetric two-layer stack.
+///
+/// The layers use different admittances and thicknesses, so reversing physical
+/// order or confusing adjacent layer bases should fail visibly.
+pub(crate) fn boundary_test_two_layer_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
+    CanonicalStack::new(
+        Constant::new(1.0, 1.0),
+        Constant::new(2.56, 1.0),
+        vec![
+            CanonicalLayer::new(
+                Constant::new(2.25, 1.0),
+                boundary_test_jet(Complex64::new(0.17, 0.0)),
+            ),
+            CanonicalLayer::new(
+                Constant::new(4.0, 1.0),
+                boundary_test_jet(Complex64::new(0.29, 0.0)),
+            ),
+        ],
+    )
+}
+
+/// A zero-thickness layer for exact boundary-propagation invariants.
+pub(crate) fn boundary_test_zero_thickness_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet>
+{
+    CanonicalStack::new(
+        Constant::new(1.0, 1.0),
+        Constant::new(2.25, 1.0),
+        vec![CanonicalLayer::new(
+            Constant::new(3.24, 1.0),
+            boundary_test_jet(Complex64::new(0.0, 0.0)),
+        )],
+    )
+}
+
+/// Empty stack for retained-container edge cases.
+pub(crate) fn boundary_test_empty_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
+    CanonicalStack::new(
+        Constant::new(1.0, 1.0),
+        Constant::new(2.25, 1.0),
+        Vec::new(),
+    )
 }

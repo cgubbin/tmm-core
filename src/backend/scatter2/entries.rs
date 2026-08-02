@@ -69,6 +69,22 @@ impl<A> Scatter2Entries<A> {
         Self { s11, s12, s21, s22 }
     }
 
+    pub(super) fn s11(&self) -> &A {
+        &self.s11
+    }
+
+    pub(super) fn s21(&self) -> &A {
+        &self.s21
+    }
+
+    pub(super) fn s12(&self) -> &A {
+        &self.s12
+    }
+
+    pub(super) fn s22(&self) -> &A {
+        &self.s22
+    }
+
     /// Construct the transparent identity under Redheffer composition.
     ///
     /// The identity reflects neither incident channel and transmits both
@@ -126,6 +142,13 @@ impl<A> Scatter2Entries<A> {
 
             IncidentSide::Right => (self.s22, self.s12),
         }
+    }
+
+    pub(super) fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
+    where
+        A: ScalarAlgebra,
+    {
+        self.s11.value()
     }
 }
 

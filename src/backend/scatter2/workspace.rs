@@ -10,6 +10,7 @@ use crate::{
             Scatter2ExteriorContext,
             entries::{Scatter2Entries, cascade},
         },
+        workspace::ReconstructLayerBoundaryWaves,
     },
     input::IncidentSide,
 };
@@ -173,22 +174,32 @@ impl<A> Scatter2Workspace<A> {
         }
     }
 
-    // pub(crate) fn reconstruct_layer_boundary_waves<C, D>(
-    //     &self,
-    //     incident_side: IncidentSide,
-    //     source: &ArrayBase<OwnedRepr<C>, D>,
-    // ) -> Option<Vec<LayerBoundaryWaves<A>>>
-    // where
-    //     C: ComplexScalar,
-    //     D: Dimension,
-    //     A: ScalarAlgebra<C, D> + Clone,
-    // {
-    //     Some(
-    //         self.retained
-    //             .as_ref()?
-    //             .reconstruct_layer_boundary_waves(incident_side, source),
-    //     )
-    // }
+    fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
+    where
+        A: ScalarAlgebra,
+    {
+        self.solution.entries().sample_source()
+    }
+}
+
+impl<A> ReconstructLayerBoundaryWaves for Scatter2Workspace<A>
+where
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_layer_boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<Vec<LayerBoundaryWaves<A>>> {
+        Some(
+            self.retained
+                .as_ref()?
+                .reconstruct_layer_boundary_waves(incident_side, self.sample_source()),
+        )
+    }
 }
 
 impl<A> RetainedScatterComponents<A> {
@@ -284,6 +295,33 @@ where
     prefixes
 }
 
+// fn suffix_cascades<A>(
+//     components: &[Scatter2Entries<A>],
+//     source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+// ) -> Vec<Scatter2Entries<A>>
+// where
+//     A: ScalarAlgebra + Clone,
+//     A::Scalar: ComplexScalar,
+//     A::Dimension: Dimension,
+// {
+//     let component_count = components.len();
+
+//     let mut reversed = Vec::with_capacity(component_count + 1);
+
+//     reversed.push(Scatter2Entries::identity_like(source));
+
+//     for component in components.iter().rev() {
+//         let next = cascade(
+//             component,
+//             reversed.last().expect("identity suffix was inserted"),
+//         );
+
+//         reversed.push(next);
+//     }
+
+//     reversed.reverse();
+//     reversed
+// }
 fn suffix_cascades<A>(
     components: &[Scatter2Entries<A>],
     source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
@@ -293,9 +331,7 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    let component_count = components.len();
-
-    let mut reversed = Vec::with_capacity(component_count + 1);
+    let mut reversed = Vec::with_capacity(components.len() + 1);
 
     reversed.push(Scatter2Entries::identity_like(source));
 
@@ -325,37 +361,65 @@ where
 /// where `x` and `y` are the imposed incoming waves at the left and right
 /// exterior ports.
 fn waves_at_cut<A>(
-    left: &Scatter2Entries<A>,
-    right: &Scatter2Entries<A>,
+    prefix: &Scatter2Entries<A>,
+    suffix: &Scatter2Entries<A>,
     left_incoming: &A,
     right_incoming: &A,
 ) -> BidirectionalWaves<A>
 where
     A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
+    A::Scalar: ComplexScalar + One,
     A::Dimension: Dimension,
 {
-    let one = A::filled_constant_like(left.s11.value(), <A::Scalar as One>::one());
+    let one = A::filled_constant_like(left_incoming.value(), <A::Scalar as One>::one());
 
-    let denominator = one.subtract(&left.s22.multiply(&right.s11));
+    let suffix_from_right = suffix.s12().multiply(right_incoming);
 
-    let forward = left
-        .s21
+    let forward_numerator = prefix
+        .s21()
         .multiply(left_incoming)
-        .add(&left.s22.multiply(&right.s12).multiply(right_incoming))
-        .divide(&denominator);
+        .add(&prefix.s22().multiply(&suffix_from_right));
 
-    let backward = right
-        .s11
-        .multiply(&forward)
-        .add(&right.s12.multiply(right_incoming));
+    let denominator = one.subtract(&prefix.s22().multiply(suffix.s11()));
+
+    let forward = forward_numerator.divide(&denominator);
+
+    let backward = suffix.s11().multiply(&forward).add(&suffix_from_right);
 
     BidirectionalWaves::new(forward, backward)
 }
+// fn waves_at_cut<A>(
+//     left: &Scatter2Entries<A>,
+//     right: &Scatter2Entries<A>,
+//     left_incoming: &A,
+//     right_incoming: &A,
+// ) -> BidirectionalWaves<A>
+// where
+//     A: ScalarAlgebra,
+//     A::Scalar: ComplexScalar,
+//     A::Dimension: Dimension,
+// {
+//     let one = A::filled_constant_like(left.s11.value(), <A::Scalar as One>::one());
+
+//     let denominator = one.subtract(&left.s22.multiply(&right.s11));
+
+//     let forward = left
+//         .s21
+//         .multiply(left_incoming)
+//         .add(&left.s22.multiply(&right.s12).multiply(right_incoming))
+//         .divide(&denominator);
+
+//     let backward = right
+//         .s11
+//         .multiply(&forward)
+//         .add(&right.s12.multiply(right_incoming));
+
+//     BidirectionalWaves::new(forward, backward)
+// }
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array0, Ix0, arr0};
+    use ndarray::{Array0, ArrayBase, Ix0, OwnedRepr, arr0};
     use num_complex::Complex64;
 
     use super::{
@@ -364,22 +428,31 @@ mod tests {
     };
 
     use crate::{
-        Polarisation, RealAxis,
+        Material, Polarisation, RealAxis,
         algebra::{ArrayJet0, ArrayJet1, RealParameter, ScalarAlgebra},
         backend::{
-            RunMode, SolutionWorkspace,
+            RunMode, Scatter2, SolutionWorkspace,
             scatter2::{
                 Scatter2ExteriorContext,
                 entries::{Scatter2Entries, cascade},
             },
+            workspace::ReconstructLayerBoundaryWaves,
         },
         input::{CanonicalCoordinates, CanonicalStack, IncidentSide},
         material::{Constant, ConstitutiveLift},
         test_support::{
             C, TOLERANCE,
-            assertions::{assert_array_close, assert_complex_close},
+            assertions::{
+                assert_array_close, assert_bidirectional_waves_close, assert_complex_close,
+                assert_zero_jet_close,
+            },
             c,
-            jet::{J0, J1, P, zero_jet_from_array, zero_jet_from_value},
+            jet::{J0, J1, P, zero_jet_from_array, zero_jet_from_real_value, zero_jet_from_value},
+            planar::{
+                boundary_test_empty_stack, boundary_test_single_layer_stack,
+                boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
+                scalar_complex_input,
+            },
         },
     };
 
@@ -897,5 +970,387 @@ mod tests {
         assert_complex_close(waves[0].left().forward().value()[()], c(1.0), TOLERANCE);
 
         assert_complex_close(waves[0].left().forward().first()[()], c(0.0), TOLERANCE);
+    }
+
+    fn test_coordinates() -> CanonicalCoordinates<J0> {
+        CanonicalCoordinates::new(
+            zero_jet_from_real_value(2.3),
+            zero_jet_from_real_value(0.37),
+        )
+    }
+
+    fn build_workspace(
+        stack: CanonicalStack<Constant<f64>, J0>,
+        mode: RunMode,
+    ) -> Scatter2Workspace<J0> {
+        Scatter2::new()
+            .accumulate::<J0, RealAxis, _>(
+                &test_coordinates(),
+                &stack,
+                Polarisation::TransverseElectric,
+                mode,
+            )
+            .expect("scatter workspace accumulation should succeed")
+    }
+
+    #[test]
+    fn response_only_workspace_does_not_reconstruct_boundary_waves() {
+        let workspace = build_workspace(boundary_test_single_layer_stack(), RunMode::ResponseOnly);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            assert!(workspace.reconstruct_layer_boundary_waves(side).is_none(),);
+        }
+    }
+
+    #[test]
+    fn retained_empty_stack_reconstructs_no_layers() {
+        let workspace = build_workspace(boundary_test_empty_stack(), RunMode::InternalFields);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let waves = workspace
+                .reconstruct_layer_boundary_waves(side)
+                .expect("workspace retained internal data");
+
+            assert!(waves.is_empty());
+        }
+    }
+
+    #[test]
+    fn reconstruction_returns_one_record_per_finite_layer() {
+        let workspace = build_workspace(boundary_test_two_layer_stack(), RunMode::InternalFields);
+
+        let waves = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
+        assert_eq!(waves.len(), 2);
+    }
+
+    #[test]
+    fn zero_thickness_layer_has_equal_boundary_waves() {
+        let workspace = build_workspace(
+            boundary_test_zero_thickness_stack(),
+            RunMode::InternalFields,
+        );
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let waves = workspace.reconstruct_layer_boundary_waves(side).unwrap();
+
+            assert_eq!(waves.len(), 1);
+
+            assert_bidirectional_waves_close(waves[0].left(), waves[0].right(), 1.0e-12);
+        }
+    }
+
+    #[test]
+    fn reconstruction_respects_incident_side() {
+        let workspace = build_workspace(boundary_test_two_layer_stack(), RunMode::InternalFields);
+
+        let left = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
+        let right = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Right)
+            .unwrap();
+
+        assert_ne!(left, right);
+    }
+
+    fn sample_entries(offset: f64) -> Scatter2Entries<J0> {
+        Scatter2Entries::from_parts(
+            zero_jet_from_real_value(offset + 0.1),
+            zero_jet_from_real_value(offset + 0.2),
+            zero_jet_from_real_value(offset + 0.3),
+            zero_jet_from_real_value(offset + 0.4),
+        )
+    }
+
+    fn sample_source() -> ArrayBase<OwnedRepr<C>, Ix0> {
+        ndarray::arr0(c(0.0))
+    }
+
+    fn sample_context() -> Scatter2ExteriorContext<J0> {
+        Scatter2ExteriorContext::new::<RealAxis, _>(
+            &test_coordinates(),
+            &Constant::vacuum(),
+            &Constant::vacuum(),
+            Polarisation::TransverseElectric,
+        )
+    }
+
+    #[test]
+    fn one_layer_cut_surrounds_the_propagation_component() {
+        let source = sample_source();
+
+        let mut workspace =
+            Scatter2Workspace::new(&source, sample_context(), RunMode::InternalFields, 1);
+
+        let left_interface = sample_entries(1.0);
+        let propagation = sample_entries(2.0);
+        let right_interface = sample_entries(3.0);
+
+        workspace.append_layer(left_interface.clone(), propagation.clone());
+
+        workspace.append(right_interface.clone());
+
+        let retained = workspace
+            .retained
+            .as_ref()
+            .expect("internal-field mode should retain components");
+
+        assert_eq!(
+            retained.components.len(),
+            3,
+            "one finite layer should retain its left interface, \
+         propagation component, and final right interface",
+        );
+
+        assert_eq!(retained.components[0], left_interface,);
+
+        assert_eq!(retained.components[1], propagation,);
+
+        assert_eq!(retained.components[2], right_interface,);
+
+        assert_eq!(
+            retained.layer_cuts.len(),
+            1,
+            "one finite layer should create one pair of cut indices",
+        );
+
+        let cuts = &retained.layer_cuts[0];
+
+        assert_eq!(
+            cuts.left(),
+            1,
+            "the left layer boundary lies after the left interface",
+        );
+
+        assert_eq!(
+            cuts.right(),
+            2,
+            "the right layer boundary lies after propagation",
+        );
+    }
+
+    #[test]
+    fn two_layer_cuts_follow_physical_layer_order() {
+        let source = sample_source();
+
+        let mut workspace =
+            Scatter2Workspace::new(&source, sample_context(), RunMode::InternalFields, 2);
+
+        let interface0 = sample_entries(1.0);
+        let propagation0 = sample_entries(2.0);
+        let interface1 = sample_entries(3.0);
+        let propagation1 = sample_entries(4.0);
+        let final_interface = sample_entries(5.0);
+
+        workspace.append_layer(interface0.clone(), propagation0.clone());
+
+        workspace.append_layer(interface1.clone(), propagation1.clone());
+
+        workspace.append(final_interface.clone());
+
+        let retained = workspace
+            .retained
+            .as_ref()
+            .expect("internal-field mode should retain components");
+
+        assert_eq!(retained.components.len(), 5);
+
+        assert_eq!(
+            retained.components,
+            vec![
+                interface0,
+                propagation0,
+                interface1,
+                propagation1,
+                final_interface,
+            ],
+            "components must remain in physical left-to-right order",
+        );
+
+        assert_eq!(retained.layer_cuts.len(), 2);
+
+        let layer0 = &retained.layer_cuts[0];
+        let layer1 = &retained.layer_cuts[1];
+
+        assert_eq!(
+            (layer0.left(), layer0.right()),
+            (1, 2),
+            "layer 0 cuts should surround the first propagation component",
+        );
+
+        assert_eq!(
+            (layer1.left(), layer1.right()),
+            (3, 4),
+            "layer 1 cuts should surround the second propagation component",
+        );
+    }
+
+    #[test]
+    fn response_only_append_layer_does_not_create_cut_topology() {
+        let source = sample_source();
+
+        let mut workspace =
+            Scatter2Workspace::new(&source, sample_context(), RunMode::ResponseOnly, 2);
+
+        workspace.append_layer(sample_entries(1.0), sample_entries(2.0));
+
+        workspace.append_layer(sample_entries(3.0), sample_entries(4.0));
+
+        workspace.append(sample_entries(5.0));
+
+        assert!(
+            workspace.retained.is_none(),
+            "response-only workspaces must not retain components or cuts",
+        );
+    }
+
+    #[test]
+    fn newly_retained_workspace_has_empty_component_topology() {
+        let source = sample_source();
+
+        let workspace =
+            Scatter2Workspace::new(&source, sample_context(), RunMode::InternalFields, 3);
+
+        let retained = workspace
+            .retained
+            .as_ref()
+            .expect("internal-field mode should enable retention");
+
+        assert!(retained.components.is_empty());
+        assert!(retained.layer_cuts.is_empty());
+    }
+
+    #[test]
+    fn waves_at_identity_cut_equal_external_incoming_waves() {
+        let source = sample_source();
+
+        let identity = Scatter2Entries::<J0>::identity_like(&source);
+
+        let left_incoming = zero_jet_from_real_value(1.0);
+
+        let right_incoming = zero_jet_from_real_value(0.0);
+
+        let waves = waves_at_cut(&identity, &identity, &left_incoming, &right_incoming);
+
+        assert_zero_jet_close(waves.forward(), &left_incoming);
+
+        assert_zero_jet_close(waves.backward(), &right_incoming);
+    }
+
+    #[test]
+    fn cut_before_network_recovers_left_external_waves() {
+        let total = sample_physical_entries();
+
+        let identity = Scatter2Entries::<J0>::identity_like(total.sample_source());
+
+        let left_incoming = zero_jet_from_real_value(1.0);
+
+        let right_incoming = zero_jet_from_real_value(0.0);
+
+        let waves = waves_at_cut(&identity, &total, &left_incoming, &right_incoming);
+
+        assert_zero_jet_close(waves.forward(), &left_incoming);
+
+        assert_zero_jet_close(waves.backward(), total.s11());
+    }
+
+    fn sample_physical_entries() -> Scatter2Entries<J0> {
+        Scatter2Entries::from_parts(
+            zero_jet_from_real_value(1.0),
+            zero_jet_from_real_value(1.0),
+            zero_jet_from_real_value(1.0),
+            zero_jet_from_real_value(1.0),
+        )
+    }
+
+    #[test]
+    fn cut_after_network_recovers_right_external_waves() {
+        let total = sample_physical_entries();
+
+        let identity = Scatter2Entries::<J0>::identity_like(total.sample_source());
+
+        let left_incoming = zero_jet_from_real_value(1.0);
+
+        let right_incoming = zero_jet_from_real_value(0.0);
+
+        let waves = waves_at_cut(&total, &identity, &left_incoming, &right_incoming);
+
+        assert_zero_jet_close(waves.forward(), total.s21());
+
+        assert_zero_jet_close(waves.backward(), &right_incoming);
+    }
+
+    #[test]
+    fn prefix_cascades_have_expected_endpoint_semantics() {
+        let source = sample_source();
+
+        let components = vec![
+            sample_entries(1.0),
+            sample_entries(2.0),
+            sample_entries(3.0),
+        ];
+
+        let prefixes = prefix_cascades(&components, &source);
+
+        assert_eq!(prefixes.len(), 4);
+
+        assert_entries_close(
+            &prefixes[0],
+            &Scatter2Entries::identity_like(&source),
+            TOLERANCE,
+        );
+
+        assert_entries_close(&prefixes[1], &components[0], TOLERANCE);
+
+        assert_entries_close(
+            &prefixes[2],
+            &cascade(&components[0], &components[1]),
+            TOLERANCE,
+        );
+
+        assert_entries_close(
+            &prefixes[3],
+            &cascade(&cascade(&components[0], &components[1]), &components[2]),
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn suffix_cascades_have_expected_endpoint_semantics() {
+        let source = sample_source();
+
+        let components = vec![
+            sample_entries(1.0),
+            sample_entries(2.0),
+            sample_entries(3.0),
+        ];
+
+        let suffixes = suffix_cascades(&components, &source);
+
+        assert_eq!(suffixes.len(), 4);
+
+        assert_entries_close(
+            &suffixes[0],
+            &cascade(&components[0], &cascade(&components[1], &components[2])),
+            TOLERANCE,
+        );
+
+        assert_entries_close(
+            &suffixes[1],
+            &cascade(&components[1], &components[2]),
+            TOLERANCE,
+        );
+
+        assert_entries_close(&suffixes[2], &components[2], TOLERANCE);
+
+        assert_entries_close(
+            &suffixes[3],
+            &Scatter2Entries::identity_like(&source),
+            TOLERANCE,
+        );
     }
 }

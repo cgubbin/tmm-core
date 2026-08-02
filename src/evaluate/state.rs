@@ -4,7 +4,10 @@ use ndarray::Dimension;
 use crate::{
     IncidentSide,
     algebra::{ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet, Jet},
-    backend::{PlaneWaveSolutionSource, PlaneWaveSolutionView},
+    backend::{
+        LayerBoundaryWaves, PlaneWaveSolutionSource, PlaneWaveSolutionView,
+        ReconstructLayerBoundaryWaves,
+    },
     derivative_parts::{DerivativePartsPolicy, IntoDerivativeParts},
     differential::{
         BivariateFirst, BivariateSecond, DirectionalFirst, DirectionalSecond,
@@ -105,6 +108,17 @@ where
             workspace: map(self.workspace),
             context: self.context,
         }
+    }
+
+    pub(crate) fn raw_layer_boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<Vec<LayerBoundaryWaves<J>>>
+    where
+        W: ReconstructLayerBoundaryWaves<Algebra = J>,
+    {
+        self.workspace
+            .reconstruct_layer_boundary_waves(incident_side)
     }
 }
 

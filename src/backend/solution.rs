@@ -7,6 +7,20 @@ pub trait PlaneWaveEntries {
     type ExteriorContext;
 }
 
+pub trait PlaneWaveSolutionSource {
+    type Entries: PlaneWaveEntries;
+
+    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries>;
+}
+
+impl<E: PlaneWaveEntries> PlaneWaveSolutionSource for PlaneWaveSolution<E> {
+    type Entries = E;
+
+    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
+        self.as_view()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PlaneWaveSolution<E: PlaneWaveEntries> {
     entries: E,

@@ -3,45 +3,20 @@ use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
 use crate::{
-    ComplexScalar,
+    ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
         BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionSource,
-        RunMode, SolutionWorkspace,
-        isotropic::IsotropicLayerQuantities,
-        solution::PlaneWaveSolutionView,
-        transfer2::{Transfer2Entries, entries::Transfer2ExteriorContext},
+        RunMode, SolutionWorkspace, isotropic::IsotropicLayerQuantities,
+        solution::PlaneWaveSolutionView, workspace::ReconstructLayerBoundaryWaves,
     },
 };
 
-/// The transfer state at a single spatial boundary.
-///
-/// The state is represented by the field-like component and its corresponding
-/// slope-like component. A transfer matrix maps the state at its right
-/// boundary to the state at its left boundary.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TransferState<A> {
-    field: A,
-    slope: A,
-}
-
-impl<A> TransferState<A> {
-    pub(crate) fn new(field: A, slope: A) -> Self {
-        Self { field, slope }
-    }
-
-    pub(crate) fn field(&self) -> &A {
-        &self.field
-    }
-
-    pub(crate) fn slope(&self) -> &A {
-        &self.slope
-    }
-
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.field, self.slope)
-    }
-}
+use super::{
+    Transfer2Entries,
+    entries::Transfer2ExteriorContext,
+    state::{TransferState, bidirectional_waves_from_state, transfer_state_from_waves},
+};
 
 /// The transfer states at the two boundaries of one finite layer.
 ///
@@ -90,8 +65,8 @@ impl<A> LayerBoundaryStates<A> {
         (self.left, self.right, self.quantities)
     }
 
-    /// Decompose the transfer states at both boundaries into forward- and
-    /// backward-propagating amplitudes.
+    /// Decompose the transfer states at both layer boundaries into the
+    /// layer-local forward- and backward-wave basis.
     pub(crate) fn into_boundary_waves(self) -> LayerBoundaryWaves<A>
     where
         A: ScalarAlgebra,
@@ -100,11 +75,11 @@ impl<A> LayerBoundaryStates<A> {
     {
         let (left_state, right_state, quantities) = self.into_parts();
 
-        let characteristic_slope = boundary_slope(&quantities.into_admittance().into_inner());
+        let admittance = quantities.into_admittance().into_inner();
 
-        let left = bidirectional_waves_from_state(&left_state, &characteristic_slope);
+        let left = bidirectional_waves_from_state(&left_state, &admittance);
 
-        let right = bidirectional_waves_from_state(&right_state, &characteristic_slope);
+        let right = bidirectional_waves_from_state(&right_state, &admittance);
 
         LayerBoundaryWaves::new(left, right)
     }
@@ -364,25 +339,62 @@ impl<A> Transfer2Workspace<A> {
             .propagate_right_state(right_exterior_state)
     }
 
-    /// Reconstruct forward- and backward-propagating waves at both boundaries
-    /// of every retained finite layer.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the workspace was constructed without layer retention.
-    pub(crate) fn reconstruct_layer_boundary_waves(
-        &self,
-        right_exterior_state: TransferState<A>,
-    ) -> Vec<LayerBoundaryWaves<A>>
+    fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
     where
         A: ScalarAlgebra,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
     {
-        self.retained
-            .as_ref()
-            .expect("transfer layers were not retained")
-            .reconstruct_layer_boundary_waves(right_exterior_state)
+        self.solution.entries().sample_source()
+    }
+}
+
+impl<A> ReconstructLayerBoundaryWaves for Transfer2Workspace<A>
+where
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar + One + Zero,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_layer_boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Option<Vec<LayerBoundaryWaves<A>>> {
+        let retained = self.retained.as_ref()?;
+
+        let solution = self.solution();
+        let amplitudes = solution.amplitudes(incident_side);
+
+        let right_admittance = solution.context().right_admittance();
+
+        let right_exterior_waves =
+            right_exterior_waves(&amplitudes, incident_side, right_admittance.value());
+
+        let right_exterior_state =
+            transfer_state_from_waves(&right_exterior_waves, &right_admittance);
+
+        Some(retained.reconstruct_layer_boundary_waves(right_exterior_state))
+    }
+}
+
+pub(crate) fn right_exterior_waves<A>(
+    amplitudes: &PlaneWaveAmplitudes<A>,
+    incident_side: IncidentSide,
+    source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+) -> BidirectionalWaves<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: Zero + One,
+{
+    match incident_side {
+        IncidentSide::Left => {
+            let zero = A::filled_constant_like(source, <A::Scalar as Zero>::zero());
+            BidirectionalWaves::new(amplitudes.transmission().clone(), zero)
+        }
+
+        IncidentSide::Right => {
+            let one = A::filled_constant_like(source, <A::Scalar as One>::one());
+            BidirectionalWaves::new(amplitudes.reflection().clone(), one)
+        }
     }
 }
 
@@ -422,97 +434,6 @@ impl<A> Transfer2Entries<A> {
     }
 }
 
-/// Decompose a transfer state into forward- and backward-propagating waves.
-///
-/// The directional state convention is
-///
-/// ```text
-/// forward:  [1, -ξ]
-/// backward: [1, +ξ].
-/// ```
-///
-/// Consequently,
-///
-/// ```text
-/// field = forward + backward
-/// slope = ξ(backward - forward),
-/// ```
-///
-/// and therefore
-///
-/// ```text
-/// forward  = ½(field - slope / ξ)
-/// backward = ½(field + slope / ξ).
-/// ```
-fn bidirectional_waves_from_state<A>(
-    state: &TransferState<A>,
-    characteristic_slope: &A,
-) -> BidirectionalWaves<A>
-where
-    A: ScalarAlgebra,
-    A::Scalar: ComplexField + Copy,
-    A::Dimension: Dimension,
-{
-    let slope_ratio = state.slope().divide(characteristic_slope);
-
-    let half = (<A::Scalar as One>::one() + <A::Scalar as One>::one()).recip();
-
-    let forward = state.field().subtract(&slope_ratio).scale(half);
-
-    let backward = state.field().add(&slope_ratio).scale(half);
-
-    BidirectionalWaves::new(forward, backward)
-}
-
-/// Construct a pure outgoing state at the right exterior boundary.
-///
-/// For right-outgoing amplitude `a` and exterior characteristic slope `ξ`,
-/// the state is
-///
-/// ```text
-/// [field, slope] = [a, -ξa].
-/// ```
-///
-/// This helper is useful after the outgoing amplitudes have already been
-/// normalised and phase-fixed.
-pub(crate) fn right_outgoing_transfer_state<A>(
-    right_outgoing: &A,
-    right_admittance: &A,
-) -> TransferState<A>
-where
-    A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let right_slope = boundary_slope(right_admittance);
-
-    let slope = right_slope.multiply(right_outgoing).negate();
-
-    TransferState::new(right_outgoing.clone(), slope)
-}
-
-/// Convert a physical characteristic admittance into the field-state slope
-/// used by the transfer matrix.
-///
-/// For the matrix convention
-///
-/// ```text
-/// M = [ cos(κd)    -sin(κd)/Y ]
-///     [ Y sin(κd)   cos(κd)   ],
-/// ```
-///
-/// travelling-wave states have derivative components `±iY`.
-pub(super) fn boundary_slope<A>(admittance: &A) -> A
-where
-    A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let minus_i = A::filled_constant_like(admittance.value(), -<A::Scalar as ComplexScalar>::i());
-
-    minus_i.multiply(admittance)
-}
-
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -521,13 +442,22 @@ mod tests {
 
     use super::*;
     use crate::{
-        Polarisation,
+        Constant, Polarisation, RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::RunMode,
-        input::CanonicalCoordinates,
+        backend::{RunMode, Transfer2, transfer2::state::transfer_state_slope},
+        input::{CanonicalCoordinates, CanonicalStack},
         test_support::{
-            C, TOLERANCE, assertions::assert_complex_close, c, jet::zero_jet_from_value,
+            C, TOLERANCE,
+            assertions::{
+                assert_bidirectional_waves_close, assert_complex_close, assert_zero_jet_close,
+            },
+            c,
+            jet::{J0, zero_jet_from_real_value, zero_jet_from_value},
             materials::constant,
+            planar::{
+                boundary_test_empty_stack, boundary_test_jet, boundary_test_single_layer_stack,
+                boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
+            },
         },
     };
 
@@ -671,39 +601,6 @@ mod tests {
     }
 
     #[test]
-    fn state_to_waves_recovers_forward_and_backward_amplitudes() {
-        let admittance = zero_jet_from_value(c(3.0));
-        let characteristic_slope = boundary_slope(&admittance);
-
-        let forward = zero_jet_from_value(c(2.0));
-        let backward = zero_jet_from_value(c(-0.5));
-
-        let field = forward.add(&backward);
-
-        let slope = characteristic_slope.multiply(&backward.subtract(&forward));
-
-        let state = TransferState::new(field, slope);
-
-        let waves = bidirectional_waves_from_state(&state, &characteristic_slope);
-
-        assert_complex_close(waves.forward()[()], c(2.0), TOLERANCE);
-        assert_complex_close(waves.backward()[()], c(-0.5), TOLERANCE);
-    }
-
-    #[test]
-    fn right_outgoing_state_has_forward_slope() {
-        let outgoing = zero_jet_from_value(c(2.0));
-        let admittance = zero_jet_from_value(c(3.0));
-
-        let state = right_outgoing_transfer_state(&outgoing, &admittance);
-
-        assert_complex_close(state.field()[()], c(2.0), TOLERANCE);
-
-        // ξ = -iY, so right-going slope is -ξa = +iYa.
-        assert_complex_close(state.slope()[()], C::new(0.0, 6.0), TOLERANCE);
-    }
-
-    #[test]
     #[should_panic(expected = "transfer layers were not retained")]
     fn propagation_panics_without_retention() {
         let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 0);
@@ -712,5 +609,324 @@ mod tests {
             zero_jet_from_value(c(1.0)),
             zero_jet_from_value(c(0.0)),
         ));
+    }
+
+    fn test_coordinates() -> CanonicalCoordinates<J0> {
+        CanonicalCoordinates::new(
+            zero_jet_from_real_value(2.3),
+            zero_jet_from_real_value(0.37),
+        )
+    }
+
+    fn build_workspace(
+        stack: CanonicalStack<Constant<f64>, J0>,
+        mode: RunMode,
+    ) -> Transfer2Workspace<J0> {
+        Transfer2::new()
+            .accumulate::<J0, RealAxis, _>(
+                &test_coordinates(),
+                &stack,
+                Polarisation::TransverseElectric,
+                mode,
+            )
+            .expect("scatter workspace accumulation should succeed")
+    }
+
+    #[test]
+    fn response_only_workspace_does_not_reconstruct_boundary_waves() {
+        let workspace = build_workspace(boundary_test_single_layer_stack(), RunMode::ResponseOnly);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            assert!(workspace.reconstruct_layer_boundary_waves(side).is_none(),);
+        }
+    }
+
+    #[test]
+    fn retained_empty_stack_reconstructs_no_layers() {
+        let workspace = build_workspace(boundary_test_empty_stack(), RunMode::InternalFields);
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let waves = workspace
+                .reconstruct_layer_boundary_waves(side)
+                .expect("workspace retained internal data");
+
+            assert!(waves.is_empty());
+        }
+    }
+
+    #[test]
+    fn reconstruction_returns_one_record_per_finite_layer() {
+        let workspace = build_workspace(boundary_test_two_layer_stack(), RunMode::InternalFields);
+
+        let waves = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
+        assert_eq!(waves.len(), 2);
+    }
+
+    #[test]
+    fn zero_thickness_layer_has_equal_boundary_waves() {
+        let workspace = build_workspace(
+            boundary_test_zero_thickness_stack(),
+            RunMode::InternalFields,
+        );
+
+        for side in [IncidentSide::Left, IncidentSide::Right] {
+            let waves = workspace.reconstruct_layer_boundary_waves(side).unwrap();
+
+            assert_eq!(waves.len(), 1);
+
+            assert_bidirectional_waves_close(waves[0].left(), waves[0].right(), 1.0e-12);
+        }
+    }
+
+    #[test]
+    fn reconstruction_respects_incident_side() {
+        let workspace = build_workspace(boundary_test_two_layer_stack(), RunMode::InternalFields);
+
+        let left = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
+        let right = workspace
+            .reconstruct_layer_boundary_waves(IncidentSide::Right)
+            .unwrap();
+
+        assert_ne!(left, right);
+    }
+
+    #[test]
+    fn left_incidence_right_exterior_contains_only_transmission() {
+        let transmission = boundary_test_jet(Complex64::new(0.7, 0.2));
+
+        let reflection = boundary_test_jet(Complex64::new(-0.1, 0.3));
+
+        let amplitudes = PlaneWaveAmplitudes::new(reflection, transmission.clone());
+
+        let waves = right_exterior_waves(&amplitudes, IncidentSide::Left, transmission.value());
+
+        assert_complex_close(
+            waves.forward().value()[()],
+            transmission.value()[()],
+            1.0e-14,
+        );
+
+        assert_complex_close(
+            waves.backward().value()[()],
+            Complex64::new(0.0, 0.0),
+            1.0e-14,
+        );
+    }
+
+    #[test]
+    fn right_incidence_right_exterior_contains_incident_and_reflected_waves() {
+        let transmission = boundary_test_jet(Complex64::new(0.7, 0.2));
+
+        let reflection = boundary_test_jet(Complex64::new(-0.1, 0.3));
+
+        let amplitudes = PlaneWaveAmplitudes::new(reflection.clone(), transmission);
+
+        let waves = right_exterior_waves(&amplitudes, IncidentSide::Right, reflection.value());
+
+        assert_complex_close(waves.forward().value()[()], reflection.value()[()], 1.0e-14);
+
+        assert_complex_close(
+            waves.backward().value()[()],
+            Complex64::new(1.0, 0.0),
+            1.0e-14,
+        );
+    }
+
+    fn quantities_for_material(material: Constant<f64>) -> IsotropicLayerQuantities<J0> {
+        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            &material,
+            &test_coordinates(),
+            Polarisation::TransverseElectric,
+        )
+    }
+
+    fn entries(m11: f64, m12: f64, m21: f64, m22: f64) -> Transfer2Entries<J0> {
+        Transfer2Entries::new(
+            zero_jet_from_real_value(m11),
+            zero_jet_from_real_value(m12),
+            zero_jet_from_real_value(m21),
+            zero_jet_from_real_value(m22),
+        )
+    }
+
+    #[test]
+    fn propagated_boundary_states_are_returned_in_physical_layer_order() {
+        /*
+         * Physical stack:
+         *
+         * left exterior -> layer 0 -> layer 1 -> right exterior
+         *
+         * Each matrix maps:
+         *
+         *     state_left = matrix * state_right
+         */
+        let layer0_matrix = entries(1.0, 2.0, 0.0, 1.0);
+
+        let layer1_matrix = entries(1.0, 0.0, 3.0, 1.0);
+
+        let layer0_quantities = quantities_for_material(constant(2.25, 1.0));
+
+        let layer1_quantities = quantities_for_material(constant(4.0, 1.0));
+
+        let mut retained = RetainedTransferLayers::new();
+
+        retained.push(layer0_matrix.clone(), layer0_quantities);
+
+        retained.push(layer1_matrix.clone(), layer1_quantities);
+
+        let right_exterior_state =
+            TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+
+        /*
+         * Propagation occurs right-to-left:
+         *
+         *     right exterior
+         *         ↓ layer 1
+         *     interface between layers
+         *         ↓ layer 0
+         *     left exterior
+         */
+        let layer1_left = layer1_matrix.apply_state(&right_exterior_state);
+
+        let layer0_left = layer0_matrix.apply_state(&layer1_left);
+
+        let states = retained.propagate_right_state(right_exterior_state.clone());
+
+        assert_eq!(states.len(), 2);
+
+        /*
+         * The returned vector must nevertheless remain in physical
+         * left-to-right layer order.
+         */
+        let layer0 = &states[0];
+        let layer1 = &states[1];
+
+        assert_eq!(
+            layer0.right(),
+            &layer1_left,
+            "layer 0 right boundary should be the state at the \
+         interface between layers 0 and 1",
+        );
+
+        assert_eq!(
+            layer0.left(),
+            &layer0_left,
+            "layer 0 left boundary should be the final propagated \
+         left-exterior state",
+        );
+
+        assert_eq!(
+            layer1.right(),
+            &right_exterior_state,
+            "layer 1 right boundary should be the supplied \
+         right-exterior state",
+        );
+
+        assert_eq!(
+            layer1.left(),
+            &layer1_left,
+            "layer 1 left boundary should be the state obtained by \
+         applying the physical rightmost layer first",
+        );
+
+        /*
+         * Adjacent records must share the same physical interface
+         * state, even though they belong to different layer records.
+         */
+        assert_eq!(layer0.right(), layer1.left());
+    }
+
+    fn assert_transfer_state_close(actual: &TransferState<J0>, expected: &TransferState<J0>) {
+        assert_zero_jet_close(actual.field(), expected.field());
+        assert_zero_jet_close(actual.slope(), expected.slope());
+    }
+
+    #[test]
+    fn one_layer_right_boundary_state_is_the_supplied_exterior_state() {
+        let workspace =
+            build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
+
+        let solution = workspace.solution();
+
+        let amplitudes = solution.amplitudes(IncidentSide::Left);
+
+        let right_admittance = solution.context().right_admittance();
+
+        let right_waves =
+            right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
+
+        let expected_right_state = transfer_state_from_waves(&right_waves, &right_admittance);
+
+        let states = workspace
+            .retained()
+            .expect("layers should be retained")
+            .propagate_right_state(expected_right_state.clone());
+
+        assert_eq!(states.len(), 1);
+
+        assert_transfer_state_close(states[0].right(), &expected_right_state);
+    }
+
+    #[test]
+    fn retained_right_state_decomposes_with_retained_layer_admittance() {
+        let workspace =
+            build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
+
+        let solution = workspace.solution();
+
+        let amplitudes = solution.amplitudes(IncidentSide::Left);
+
+        let right_admittance = solution.context().right_admittance();
+
+        let exterior_waves =
+            right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
+
+        let right_state = transfer_state_from_waves(&exterior_waves, &right_admittance);
+
+        let retained = workspace.retained().expect("layers should be retained");
+
+        let layer = &retained.layers()[0];
+
+        let layer_admittance = layer.quantities().clone().into_admittance().into_inner();
+
+        let expected = bidirectional_waves_from_state(&right_state, &layer_admittance);
+
+        let actual = retained.reconstruct_layer_boundary_waves(right_state);
+
+        assert_eq!(actual.len(), 1);
+
+        assert_bidirectional_waves_close(actual[0].right(), &expected, 1.0e-12);
+    }
+
+    #[test]
+    fn retained_layer_admittance_matches_fresh_layer_evaluation() {
+        let coordinates = test_coordinates();
+        let stack = boundary_test_single_layer_stack();
+
+        let workspace = build_workspace(stack.clone(), RunMode::InternalFields);
+
+        let retained = workspace.retained().expect("layers should be retained");
+
+        let retained_admittance = retained.layers()[0]
+            .quantities()
+            .clone()
+            .into_admittance()
+            .into_inner();
+
+        let fresh_quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            stack.layers()[0].material(),
+            &coordinates,
+            Polarisation::TransverseElectric,
+        );
+
+        let fresh_admittance = fresh_quantities.into_admittance().into_inner();
+
+        assert_zero_jet_close(&retained_admittance, &fresh_admittance);
     }
 }

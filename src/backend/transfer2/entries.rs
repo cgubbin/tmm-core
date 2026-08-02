@@ -52,8 +52,9 @@ use crate::{
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
-use super::projection::{
-    outgoing_residual, right_incoming_column, right_outgoing_column, transfer_state_slope,
+use super::{
+    projection::{outgoing_residual, right_incoming_column, right_outgoing_column},
+    state::transfer_state_slope,
 };
 
 /// Zero-order entry-wise transfer representation.
@@ -144,6 +145,13 @@ impl<A> Transfer2Entries<A> {
                 })
             })
         })
+    }
+
+    pub(super) fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
+    where
+        A: ScalarAlgebra,
+    {
+        self.m11().value()
     }
 }
 

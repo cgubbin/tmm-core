@@ -8,17 +8,25 @@ use crate::{
 use ndarray::Dimension;
 
 mod isotropic;
-mod plane_wave;
 mod scatter2;
 mod solution;
 mod transfer2;
 mod waves;
+mod workspace;
 
+pub(crate) use isotropic::{IsotropicLayerAdmittance, IsotropicLayerQuantities};
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use scatter2::{Scatter2Entries, Scatter2ExteriorContext};
-pub(crate) use solution::{PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionView};
+pub(crate) use solution::{
+    PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource, PlaneWaveSolutionView,
+};
 pub use transfer2::{Transfer2, Transfer2Error};
+pub(crate) use transfer2::{
+    TransferState, bidirectional_waves_from_state, right_exterior_waves, transfer_state_from_waves,
+    transfer_state_slope,
+};
 pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
+pub(crate) use workspace::{ReconstructLayerBoundaryWaves, SolutionWorkspace};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RunMode {
@@ -60,22 +68,4 @@ where
     where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         J: ConstitutiveLift<Domain, M>;
-}
-
-pub trait PlaneWaveSolutionSource {
-    type Entries: PlaneWaveEntries;
-
-    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries>;
-}
-
-pub trait SolutionWorkspace: PlaneWaveSolutionSource {
-    fn into_solution(self) -> PlaneWaveSolution<Self::Entries>;
-}
-
-impl<E: PlaneWaveEntries> PlaneWaveSolutionSource for PlaneWaveSolution<E> {
-    type Entries = E;
-
-    fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
-        self.as_view()
-    }
 }

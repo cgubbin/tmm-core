@@ -2,26 +2,6 @@ use ndarray::Dimension;
 
 use crate::{ComplexScalar, algebra::ScalarAlgebra, backend::transfer2::Transfer2Entries};
 
-/// Convert a physical characteristic admittance into the transfer-state slope
-/// coefficient.
-///
-/// With the state convention used by the transfer backend,
-///
-/// ```text
-/// ξ = -iY.
-/// ```
-///
-/// A right-going wave of amplitude `a` has state `[a, -ξa]`, while a
-/// left-going wave has state `[a, +ξa]`.
-pub(super) fn transfer_state_slope<A>(admittance: &A) -> A
-where
-    A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    admittance.scale(-<A::Scalar as ComplexScalar>::i())
-}
-
 /// Propagate the unit right-going basis state from the right exterior to the
 /// left exterior.
 ///

@@ -13,11 +13,15 @@ mod backend;
 mod entries;
 mod error;
 mod projection;
+mod state;
 mod workspace;
 
 pub(crate) use entries::Transfer2Entries;
 pub use error::Transfer2Error;
-pub(crate) use workspace::Transfer2Workspace;
+pub(crate) use state::{
+    TransferState, bidirectional_waves_from_state, transfer_state_from_waves, transfer_state_slope,
+};
+pub(crate) use workspace::{Transfer2Workspace, right_exterior_waves};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
