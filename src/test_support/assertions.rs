@@ -3,13 +3,16 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
         ScalarAlgebra,
     },
-    backend::{BidirectionalWaves, LayerBoundaryWaves},
+    backend::BidirectionalWaves,
+    observable::{
+        BoundaryState, BoundaryWaves, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves,
+    },
 };
 
 use super::{C, TOLERANCE, c};
 
 use approx::assert_relative_eq;
-use ndarray::{ArrayBase, Data, Dimension, Ix0};
+use ndarray::{ArrayBase, Data, Dimension, Ix0, OwnedRepr};
 
 pub fn assert_real_close(actual: f64, expected: f64, tolerance: f64) {
     let error = (actual - expected).abs();
@@ -66,6 +69,27 @@ pub fn assert_dispersion_relation(
     );
 }
 
+pub(crate) fn assert_boundary_waves_close<A>(
+    actual: &BoundaryWaves<A>,
+    expected: &BoundaryWaves<A>,
+    tolerance: f64,
+) where
+    A: ScalarAlgebra<Scalar = C>,
+    A::Dimension: ndarray::Dimension,
+{
+    assert_array_close(
+        actual.forward().value(),
+        expected.forward().value(),
+        tolerance,
+    );
+
+    assert_array_close(
+        actual.backward().value(),
+        expected.backward().value(),
+        tolerance,
+    );
+}
+
 pub(crate) fn assert_bidirectional_waves_close<A>(
     actual: &BidirectionalWaves<A>,
     expected: &BidirectionalWaves<A>,
@@ -95,9 +119,9 @@ pub(crate) fn assert_layer_boundary_waves_close<A>(
     A: ScalarAlgebra<Scalar = C>,
     A::Dimension: ndarray::Dimension,
 {
-    assert_bidirectional_waves_close(actual.left(), expected.left(), tolerance);
+    assert_boundary_waves_close(actual.left(), expected.left(), tolerance);
 
-    assert_bidirectional_waves_close(actual.right(), expected.right(), tolerance);
+    assert_boundary_waves_close(actual.right(), expected.right(), tolerance);
 }
 
 type D = Ix0;
@@ -175,8 +199,8 @@ pub(crate) fn assert_bivariate_second_jet_close(
 }
 
 pub(crate) fn assert_zero_waves_close(
-    actual: &BidirectionalWaves<ZeroJet>,
-    expected: &BidirectionalWaves<ZeroJet>,
+    actual: &BoundaryWaves<ZeroJet>,
+    expected: &BoundaryWaves<ZeroJet>,
     tolerance: f64,
 ) {
     assert_complex_close(actual.forward()[()], expected.forward()[()], tolerance);
@@ -211,8 +235,8 @@ pub(crate) fn assert_zero_layers_close(
 }
 
 pub(crate) fn assert_first_waves_close(
-    actual: &BidirectionalWaves<FirstJet>,
-    expected: &BidirectionalWaves<FirstJet>,
+    actual: &BoundaryWaves<FirstJet>,
+    expected: &BoundaryWaves<FirstJet>,
 ) {
     assert_first_jet_close(actual.forward(), expected.forward());
 
@@ -220,8 +244,8 @@ pub(crate) fn assert_first_waves_close(
 }
 
 pub(crate) fn assert_second_waves_close(
-    actual: &BidirectionalWaves<SecondJet>,
-    expected: &BidirectionalWaves<SecondJet>,
+    actual: &BoundaryWaves<SecondJet>,
+    expected: &BoundaryWaves<SecondJet>,
 ) {
     assert_second_jet_close(actual.forward(), expected.forward());
 
@@ -229,8 +253,8 @@ pub(crate) fn assert_second_waves_close(
 }
 
 pub(crate) fn assert_bivariate_first_waves_close(
-    actual: &BidirectionalWaves<BivariateFirstJet>,
-    expected: &BidirectionalWaves<BivariateFirstJet>,
+    actual: &BoundaryWaves<BivariateFirstJet>,
+    expected: &BoundaryWaves<BivariateFirstJet>,
 ) {
     assert_bivariate_first_jet_close(actual.forward(), expected.forward());
 
@@ -238,8 +262,8 @@ pub(crate) fn assert_bivariate_first_waves_close(
 }
 
 pub(crate) fn assert_bivariate_second_waves_close(
-    actual: &BidirectionalWaves<BivariateSecondJet>,
-    expected: &BidirectionalWaves<BivariateSecondJet>,
+    actual: &BoundaryWaves<BivariateSecondJet>,
+    expected: &BoundaryWaves<BivariateSecondJet>,
 ) {
     assert_bivariate_second_jet_close(actual.forward(), expected.forward());
 
@@ -295,5 +319,68 @@ pub(crate) fn assert_bivariate_second_layers_close(
         assert_bivariate_second_waves_close(actual.left(), expected.left());
 
         assert_bivariate_second_waves_close(actual.right(), expected.right());
+    }
+}
+
+type ValueArray = ArrayBase<OwnedRepr<C>, Ix0>;
+
+pub(crate) fn assert_boundary_state_close(
+    actual: &BoundaryState<ValueArray>,
+    expected: &BoundaryState<ValueArray>,
+    tolerance: f64,
+) {
+    assert_array_close(actual.field(), expected.field(), tolerance);
+    assert_array_close(actual.secondary(), expected.secondary(), tolerance);
+}
+
+pub(crate) fn assert_boundary_waves_close_arr(
+    actual: &BoundaryWaves<ValueArray>,
+    expected: &BoundaryWaves<ValueArray>,
+    tolerance: f64,
+) {
+    assert_array_close(actual.forward(), expected.forward(), tolerance);
+    assert_array_close(actual.backward(), expected.backward(), tolerance);
+}
+
+pub(crate) fn assert_layer_boundary_waves_close_arr(
+    actual: &LayerBoundaryWaves<ValueArray>,
+    expected: &LayerBoundaryWaves<ValueArray>,
+    tolerance: f64,
+) {
+    assert_boundary_waves_close_arr(actual.left(), expected.left(), tolerance);
+    assert_boundary_waves_close_arr(actual.right(), expected.right(), tolerance);
+}
+
+pub(crate) fn assert_layer_boundary_states_close(
+    actual: &LayerBoundaryStates<ValueArray>,
+    expected: &LayerBoundaryStates<ValueArray>,
+    tolerance: f64,
+) {
+    assert_boundary_state_close(actual.left(), expected.left(), tolerance);
+
+    assert_boundary_state_close(actual.right(), expected.right(), tolerance);
+}
+
+pub(crate) fn assert_layer_waves_collection_close(
+    actual: &LayerBoundaries<LayerBoundaryWaves<ValueArray>>,
+    expected: &LayerBoundaries<LayerBoundaryWaves<ValueArray>>,
+    tolerance: f64,
+) {
+    assert_eq!(actual.len(), expected.len());
+
+    for (actual, expected) in actual.iter().zip(expected.iter()) {
+        assert_layer_boundary_waves_close_arr(actual, expected, tolerance);
+    }
+}
+
+pub(crate) fn assert_layer_states_collection_close(
+    actual: &LayerBoundaries<LayerBoundaryStates<ValueArray>>,
+    expected: &LayerBoundaries<LayerBoundaryStates<ValueArray>>,
+    tolerance: f64,
+) {
+    assert_eq!(actual.len(), expected.len());
+
+    for (actual, expected) in actual.iter().zip(expected.iter()) {
+        assert_layer_boundary_states_close(actual, expected, tolerance);
     }
 }

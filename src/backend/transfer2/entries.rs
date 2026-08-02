@@ -307,6 +307,7 @@ impl<J> Transfer2ExteriorContext<J> {
 
 impl<A> PlaneWaveEntries for Transfer2Entries<A> {
     type ExteriorContext = Transfer2ExteriorContext<A>;
+    type Algebra = A;
 }
 
 impl<J> ProjectAmplitudes for Transfer2Entries<J>

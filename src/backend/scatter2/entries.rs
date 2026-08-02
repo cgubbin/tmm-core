@@ -200,6 +200,7 @@ impl<J> Scatter2ExteriorContext<J> {
 
 impl<A> PlaneWaveEntries for Scatter2Entries<A> {
     type ExteriorContext = Scatter2ExteriorContext<A>;
+    type Algebra = A;
 }
 
 /// Compose two scalar-channel scattering networks.

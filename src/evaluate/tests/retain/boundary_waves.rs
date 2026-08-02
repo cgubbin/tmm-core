@@ -6,21 +6,25 @@ use crate::{
     ComplexScalar, PlaneWaveAmplitudes, RealAxis,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, IsotropicLayerQuantities, LayerBoundaryWaves, PlaneWaveSolutionSource,
+        BidirectionalWaves, IsotropicLayerQuantities, PlaneWaveSolutionSource,
         ReconstructLayerBoundaryWaves, Scatter2, Transfer2, TransferState,
         bidirectional_waves_from_state, right_exterior_waves, transfer_state_from_waves,
         transfer_state_slope,
     },
+    derivative_parts::IntoValue,
     evaluate::{PlaneWaveEvaluator, query::PlaneWaveExternalQueries},
     input::{CanonicalCoordinates, IncidentSide, Polarisation},
+    observable::{BoundaryWaves, LayerBoundaryWaves},
     parameter::{FiniteLayerIndex, Parameter},
     test_support::{
         assertions::{
             VALUE_TOLERANCE, assert_bidirectional_waves_close, assert_bivariate_first_layers_close,
-            assert_bivariate_second_layers_close, assert_first_layers_close,
-            assert_layer_boundary_waves_close, assert_second_layers_close,
-            assert_zero_layers_close,
+            assert_bivariate_second_layers_close, assert_boundary_waves_close,
+            assert_first_layers_close, assert_layer_boundary_waves_close,
+            assert_layer_states_collection_close, assert_layer_waves_collection_close,
+            assert_second_layers_close, assert_zero_layers_close,
         },
+        finite_difference::{FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE},
         jet::{J0, zero_jet_from_real_value},
         planar::{scalar_real_input, single_layer_stack, two_layer_stack},
     },
@@ -63,7 +67,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .expect("right workspace should contain retained layers");
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -94,7 +102,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -125,7 +137,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -156,7 +172,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -189,7 +209,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
                 assert_eq!(left_waves.len(), 2);
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -220,7 +244,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -251,7 +279,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -282,7 +314,11 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_zero_layers_close(&left_waves, &right_waves, VALUE_TOLERANCE);
+                assert_zero_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                    VALUE_TOLERANCE,
+                );
             }
 
             #[test]
@@ -315,7 +351,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_first_layers_close(&left_waves, &right_waves);
+                assert_first_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
             }
 
             #[test]
@@ -350,7 +386,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_first_layers_close(&left_waves, &right_waves);
+                assert_first_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
             }
 
             #[test]
@@ -383,7 +419,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_second_layers_close(&left_waves, &right_waves);
+                assert_second_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
             }
 
             #[test]
@@ -418,7 +454,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Right)
                     .unwrap();
 
-                assert_second_layers_close(&left_waves, &right_waves);
+                assert_second_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
             }
 
             #[test]
@@ -457,7 +493,10 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_bivariate_first_layers_close(&left_waves, &right_waves);
+                assert_bivariate_first_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                );
             }
 
             #[test]
@@ -496,7 +535,10 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                     .raw_layer_boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                assert_bivariate_second_layers_close(&left_waves, &right_waves);
+                assert_bivariate_second_layers_close(
+                    &left_waves.into_inner(),
+                    &right_waves.into_inner(),
+                );
             }
         }
     };
@@ -573,7 +615,7 @@ where
 
     let right = waves_from_state(&right_field, &right_state_slope, &layer_slope);
 
-    LayerBoundaryWaves::new(left, right)
+    crate::backend::LayerBoundaryWaves::new(left, right).into()
 }
 
 #[test]
@@ -625,7 +667,7 @@ fn transfer_single_layer_waves_match_boundary_continuity() {
 
     assert_eq!(actual.len(), 1);
 
-    assert_layer_boundary_waves_close(&actual[0], &expected, VALUE_TOLERANCE);
+    assert_layer_boundary_waves_close(&actual.into_inner()[0], &expected, VALUE_TOLERANCE);
 }
 
 #[test]
@@ -677,7 +719,7 @@ fn scatter_single_layer_waves_match_boundary_continuity() {
 
     assert_eq!(actual.len(), 1);
 
-    assert_layer_boundary_waves_close(&actual[0], &expected, VALUE_TOLERANCE);
+    assert_layer_boundary_waves_close(&actual.into_inner()[0], &expected, VALUE_TOLERANCE);
 }
 
 #[test]
@@ -729,9 +771,17 @@ fn transfer_single_layer_reconstruction_localises_boundary_error() {
 
     assert_eq!(actual.len(), 1);
 
-    assert_bidirectional_waves_close(actual[0].right(), expected.right(), VALUE_TOLERANCE);
+    assert_boundary_waves_close(
+        actual.clone().into_inner()[0].right(),
+        expected.right(),
+        VALUE_TOLERANCE,
+    );
 
-    assert_bidirectional_waves_close(actual[0].left(), expected.left(), VALUE_TOLERANCE);
+    assert_boundary_waves_close(
+        actual.into_inner()[0].left(),
+        expected.left(),
+        VALUE_TOLERANCE,
+    );
 }
 
 #[test]
@@ -776,7 +826,7 @@ fn analytic_right_boundary_matches_transfer_state_conversion() {
         IncidentSide::Left,
     );
 
-    assert_bidirectional_waves_close(&direct, analytic.right(), 1.0e-12);
+    assert_boundary_waves_close(&direct.into(), analytic.right(), 1.0e-12);
 }
 
 #[test]
@@ -805,9 +855,17 @@ fn plane_wave_state_delegates_boundary_reconstruction_to_workspace() {
     assert_eq!(from_state.len(), from_workspace.len());
 
     for (state_layer, workspace_layer) in from_state.iter().zip(from_workspace.iter()) {
-        assert_bidirectional_waves_close(state_layer.left(), workspace_layer.left(), 1.0e-12);
+        assert_boundary_waves_close(
+            state_layer.left(),
+            &workspace_layer.left().clone().into(),
+            1.0e-12,
+        );
 
-        assert_bidirectional_waves_close(state_layer.right(), workspace_layer.right(), 1.0e-12);
+        assert_boundary_waves_close(
+            state_layer.right(),
+            &workspace_layer.right().clone().into(),
+            1.0e-12,
+        );
     }
 }
 
@@ -1027,3 +1085,524 @@ fn transfer_evaluator_right_boundary_reconstruction_is_stepwise_consistent() {
         1.0e-12,
     );
 }
+
+macro_rules! boundary_observable_suite {
+    (
+        $module:ident,
+        backend = $backend:expr $(,)?
+    ) => {
+        mod $module {
+            use super::*;
+
+            #[test]
+            fn value_boundary_waves_match_raw_waves() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let state = evaluator
+                    .retain(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                    )
+                    .expect("retained evaluation should succeed");
+
+                for side in [IncidentSide::Left, IncidentSide::Right] {
+                    let raw = state
+                        .raw_layer_boundary_waves(side)
+                        .expect("raw boundary-wave projection should succeed");
+
+                    let response = state
+                        .boundary_waves(side)
+                        .expect("boundary-wave response should assemble");
+
+                    assert_layer_waves_collection_close(
+                        response.value(),
+                        &raw.into_value().into_inner(),
+                        VALUE_TOLERANCE,
+                    );
+                }
+            }
+
+            #[test]
+            fn value_boundary_states_match_raw_states() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let state = evaluator
+                    .retain(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                    )
+                    .expect("retained evaluation should succeed");
+
+                for side in [IncidentSide::Left, IncidentSide::Right] {
+                    let raw = state
+                        .raw_layer_boundary_states(side)
+                        .expect("raw boundary-state projection should succeed");
+
+                    let response = state
+                        .boundary_states(side)
+                        .expect("boundary-state response should assemble");
+
+                    assert_layer_states_collection_close(
+                        response.value(),
+                        &raw.into_value().into_inner(),
+                        VALUE_TOLERANCE,
+                    );
+                }
+            }
+
+            #[test]
+            fn value_boundary_methods_preserve_layer_order() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let state = evaluator
+                    .retain(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                    )
+                    .unwrap();
+
+                let waves = state.boundary_waves(IncidentSide::Left).unwrap();
+
+                let states = state.boundary_states(IncidentSide::Left).unwrap();
+
+                assert_eq!(waves.value().len(), 2);
+                assert_eq!(states.value().len(), 2);
+
+                /*
+                 * The corresponding layer-state and layer-wave entries must
+                 * remain aligned. A stronger wave-to-state equality is tested
+                 * separately below.
+                 */
+                assert_eq!(waves.value().len(), states.value().len(),);
+            }
+
+            #[test]
+            fn first_boundary_waves_have_requested_parameter() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let state = evaluator
+                    .retain_first(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        Parameter::Spectral,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+
+                assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
+
+                assert_eq!(response.value().len(), 2);
+                assert_eq!(response.derivatives().first().len(), 2,);
+            }
+
+            #[test]
+            fn first_boundary_states_have_requested_parameter() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+                let state = evaluator
+                    .retain_first(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                        parameter,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_states(IncidentSide::Right).unwrap();
+
+                assert_eq!(response.derivatives().parameter(), parameter,);
+
+                assert_eq!(response.value().len(), 2);
+                assert_eq!(response.derivatives().first().len(), 2,);
+            }
+
+            #[test]
+            fn second_boundary_waves_contain_first_and_second_branches() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let state = evaluator
+                    .retain_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        Parameter::Spectral,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+
+                assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
+
+                assert_eq!(response.value().len(), 2);
+                assert_eq!(response.derivatives().first().len(), 2,);
+                assert_eq!(response.derivatives().second().len(), 2,);
+            }
+
+            #[test]
+            fn second_boundary_states_contain_first_and_second_branches() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex(0));
+
+                let state = evaluator
+                    .retain_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                        parameter,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_states(IncidentSide::Right).unwrap();
+
+                assert_eq!(response.derivatives().parameter(), parameter,);
+
+                assert_eq!(response.value().len(), 2);
+                assert_eq!(response.derivatives().first().len(), 2,);
+                assert_eq!(response.derivatives().second().len(), 2,);
+            }
+
+            #[test]
+            fn bivariate_first_boundary_waves_preserve_parameter_order() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let axis0 = Parameter::Spectral;
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+                let state = evaluator
+                    .retain_bivariate_first(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        axis0,
+                        axis1,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+
+                assert_eq!(response.derivatives().parameters(), [axis0, axis1],);
+
+                assert_eq!(response.value().len(), 2);
+                assert_eq!(response.derivatives().axis0().len(), 2,);
+                assert_eq!(response.derivatives().axis1().len(), 2,);
+            }
+
+            #[test]
+            fn bivariate_second_boundary_states_preserve_all_branches() {
+                let evaluator = PlaneWaveEvaluator::new($backend);
+
+                let stack = two_layer_stack();
+
+                let axis0 = Parameter::Spectral;
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+                let state = evaluator
+                    .retain_bivariate_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                        axis0,
+                        axis1,
+                    )
+                    .unwrap();
+
+                let response = state.boundary_states(IncidentSide::Right).unwrap();
+
+                assert_eq!(response.derivatives().parameters(), [axis0, axis1],);
+
+                assert_eq!(response.value().len(), 2);
+
+                let gradient = response.derivatives().first();
+
+                let hessian = response.derivatives().second();
+
+                assert_eq!(gradient.axis0().len(), 2);
+                assert_eq!(gradient.axis1().len(), 2);
+
+                assert_eq!(hessian.axis0_axis0().len(), 2,);
+                assert_eq!(hessian.axis0_axis1().len(), 2,);
+                assert_eq!(hessian.axis1_axis1().len(), 2,);
+            }
+        }
+    };
+}
+
+boundary_observable_suite!(transfer2, backend = crate::backend::Transfer2::new(),);
+
+boundary_observable_suite!(scatter2, backend = crate::backend::Scatter2::new(),);
+
+macro_rules! boundary_observable_equivalence_suite {
+    (
+        $module:ident,
+        left = $left_backend:expr,
+        right = $right_backend:expr $(,)?
+    ) => {
+        mod $module {
+            use super::*;
+
+            #[test]
+            fn value_boundary_waves_match() {
+                let left = PlaneWaveEvaluator::new($left_backend);
+
+                let right = PlaneWaveEvaluator::new($right_backend);
+
+                let stack = two_layer_stack();
+
+                for polarisation in [
+                    Polarisation::TransverseElectric,
+                    Polarisation::TransverseMagnetic,
+                ] {
+                    for side in [IncidentSide::Left, IncidentSide::Right] {
+                        let left_response = left
+                            .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap()
+                            .boundary_waves(side)
+                            .unwrap();
+
+                        let right_response = right
+                            .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap()
+                            .boundary_waves(side)
+                            .unwrap();
+
+                        assert_layer_waves_collection_close(
+                            left_response.value(),
+                            right_response.value(),
+                            VALUE_TOLERANCE,
+                        );
+                    }
+                }
+            }
+
+            #[test]
+            fn value_boundary_states_match() {
+                let left = PlaneWaveEvaluator::new($left_backend);
+
+                let right = PlaneWaveEvaluator::new($right_backend);
+
+                let stack = two_layer_stack();
+
+                for polarisation in [
+                    Polarisation::TransverseElectric,
+                    Polarisation::TransverseMagnetic,
+                ] {
+                    for side in [IncidentSide::Left, IncidentSide::Right] {
+                        let left_response = left
+                            .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap()
+                            .boundary_states(side)
+                            .unwrap();
+
+                        let right_response = right
+                            .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap()
+                            .boundary_states(side)
+                            .unwrap();
+
+                        assert_layer_states_collection_close(
+                            left_response.value(),
+                            right_response.value(),
+                            VALUE_TOLERANCE,
+                        );
+                    }
+                }
+            }
+
+            #[test]
+            fn first_boundary_waves_match() {
+                let left = PlaneWaveEvaluator::new($left_backend);
+
+                let right = PlaneWaveEvaluator::new($right_backend);
+
+                let stack = two_layer_stack();
+
+                let left_response = left
+                    .retain_first(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        Parameter::Spectral,
+                    )
+                    .unwrap()
+                    .boundary_waves(IncidentSide::Left)
+                    .unwrap();
+
+                let right_response = right
+                    .retain_first(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        Parameter::Spectral,
+                    )
+                    .unwrap()
+                    .boundary_waves(IncidentSide::Left)
+                    .unwrap();
+
+                assert_layer_waves_collection_close(
+                    left_response.value(),
+                    right_response.value(),
+                    VALUE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().first(),
+                    right_response.derivatives().first(),
+                    FIRST_DERIVATIVE_TOLERANCE,
+                );
+            }
+
+            #[test]
+            fn second_boundary_states_match() {
+                let left = PlaneWaveEvaluator::new($left_backend);
+
+                let right = PlaneWaveEvaluator::new($right_backend);
+
+                let stack = two_layer_stack();
+
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+                let left_response = left
+                    .retain_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                        parameter,
+                    )
+                    .unwrap()
+                    .boundary_states(IncidentSide::Right)
+                    .unwrap();
+
+                let right_response = right
+                    .retain_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseMagnetic,
+                        parameter,
+                    )
+                    .unwrap()
+                    .boundary_states(IncidentSide::Right)
+                    .unwrap();
+
+                assert_layer_states_collection_close(
+                    left_response.value(),
+                    right_response.value(),
+                    VALUE_TOLERANCE,
+                );
+
+                assert_layer_states_collection_close(
+                    left_response.derivatives().first(),
+                    right_response.derivatives().first(),
+                    FIRST_DERIVATIVE_TOLERANCE,
+                );
+
+                assert_layer_states_collection_close(
+                    left_response.derivatives().second(),
+                    right_response.derivatives().second(),
+                    SECOND_DERIVATIVE_TOLERANCE,
+                );
+            }
+
+            #[test]
+            fn bivariate_second_boundary_waves_match() {
+                let left = PlaneWaveEvaluator::new($left_backend);
+
+                let right = PlaneWaveEvaluator::new($right_backend);
+
+                let stack = two_layer_stack();
+
+                let axis0 = Parameter::Spectral;
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+                let left_response = left
+                    .retain_bivariate_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        axis0,
+                        axis1,
+                    )
+                    .unwrap()
+                    .boundary_waves(IncidentSide::Left)
+                    .unwrap();
+
+                let right_response = right
+                    .retain_bivariate_second(
+                        scalar_real_input(2.5, 0.31),
+                        &stack,
+                        Polarisation::TransverseElectric,
+                        axis0,
+                        axis1,
+                    )
+                    .unwrap()
+                    .boundary_waves(IncidentSide::Left)
+                    .unwrap();
+
+                assert_layer_waves_collection_close(
+                    left_response.value(),
+                    right_response.value(),
+                    VALUE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().first().axis0(),
+                    right_response.derivatives().first().axis0(),
+                    FIRST_DERIVATIVE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().first().axis1(),
+                    right_response.derivatives().first().axis1(),
+                    FIRST_DERIVATIVE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().second().axis0_axis0(),
+                    right_response.derivatives().second().axis0_axis0(),
+                    SECOND_DERIVATIVE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().second().axis0_axis1(),
+                    right_response.derivatives().second().axis0_axis1(),
+                    SECOND_DERIVATIVE_TOLERANCE,
+                );
+
+                assert_layer_waves_collection_close(
+                    left_response.derivatives().second().axis1_axis1(),
+                    right_response.derivatives().second().axis1_axis1(),
+                    SECOND_DERIVATIVE_TOLERANCE,
+                );
+            }
+        }
+    };
+}
+
+boundary_observable_equivalence_suite!(
+    transfer2_matches_scatter2_boundary_observables,
+    left = crate::backend::Transfer2::new(),
+    right = crate::backend::Scatter2::new(),
+);

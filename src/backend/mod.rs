@@ -26,7 +26,9 @@ pub(crate) use transfer2::{
     transfer_state_slope,
 };
 pub(crate) use waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
-pub(crate) use workspace::{ReconstructLayerBoundaryWaves, SolutionWorkspace};
+pub(crate) use workspace::{
+    ReconstructLayerBoundaryWaves, RetainedIsotropicLayers, SolutionWorkspace,
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RunMode {

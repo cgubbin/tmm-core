@@ -2,11 +2,14 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
-    IncidentSide,
-    algebra::{ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet, Jet},
+    ComplexScalar, IncidentSide,
+    algebra::{
+        ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ComplexJet, Jet,
+        ScalarAlgebra,
+    },
     backend::{
-        LayerBoundaryWaves, PlaneWaveSolutionSource, PlaneWaveSolutionView,
-        ReconstructLayerBoundaryWaves,
+        PlaneWaveEntries, PlaneWaveSolutionSource, PlaneWaveSolutionView,
+        ReconstructLayerBoundaryWaves, RetainedIsotropicLayers,
     },
     derivative_parts::{DerivativePartsPolicy, IntoDerivativeParts},
     differential::{
@@ -14,7 +17,11 @@ use crate::{
         IntoDifferentialResponse, NoDerivatives,
     },
     input::{CanonicalProblem, CompilationContext, JetMapping},
-    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+    observable::{
+        BoundaryProjectionError, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves,
+        ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower, project_boundary_states,
+        project_boundary_waves,
+    },
 };
 
 use super::query::{
@@ -113,12 +120,64 @@ where
     pub(crate) fn raw_layer_boundary_waves(
         &self,
         incident_side: IncidentSide,
-    ) -> Option<Vec<LayerBoundaryWaves<J>>>
+    ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, BoundaryProjectionError>
     where
         W: ReconstructLayerBoundaryWaves<Algebra = J>,
     {
-        self.workspace
-            .reconstruct_layer_boundary_waves(incident_side)
+        project_boundary_waves(&self.workspace, incident_side)
+    }
+
+    pub fn boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<
+        DifferentialResponseFor<J, LayerBoundaries<LayerBoundaryWaves<J>>>,
+        BoundaryProjectionError,
+    >
+    where
+        J: JetMapping,
+        J::Policy: Default + DerivativePartsPolicy<LayerBoundaries<LayerBoundaryWaves<J>>>,
+        W: PlaneWaveSolutionSource + ReconstructLayerBoundaryWaves<Algebra = J>,
+        LayerBoundaries<LayerBoundaryWaves<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+    {
+        Ok(self
+            .raw_layer_boundary_waves(incident_side)?
+            .into_differential_response(&J::Policy::default(), self.mapping()))
+    }
+
+    pub(crate) fn raw_layer_boundary_states(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<LayerBoundaries<LayerBoundaryStates<J>>, BoundaryProjectionError>
+    where
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        J: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+    {
+        project_boundary_states(&self.workspace, incident_side)
+    }
+
+    pub fn boundary_states(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<
+        DifferentialResponseFor<J, LayerBoundaries<LayerBoundaryStates<J>>>,
+        BoundaryProjectionError,
+    >
+    where
+        J: JetMapping + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        J::Policy: Default + DerivativePartsPolicy<LayerBoundaries<LayerBoundaryStates<J>>>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        LayerBoundaries<LayerBoundaryStates<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+    {
+        Ok(self
+            .raw_layer_boundary_states(incident_side)?
+            .into_differential_response(&J::Policy::default(), self.mapping()))
     }
 }
 

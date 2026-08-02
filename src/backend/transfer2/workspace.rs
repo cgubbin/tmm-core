@@ -6,9 +6,11 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionSource,
-        RunMode, SolutionWorkspace, isotropic::IsotropicLayerQuantities,
-        solution::PlaneWaveSolutionView, workspace::ReconstructLayerBoundaryWaves,
+        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveEntries, PlaneWaveSolution,
+        PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
+        isotropic::IsotropicLayerQuantities,
+        solution::PlaneWaveSolutionView,
+        workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
     },
 };
 
@@ -141,6 +143,13 @@ impl<A> RetainedTransferLayers<A> {
         self.layers.len()
     }
 
+    pub(crate) fn get_quantities(
+        &self,
+        layer_index: usize,
+    ) -> Option<&IsotropicLayerQuantities<A>> {
+        self.layers.get(layer_index).map(|layer| layer.quantities())
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.layers.is_empty()
     }
@@ -243,6 +252,17 @@ impl<A> SolutionWorkspace for Transfer2Workspace<A> {
     fn into_solution(self) -> PlaneWaveSolution<Self::Entries> {
         let (solution, ..) = self.into_parts();
         solution
+    }
+}
+
+impl<A> RetainedIsotropicLayers for Transfer2Workspace<A> {
+    type Algebra = A;
+    fn retained_layer_count(&self) -> Option<usize> {
+        self.retained.as_ref().map(|x| x.len())
+    }
+
+    fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>> {
+        self.retained.as_ref()?.get_quantities(index)
     }
 }
 

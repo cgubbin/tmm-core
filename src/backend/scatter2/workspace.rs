@@ -4,8 +4,9 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        BidirectionalWaves, LayerBoundaryWaves, PlaneWaveSolution, PlaneWaveSolutionSource,
-        PlaneWaveSolutionView, RunMode, SolutionWorkspace,
+        BidirectionalWaves, IsotropicLayerQuantities, LayerBoundaryWaves, PlaneWaveEntries,
+        PlaneWaveSolution, PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers,
+        RunMode, SolutionWorkspace,
         scatter2::{
             Scatter2ExteriorContext,
             entries::{Scatter2Entries, cascade},
@@ -92,9 +93,22 @@ impl<A> SolutionWorkspace for Scatter2Workspace<A> {
     }
 }
 
+impl<A> RetainedIsotropicLayers for Scatter2Workspace<A> {
+    type Algebra = A;
+
+    fn retained_layer_count(&self) -> Option<usize> {
+        self.retained.as_ref().map(|x| x.num_layers())
+    }
+
+    fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>> {
+        self.retained.as_ref()?.get_quantities(index)
+    }
+}
+
 pub(crate) struct RetainedScatterComponents<A> {
     pub(super) components: Vec<Scatter2Entries<A>>,
     pub(super) layer_cuts: Vec<LayerCutIndices>,
+    pub(super) quantities: Vec<IsotropicLayerQuantities<A>>,
 }
 
 impl<A> Scatter2Workspace<A> {
@@ -115,6 +129,7 @@ impl<A> Scatter2Workspace<A> {
             retained: mode.is_requested().then(|| RetainedScatterComponents {
                 components: Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1)),
                 layer_cuts: Vec::with_capacity(layer_count),
+                quantities: Vec::with_capacity(layer_count),
             }),
         }
     }
@@ -151,6 +166,7 @@ impl<A> Scatter2Workspace<A> {
         &mut self,
         interface: Scatter2Entries<A>,
         propagation: Scatter2Entries<A>,
+        quantities: IsotropicLayerQuantities<A>,
     ) where
         A: ScalarAlgebra,
         A::Scalar: ComplexScalar,
@@ -171,6 +187,10 @@ impl<A> Scatter2Workspace<A> {
             retained
                 .layer_cuts
                 .push(LayerCutIndices::new(left_cut, right_cut));
+        }
+
+        if let Some(retained) = &mut self.retained {
+            retained.quantities.push(quantities)
         }
     }
 
@@ -257,16 +277,12 @@ impl<A> RetainedScatterComponents<A> {
             .collect()
     }
 
-    fn map_entries<B>(
-        self,
-        mut map: impl FnMut(Scatter2Entries<A>) -> Scatter2Entries<B>,
-    ) -> RetainedScatterComponents<B> {
-        let components = self.components.into_iter().map(&mut map).collect();
+    fn get_quantities(&self, layer_index: usize) -> Option<&IsotropicLayerQuantities<A>> {
+        self.quantities.get(layer_index)
+    }
 
-        RetainedScatterComponents {
-            components,
-            layer_cuts: self.layer_cuts,
-        }
+    fn num_layers(&self) -> usize {
+        self.quantities.len()
     }
 }
 
@@ -431,7 +447,7 @@ mod tests {
         Material, Polarisation, RealAxis,
         algebra::{ArrayJet0, ArrayJet1, RealParameter, ScalarAlgebra},
         backend::{
-            RunMode, Scatter2, SolutionWorkspace,
+            IsotropicLayerQuantities, RunMode, Scatter2, SolutionWorkspace,
             scatter2::{
                 Scatter2ExteriorContext,
                 entries::{Scatter2Entries, cascade},
@@ -676,7 +692,7 @@ mod tests {
         let interface = first_component();
         let propagation = second_component();
 
-        workspace.append_layer(interface.clone(), propagation.clone());
+        workspace.append_layer(interface.clone(), propagation.clone(), sample_quantities());
 
         let expected = cascade(&interface, &propagation);
 
@@ -695,7 +711,7 @@ mod tests {
         let interface = first_component();
         let propagation = second_component();
 
-        workspace.append_layer(interface.clone(), propagation.clone());
+        workspace.append_layer(interface.clone(), propagation.clone(), sample_quantities());
 
         let (_, retained) = workspace.into_parts();
 
@@ -717,9 +733,13 @@ mod tests {
         let mut workspace: Scatter2Workspace<J0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
-        workspace.append_layer(first_component(), second_component());
+        workspace.append_layer(first_component(), second_component(), sample_quantities());
 
-        workspace.append_layer(third_component(), transparent_component());
+        workspace.append_layer(
+            third_component(),
+            transparent_component(),
+            sample_quantities(),
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -841,6 +861,7 @@ mod tests {
                 transparent_component(),
             ],
             layer_cuts: vec![LayerCutIndices::new(1, 2), LayerCutIndices::new(3, 4)],
+            quantities: vec![sample_quantities(), sample_quantities()],
         };
 
         let waves = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -857,6 +878,7 @@ mod tests {
         let retained = RetainedScatterComponents {
             components: components.clone(),
             layer_cuts: vec![LayerCutIndices::new(1, 2)],
+            quantities: vec![sample_quantities()],
         };
 
         let reconstructed = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -905,6 +927,7 @@ mod tests {
         let retained = RetainedScatterComponents {
             components: components.clone(),
             layer_cuts: vec![LayerCutIndices::new(1, 2)],
+            quantities: vec![sample_quantities()],
         };
 
         let reconstructed = retained.reconstruct_layer_boundary_waves(IncidentSide::Right, &source);
@@ -955,9 +978,19 @@ mod tests {
             s22: J1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
         };
 
+        let quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            &Constant::vacuum(),
+            &CanonicalCoordinates::new(
+                J1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
+                J1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
+            ),
+            Polarisation::TransverseElectric,
+        );
+
         let retained = RetainedScatterComponents {
             components: vec![component],
             layer_cuts: vec![LayerCutIndices::new(0, 1)],
+            quantities: vec![quantities],
         };
 
         let waves = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -1066,6 +1099,19 @@ mod tests {
         )
     }
 
+    fn sample_quantities() -> IsotropicLayerQuantities<J0> {
+        let material = Constant::vacuum();
+
+        let coordinates =
+            CanonicalCoordinates::new(zero_jet_from_real_value(1.0), zero_jet_from_real_value(0.5));
+
+        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            &material,
+            &coordinates,
+            Polarisation::TransverseElectric,
+        )
+    }
+
     fn sample_source() -> ArrayBase<OwnedRepr<C>, Ix0> {
         ndarray::arr0(c(0.0))
     }
@@ -1090,7 +1136,11 @@ mod tests {
         let propagation = sample_entries(2.0);
         let right_interface = sample_entries(3.0);
 
-        workspace.append_layer(left_interface.clone(), propagation.clone());
+        workspace.append_layer(
+            left_interface.clone(),
+            propagation.clone(),
+            sample_quantities(),
+        );
 
         workspace.append(right_interface.clone());
 
@@ -1146,9 +1196,17 @@ mod tests {
         let propagation1 = sample_entries(4.0);
         let final_interface = sample_entries(5.0);
 
-        workspace.append_layer(interface0.clone(), propagation0.clone());
+        workspace.append_layer(
+            interface0.clone(),
+            propagation0.clone(),
+            sample_quantities(),
+        );
 
-        workspace.append_layer(interface1.clone(), propagation1.clone());
+        workspace.append_layer(
+            interface1.clone(),
+            propagation1.clone(),
+            sample_quantities(),
+        );
 
         workspace.append(final_interface.clone());
 
@@ -1196,9 +1254,17 @@ mod tests {
         let mut workspace =
             Scatter2Workspace::new(&source, sample_context(), RunMode::ResponseOnly, 2);
 
-        workspace.append_layer(sample_entries(1.0), sample_entries(2.0));
+        workspace.append_layer(
+            sample_entries(1.0),
+            sample_entries(2.0),
+            sample_quantities(),
+        );
 
-        workspace.append_layer(sample_entries(3.0), sample_entries(4.0));
+        workspace.append_layer(
+            sample_entries(3.0),
+            sample_entries(4.0),
+            sample_quantities(),
+        );
 
         workspace.append(sample_entries(5.0));
 

@@ -5,6 +5,7 @@ use crate::{
 
 pub trait PlaneWaveEntries {
     type ExteriorContext;
+    type Algebra;
 }
 
 pub trait PlaneWaveSolutionSource {

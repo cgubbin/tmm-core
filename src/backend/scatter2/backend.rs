@@ -105,13 +105,13 @@ impl Scatter2 {
                 .multiply(&imaginary_unit)
                 .multiply(layer.thickness_cm());
 
-            let layer_admittance = quantities.into_admittance().into_inner();
+            let layer_admittance = quantities.clone().into_admittance().into_inner();
 
             let interface = interface(&current_admittance, &layer_admittance);
 
             let propagation = propagation_from_exponent(exponent);
 
-            workspace.append_layer(interface, propagation);
+            workspace.append_layer(interface, propagation, quantities);
 
             current_admittance = layer_admittance;
         }
