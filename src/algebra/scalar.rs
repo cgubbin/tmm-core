@@ -1,5 +1,6 @@
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::{Float, FromPrimitive, float::FloatCore};
 use std::fmt::Debug;
 
 use super::{
@@ -27,9 +28,8 @@ pub trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
         value: Self::Scalar,
     ) -> Self;
 
-    // fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
-
     fn zero_like(&self) -> Self;
+    fn one_like(&self) -> Self;
 
     fn constant(&self, value: Self::Scalar) -> Self {
         Self::filled_constant_like(self.value(), value)
@@ -57,6 +57,10 @@ pub trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
     fn divide(&self, rhs: &Self) -> Self {
         self.multiply(&rhs.reciprocal())
     }
+}
+
+pub trait ScalarAlgebraExpRelExt: ScalarAlgebra {
+    fn exprel(&self) -> Self;
 }
 
 /// Operations that are valid when the active differentiation coordinates are
@@ -162,6 +166,10 @@ where
         ArrayJet0::constant_like(self.value(), C::zero())
     }
 
+    fn one_like(&self) -> Self {
+        ArrayJet0::constant_like(self.value(), C::one())
+    }
+
     fn add(&self, rhs: &Self) -> Self {
         ArrayJet0::add(self, rhs)
     }
@@ -204,6 +212,18 @@ where
 
     fn all_finite(&self) -> bool {
         array_is_finite(self.value())
+    }
+}
+
+impl<C, D, P> ScalarAlgebraExpRelExt for ArrayJet0<C, D, P>
+where
+    C: ComplexField + Copy,
+    C::RealField: FloatCore + FromPrimitive,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn exprel(&self) -> Self {
+        self.clone().exprel()
     }
 }
 
@@ -263,6 +283,10 @@ where
         ArrayJet1::constant_like(self.value(), C::zero())
     }
 
+    fn one_like(&self) -> Self {
+        ArrayJet1::constant_like(self.value(), C::one())
+    }
+
     fn add(&self, rhs: &Self) -> Self {
         ArrayJet1::add(self, rhs)
     }
@@ -305,6 +329,18 @@ where
 
     fn all_finite(&self) -> bool {
         array_is_finite(self.value()) && array_is_finite(self.first())
+    }
+}
+
+impl<C, D, P> ScalarAlgebraExpRelExt for ArrayJet1<C, D, P>
+where
+    C: ComplexField + Copy,
+    C::RealField: FloatCore + FromPrimitive,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn exprel(&self) -> Self {
+        self.clone().exprel()
     }
 }
 
@@ -389,6 +425,10 @@ where
         ArrayJet2::constant_like(self.value(), C::zero())
     }
 
+    fn one_like(&self) -> Self {
+        ArrayJet2::constant_like(self.value(), C::one())
+    }
+
     fn add(&self, rhs: &Self) -> Self {
         ArrayJet2::add(self, rhs)
     }
@@ -433,6 +473,18 @@ where
         array_is_finite(self.value())
             && array_is_finite(self.first())
             && array_is_finite(self.second())
+    }
+}
+
+impl<C, D, P> ScalarAlgebraExpRelExt for ArrayJet2<C, D, P>
+where
+    C: ComplexField + Copy,
+    C::RealField: FloatCore + FromPrimitive,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn exprel(&self) -> Self {
+        self.clone().exprel()
     }
 }
 
@@ -517,6 +569,10 @@ where
         ArrayJetBivariate1::constant_like(self.value(), C::zero())
     }
 
+    fn one_like(&self) -> Self {
+        ArrayJetBivariate1::constant_like(self.value(), C::one())
+    }
+
     fn add(&self, rhs: &Self) -> Self {
         ArrayJetBivariate1::add(self, rhs)
     }
@@ -561,6 +617,18 @@ where
         array_is_finite(self.value())
             && array_is_finite(self.axis0())
             && array_is_finite(self.axis1())
+    }
+}
+
+impl<C, D, P> ScalarAlgebraExpRelExt for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField + Copy,
+    C::RealField: FloatCore + FromPrimitive,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn exprel(&self) -> Self {
+        self.clone().exprel()
     }
 }
 
@@ -645,6 +713,10 @@ where
         ArrayJetBivariate2::constant_like(self.value(), C::zero())
     }
 
+    fn one_like(&self) -> Self {
+        ArrayJetBivariate2::constant_like(self.value(), C::one())
+    }
+
     fn add(&self, rhs: &Self) -> Self {
         ArrayJetBivariate2::add(self, rhs)
     }
@@ -692,6 +764,18 @@ where
             && array_is_finite(self.axis0_axis0())
             && array_is_finite(self.axis0_axis1())
             && array_is_finite(self.axis1_axis1())
+    }
+}
+
+impl<C, D, P> ScalarAlgebraExpRelExt for ArrayJetBivariate2<C, D, P>
+where
+    C: ComplexField + Copy,
+    C::RealField: FloatCore + FromPrimitive,
+    D: Dimension,
+    P: Clone + Debug,
+{
+    fn exprel(&self) -> Self {
+        self.clone().exprel()
     }
 }
 

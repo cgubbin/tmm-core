@@ -1,3 +1,7 @@
+mod dissipation;
+mod energy;
+mod normalisation;
+mod overlap;
 mod power;
 mod project;
 

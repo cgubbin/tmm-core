@@ -39,8 +39,19 @@ impl<R> LayerPower<R> {
         &self.right_flux
     }
 
-    /// Return the normalized power absorbed within the layer.
-    pub fn absorbed(&self) -> &R {
+    /// Return the normalized power dissipated within the finite layer.
+    ///
+    /// For passive media this is non-negative. It is obtained from the signed
+    /// flux difference:
+    ///
+    /// ```text
+    /// dissipated = left_flux - right_flux
+    /// ```
+    pub fn dissipated(&self) -> &R {
+        &self.absorbed
+    }
+
+    pub(crate) fn absorbed(&self) -> &R {
         &self.absorbed
     }
 

@@ -29,7 +29,7 @@
 //! The payload type determines the available algebra through capability
 //! traits such as [`JetAdditive`], [`JetBilinear`], and [`JetField`].
 
-use crate::algebra::{FirstOrderExpansion, JetMultiplyByScalar};
+use crate::algebra::{FirstOrderExpansion, JetMultiplyByScalar, exprel, exprel_first};
 use crate::differential::BivariateGradient;
 
 use super::{
@@ -39,6 +39,8 @@ use super::{
 
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::FromPrimitive;
+use num_traits::float::FloatCore;
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJetBivariate1<C, D, P> = JetBivariate1<ArrayBase<OwnedRepr<C>, D>, P>;
@@ -342,6 +344,14 @@ where
         let y = &g1 * self.axis1();
 
         Self::from_components(value, x, y)
+    }
+
+    pub(crate) fn exprel(&self) -> Self
+    where
+        C: Copy,
+        C::RealField: FloatCore + FromPrimitive,
+    {
+        self.compose_unary(|x| exprel(*x), |x| exprel_first(*x))
     }
 
     pub(crate) fn exp(&self) -> Self

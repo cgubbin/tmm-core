@@ -38,7 +38,7 @@
 //!
 //! Value-only calculations should use the underlying value type directly.
 //! [`Jet`] is reserved for calculations that request derivatives.
-use crate::algebra::JetMultiplyByScalar;
+use crate::algebra::{JetMultiplyByScalar, exprel, exprel_first};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
@@ -47,6 +47,7 @@ use super::{
 
 use nalgebra::ComplexField;
 use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
+use num_traits::{FromPrimitive, float::FloatCore};
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJet1<C, D, P> = Jet1<ArrayBase<OwnedRepr<C>, D>, P>;
@@ -343,6 +344,18 @@ where
     C: ComplexField + Copy,
     D: Dimension,
 {
+    pub(crate) fn exprel(self) -> Self
+    where
+        C::RealField: FloatCore + FromPrimitive,
+    {
+        let value = self.value().mapv(exprel);
+        let derivative = self.value().mapv(exprel_first);
+
+        let first = derivative * self.first();
+
+        Self::from_parts(value, first)
+    }
+
     pub(crate) fn exp(self) -> Self {
         let Self { value, first, .. } = self;
 

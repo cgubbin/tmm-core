@@ -1,4 +1,5 @@
 mod cartesian;
+mod exprel;
 mod jet_bivariate_one;
 mod jet_bivariate_two;
 mod jet_one;
@@ -6,12 +7,15 @@ mod jet_two;
 mod jet_zero;
 mod scalar;
 
+pub(crate) use exprel::{exprel, exprel_first, exprel_second};
 pub(crate) use jet_bivariate_one::{ArrayJetBivariate1, JetBivariate1};
 pub(crate) use jet_bivariate_two::{ArrayJetBivariate2, JetBivariate2};
 pub(crate) use jet_one::{ArrayJet1, FirstOrderExpansion, Jet1};
 pub(crate) use jet_two::{ArrayJet2, Jet2, SecondOrderExpansion};
 pub(crate) use jet_zero::{ArrayJet0, Jet0};
-pub(crate) use scalar::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra};
+pub(crate) use scalar::{
+    ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
+};
 
 pub(crate) use cartesian::RealCartesianVectorAlgebra;
 
