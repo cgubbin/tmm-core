@@ -3,6 +3,7 @@ pub(crate) mod coordinates;
 pub(crate) mod expected;
 pub(crate) mod finite_difference;
 pub(crate) mod jet;
+pub(crate) mod material_model;
 pub(crate) mod materials;
 pub(crate) mod planar;
 pub(crate) mod stack;
