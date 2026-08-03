@@ -1,6 +1,7 @@
 mod data;
 mod dissipation;
 mod energy;
+mod energy_data;
 mod field_norm;
 mod normalisation;
 mod overlap;
@@ -10,14 +11,20 @@ mod state_overlap;
 
 pub(crate) use data::{IntegratedLayerWaveData, LayerWaveData};
 pub use dissipation::LayerDissipation;
+pub(crate) use energy::canonical_energy_normalization;
+pub use energy::{EnergyDefinition, LayerEnergy};
+pub(crate) use energy_data::{IsotropicBrillouinEnergyData, evaluate_brillouin_layer_energy_data};
 pub(crate) use field_norm::IntegratedFieldNorms;
 pub(crate) use overlap::{
     IntegratedWaveProducts, integrate_bilinear_wave_products, integrate_hermitian_wave_products,
 };
 pub use power::LayerPower;
+pub use project::LayerEnergyError;
+pub use project::LayerProjectionError;
 pub(crate) use project::{
-    assemble_layer_wave_data, integrate_layer_wave_sequence, project_layer_dissipation_sequence,
-    project_layer_power,
+    assemble_layer_wave_data, evaluate_nondispersive_layer_energy_data,
+    integrate_layer_wave_sequence, project_layer_brillouin_energy_sequence,
+    project_layer_dissipation_sequence, project_layer_energy_sequence, project_layer_power,
 };
 pub(crate) use state_overlap::IntegratedStateProducts;
 

@@ -73,6 +73,7 @@ impl DifferentiableMaterial for LinearDispersion {
         match order {
             DerivativeOrder::First => wavenumber.map(|_| C::from_real(self.epsilon_slope)),
             DerivativeOrder::Second => wavenumber.map(|_| C::zero()),
+            DerivativeOrder::Third => wavenumber.map(|_| C::zero()),
         }
     }
 
@@ -88,6 +89,7 @@ impl DifferentiableMaterial for LinearDispersion {
         match order {
             DerivativeOrder::First => wavenumber.map(|_| C::from_real(self.mu_slope)),
             DerivativeOrder::Second => wavenumber.map(|_| C::zero()),
+            DerivativeOrder::Third => wavenumber.map(|_| C::zero()),
         }
     }
 }
@@ -124,6 +126,7 @@ impl DifferentiableMeromorphicMaterial for LinearDispersion {
         match order {
             DerivativeOrder::First => vacuum_wavenumber.map(|_| C::from_real(self.epsilon_slope)),
             DerivativeOrder::Second => vacuum_wavenumber.map(|_| C::zero()),
+            DerivativeOrder::Third => vacuum_wavenumber.map(|_| C::zero()),
         }
     }
 
@@ -139,6 +142,7 @@ impl DifferentiableMeromorphicMaterial for LinearDispersion {
         match order {
             DerivativeOrder::First => vacuum_wavenumber.map(|_| C::from_real(self.mu_slope)),
             DerivativeOrder::Second => vacuum_wavenumber.map(|_| C::zero()),
+            DerivativeOrder::Third => vacuum_wavenumber.map(|_| C::zero()),
         }
     }
 }
@@ -237,6 +241,7 @@ impl DifferentiableMaterial for QuadraticDispersion {
             DerivativeOrder::Second => {
                 wavenumber.map(|_| C::from_real(2.0) * C::from_real(self.epsilon_curvature))
             }
+            DerivativeOrder::Third => wavenumber.map(|_| C::zero()),
         }
     }
 
@@ -257,6 +262,7 @@ impl DifferentiableMaterial for QuadraticDispersion {
             DerivativeOrder::Second => {
                 vacuum_wavenumber.map(|_| C::from_real(2.0) * C::from_real(self.mu_curvature))
             }
+            DerivativeOrder::Third => vacuum_wavenumber.map(|_| C::zero()),
         }
     }
 }
@@ -305,6 +311,7 @@ impl DifferentiableMeromorphicMaterial for QuadraticDispersion {
             DerivativeOrder::Second => {
                 vacuum_wavenumber.map(|_| C::from_real(2.0) * C::from_real(self.epsilon_curvature))
             }
+            DerivativeOrder::Third => vacuum_wavenumber.map(|_| C::zero()),
         }
     }
 
@@ -325,6 +332,7 @@ impl DifferentiableMeromorphicMaterial for QuadraticDispersion {
             DerivativeOrder::Second => {
                 vacuum_wavenumber.map(|_| C::from_real(2.0) * C::from_real(self.mu_curvature))
             }
+            DerivativeOrder::Third => vacuum_wavenumber.map(|_| C::zero()),
         }
     }
 }

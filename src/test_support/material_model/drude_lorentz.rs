@@ -114,20 +114,23 @@ where
     {
         let mut first = C::zero();
         let mut second = C::zero();
+        let mut third = C::zero();
 
         if self.drude_strength > R::zero() {
-            let (a, b) = self.drude_derivatives(k0);
+            let (a, b, c) = self.drude_derivatives(k0);
             first = first + a;
             second = second + b;
+            third = third + b;
         }
 
         for oscillator in &self.oscillators {
-            let (a, b) = oscillator.derivatives_at(k0);
+            let (a, b, c) = oscillator.derivatives_at(k0);
             first = first + a;
             second = second + b;
+            third = third + c;
         }
 
-        convert_derivative_variable(k0, first, second, order)
+        convert_derivative_variable(first, second, third, order)
     }
 
     fn drude_value<C>(&self, k0: C) -> C
@@ -139,21 +142,44 @@ where
         -C::from_real(self.drude_strength) / denominator
     }
 
-    fn drude_derivatives<C>(&self, k0: C) -> (C, C)
+    fn drude_derivatives<C>(&self, k0: C) -> (C, C, C)
     where
         C: ComplexScalar<RealField = R> + Copy,
     {
-        let two = C::from_real(R::one() + R::one());
-        let igamma = C::i() * C::from_real(self.drude_damping);
-        let d = k0 * k0 + igamma * k0;
-        let d1 = two * k0 + igamma;
-        let d2 = two;
+        let one = C::one();
+        let two = one + one;
+        let three = two + one;
+        let six = two * three;
+
+        let imaginary_damping = C::i() * C::from_real(self.drude_damping);
+
+        let denominator = k0 * k0 + imaginary_damping * k0;
+
+        let denominator_first = two * k0 + imaginary_damping;
+
+        let denominator_second = two;
+
         let strength = C::from_real(self.drude_strength);
 
-        let first = strength * d1 / (d * d);
-        let second = strength * (d2 * d - two * d1 * d1) / (d * d * d);
+        let denominator_squared = denominator * denominator;
 
-        (first, second)
+        let denominator_cubed = denominator_squared * denominator;
+
+        let denominator_fourth = denominator_cubed * denominator;
+
+        let first = strength * denominator_first / denominator_squared;
+
+        let second = strength
+            * (denominator_second * denominator - two * denominator_first * denominator_first)
+            / denominator_cubed;
+
+        let third = six
+            * strength
+            * denominator_first
+            * (denominator_first * denominator_first - denominator * denominator_second)
+            / denominator_fourth;
+
+        (first, second, third)
     }
 }
 
@@ -236,9 +262,9 @@ where
 }
 
 pub(crate) fn convert_derivative_variable<C>(
-    k0: C,
     first_k0: C,
     second_k0: C,
+    third_k0: C,
     order: DerivativeOrder,
 ) -> C
 where
@@ -247,6 +273,7 @@ where
     match order {
         DerivativeOrder::First => first_k0,
         DerivativeOrder::Second => second_k0,
+        DerivativeOrder::Third => third_k0,
     }
 }
 

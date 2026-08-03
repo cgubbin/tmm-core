@@ -2,10 +2,11 @@ use std::ops::Neg;
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
-use num_traits::{One, Zero};
+use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
     ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
+    RealAxis,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
@@ -14,14 +15,22 @@ use crate::{
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
     input::{CanonicalProblem, CompilationContext, JetMapping},
+    material::{
+        ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift,
+        lifting::ConstitutiveDerivativeEvaluator,
+    },
     observable::{
-        BoundaryProjectionError, InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries,
-        LayerBoundaryStates, LayerBoundaryWaves, LayerWaveData, Layers, ProjectAmplitudes,
-        ProjectPlaneWaveModeDeterminant, ProjectPower, assemble_interface_states,
-        assemble_interface_wave_data, assemble_layer_wave_data, exterior_boundary_states,
-        exterior_boundary_waves, integrate_layer_wave_sequence, project_boundary_states,
-        project_boundary_waves, project_interface_power, project_layer_admittances,
-        project_layer_dissipation_sequence, project_layer_power,
+        BoundaryProjectionError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
+        Interfaces, IsotropicBrillouinEnergyData, LayerBoundaries, LayerBoundaryStates,
+        LayerBoundaryWaves, LayerEnergy, LayerEnergyError, LayerProjectionError, LayerWaveData,
+        Layers, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
+        assemble_interface_states, assemble_interface_wave_data, assemble_layer_wave_data,
+        canonical_energy_normalization, evaluate_brillouin_layer_energy_data,
+        evaluate_nondispersive_layer_energy_data, exterior_boundary_states,
+        exterior_boundary_waves, integrate_layer_wave_sequence, project_interface_power,
+        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
+        project_layer_brillouin_energy_sequence, project_layer_dissipation_sequence,
+        project_layer_energy_sequence, project_layer_power,
     },
 };
 
@@ -125,7 +134,7 @@ where
     where
         W: ReconstructLayerBoundaryWaves<Algebra = J>,
     {
-        project_boundary_waves(&self.workspace, incident_side)
+        project_layer_boundary_waves(&self.workspace, incident_side)
     }
 
     pub fn boundary_waves(
@@ -157,7 +166,7 @@ where
         J: ScalarAlgebra,
         J::Scalar: ComplexScalar,
     {
-        project_boundary_states(&self.workspace, incident_side)
+        project_layer_boundary_states(&self.workspace, incident_side)
     }
 
     pub fn boundary_states(
@@ -241,7 +250,7 @@ where
     pub(crate) fn raw_interface_wave_data(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Interfaces<InterfaceWaveData<J>>, BoundaryProjectionError>
+    ) -> Result<Interfaces<InterfaceWaveData<J>>, InterfaceProjectionError>
     where
         W: PlaneWaveSolutionSource
             + ReconstructLayerBoundaryWaves<Algebra = J>
@@ -281,7 +290,7 @@ where
     pub(crate) fn raw_layer_wave_data(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Layers<LayerWaveData<J>>, BoundaryProjectionError>
+    ) -> Result<Layers<LayerWaveData<J>>, LayerProjectionError>
     where
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         J: Clone,
@@ -330,7 +339,7 @@ where
     pub(crate) fn raw_interface_power(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Interfaces<InterfacePower<J::RealJet>>, BoundaryProjectionError>
+    ) -> Result<Interfaces<InterfacePower<J::RealJet>>, InterfaceProjectionError>
     where
         W: PlaneWaveSolutionSource
             + ReconstructLayerBoundaryWaves<Algebra = J>
@@ -365,7 +374,7 @@ where
     pub fn interface_power(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<DifferentialResponseFor<J, RawInterfacePower<J>>, BoundaryProjectionError>
+    ) -> Result<DifferentialResponseFor<J, RawInterfacePower<J>>, InterfaceProjectionError>
     where
         J: JetMapping + RealScalarAlgebra + Clone,
         J::Policy: Default + DerivativePartsPolicy<RawInterfacePower<J>>,
@@ -388,7 +397,7 @@ where
     fn raw_layer_power(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Layers<LayerPower<J::RealJet>>, BoundaryProjectionError>
+    ) -> Result<Layers<LayerPower<J::RealJet>>, InterfaceProjectionError>
     where
         W: PlaneWaveSolutionSource
             + ReconstructLayerBoundaryWaves<Algebra = J>
@@ -409,7 +418,7 @@ where
     pub fn layer_power(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<DifferentialResponseFor<J, RawLayerPower<J>>, BoundaryProjectionError>
+    ) -> Result<DifferentialResponseFor<J, RawLayerPower<J>>, InterfaceProjectionError>
     where
         J: JetMapping + RealScalarAlgebra + Clone,
         J::Policy: Default + DerivativePartsPolicy<RawLayerPower<J>>,
@@ -448,7 +457,7 @@ where
     pub(crate) fn raw_layer_dissipation(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Layers<LayerDissipation<J::RealJet>>, BoundaryProjectionError>
+    ) -> Result<Layers<LayerDissipation<J::RealJet>>, LayerProjectionError>
     where
         J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
         J::RealJet: ScalarAlgebra,
@@ -478,7 +487,7 @@ where
         incident_side: IncidentSide,
     ) -> Result<
         DifferentialResponseFor<J, Layers<LayerDissipation<J::RealJet>>>,
-        BoundaryProjectionError,
+        LayerProjectionError,
     >
     where
         J: JetMapping + RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
@@ -491,6 +500,156 @@ where
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
     {
         let raw = self.raw_layer_dissipation(incident_side)?;
+        Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
+    }
+
+    pub(crate) fn raw_nondispersive_layer_energy<Domain>(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Layers<LayerEnergy<J::RealJet>>, LayerEnergyError>
+    where
+        J: ComplexJet
+            + RealScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveLift<Domain, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: One + FromPrimitive,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let layer_data = self.raw_layer_wave_data(incident_side)?;
+
+        let integrated = integrate_layer_wave_sequence(layer_data);
+
+        let problem = self.problem();
+        let coordinates = problem.coordinates();
+
+        let energy_data =
+            evaluate_nondispersive_layer_energy_data::<Domain, M, J>(coordinates, problem.stack());
+
+        let incident_flux = self.raw_incident_flux_magnitude(incident_side);
+
+        let normalization =
+            canonical_energy_normalization(coordinates.vacuum_angular_wavenumber(), &incident_flux);
+
+        project_layer_energy_sequence(
+            integrated,
+            energy_data,
+            coordinates.vacuum_angular_wavenumber(),
+            coordinates.parallel_angular_wavenumber(),
+            &normalization,
+        )
+    }
+
+    pub fn nondispersive_layer_energy(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
+    where
+        J: ComplexJet
+            + RealScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveLift<RealAxis, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: One + FromPrimitive,
+        J::Policy: Default + DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
+        Layers<LayerEnergy<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let raw = self.raw_nondispersive_layer_energy::<RealAxis>(incident_side)?;
+
+        Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
+    }
+
+    fn raw_brillouin_energy_data<E>(&self) -> Layers<IsotropicBrillouinEnergyData<J>>
+    where
+        J: ScalarAlgebra + ConstitutiveSpectralFirstLift<E, M>,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    {
+        let problem = self.problem();
+        let coordinates = problem.coordinates();
+
+        evaluate_brillouin_layer_energy_data::<E, M, J>(
+            problem
+                .stack()
+                .layers()
+                .iter()
+                .map(|layer| layer.material()),
+            coordinates.vacuum_angular_wavenumber(),
+        )
+    }
+
+    pub(crate) fn raw_layer_brillouin_energy<E>(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Layers<LayerEnergy<J::RealJet>>, LayerEnergyError>
+    where
+        J: ComplexJet
+            + RealScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveSpectralFirstLift<E, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+        J::Dimension: Dimension,
+        E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let layers = self.raw_layer_wave_data(incident_side)?;
+
+        let integrated = integrate_layer_wave_sequence(layers);
+
+        let data = self.raw_brillouin_energy_data::<E>();
+
+        let coordinates = self.problem().coordinates();
+
+        let incident_flux = self.raw_incident_flux_magnitude(incident_side);
+
+        let normalization =
+            canonical_energy_normalization(coordinates.vacuum_angular_wavenumber(), &incident_flux);
+
+        project_layer_brillouin_energy_sequence(
+            integrated,
+            data,
+            coordinates.vacuum_angular_wavenumber(),
+            coordinates.parallel_angular_wavenumber(),
+            &normalization,
+        )
+    }
+
+    pub fn layer_energy(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
+    where
+        J: JetMapping
+            + ComplexJet
+            + RealScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveSpectralFirstLift<RealAxis, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Policy: Default + DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
+        Layers<LayerEnergy<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+        J::Dimension: Dimension,
+        RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let raw = self.raw_layer_brillouin_energy::<RealAxis>(incident_side)?;
         Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
     }
 }

@@ -1,4 +1,5 @@
 mod dissipation;
+mod energy;
 mod power;
 
 use crate::{

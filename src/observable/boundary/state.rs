@@ -1,3 +1,13 @@
+//! Canonical isotropic states at planar boundaries.
+//!
+//! The canonical state contains the two continuity variables used by the
+//! isotropic transfer and scattering formulations. Unlike directional-wave
+//! amplitudes, the state has direct interface-continuity semantics.
+//!
+//! The state is algebraic and holomorphic. Hermitian operations required for
+//! real-frequency power, dissipation, and energy are applied only in later
+//! observable projections.
+
 /// Canonical isotropic state at one planar boundary.
 ///
 /// The state stores two algebraically paired components:
@@ -33,18 +43,22 @@ impl<A> BoundaryState<A> {
         Self { field, secondary }
     }
 
+    /// Return canonical field component
     pub fn field(&self) -> &A {
         &self.field
     }
 
+    /// Return canonical secondary component
     pub fn secondary(&self) -> &A {
         &self.secondary
     }
 
+    /// Consume the state and return
     pub fn into_parts(self) -> (A, A) {
         (self.field, self.secondary)
     }
 
+    /// Transform both canonical components
     pub fn map<B>(self, mut map: impl FnMut(A) -> B) -> BoundaryState<B> {
         BoundaryState {
             field: map(self.field),
@@ -55,10 +69,12 @@ impl<A> BoundaryState<A> {
 
 /// Canonical isotropic states at both boundaries of one finite layer.
 ///
-/// Both states use the same finite-layer basis and characteristic admittance.
-/// The state values may therefore be compared across the layer, but states
-/// belonging to opposite sides of an interface may use different material
-/// representations before conversion to physical fields.
+/// Both states are reconstructed from directional waves expressed in the same
+/// finite-layer basis and use the same characteristic admittance.
+///
+/// The two states may be compared to study propagation across the layer.
+/// Interface continuity instead compares the right state of one medium with
+/// the left state independently reconstructed in the adjacent medium.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerBoundaryStates<A> {
     left: BoundaryState<A>,

@@ -1,3 +1,5 @@
+//! Internal directional-wave data used by interface projections.
+
 use ndarray::Dimension;
 
 use crate::{
@@ -6,7 +8,43 @@ use crate::{
     observable::{BoundaryState, BoundaryWaves},
 };
 
-/// Directional and canonical data immediately on one side of an interface.
+/// Directional waves in the two exterior media.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ExteriorBoundaryWaves<A> {
+    left: BoundaryWaves<A>,
+    right: BoundaryWaves<A>,
+}
+
+impl<A> ExteriorBoundaryWaves<A> {
+    pub(crate) const fn new(left: BoundaryWaves<A>, right: BoundaryWaves<A>) -> Self {
+        Self { left, right }
+    }
+
+    pub(crate) fn left(&self) -> &BoundaryWaves<A> {
+        &self.left
+    }
+
+    pub(crate) fn right(&self) -> &BoundaryWaves<A> {
+        &self.right
+    }
+
+    pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, BoundaryWaves<A>) {
+        (self.left, self.right)
+    }
+}
+
+/// Directional waves and characteristic admittance immediately on one side
+/// of an interface.
+///
+/// The canonical boundary state is derived from these two quantities:
+///
+/// ```text
+/// field     = forward + backward
+/// secondary = -i Y (backward - forward)
+/// ```
+///
+/// The state is not stored separately, avoiding duplicated representations
+/// that could become inconsistent.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct InterfaceSide<A> {
     waves: BoundaryWaves<A>,
@@ -26,6 +64,10 @@ impl<A> InterfaceSide<A> {
         &self.admittance
     }
 
+    /// Derive the canonical state without consuming this side.
+    ///
+    /// This is primarily useful for diagnostics. Consuming projections should
+    /// prefer [`Self::into_state`] to avoid cloning the directional waves.
     pub(crate) fn state(&self) -> BoundaryState<A>
     where
         A: ScalarAlgebra + Clone,
@@ -35,24 +77,26 @@ impl<A> InterfaceSide<A> {
         self.waves.clone().into_state(&self.admittance)
     }
 
-    pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, A) {
-        (self.waves, self.admittance)
-    }
-
-    pub(crate) fn into_waves_state_admittance(self) -> (BoundaryWaves<A>, BoundaryState<A>, A)
+    /// Consume this side and derive its canonical state.
+    pub(crate) fn into_state(self) -> BoundaryState<A>
     where
-        A: ScalarAlgebra + Clone,
+        A: ScalarAlgebra,
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
-        let state = self.waves.clone().into_state(&self.admittance);
+        self.waves.into_state(&self.admittance)
+    }
 
-        (self.waves, state, self.admittance)
+    pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, A) {
+        (self.waves, self.admittance)
     }
 }
 
-/// Directional waves, canonical states, and medium admittances immediately on
-/// both sides of one planar interface.
+/// Directional waves and characteristic admittances immediately on both
+/// sides of one planar interface.
+///
+/// This is an internal projection record. Canonical states and normalized
+/// power flux are derived from it by the corresponding observable projection.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct InterfaceWaveData<A> {
     left: InterfaceSide<A>,
@@ -80,12 +124,11 @@ impl<A> InterfaceWaveData<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::observable::{BoundaryState, BoundaryWaves};
+    use crate::observable::BoundaryWaves;
 
     #[test]
-    fn interface_side_stores_waves_state_and_admittance() {
+    fn interface_side_stores_waves_and_admittance() {
         let waves = BoundaryWaves::new(1, 2);
-
         let side = InterfaceSide::new(waves.clone(), 5);
 
         assert_eq!(side.waves(), &waves);
@@ -93,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn interface_side_into_parts_preserves_component_order() {
+    fn interface_side_into_parts_preserves_order() {
         let side = InterfaceSide::new(BoundaryWaves::new(1, 2), 5);
 
         let (waves, admittance) = side.into_parts();
@@ -103,19 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn interface_wave_data_stores_both_sides() {
-        let left = InterfaceSide::new(BoundaryWaves::new(1, 2), 5);
-
-        let right = InterfaceSide::new(BoundaryWaves::new(6, 7), 10);
-
-        let interface = InterfaceWaveData::new(left.clone(), right.clone());
-
-        assert_eq!(interface.left(), &left);
-        assert_eq!(interface.right(), &right);
-    }
-
-    #[test]
-    fn interface_wave_data_into_parts_preserves_side_order() {
+    fn interface_wave_data_preserves_side_order() {
         let interface = InterfaceWaveData::new(
             InterfaceSide::new(BoundaryWaves::new(1, 2), 5),
             InterfaceSide::new(BoundaryWaves::new(6, 7), 10),
@@ -123,19 +154,13 @@ mod tests {
 
         let (left, right) = interface.into_parts();
 
-        let (left_waves, left_admittance) = left.into_parts();
+        assert_eq!(left.into_parts().0.into_parts(), (1, 2),);
 
-        let (right_waves, right_admittance) = right.into_parts();
-
-        assert_eq!(left_waves.into_parts(), (1, 2));
-        assert_eq!(left_admittance, 5);
-
-        assert_eq!(right_waves.into_parts(), (6, 7));
-        assert_eq!(right_admittance, 10);
+        assert_eq!(right.into_parts().0.into_parts(), (6, 7),);
     }
 
     #[test]
-    fn interface_wave_data_supports_non_clone_storage() {
+    fn consuming_projection_supports_non_clone_storage() {
         #[derive(Debug, PartialEq)]
         struct NonClone(i32);
 
@@ -150,12 +175,10 @@ mod tests {
 
         let (right_waves, right_admittance) = right.into_parts();
 
-        assert_eq!(left_waves.forward(), &NonClone(1));
-        assert_eq!(left_waves.backward(), &NonClone(2));
-        assert_eq!(left_admittance, NonClone(5));
+        assert_eq!(left_waves.forward(), &NonClone(1),);
+        assert_eq!(left_admittance, NonClone(5),);
 
-        assert_eq!(right_waves.forward(), &NonClone(6));
-        assert_eq!(right_waves.backward(), &NonClone(7));
-        assert_eq!(right_admittance, NonClone(10));
+        assert_eq!(right_waves.backward(), &NonClone(7),);
+        assert_eq!(right_admittance, NonClone(10),);
     }
 }

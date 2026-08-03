@@ -153,7 +153,7 @@ pub use handle::{
     AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
     MeromorphicMaterialHandle,
 };
-pub(crate) use lifting::{ConstitutiveEvaluator, ConstitutiveLift};
+pub(crate) use lifting::{ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift};
 pub use model::Constant;
 pub use sample::Scalar;
 
@@ -169,6 +169,7 @@ use crate::ComplexScalar;
 pub enum DerivativeOrder {
     First,
     Second,
+    Third,
 }
 
 /// Pointwise optical material model defined on the real spectral axis.

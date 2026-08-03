@@ -1,16 +1,23 @@
 use ndarray::Dimension;
 use num_traits::One;
+use thiserror::Error;
 
 use crate::{
     ComplexScalar, InterfacePower, LayerPower, Polarisation,
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
-    backend::RetainedIsotropicLayers,
+    backend::{IsotropicLayerQuantities, RetainedIsotropicLayers},
+    input::{CanonicalCoordinates, CanonicalStack},
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{
         BoundaryProjectionError, Interfaces, LayerBoundaries, LayerBoundaryWaves,
-        boundary::RetainedLayerDatum,
         layer::{
-            Layers,
+            EnergyDefinition, Layers,
             dissipation::{isotropic_dissipation_coefficients, project_layer_dissipation},
+            energy::{
+                CanonicalEnergyNormalization, LayerEnergy, brillouin_energy_coefficients,
+                nondispersive_energy_coefficients, project_layer_energy,
+            },
+            energy_data::{IsotropicBrillouinEnergyData, IsotropicLayerEnergyData},
             field_norm::{IntegratedFieldNorms, project_integrated_field_norms},
             state_overlap::{IntegratedStateProducts, project_integrated_state_products},
         },
@@ -21,6 +28,55 @@ use super::{
     IntegratedLayerWaveData, IntegratedWaveProducts, LayerDissipation, LayerWaveData,
     integrate_hermitian_wave_products,
 };
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RetainedLayerDatum {
+    Quantities,
+    Thickness,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum LayerProjectionError {
+    #[error("error in boundary projection {0}")]
+    Boundary(#[from] BoundaryProjectionError),
+
+    #[error("the backend result does not retain finite-layer boundary data")]
+    LayersNotRetained,
+
+    #[error(
+        "boundary-wave count {wave_count} does not match retained layer count \
+         {layer_count}"
+    )]
+    LayerCountMismatch {
+        wave_count: usize,
+        layer_count: usize,
+    },
+
+    #[error(
+        "retained quantities are unavailable for finite layer {requested}; \
+         retained layer count is {layer_count}"
+    )]
+    LayerQuantitiesUnavailable {
+        requested: usize,
+        layer_count: usize,
+    },
+
+    #[error(
+        "finite-layer boundary data are inconsistent: {wave_count} wave \
+         records and {admittance_count} admittances"
+    )]
+    LayerDataCountMismatch {
+        wave_count: usize,
+        admittance_count: usize,
+    },
+
+    #[error("missing")]
+    MissingRetainedLayerDatum {
+        datum: RetainedLayerDatum,
+        index: usize,
+        layer_count: usize,
+    },
+}
 
 pub(crate) fn project_layer_power<R>(
     interfaces: Interfaces<InterfacePower<R>>,
@@ -51,17 +107,17 @@ where
 pub(crate) fn assemble_layer_wave_data<W>(
     workspace: &W,
     boundary_waves: LayerBoundaries<LayerBoundaryWaves<W::Algebra>>,
-) -> Result<Layers<LayerWaveData<W::Algebra>>, BoundaryProjectionError>
+) -> Result<Layers<LayerWaveData<W::Algebra>>, LayerProjectionError>
 where
     W: RetainedIsotropicLayers,
     W::Algebra: Clone,
 {
     let layer_count = workspace
         .retained_layer_count()
-        .ok_or(BoundaryProjectionError::LayersNotRetained)?;
+        .ok_or(LayerProjectionError::LayersNotRetained)?;
 
     if boundary_waves.len() != layer_count {
-        return Err(BoundaryProjectionError::LayerCountMismatch {
+        return Err(LayerProjectionError::LayerCountMismatch {
             wave_count: boundary_waves.len(),
             layer_count,
         });
@@ -72,7 +128,7 @@ where
     for (index, boundaries) in boundary_waves.into_inner().into_iter().enumerate() {
         let quantities = workspace
             .layer_quantities(index)
-            .ok_or(BoundaryProjectionError::MissingRetainedLayerDatum {
+            .ok_or(LayerProjectionError::MissingRetainedLayerDatum {
                 datum: RetainedLayerDatum::Quantities,
                 index,
                 layer_count,
@@ -81,7 +137,7 @@ where
 
         let thickness = workspace
             .layer_thickness(index)
-            .ok_or(BoundaryProjectionError::MissingRetainedLayerDatum {
+            .ok_or(LayerProjectionError::MissingRetainedLayerDatum {
                 datum: RetainedLayerDatum::Thickness,
                 index,
                 layer_count,
@@ -173,6 +229,178 @@ where
             incident_flux_magnitude,
         )
     })
+}
+
+pub(crate) fn evaluate_nondispersive_layer_energy_data<Domain, M, J>(
+    coordinates: &CanonicalCoordinates<J>,
+    stack: &CanonicalStack<M, J>,
+) -> Layers<IsotropicLayerEnergyData<J>>
+where
+    J: ScalarAlgebra + ConstitutiveLift<Domain, M> + Clone,
+    Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+    J::Dimension: Dimension,
+    J::Scalar: ComplexScalar,
+{
+    let layers = stack
+        .layers()
+        .into_iter()
+        .map(|layer| {
+            let epsilon =
+                J::relative_permittivity(layer.material(), coordinates.vacuum_angular_wavenumber());
+
+            let mu =
+                J::relative_permeability(layer.material(), coordinates.vacuum_angular_wavenumber());
+
+            IsotropicLayerEnergyData::nondispersive(epsilon, mu)
+        })
+        .collect();
+
+    Layers::new(layers)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum LayerEnergyError {
+    #[error(transparent)]
+    Boundary(#[from] LayerProjectionError),
+
+    #[error(
+        "integrated layer count {integrated_count} does not match \
+         energy-data layer count {energy_data_count}"
+    )]
+    LayerCountMismatch {
+        integrated_count: usize,
+        energy_data_count: usize,
+    },
+
+    #[error("energy definition {definition:?} is not yet supported")]
+    UnsupportedDefinition { definition: EnergyDefinition },
+}
+
+pub(crate) fn project_integrated_layer_energy<A>(
+    layer: IntegratedLayerWaveData<A>,
+    data: IsotropicLayerEnergyData<A>,
+    vacuum_angular_wavenumber: &A,
+    parallel_wavenumber: &A,
+    normalization: &CanonicalEnergyNormalization<A::RealJet>,
+) -> LayerEnergy<A::RealJet>
+where
+    A: RealScalarAlgebra,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: One,
+{
+    let (_wave_products, state_products, quantities, _thickness) = layer.into_parts();
+
+    let field_norms = project_integrated_field_norms(
+        &state_products,
+        &quantities,
+        vacuum_angular_wavenumber,
+        parallel_wavenumber,
+    );
+
+    let coefficients = nondispersive_energy_coefficients(&data, normalization);
+
+    project_layer_energy(field_norms, &coefficients)
+}
+
+pub(crate) fn project_layer_energy_sequence<A>(
+    layers: Layers<IntegratedLayerWaveData<A>>,
+    data: Layers<IsotropicLayerEnergyData<A>>,
+    vacuum_angular_wavenumber: &A,
+    parallel_wavenumber: &A,
+    normalization: &CanonicalEnergyNormalization<A::RealJet>,
+) -> Result<Layers<LayerEnergy<A::RealJet>>, LayerEnergyError>
+where
+    A: RealScalarAlgebra,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: One,
+{
+    if layers.len() != data.len() {
+        return Err(LayerEnergyError::LayerCountMismatch {
+            integrated_count: layers.len(),
+            energy_data_count: data.len(),
+        });
+    }
+
+    let projected = layers
+        .into_inner()
+        .into_iter()
+        .zip(data.into_inner())
+        .map(|(layer, data)| {
+            project_integrated_layer_energy(
+                layer,
+                data,
+                vacuum_angular_wavenumber,
+                parallel_wavenumber,
+                normalization,
+            )
+        })
+        .collect();
+
+    Ok(Layers::new(projected))
+}
+
+pub(crate) fn project_integrated_layer_brillouin_energy<A>(
+    layer: IntegratedLayerWaveData<A>,
+    data: IsotropicBrillouinEnergyData<A>,
+    vacuum_angular_wavenumber: &A,
+    parallel_wavenumber: &A,
+    normalization: &CanonicalEnergyNormalization<A::RealJet>,
+) -> LayerEnergy<A::RealJet>
+where
+    A: RealScalarAlgebra,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: One,
+{
+    let (_wave_products, state_products, quantities, _thickness) = layer.into_parts();
+
+    let field_norms = project_integrated_field_norms(
+        &state_products,
+        &quantities,
+        vacuum_angular_wavenumber,
+        parallel_wavenumber,
+    );
+
+    let coefficients =
+        brillouin_energy_coefficients(vacuum_angular_wavenumber, &quantities, &data, normalization);
+
+    project_layer_energy(field_norms, &coefficients)
+}
+
+pub(crate) fn project_layer_brillouin_energy_sequence<A>(
+    layers: Layers<IntegratedLayerWaveData<A>>,
+    data: Layers<IsotropicBrillouinEnergyData<A>>,
+    vacuum_angular_wavenumber: &A,
+    parallel_wavenumber: &A,
+    normalization: &CanonicalEnergyNormalization<A::RealJet>,
+) -> Result<Layers<LayerEnergy<A::RealJet>>, LayerEnergyError>
+where
+    A: RealScalarAlgebra,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: One,
+{
+    if layers.len() != data.len() {
+        return Err(LayerEnergyError::LayerCountMismatch {
+            integrated_count: layers.len(),
+            energy_data_count: data.len(),
+        });
+    }
+
+    let energy = layers
+        .into_inner()
+        .into_iter()
+        .zip(data.into_inner())
+        .map(|(layer, data)| {
+            project_integrated_layer_brillouin_energy(
+                layer,
+                data,
+                vacuum_angular_wavenumber,
+                parallel_wavenumber,
+                normalization,
+            )
+        })
+        .collect();
+
+    Ok(Layers::new(energy))
 }
 
 #[cfg(test)]
@@ -488,9 +716,7 @@ mod error_tests {
         Polarisation,
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::{IsotropicLayerQuantities, RetainedIsotropicLayers},
-        observable::{
-            BoundaryWaves, LayerBoundaries, LayerBoundaryWaves, boundary::RetainedLayerDatum,
-        },
+        observable::{BoundaryWaves, LayerBoundaries, LayerBoundaryWaves},
     };
 
     type C = Complex64;
@@ -584,7 +810,7 @@ mod error_tests {
 
         assert_eq!(
             error,
-            BoundaryProjectionError::LayerCountMismatch {
+            LayerProjectionError::LayerCountMismatch {
                 wave_count: 1,
                 layer_count: 2,
             },
@@ -609,7 +835,7 @@ mod error_tests {
 
         assert_eq!(
             error,
-            BoundaryProjectionError::MissingRetainedLayerDatum {
+            LayerProjectionError::MissingRetainedLayerDatum {
                 datum: RetainedLayerDatum::Quantities,
                 index: 1,
                 layer_count: 2,
@@ -638,10 +864,76 @@ mod error_tests {
 
         assert_eq!(
             error,
-            BoundaryProjectionError::MissingRetainedLayerDatum {
+            LayerProjectionError::MissingRetainedLayerDatum {
                 datum: RetainedLayerDatum::Thickness,
                 index: 1,
                 layer_count: 2,
+            },
+        );
+    }
+
+    type C0 = ArrayJet0<Complex64, Ix0, RealParameter>;
+    type R0 = ArrayJet0<f64, Ix0, RealParameter>;
+
+    fn complex_jet(re: f64, im: f64) -> C0 {
+        Jet0::new(arr0(Complex64::new(re, im)))
+    }
+
+    fn real_data_jet(re: f64) -> R0 {
+        Jet0::new(arr0(re))
+    }
+    fn state_products_fixture(offset: f64) -> IntegratedStateProducts<C0> {
+        IntegratedStateProducts::new(
+            complex_jet(offset + 11.0, 0.0),
+            complex_jet(offset + 12.0, 0.0),
+            complex_jet(offset + 13.0, 0.0),
+            complex_jet(offset + 14.0, 0.0),
+        )
+    }
+    fn overlap_fixture(offset: f64) -> IntegratedWaveProducts<C0> {
+        IntegratedWaveProducts::new(
+            complex_jet(offset + 1.0, 0.0),
+            complex_jet(offset + 2.0, 0.0),
+            complex_jet(offset + 3.0, 0.0),
+            complex_jet(offset + 4.0, 0.0),
+        )
+    }
+
+    fn integrated_layer_fixture(offset: f64) -> IntegratedLayerWaveData<C0> {
+        IntegratedLayerWaveData::new(
+            overlap_fixture(offset),
+            state_products_fixture(offset),
+            isotropic_quantities_fixture(offset),
+            real_jet(1000.0 + offset),
+        )
+    }
+
+    fn energy_data_fixture(offset: f64) -> IsotropicLayerEnergyData<C0> {
+        IsotropicLayerEnergyData::nondispersive(
+            complex_jet(offset + 2.0, 0.1),
+            complex_jet(offset + 3.0, -0.2),
+        )
+    }
+
+    #[test]
+    fn layer_energy_sequence_rejects_mismatched_counts() {
+        let error = project_layer_energy_sequence(
+            Layers::new(vec![
+                integrated_layer_fixture(0.0),
+                integrated_layer_fixture(10.0),
+            ]),
+            Layers::new(vec![energy_data_fixture(0.0)]),
+            &complex_jet(2.0, 0.0),
+            &complex_jet(0.3, 0.0),
+            &CanonicalEnergyNormalization::new(real_data_jet(1.0)),
+        )
+        .expect_err("unaligned sequences must be rejected");
+
+        assert_eq!(
+            error,
+            LayerEnergyError::LayerCountMismatch {
+                integrated_count: 2,
+                energy_data_count: 1,
             },
         );
     }

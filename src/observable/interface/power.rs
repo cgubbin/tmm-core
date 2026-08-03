@@ -1,3 +1,14 @@
+//! Normalized interface-resolved power flux.
+//!
+//! Flux uses a global left-to-right sign convention independent of the
+//! incident side:
+//!
+//! - positive values carry power towards the right;
+//! - negative values carry power towards the left.
+//!
+//! Every quantity is normalized by the positive magnitude of the incident
+//! unit-amplitude wave flux.
+
 use std::ops::Neg;
 
 use crate::{
@@ -37,70 +48,6 @@ pub struct DirectedPower<R> {
     forward_flux: R,
     backward_flux: R,
     net_flux: R,
-}
-
-pub(crate) fn project_interface_power<A>(
-    interfaces: Interfaces<InterfaceWaveData<A>>,
-    incident_flux_magnitude: &A::RealJet,
-) -> Interfaces<InterfacePower<A::RealJet>>
-where
-    A: RealScalarAlgebra + Clone,
-    A::RealJet: ScalarAlgebra,
-    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    interfaces.map(|interface| {
-        let (left, right) = interface.into_parts();
-
-        let (left_waves, left_admittance) = left.into_parts();
-
-        let (right_waves, right_admittance) = right.into_parts();
-
-        let left_power = directed_power(left_waves, left_admittance, incident_flux_magnitude);
-
-        let right_power = directed_power(right_waves, right_admittance, incident_flux_magnitude);
-
-        InterfacePower::new(left_power, right_power)
-    })
-}
-
-pub(crate) fn directed_power<A>(
-    waves: BoundaryWaves<A>,
-    admittance: A,
-    incident_flux_magnitude: &A::RealJet,
-) -> DirectedPower<A::RealJet>
-where
-    A: RealScalarAlgebra + Clone,
-    A::RealJet: ScalarAlgebra,
-    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let state = waves.clone().into_state(&admittance);
-
-    let admittance_real = admittance.real();
-
-    let forward_flux = waves
-        .forward()
-        .magnitude_squared()
-        .multiply(&admittance_real)
-        .divide(incident_flux_magnitude);
-
-    let backward_flux = waves
-        .backward()
-        .magnitude_squared()
-        .multiply(&admittance_real)
-        .scale(-<A::RealJet as Jet>::Scalar::one())
-        .divide(incident_flux_magnitude);
-
-    let net_flux = state
-        .field()
-        .hermitian_product(state.secondary())
-        .imaginary()
-        .divide(incident_flux_magnitude);
-
-    DirectedPower::new(forward_flux, backward_flux, net_flux)
 }
 
 impl<R, D> SpatialProfile<D::Smaller> for DirectedPower<ScalarField<R, D>>
@@ -165,7 +112,14 @@ impl<R> DirectedPower<R> {
     }
 }
 
-/// Normal power flux immediately on either side of an interface.
+/// Normalized normal power flux immediately on either side of one interface.
+///
+/// At an ordinary source-free interface, `left_net_flux` and
+/// `right_net_flux` should agree up to numerical error. Their difference is a
+/// direct interface-level conservation diagnostic.
+///
+/// The directional decompositions on the two sides need not agree because
+/// they are expressed using different local characteristic admittances.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterfacePower<R> {
     left: DirectedPower<R>,
@@ -206,10 +160,12 @@ impl<R> InterfacePower<R> {
         &self.right
     }
 
+    /// Return the normalized net flux immediately to the interface's left.
     pub fn left_net_flux(&self) -> &R {
         self.left.net_flux()
     }
 
+    /// Return the normalized net flux immediately to the interface's right.
     pub fn right_net_flux(&self) -> &R {
         self.right.net_flux()
     }
@@ -226,12 +182,78 @@ impl<R> InterfacePower<R> {
     }
 }
 
+pub(crate) fn project_interface_power<A>(
+    interfaces: Interfaces<InterfaceWaveData<A>>,
+    incident_flux_magnitude: &A::RealJet,
+) -> Interfaces<InterfacePower<A::RealJet>>
+where
+    A: RealScalarAlgebra + Clone,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    interfaces.map(|interface| {
+        let (left, right) = interface.into_parts();
+
+        let (left_waves, left_admittance) = left.into_parts();
+
+        let (right_waves, right_admittance) = right.into_parts();
+
+        let left_power =
+            project_directed_power(left_waves, left_admittance, incident_flux_magnitude);
+
+        let right_power =
+            project_directed_power(right_waves, right_admittance, incident_flux_magnitude);
+
+        InterfacePower::new(left_power, right_power)
+    })
+}
+
+pub(crate) fn project_directed_power<A>(
+    waves: BoundaryWaves<A>,
+    admittance: A,
+    incident_flux_magnitude: &A::RealJet,
+) -> DirectedPower<A::RealJet>
+where
+    A: RealScalarAlgebra + Clone,
+    A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let state = waves.clone().into_state(&admittance);
+
+    let admittance_real = admittance.real();
+
+    let forward_flux = waves
+        .forward()
+        .magnitude_squared()
+        .multiply(&admittance_real)
+        .divide(incident_flux_magnitude);
+
+    let backward_flux = waves
+        .backward()
+        .magnitude_squared()
+        .multiply(&admittance_real)
+        .scale(-<A::RealJet as Jet>::Scalar::one())
+        .divide(incident_flux_magnitude);
+
+    let net_flux = state
+        .field()
+        .hermitian_product(state.secondary())
+        .imaginary()
+        .divide(incident_flux_magnitude);
+
+    DirectedPower::new(forward_flux, backward_flux, net_flux)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{DirectedPower, InterfacePower};
 
     #[test]
-    fn directed_power_stores_all_fluxes() {
+    fn project_directed_power_stores_all_fluxes() {
         let power = DirectedPower::new(1, 2, 3);
 
         assert_eq!(power.forward_flux(), &1);
@@ -240,14 +262,14 @@ mod tests {
     }
 
     #[test]
-    fn directed_power_into_parts_preserves_order() {
+    fn project_directed_power_into_parts_preserves_order() {
         let power = DirectedPower::new(1, 2, 3);
 
         assert_eq!(power.into_parts(), (1, 2, 3));
     }
 
     #[test]
-    fn directed_power_map_transforms_all_fluxes() {
+    fn project_directed_power_map_transforms_all_fluxes() {
         let power = DirectedPower::new(1, 2, 3);
 
         let mapped = power.map(|value| format!("flux-{value}"));
@@ -363,7 +385,7 @@ mod projection_tests {
         let admittance = jet(c(2.5, 0.0));
         let incident_flux = admittance.real();
 
-        let power = directed_power(waves, admittance, &incident_flux);
+        let power = project_directed_power(waves, admittance, &incident_flux);
 
         assert_real_close(scalar_real(power.forward_flux()), 1.0);
 
@@ -379,7 +401,7 @@ mod projection_tests {
         let admittance = jet(c(2.5, 0.0));
         let incident_flux = admittance.real();
 
-        let power = directed_power(waves, admittance, &incident_flux);
+        let power = project_directed_power(waves, admittance, &incident_flux);
 
         assert_real_close(scalar_real(power.forward_flux()), 0.0);
 
@@ -398,7 +420,7 @@ mod projection_tests {
         let admittance = jet(c(3.0, 0.0));
         let incident_flux = admittance.real();
 
-        let power = directed_power(waves, admittance, &incident_flux);
+        let power = project_directed_power(waves, admittance, &incident_flux);
 
         assert_real_close(scalar_real(power.forward_flux()), forward.norm_sqr());
 
@@ -412,7 +434,7 @@ mod projection_tests {
         let admittance = jet(c(2.0, 0.0));
         let incident_flux = admittance.real();
 
-        let power = directed_power(waves, admittance, &incident_flux);
+        let power = project_directed_power(waves, admittance, &incident_flux);
 
         let directional_sum =
             scalar_real(power.forward_flux()) + scalar_real(power.backward_flux());
@@ -428,7 +450,7 @@ mod projection_tests {
 
         let incident_flux = Jet0::new(arr0(2.0));
 
-        let power = directed_power(waves, local_admittance, &incident_flux);
+        let power = project_directed_power(waves, local_admittance, &incident_flux);
 
         assert_real_close(scalar_real(power.forward_flux()), 3.0);
 
@@ -448,7 +470,7 @@ mod projection_tests {
         // Use an independent positive normalization.
         let incident_flux = Jet0::new(arr0(1.5));
 
-        let power = directed_power(waves, admittance, &incident_flux);
+        let power = project_directed_power(waves, admittance, &incident_flux);
 
         let xi = -C::i() * admittance_value;
         let field = forward + backward;

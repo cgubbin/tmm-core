@@ -1,12 +1,21 @@
-use crate::{
-    ComplexScalar, IncidentSide,
-    algebra::ScalarAlgebra,
-    backend::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
-    observable::{LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves},
-};
+//! Projection of retained backend data into boundary observables.
+//!
+//! These functions form the boundary between backend-specific retained
+//! representations and backend-independent observable types.
+//!
+//! Every returned sequence contains one record per finite layer in physical
+//! left-to-right order.
 
 use ndarray::Dimension;
 use thiserror::Error;
+
+use crate::{
+    ComplexScalar, IncidentSide,
+    algebra::{Jet, ScalarAlgebra},
+    backend::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+};
+
+use super::{LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RetainedLayerDatum {
@@ -44,33 +53,22 @@ pub enum BoundaryProjectionError {
     },
 
     #[error(
-        "finite-layer boundary data are inconsistent: \
-     {wave_count} wave records, and \
-     {admittance_count} admittances"
+        "retained quantities are unavailable for finite layer {requested}; \
+         retained layer count is {layer_count}"
     )]
-    LayerDataCountMismatch {
-        wave_count: usize,
-        admittance_count: usize,
-    },
-
-    #[error(
-        "retained {datum:?} are missing for finite layer {index}, \
-     although the workspace reports {layer_count} layers"
-    )]
-    MissingRetainedLayerDatum {
-        datum: RetainedLayerDatum,
-        index: usize,
+    LayerQuantitiesUnavailable {
+        requested: usize,
         layer_count: usize,
     },
 }
 
-/// Convert retained backend boundary waves into observable-layer containers.
-pub(crate) fn project_boundary_waves<W>(
+/// Reconstruct directional waves at both boundaries of every finite layer.
+pub(crate) fn project_layer_boundary_waves<A, W>(
     workspace: &W,
     incident_side: IncidentSide,
-) -> Result<LayerBoundaries<LayerBoundaryWaves<W::Algebra>>, BoundaryProjectionError>
+) -> Result<LayerBoundaries<LayerBoundaryWaves<A>>, BoundaryProjectionError>
 where
-    W: ReconstructLayerBoundaryWaves,
+    W: ReconstructLayerBoundaryWaves<Algebra = A>,
 {
     let waves = workspace
         .reconstruct_layer_boundary_waves(incident_side)
@@ -81,21 +79,37 @@ where
     ))
 }
 
-/// Convert retained backend boundary waves into canonical isotropic states.
-pub(crate) fn project_boundary_states<A, W>(
+/// Reconstruct canonical states at both boundaries of every finite layer.
+pub(crate) fn project_layer_boundary_states<A, W>(
     workspace: &W,
     incident_side: IncidentSide,
 ) -> Result<LayerBoundaries<LayerBoundaryStates<A>>, BoundaryProjectionError>
 where
     W: ReconstructLayerBoundaryWaves<Algebra = A> + RetainedIsotropicLayers<Algebra = A>,
     A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
+    <A as Jet>::Scalar: ComplexScalar,
+    <A as Jet>::Dimension: Dimension,
 {
-    let waves = workspace
-        .reconstruct_layer_boundary_waves(incident_side)
-        .ok_or(BoundaryProjectionError::LayersNotRetained)?;
+    let waves = project_layer_boundary_waves(workspace, incident_side)?;
 
+    states_from_layer_boundary_waves(workspace, waves)
+}
+
+/// Convert finite-layer boundary waves into canonical boundary states.
+///
+/// Each layer is paired with its retained characteristic admittance. The
+/// supplied sequence must contain exactly one wave record per retained finite
+/// layer.
+pub(crate) fn states_from_layer_boundary_waves<A, W>(
+    workspace: &W,
+    waves: LayerBoundaries<LayerBoundaryWaves<A>>,
+) -> Result<LayerBoundaries<LayerBoundaryStates<A>>, BoundaryProjectionError>
+where
+    W: RetainedIsotropicLayers<Algebra = A>,
+    A: ScalarAlgebra,
+    <A as Jet>::Scalar: ComplexScalar,
+    <A as Jet>::Dimension: Dimension,
+{
     let layer_count = workspace
         .retained_layer_count()
         .ok_or(BoundaryProjectionError::LayersNotRetained)?;
@@ -108,11 +122,12 @@ where
     }
 
     let states = waves
+        .into_inner()
         .into_iter()
         .enumerate()
         .map(|(index, waves)| {
             let quantities = workspace.layer_quantities(index).ok_or(
-                BoundaryProjectionError::LayerOutOfBounds {
+                BoundaryProjectionError::LayerQuantitiesUnavailable {
                     requested: index,
                     layer_count,
                 },
@@ -120,9 +135,9 @@ where
 
             let admittance = quantities.clone().into_admittance().into_inner();
 
-            Ok(LayerBoundaryWaves::from(waves).into_states(&admittance))
+            Ok(waves.into_states(&admittance))
         })
-        .collect::<Result<Vec<_>, BoundaryProjectionError>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(LayerBoundaries::new(states))
 }
@@ -228,7 +243,7 @@ mod tests {
             thicknesses: Vec::new(),
         };
 
-        let error = project_boundary_waves(&workspace, IncidentSide::Left)
+        let error = project_layer_boundary_waves(&workspace, IncidentSide::Left)
             .expect_err("missing retained waves should be rejected");
 
         assert_eq!(error, BoundaryProjectionError::LayersNotRetained,);
@@ -243,7 +258,7 @@ mod tests {
             thicknesses: Vec::new(),
         };
 
-        let error = project_boundary_states(&workspace, IncidentSide::Left)
+        let error = project_layer_boundary_states(&workspace, IncidentSide::Left)
             .expect_err("missing retained waves should be rejected");
 
         assert_eq!(error, BoundaryProjectionError::LayersNotRetained,);
@@ -258,7 +273,7 @@ mod tests {
             thicknesses: Vec::new(),
         };
 
-        let error = project_boundary_states(&workspace, IncidentSide::Left)
+        let error = project_layer_boundary_states(&workspace, IncidentSide::Left)
             .expect_err("missing retained layer quantities should be rejected");
 
         assert_eq!(error, BoundaryProjectionError::LayersNotRetained,);
@@ -273,7 +288,7 @@ mod tests {
             thicknesses: vec![thickness(2.0)],
         };
 
-        let error = project_boundary_states(&workspace, IncidentSide::Left)
+        let error = project_layer_boundary_states(&workspace, IncidentSide::Left)
             .expect_err("inconsistent retained layer counts should be rejected");
 
         assert_eq!(
@@ -294,7 +309,7 @@ mod tests {
             thicknesses: vec![thickness(2.0), thickness(3.0)],
         };
 
-        let error = project_boundary_states(&workspace, IncidentSide::Right)
+        let error = project_layer_boundary_states(&workspace, IncidentSide::Right)
             .expect_err("inconsistent retained layer counts should be rejected");
 
         assert_eq!(
@@ -319,12 +334,12 @@ mod tests {
             thicknesses: vec![thickness(2.0)],
         };
 
-        let error = project_boundary_states(&workspace, IncidentSide::Left)
+        let error = project_layer_boundary_states(&workspace, IncidentSide::Left)
             .expect_err("missing quantities inside the retained range should be rejected");
 
         assert_eq!(
             error,
-            BoundaryProjectionError::LayerOutOfBounds {
+            BoundaryProjectionError::LayerQuantitiesUnavailable {
                 requested: 1,
                 layer_count: 2,
             },
@@ -340,10 +355,10 @@ mod tests {
             thicknesses: Vec::new(),
         };
 
-        let waves = project_boundary_waves(&workspace, IncidentSide::Left)
+        let waves = project_layer_boundary_waves(&workspace, IncidentSide::Left)
             .expect("an empty retained stack should produce empty waves");
 
-        let states = project_boundary_states(&workspace, IncidentSide::Left)
+        let states = project_layer_boundary_states(&workspace, IncidentSide::Left)
             .expect("an empty retained stack should produce empty states");
 
         assert!(waves.is_empty());
@@ -359,13 +374,14 @@ mod tests {
             thicknesses: vec![thickness(2.0), thickness(3.0)],
         };
 
-        let waves = project_boundary_waves(&workspace, IncidentSide::Right)
+        let waves = project_layer_boundary_waves(&workspace, IncidentSide::Right)
             .expect("consistent retained waves should project");
 
-        let states = project_boundary_states(&workspace, IncidentSide::Right)
+        let states = project_layer_boundary_states(&workspace, IncidentSide::Right)
             .expect("consistent retained states should project");
 
         assert_eq!(waves.len(), 2);
         assert_eq!(states.len(), 2);
     }
 }
+

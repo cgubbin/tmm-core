@@ -1,3 +1,17 @@
+//! Directional-wave amplitudes at planar boundaries.
+//!
+//! Direction labels use the global stack orientation:
+//!
+//! - `forward` propagates towards increasing stack coordinate;
+//! - `backward` propagates towards decreasing stack coordinate.
+//!
+//! The amplitudes are expressed in the directional basis of the local medium.
+//! They are therefore suitable for propagation within a homogeneous layer,
+//! but are not themselves continuity variables across unlike media.
+//!
+//! Conversion to [`BoundaryState`] produces the canonical isotropic state used
+//! for interface continuity and physical projections.
+
 use ndarray::Dimension;
 
 use crate::{ComplexScalar, algebra::ScalarAlgebra};
@@ -44,6 +58,15 @@ impl<A> BoundaryWaves<A> {
         }
     }
 
+    pub(crate) fn state(&self, admittance: &A) -> BoundaryState<A>
+    where
+        A: ScalarAlgebra + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+    {
+        self.clone().into_state(admittance)
+    }
+
     /// Convert directional amplitudes into the canonical isotropic boundary
     /// state for `admittance`.
     ///
@@ -54,6 +77,13 @@ impl<A> BoundaryWaves<A> {
     /// field     = forward + backward
     /// secondary = ξ (backward - forward).
     /// ```
+    /// Equivalently:
+    ///
+    /// ```text
+    /// secondary = factor⁻¹ ∂z field,
+    /// ```
+    ///
+    /// where `factor = μ` for TE and `factor = ε` for TM.
     pub(crate) fn into_state(self, admittance: &A) -> BoundaryState<A>
     where
         A: ScalarAlgebra,
@@ -322,5 +352,21 @@ mod tests {
         assert_jet_close(observable.right().forward(), c(3.0, 0.0));
 
         assert_jet_close(observable.right().backward(), c(4.0, 0.0));
+    }
+
+    #[test]
+    fn complex_admittance_converts_with_full_characteristic_slope() {
+        let forward = c(0.8, -0.2);
+        let backward = c(-0.3, 0.5);
+        let admittance_value = c(2.0, 0.7);
+
+        let state =
+            BoundaryWaves::new(jet(forward), jet(backward)).into_state(&jet(admittance_value));
+
+        let xi = -C::i() * admittance_value;
+
+        assert_jet_close(state.field(), forward + backward);
+
+        assert_jet_close(state.secondary(), xi * (backward - forward));
     }
 }

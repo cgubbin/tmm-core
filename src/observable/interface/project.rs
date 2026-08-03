@@ -1,52 +1,107 @@
-//! Assembly of backend-independent interface projection data.
+//! Assembly of backend-independent interface reconstruction data.
 //!
-//! This module combines:
+//! This module bridges retained backend quantities and interface observables.
+//! It:
 //!
-//! - exterior directional waves derived from the plane-wave amplitudes;
-//! - finite-layer boundary waves and canonical states;
-//! - the characteristic admittance of every adjacent medium.
+//! - constructs directional waves in the exterior media;
+//! - collects finite-layer characteristic admittances;
+//! - assembles finite-layer and exterior quantities into physical interfaces;
+//! - projects retained layer waves into canonical boundary states.
 //!
-//! For a stack containing `N` finite layers, the resulting sequence contains
-//! `N + 1` interfaces in physical left-to-right order.
+//! All returned sequences use physical left-to-right order. A stack with `N`
+//! finite layers produces `N + 1` interfaces.
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
 use crate::{
     ComplexScalar, IncidentSide,
-    algebra::{Jet, ScalarAlgebra},
-    backend::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+    algebra::ScalarAlgebra,
+    backend::RetainedIsotropicLayers,
     observable::{
-        BoundaryProjectionError, BoundaryWaves, Interfaces, LayerBoundaries, LayerBoundaryStates,
-        LayerBoundaryWaves, PlaneWaveAmplitudes, project_boundary_waves,
+        BoundaryProjectionError, BoundaryWaves, Interfaces, LayerBoundaries, LayerBoundaryWaves,
+        PlaneWaveAmplitudes,
     },
 };
 
-use super::{InterfaceSide, InterfaceWaveData};
+use super::{ExteriorBoundaryStates, ExteriorBoundaryWaves, InterfaceSide, InterfaceWaveData};
 
-/// Directional waves in the two exterior media.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ExteriorBoundaryWaves<A> {
-    left: BoundaryWaves<A>,
-    right: BoundaryWaves<A>,
+/// Failure to project interface observables from a retained backend result.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum InterfaceProjectionError {
+    #[error("error in boundary projection {0}")]
+    Boundary(#[from] BoundaryProjectionError),
+
+    #[error(
+        "finite-layer boundary data are inconsistent: \
+     {wave_count} wave records, and \
+     {admittance_count} admittances"
+    )]
+    LayerDataCountMismatch {
+        wave_count: usize,
+        admittance_count: usize,
+    },
 }
 
-impl<A> ExteriorBoundaryWaves<A> {
-    pub(crate) const fn new(left: BoundaryWaves<A>, right: BoundaryWaves<A>) -> Self {
-        Self { left, right }
+pub(crate) fn assemble_interface_wave_data<A>(
+    layer_waves: LayerBoundaries<LayerBoundaryWaves<A>>,
+    layer_admittances: Vec<A>,
+    exterior_waves: ExteriorBoundaryWaves<A>,
+    left_exterior_admittance: A,
+    right_exterior_admittance: A,
+) -> Result<Interfaces<InterfaceWaveData<A>>, InterfaceProjectionError>
+where
+    A: Clone,
+{
+    let wave_count = layer_waves.len();
+    let admittance_count = layer_admittances.len();
+
+    if wave_count != admittance_count {
+        return Err(InterfaceProjectionError::LayerDataCountMismatch {
+            wave_count,
+            admittance_count,
+        });
     }
 
-    pub(crate) fn left(&self) -> &BoundaryWaves<A> {
-        &self.left
+    let (left_exterior_waves, right_exterior_waves) = exterior_waves.into_parts();
+
+    let left_exterior = InterfaceSide::new(left_exterior_waves, left_exterior_admittance);
+
+    let right_exterior = InterfaceSide::new(right_exterior_waves, right_exterior_admittance);
+
+    let mut layers = layer_waves.into_inner().into_iter().zip(layer_admittances);
+
+    let Some((first_waves, first_admittance)) = layers.next() else {
+        return Ok(Interfaces::new(vec![InterfaceWaveData::new(
+            left_exterior,
+            right_exterior,
+        )]));
+    };
+
+    let (first_left_waves, first_right_waves) = first_waves.into_parts();
+
+    let mut interfaces = Vec::with_capacity(wave_count + 1);
+
+    interfaces.push(InterfaceWaveData::new(
+        left_exterior,
+        InterfaceSide::new(first_left_waves, first_admittance.clone()),
+    ));
+
+    let mut previous_right = InterfaceSide::new(first_right_waves, first_admittance);
+
+    for (layer_waves, layer_admittance) in layers {
+        let (left_waves, right_waves) = layer_waves.into_parts();
+
+        let current_left = InterfaceSide::new(left_waves, layer_admittance.clone());
+
+        interfaces.push(InterfaceWaveData::new(previous_right, current_left));
+
+        previous_right = InterfaceSide::new(right_waves, layer_admittance);
     }
 
-    pub(crate) fn right(&self) -> &BoundaryWaves<A> {
-        &self.right
-    }
+    interfaces.push(InterfaceWaveData::new(previous_right, right_exterior));
 
-    pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, BoundaryWaves<A>) {
-        (self.left, self.right)
-    }
+    Ok(Interfaces::new(interfaces))
 }
 
 /// Construct the directional waves in both exterior media.
@@ -82,84 +137,24 @@ where
     }
 }
 
-/// Construct the complete interface wave-data sequence.
-///
-/// All finite-layer inputs must contain the same number of records and must be
-/// ordered in physical left-to-right layer order.
-///
-/// A stack containing `N` finite layers produces `N + 1` interfaces:
-///
-/// ```text
-/// exterior-left | layer 0 | ... | layer N-1 | exterior-right
-/// ```
-pub(crate) fn assemble_interface_wave_data<A>(
-    layer_waves: LayerBoundaries<LayerBoundaryWaves<A>>,
-    layer_admittances: Vec<A>,
-    exterior_waves: ExteriorBoundaryWaves<A>,
-    left_exterior_admittance: A,
-    right_exterior_admittance: A,
-) -> Result<Interfaces<InterfaceWaveData<A>>, BoundaryProjectionError>
+pub(crate) fn exterior_boundary_states<A>(
+    amplitudes: &PlaneWaveAmplitudes<A>,
+    incident_side: IncidentSide,
+    left_admittance: &A,
+    right_admittance: &A,
+) -> ExteriorBoundaryStates<A>
 where
-    A: Clone,
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar + One + Zero,
+    A::Dimension: Dimension,
 {
-    let wave_count = layer_waves.len();
-    let admittance_count = layer_admittances.len();
+    let (left_waves, right_waves) =
+        exterior_boundary_waves(amplitudes, incident_side, left_admittance.value()).into_parts();
 
-    if wave_count != admittance_count {
-        return Err(BoundaryProjectionError::LayerDataCountMismatch {
-            wave_count,
-            admittance_count,
-        });
+    ExteriorBoundaryStates {
+        left: left_waves.into_state(left_admittance),
+        right: right_waves.into_state(right_admittance),
     }
-
-    let (left_exterior_waves, right_exterior_waves) = exterior_waves.into_parts();
-
-    let left_exterior = InterfaceSide::new(left_exterior_waves, left_exterior_admittance);
-
-    let right_exterior = InterfaceSide::new(right_exterior_waves, right_exterior_admittance);
-
-    let layer_waves = layer_waves.into_inner();
-
-    if layer_waves.is_empty() {
-        return Ok(Interfaces::new(vec![InterfaceWaveData::new(
-            left_exterior,
-            right_exterior,
-        )]));
-    }
-
-    let mut waves = layer_waves.into_iter();
-    let mut admittances = layer_admittances.into_iter();
-
-    let first_waves = waves.next().expect("non-empty wave collection was checked");
-
-    let first_admittance = admittances
-        .next()
-        .expect("validated admittance count matches wave count");
-
-    let (first_left_waves, first_right_waves) = first_waves.into_parts();
-
-    let mut interfaces = Vec::with_capacity(wave_count + 1);
-
-    interfaces.push(InterfaceWaveData::new(
-        left_exterior,
-        InterfaceSide::new(first_left_waves, first_admittance.clone()),
-    ));
-
-    let mut previous_right = InterfaceSide::new(first_right_waves, first_admittance);
-
-    for (layer_waves, layer_admittance) in itertools::izip!(waves, admittances) {
-        let (left_waves, right_waves) = layer_waves.into_parts();
-
-        let current_left = InterfaceSide::new(left_waves, layer_admittance.clone());
-
-        interfaces.push(InterfaceWaveData::new(previous_right, current_left));
-
-        previous_right = InterfaceSide::new(right_waves, layer_admittance);
-    }
-
-    interfaces.push(InterfaceWaveData::new(previous_right, right_exterior));
-
-    Ok(Interfaces::new(interfaces))
 }
 
 /// Collect the retained characteristic admittance of every finite layer.
@@ -193,63 +188,6 @@ where
     Ok(admittances)
 }
 
-pub(crate) fn project_boundary_states<A, W>(
-    workspace: &W,
-    incident_side: IncidentSide,
-) -> Result<LayerBoundaries<LayerBoundaryStates<A>>, BoundaryProjectionError>
-where
-    W: ReconstructLayerBoundaryWaves<Algebra = A> + RetainedIsotropicLayers<Algebra = A>,
-    A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let waves = project_boundary_waves(workspace, incident_side)?;
-
-    states_from_boundary_waves(workspace, waves)
-}
-
-pub(crate) fn states_from_boundary_waves<W>(
-    workspace: &W,
-    waves: LayerBoundaries<LayerBoundaryWaves<W::Algebra>>,
-) -> Result<LayerBoundaries<LayerBoundaryStates<W::Algebra>>, BoundaryProjectionError>
-where
-    W: RetainedIsotropicLayers,
-    W::Algebra: ScalarAlgebra,
-    <W::Algebra as Jet>::Scalar: ComplexScalar,
-    <W::Algebra as Jet>::Dimension: Dimension,
-{
-    let layer_count = workspace
-        .retained_layer_count()
-        .ok_or(BoundaryProjectionError::LayersNotRetained)?;
-
-    if waves.len() != layer_count {
-        return Err(BoundaryProjectionError::LayerCountMismatch {
-            wave_count: waves.len(),
-            layer_count,
-        });
-    }
-
-    let states = waves
-        .into_inner()
-        .into_iter()
-        .enumerate()
-        .map(|(index, waves)| {
-            let quantities = workspace.layer_quantities(index).ok_or(
-                BoundaryProjectionError::LayerOutOfBounds {
-                    requested: index,
-                    layer_count,
-                },
-            )?;
-
-            let admittance = quantities.clone().into_admittance().into_inner();
-
-            Ok(waves.into_states(&admittance))
-        })
-        .collect::<Result<Vec<_>, BoundaryProjectionError>>()?;
-
-    Ok(LayerBoundaries::new(states))
-}
-
 #[cfg(test)]
 mod tests {
     use ndarray::{Ix0, arr0};
@@ -258,10 +196,7 @@ mod tests {
     use super::*;
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        observable::{
-            BoundaryState, BoundaryWaves, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves,
-            PlaneWaveAmplitudes,
-        },
+        observable::{BoundaryWaves, LayerBoundaries, LayerBoundaryWaves, PlaneWaveAmplitudes},
     };
 
     type C = Complex64;
@@ -352,7 +287,7 @@ mod tests {
 
         assert_eq!(
             error,
-            BoundaryProjectionError::LayerDataCountMismatch {
+            InterfaceProjectionError::LayerDataCountMismatch {
                 wave_count: 2,
                 admittance_count: 1,
             },
@@ -519,5 +454,204 @@ mod tests {
 
         assert_eq!(interface.left().state(), expected_left);
         assert_eq!(interface.right().state(), expected_right);
+    }
+}
+
+#[cfg(test)]
+mod exterior_boundary_state_tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
+
+    use super::*;
+
+    use crate::{
+        algebra::{ArrayJet0, Jet0, RealParameter},
+        observable::{
+            BoundaryState, LayerBoundaries, LayerBoundaryStates, PlaneWaveAmplitudes,
+            assemble_interface_states,
+        },
+    };
+
+    type C = Complex64;
+    type A = ArrayJet0<C, Ix0, RealParameter>;
+
+    const TOLERANCE: f64 = 1.0e-12;
+
+    fn c(real: f64, imaginary: f64) -> C {
+        C::new(real, imaginary)
+    }
+
+    fn jet(value: C) -> A {
+        Jet0::new(arr0(value))
+    }
+
+    fn assert_complex_close(actual: C, expected: C) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    fn assert_jet_close(actual: &A, expected: C) {
+        assert_complex_close(actual.value()[()], expected);
+    }
+
+    fn assert_state_close(actual: &BoundaryState<A>, expected_field: C, expected_secondary: C) {
+        assert_jet_close(actual.field(), expected_field);
+        assert_jet_close(actual.secondary(), expected_secondary);
+    }
+
+    #[test]
+    fn left_incidence_uses_incident_and_reflected_waves_on_left() {
+        let reflection = c(-0.2, 0.3);
+        let transmission = c(0.7, -0.1);
+
+        let amplitudes = PlaneWaveAmplitudes::new(jet(reflection), jet(transmission));
+
+        let left_admittance = c(2.0, 0.0);
+        let right_admittance = c(3.0, 0.0);
+
+        let states = exterior_boundary_states(
+            &amplitudes,
+            IncidentSide::Left,
+            &jet(left_admittance),
+            &jet(right_admittance),
+        );
+
+        let left_xi = -C::i() * left_admittance;
+
+        assert_state_close(
+            &states.left,
+            C::new(1.0, 0.0) + reflection,
+            left_xi * (reflection - C::new(1.0, 0.0)),
+        );
+    }
+
+    #[test]
+    fn left_incidence_uses_only_transmitted_wave_on_right() {
+        let reflection = c(-0.2, 0.3);
+        let transmission = c(0.7, -0.1);
+
+        let amplitudes = PlaneWaveAmplitudes::new(jet(reflection), jet(transmission));
+
+        let left_admittance = c(2.0, 0.0);
+        let right_admittance = c(3.0, 0.0);
+
+        let states = exterior_boundary_states(
+            &amplitudes,
+            IncidentSide::Left,
+            &jet(left_admittance),
+            &jet(right_admittance),
+        );
+
+        let right_xi = -C::i() * right_admittance;
+
+        assert_state_close(&states.right, transmission, -right_xi * transmission);
+    }
+
+    #[test]
+    fn right_incidence_uses_only_transmitted_wave_on_left() {
+        let reflection = c(0.15, -0.25);
+        let transmission = c(0.6, 0.2);
+
+        let amplitudes = PlaneWaveAmplitudes::new(jet(reflection), jet(transmission));
+
+        let left_admittance = c(2.0, 0.0);
+        let right_admittance = c(3.0, 0.0);
+
+        let states = exterior_boundary_states(
+            &amplitudes,
+            IncidentSide::Right,
+            &jet(left_admittance),
+            &jet(right_admittance),
+        );
+
+        let left_xi = -C::i() * left_admittance;
+
+        assert_state_close(&states.left, transmission, left_xi * transmission);
+    }
+
+    #[test]
+    fn right_incidence_uses_incident_and_reflected_waves_on_right() {
+        let reflection = c(0.15, -0.25);
+        let transmission = c(0.6, 0.2);
+
+        let amplitudes = PlaneWaveAmplitudes::new(jet(reflection), jet(transmission));
+
+        let left_admittance = c(2.0, 0.0);
+        let right_admittance = c(3.0, 0.0);
+
+        let states = exterior_boundary_states(
+            &amplitudes,
+            IncidentSide::Right,
+            &jet(left_admittance),
+            &jet(right_admittance),
+        );
+
+        let right_xi = -C::i() * right_admittance;
+
+        assert_state_close(
+            &states.right,
+            C::new(1.0, 0.0) + reflection,
+            right_xi * (C::new(1.0, 0.0) - reflection),
+        );
+    }
+
+    #[test]
+    fn two_finite_layers_produce_three_interfaces_in_order() {
+        let layers = LayerBoundaries::new(vec![
+            LayerBoundaryStates::new(BoundaryState::new(10, 11), BoundaryState::new(12, 13)),
+            LayerBoundaryStates::new(BoundaryState::new(20, 21), BoundaryState::new(22, 23)),
+        ]);
+
+        let interfaces =
+            assemble_interface_states(layers, BoundaryState::new(0, 1), BoundaryState::new(30, 31));
+
+        assert_eq!(interfaces.len(), 3);
+
+        let actual: Vec<_> = interfaces
+            .iter()
+            .map(|interface| {
+                (
+                    *interface.left().field(),
+                    *interface.left().secondary(),
+                    *interface.right().field(),
+                    *interface.right().secondary(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            actual,
+            vec![(0, 1, 10, 11), (12, 13, 20, 21), (22, 23, 30, 31),],
+        );
+    }
+
+    #[test]
+    fn empty_finite_stack_produces_one_exterior_interface() {
+        let interfaces = assemble_interface_states(
+            LayerBoundaries::new(Vec::new()),
+            BoundaryState::new(1, 2),
+            BoundaryState::new(3, 4),
+        );
+
+        assert_eq!(interfaces.len(), 1);
+
+        let interface = interfaces
+            .first()
+            .expect("one exterior interface should exist");
+
+        assert_eq!(interface.left().clone().into_parts(), (1, 2));
+        assert_eq!(interface.right().clone().into_parts(), (3, 4));
     }
 }

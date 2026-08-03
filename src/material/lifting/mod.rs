@@ -20,6 +20,10 @@
 //! This keeps the material layer completely independent of the automatic
 //! differentiation implementation.
 
+mod differential;
+
+pub(crate) use differential::ConstitutiveSpectralFirstLift;
+
 use ndarray::{Array, Dimension};
 use std::fmt::Debug;
 
