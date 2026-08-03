@@ -202,6 +202,18 @@ impl<A> IsotropicLayerQuantities<A> {
 }
 
 #[cfg(test)]
+impl<A> IsotropicLayerQuantities<A> {
+    pub(crate) fn test_fixture(kappa: A, epsilon: A, mu: A, polarisation: Polarisation) -> Self {
+        Self {
+            epsilon,
+            mu,
+            kappa,
+            polarisation,
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
     use ndarray::{Array0, Array1, arr0, array};

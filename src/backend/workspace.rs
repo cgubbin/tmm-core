@@ -24,4 +24,6 @@ pub trait RetainedIsotropicLayers {
     fn retained_layer_count(&self) -> Option<usize>;
 
     fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>>;
+
+    fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra>;
 }

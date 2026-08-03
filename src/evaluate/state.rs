@@ -5,8 +5,8 @@ use ndarray::Dimension;
 use num_traits::{One, Zero};
 
 use crate::{
-    ComplexScalar, IncidentSide, InterfacePower, LayerPower, PlaneWaveAmplitudes,
-    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra},
+    ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
+    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
         PlaneWaveSolutionView, ReconstructLayerBoundaryWaves, RetainedIsotropicLayers,
@@ -16,11 +16,12 @@ use crate::{
     input::{CanonicalProblem, CompilationContext, JetMapping},
     observable::{
         BoundaryProjectionError, InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries,
-        LayerBoundaryStates, LayerBoundaryWaves, Layers, ProjectAmplitudes,
+        LayerBoundaryStates, LayerBoundaryWaves, LayerWaveData, Layers, ProjectAmplitudes,
         ProjectPlaneWaveModeDeterminant, ProjectPower, assemble_interface_states,
-        assemble_interface_wave_data, exterior_boundary_states, exterior_boundary_waves,
-        project_boundary_states, project_boundary_waves, project_interface_power,
-        project_layer_admittances, project_layer_power,
+        assemble_interface_wave_data, assemble_layer_wave_data, exterior_boundary_states,
+        exterior_boundary_waves, integrate_layer_wave_sequence, project_boundary_states,
+        project_boundary_waves, project_interface_power, project_layer_admittances,
+        project_layer_dissipation_sequence, project_layer_power,
     },
 };
 
@@ -276,6 +277,19 @@ where
             right_admittance,
         )
     }
+
+    pub(crate) fn raw_layer_wave_data(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Layers<LayerWaveData<J>>, BoundaryProjectionError>
+    where
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        J: Clone,
+    {
+        let boundary_waves = self.raw_layer_boundary_waves(incident_side)?;
+
+        assemble_layer_wave_data(&self.workspace, boundary_waves)
+    }
 }
 
 impl<J, M, W> PlaneWaveState<J, <J::Scalar as ComplexField>::RealField, M, W>
@@ -412,6 +426,71 @@ where
     {
         let raw = self.raw_layer_power(incident_side)?;
 
+        Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
+    }
+
+    pub(crate) fn raw_incident_flux_magnitude(&self, incident_side: IncidentSide) -> J::RealJet
+    where
+        J: ComplexJet + RealScalarAlgebra,
+        J::RealJet: ScalarAlgebra,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let context = self.solution().context();
+
+        let admittance = match incident_side {
+            IncidentSide::Left => context.left_admittance(),
+            IncidentSide::Right => context.right_admittance(),
+        };
+
+        admittance.real()
+    }
+
+    pub(crate) fn raw_layer_dissipation(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<Layers<LayerDissipation<J::RealJet>>, BoundaryProjectionError>
+    where
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: One,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let layers = self.raw_layer_wave_data(incident_side)?;
+
+        let integrated = integrate_layer_wave_sequence(layers);
+
+        let coordinates = self.problem().coordinates();
+
+        let incident_flux = self.raw_incident_flux_magnitude(incident_side);
+
+        Ok(project_layer_dissipation_sequence(
+            integrated,
+            coordinates.vacuum_angular_wavenumber(),
+            coordinates.parallel_angular_wavenumber(),
+            &incident_flux,
+        ))
+    }
+
+    pub fn layer_dissipation(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<
+        DifferentialResponseFor<J, Layers<LayerDissipation<J::RealJet>>>,
+        BoundaryProjectionError,
+    >
+    where
+        J: JetMapping + RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: One,
+        J::Policy: Default + DerivativePartsPolicy<Layers<LayerDissipation<J::RealJet>>>,
+        Layers<LayerDissipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    {
+        let raw = self.raw_layer_dissipation(incident_side)?;
         Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
     }
 }

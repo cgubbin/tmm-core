@@ -8,6 +8,12 @@ use crate::{
 use ndarray::Dimension;
 use thiserror::Error;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RetainedLayerDatum {
+    Quantities,
+    Thickness,
+}
+
 /// Failure to construct boundary observables from a retained backend result.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum BoundaryProjectionError {
@@ -45,6 +51,16 @@ pub enum BoundaryProjectionError {
     LayerDataCountMismatch {
         wave_count: usize,
         admittance_count: usize,
+    },
+
+    #[error(
+        "retained {datum:?} are missing for finite layer {index}, \
+     although the workspace reports {layer_count} layers"
+    )]
+    MissingRetainedLayerDatum {
+        datum: RetainedLayerDatum,
+        index: usize,
+        layer_count: usize,
     },
 }
 
@@ -152,6 +168,10 @@ mod tests {
         )
     }
 
+    fn thickness(thickness: f64) -> A {
+        jet(C::new(thickness, 0.0))
+    }
+
     fn boundary_waves(offset: f64) -> BackendLayerBoundaryWaves<A> {
         BackendLayerBoundaryWaves::new(
             BackendBoundaryWaves::new(
@@ -170,6 +190,7 @@ mod tests {
         waves: Option<Vec<BackendLayerBoundaryWaves<A>>>,
         retained_layer_count: Option<usize>,
         quantities: Vec<IsotropicLayerQuantities<A>>,
+        thicknesses: Vec<A>,
     }
 
     impl ReconstructLayerBoundaryWaves for MockRetainedWorkspace {
@@ -192,6 +213,10 @@ mod tests {
         fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<A>> {
             self.quantities.get(index)
         }
+
+        fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra> {
+            self.thicknesses.get(index)
+        }
     }
 
     #[test]
@@ -200,6 +225,7 @@ mod tests {
             waves: None,
             retained_layer_count: None,
             quantities: Vec::new(),
+            thicknesses: Vec::new(),
         };
 
         let error = project_boundary_waves(&workspace, IncidentSide::Left)
@@ -214,6 +240,7 @@ mod tests {
             waves: None,
             retained_layer_count: Some(0),
             quantities: Vec::new(),
+            thicknesses: Vec::new(),
         };
 
         let error = project_boundary_states(&workspace, IncidentSide::Left)
@@ -228,6 +255,7 @@ mod tests {
             waves: Some(Vec::new()),
             retained_layer_count: None,
             quantities: Vec::new(),
+            thicknesses: Vec::new(),
         };
 
         let error = project_boundary_states(&workspace, IncidentSide::Left)
@@ -242,6 +270,7 @@ mod tests {
             waves: Some(vec![boundary_waves(0.0), boundary_waves(10.0)]),
             retained_layer_count: Some(1),
             quantities: vec![quantities(2.25)],
+            thicknesses: vec![thickness(2.0)],
         };
 
         let error = project_boundary_states(&workspace, IncidentSide::Left)
@@ -262,6 +291,7 @@ mod tests {
             waves: Some(vec![boundary_waves(0.0)]),
             retained_layer_count: Some(2),
             quantities: vec![quantities(2.25), quantities(4.0)],
+            thicknesses: vec![thickness(2.0), thickness(3.0)],
         };
 
         let error = project_boundary_states(&workspace, IncidentSide::Right)
@@ -285,6 +315,8 @@ mod tests {
             // The workspace claims two retained layers but only exposes
             // quantities for the first.
             quantities: vec![quantities(2.25)],
+
+            thicknesses: vec![thickness(2.0)],
         };
 
         let error = project_boundary_states(&workspace, IncidentSide::Left)
@@ -305,6 +337,7 @@ mod tests {
             waves: Some(Vec::new()),
             retained_layer_count: Some(0),
             quantities: Vec::new(),
+            thicknesses: Vec::new(),
         };
 
         let waves = project_boundary_waves(&workspace, IncidentSide::Left)
@@ -323,6 +356,7 @@ mod tests {
             waves: Some(vec![boundary_waves(0.0), boundary_waves(10.0)]),
             retained_layer_count: Some(2),
             quantities: vec![quantities(2.25), quantities(4.0)],
+            thicknesses: vec![thickness(2.0), thickness(3.0)],
         };
 
         let waves = project_boundary_waves(&workspace, IncidentSide::Right)

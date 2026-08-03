@@ -8,6 +8,14 @@
 /// ξ         = -i Y
 /// ```
 ///
+/// This is equivalent to
+///
+/// ```text
+/// secondary = factor⁻¹ ∂z field,
+/// ```
+///
+/// where `factor = μ` for TE and `factor = ε` for TM.
+///
 /// `secondary` is not a complex conjugate of `field`. Both components remain
 /// holomorphic functions of complex coordinates whenever the underlying
 /// material and wave quantities are holomorphic.

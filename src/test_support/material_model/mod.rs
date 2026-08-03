@@ -2,6 +2,7 @@ mod delegate;
 pub(crate) mod drude;
 pub(crate) mod drude_lorentz;
 pub(crate) mod lorentz;
+pub(crate) mod magnetic_loss;
 
 pub(crate) use drude::Drude;
 pub(crate) use drude_lorentz::DrudeLorentz;

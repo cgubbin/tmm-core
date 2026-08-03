@@ -85,7 +85,7 @@ impl Transfer2 {
                 check_layer_matrix(&layer_matrix, layer_index)?;
             }
 
-            workspace.append(layer_matrix, quantities);
+            workspace.append(layer_matrix, quantities, layer.thickness_cm().clone());
 
             if self.stability_check == TransferStabilityCheck::PerLayer {
                 check_accumulation(workspace.entries(), layer_index)?;

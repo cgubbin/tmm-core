@@ -103,12 +103,17 @@ impl<A> RetainedIsotropicLayers for Scatter2Workspace<A> {
     fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>> {
         self.retained.as_ref()?.get_quantities(index)
     }
+
+    fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra> {
+        self.retained.as_ref()?.get_thickness(index)
+    }
 }
 
 pub(crate) struct RetainedScatterComponents<A> {
     pub(super) components: Vec<Scatter2Entries<A>>,
     pub(super) layer_cuts: Vec<LayerCutIndices>,
     pub(super) quantities: Vec<IsotropicLayerQuantities<A>>,
+    pub(super) thicknesses: Vec<A>,
 }
 
 impl<A> Scatter2Workspace<A> {
@@ -130,6 +135,7 @@ impl<A> Scatter2Workspace<A> {
                 components: Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1)),
                 layer_cuts: Vec::with_capacity(layer_count),
                 quantities: Vec::with_capacity(layer_count),
+                thicknesses: Vec::with_capacity(layer_count),
             }),
         }
     }
@@ -167,6 +173,7 @@ impl<A> Scatter2Workspace<A> {
         interface: Scatter2Entries<A>,
         propagation: Scatter2Entries<A>,
         quantities: IsotropicLayerQuantities<A>,
+        thickness: A,
     ) where
         A: ScalarAlgebra,
         A::Scalar: ComplexScalar,
@@ -190,7 +197,8 @@ impl<A> Scatter2Workspace<A> {
         }
 
         if let Some(retained) = &mut self.retained {
-            retained.quantities.push(quantities)
+            retained.quantities.push(quantities);
+            retained.thicknesses.push(thickness);
         }
     }
 
@@ -279,6 +287,10 @@ impl<A> RetainedScatterComponents<A> {
 
     fn get_quantities(&self, layer_index: usize) -> Option<&IsotropicLayerQuantities<A>> {
         self.quantities.get(layer_index)
+    }
+
+    fn get_thickness(&self, layer_index: usize) -> Option<&A> {
+        self.thicknesses.get(layer_index)
     }
 
     fn num_layers(&self) -> usize {
@@ -690,7 +702,12 @@ mod tests {
         let interface = first_component();
         let propagation = second_component();
 
-        workspace.append_layer(interface.clone(), propagation.clone(), sample_quantities());
+        workspace.append_layer(
+            interface.clone(),
+            propagation.clone(),
+            sample_quantities(),
+            sample_thickness(),
+        );
 
         let expected = cascade(&interface, &propagation);
 
@@ -709,7 +726,12 @@ mod tests {
         let interface = first_component();
         let propagation = second_component();
 
-        workspace.append_layer(interface.clone(), propagation.clone(), sample_quantities());
+        workspace.append_layer(
+            interface.clone(),
+            propagation.clone(),
+            sample_quantities(),
+            sample_thickness(),
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -731,12 +753,18 @@ mod tests {
         let mut workspace: Scatter2Workspace<J0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
-        workspace.append_layer(first_component(), second_component(), sample_quantities());
+        workspace.append_layer(
+            first_component(),
+            second_component(),
+            sample_quantities(),
+            sample_thickness(),
+        );
 
         workspace.append_layer(
             third_component(),
             transparent_component(),
             sample_quantities(),
+            sample_thickness(),
         );
 
         let (_, retained) = workspace.into_parts();
@@ -860,6 +888,7 @@ mod tests {
             ],
             layer_cuts: vec![LayerCutIndices::new(1, 2), LayerCutIndices::new(3, 4)],
             quantities: vec![sample_quantities(), sample_quantities()],
+            thicknesses: vec![sample_thickness(), sample_thickness()],
         };
 
         let waves = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -877,6 +906,7 @@ mod tests {
             components: components.clone(),
             layer_cuts: vec![LayerCutIndices::new(1, 2)],
             quantities: vec![sample_quantities()],
+            thicknesses: vec![sample_thickness()],
         };
 
         let reconstructed = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -926,6 +956,7 @@ mod tests {
             components: components.clone(),
             layer_cuts: vec![LayerCutIndices::new(1, 2)],
             quantities: vec![sample_quantities()],
+            thicknesses: vec![sample_thickness()],
         };
 
         let reconstructed = retained.reconstruct_layer_boundary_waves(IncidentSide::Right, &source);
@@ -985,10 +1016,13 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
+        let thickness = J1::from_parts(arr0(c(1.0)), arr0(c(0.0)));
+
         let retained = RetainedScatterComponents {
             components: vec![component],
             layer_cuts: vec![LayerCutIndices::new(0, 1)],
             quantities: vec![quantities],
+            thicknesses: vec![thickness],
         };
 
         let waves = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
@@ -1110,6 +1144,10 @@ mod tests {
         )
     }
 
+    fn sample_thickness() -> J0 {
+        J0::new(arr0(c(1.0)))
+    }
+
     fn sample_source() -> ArrayBase<OwnedRepr<C>, Ix0> {
         ndarray::arr0(c(0.0))
     }
@@ -1138,6 +1176,7 @@ mod tests {
             left_interface.clone(),
             propagation.clone(),
             sample_quantities(),
+            sample_thickness(),
         );
 
         workspace.append(right_interface.clone());
@@ -1198,12 +1237,14 @@ mod tests {
             interface0.clone(),
             propagation0.clone(),
             sample_quantities(),
+            sample_thickness(),
         );
 
         workspace.append_layer(
             interface1.clone(),
             propagation1.clone(),
             sample_quantities(),
+            sample_thickness(),
         );
 
         workspace.append(final_interface.clone());
@@ -1256,12 +1297,14 @@ mod tests {
             sample_entries(1.0),
             sample_entries(2.0),
             sample_quantities(),
+            sample_thickness(),
         );
 
         workspace.append_layer(
             sample_entries(3.0),
             sample_entries(4.0),
             sample_quantities(),
+            sample_thickness(),
         );
 
         workspace.append(sample_entries(5.0));

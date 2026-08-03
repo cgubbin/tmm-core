@@ -111,7 +111,12 @@ impl Scatter2 {
 
             let propagation = propagation_from_exponent(exponent);
 
-            workspace.append_layer(interface, propagation, quantities);
+            workspace.append_layer(
+                interface,
+                propagation,
+                quantities,
+                layer.thickness_cm().clone(),
+            );
 
             current_admittance = layer_admittance;
         }

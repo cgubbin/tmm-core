@@ -1,12 +1,25 @@
+mod data;
 mod dissipation;
 mod energy;
+mod field_norm;
 mod normalisation;
 mod overlap;
 mod power;
 mod project;
+mod state_overlap;
 
+pub(crate) use data::{IntegratedLayerWaveData, LayerWaveData};
+pub use dissipation::LayerDissipation;
+pub(crate) use field_norm::IntegratedFieldNorms;
+pub(crate) use overlap::{
+    IntegratedWaveProducts, integrate_bilinear_wave_products, integrate_hermitian_wave_products,
+};
 pub use power::LayerPower;
-pub(crate) use project::project_layer_power;
+pub(crate) use project::{
+    assemble_layer_wave_data, integrate_layer_wave_sequence, project_layer_dissipation_sequence,
+    project_layer_power,
+};
+pub(crate) use state_overlap::IntegratedStateProducts;
 
 /// Layer quantities in physical left-to-right order.
 ///

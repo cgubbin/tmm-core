@@ -4,7 +4,7 @@ mod state;
 mod waves;
 
 pub(crate) use exterior::exterior_boundary_states;
-pub use project::BoundaryProjectionError;
+pub use project::{BoundaryProjectionError, RetainedLayerDatum};
 pub(crate) use project::{project_boundary_states, project_boundary_waves};
 pub use state::{BoundaryState, LayerBoundaryStates};
 pub use waves::{BoundaryWaves, LayerBoundaryWaves};

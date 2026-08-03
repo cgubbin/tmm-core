@@ -4,7 +4,10 @@ use crate::{
     AnalyticalMaterialStack, Constant, MaterialStack, Stack, Thickness,
     algebra::Jet0,
     input::canonical::{CanonicalLayer, CanonicalStack},
-    test_support::{jet::zero_jet_from_real_value, material_model::Drude},
+    test_support::{
+        jet::zero_jet_from_real_value,
+        material_model::{Drude, magnetic_loss::MagneticDrudeLorentz},
+    },
 };
 
 use super::{C, jet::P};
@@ -66,6 +69,18 @@ pub fn absorbing_single_layer_stack() -> AnalyticalMaterialStack<C> {
         .finalise()
 }
 
+pub fn asymmetric_absorbing_single_layer_stack(
+    left: f64,
+    right: f64,
+) -> AnalyticalMaterialStack<C> {
+    Stack::from_analytical_materials(Constant::dielectric(left), Constant::dielectric(right))
+        .analytical_layer(
+            Drude::new(1.0, 15000.0, 20.0).unwrap(),
+            Thickness::micrometres(100.0),
+        )
+        .finalise()
+}
+
 pub fn absorbing_two_layer_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
         .analytical_layer(
@@ -85,6 +100,24 @@ pub fn two_layer_stack_with_lossless_first_layer() -> AnalyticalMaterialStack<C>
         .analytical_layer(
             Drude::new(1.0, 30000.0, 30.0).unwrap(),
             Thickness::micrometres(0.7),
+        )
+        .finalise()
+}
+
+pub fn electric_loss_stack() -> AnalyticalMaterialStack<C> {
+    Stack::from_analytical_materials(Constant::dielectric(1.0), Constant::dielectric(2.0))
+        .analytical_layer(
+            Drude::new(1.0, 15000.0, 20.0).unwrap(),
+            Thickness::micrometres(100.0),
+        )
+        .finalise()
+}
+
+pub fn magnetic_loss_stack() -> AnalyticalMaterialStack<C> {
+    Stack::from_analytical_materials(Constant::dielectric(1.0), Constant::dielectric(2.0))
+        .analytical_layer(
+            MagneticDrudeLorentz::new(1.0, 15000.0, 20.0, vec![]).unwrap(),
+            Thickness::micrometres(100.0),
         )
         .finalise()
 }

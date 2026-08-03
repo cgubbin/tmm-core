@@ -92,14 +92,20 @@ impl<A> LayerBoundaryStates<A> {
 pub(crate) struct RetainedTransferLayer<A> {
     matrix: Transfer2Entries<A>,
     quantities: IsotropicLayerQuantities<A>,
+    thickness: A,
 }
 
 impl<A> RetainedTransferLayer<A> {
     pub(crate) fn new(
         matrix: Transfer2Entries<A>,
         quantities: IsotropicLayerQuantities<A>,
+        thickness: A,
     ) -> Self {
-        Self { matrix, quantities }
+        Self {
+            matrix,
+            quantities,
+            thickness,
+        }
     }
 
     pub(crate) fn matrix(&self) -> &Transfer2Entries<A> {
@@ -108,6 +114,10 @@ impl<A> RetainedTransferLayer<A> {
 
     pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
         &self.quantities
+    }
+
+    pub(crate) fn thickness(&self) -> &A {
+        &self.thickness
     }
 }
 
@@ -134,9 +144,10 @@ impl<A> RetainedTransferLayers<A> {
         &mut self,
         matrix: Transfer2Entries<A>,
         quantities: IsotropicLayerQuantities<A>,
+        thickness: A,
     ) {
         self.layers
-            .push(RetainedTransferLayer::new(matrix, quantities));
+            .push(RetainedTransferLayer::new(matrix, quantities, thickness));
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -148,6 +159,10 @@ impl<A> RetainedTransferLayers<A> {
         layer_index: usize,
     ) -> Option<&IsotropicLayerQuantities<A>> {
         self.layers.get(layer_index).map(|layer| layer.quantities())
+    }
+
+    pub(crate) fn get_thickness(&self, layer_index: usize) -> Option<&A> {
+        self.layers.get(layer_index).map(|layer| layer.thickness())
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -264,6 +279,10 @@ impl<A> RetainedIsotropicLayers for Transfer2Workspace<A> {
     fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>> {
         self.retained.as_ref()?.get_quantities(index)
     }
+
+    fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra> {
+        self.retained.as_ref()?.get_thickness(index)
+    }
 }
 
 impl<A> Transfer2Workspace<A> {
@@ -325,6 +344,7 @@ impl<A> Transfer2Workspace<A> {
         &mut self,
         next: Transfer2Entries<A>,
         quantities: IsotropicLayerQuantities<A>,
+        thickness: A,
     ) where
         A: ScalarAlgebra,
         A::Scalar: ComplexScalar,
@@ -335,7 +355,7 @@ impl<A> Transfer2Workspace<A> {
         self.solution.replace_entries(entries);
 
         if let Some(retained) = &mut self.retained {
-            retained.push(next, quantities);
+            retained.push(next, quantities, thickness);
         }
     }
 
@@ -541,8 +561,8 @@ mod tests {
         let left = matrix(1.0, 2.0, 0.0, 1.0);
         let right = matrix(1.0, 0.0, 3.0, 1.0);
 
-        workspace.append(left.clone(), quantities());
-        workspace.append(right.clone(), quantities());
+        workspace.append(left.clone(), quantities(), thickness(1.0));
+        workspace.append(right.clone(), quantities(), thickness(1.0));
 
         assert_eq!(workspace.entries(), &left.multiply(&right),);
 
@@ -554,7 +574,7 @@ mod tests {
         let mut workspace =
             Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 1);
 
-        workspace.append(matrix(1.0, 2.0, 3.0, 4.0), quantities());
+        workspace.append(matrix(1.0, 2.0, 3.0, 4.0), quantities(), thickness(1.0));
 
         assert!(workspace.retained().is_none());
     }
@@ -567,8 +587,8 @@ mod tests {
         let first = matrix(1.0, 2.0, 0.0, 1.0);
         let second = matrix(1.0, 0.0, 3.0, 1.0);
 
-        workspace.append(first.clone(), quantities());
-        workspace.append(second.clone(), quantities());
+        workspace.append(first.clone(), quantities(), thickness(1.0));
+        workspace.append(second.clone(), quantities(), thickness(1.0));
 
         let retained = workspace.retained().unwrap();
 
@@ -596,8 +616,8 @@ mod tests {
         let left = matrix(1.0, 2.0, 0.0, 1.0);
         let right = matrix(1.0, 0.0, 3.0, 1.0);
 
-        retained.push(left.clone(), quantities());
-        retained.push(right.clone(), quantities());
+        retained.push(left.clone(), quantities(), thickness(1.0));
+        retained.push(right.clone(), quantities(), thickness(1.0));
 
         let right_exterior =
             TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
@@ -757,6 +777,10 @@ mod tests {
         );
     }
 
+    fn thickness(thickness: f64) -> J0 {
+        J0::new(arr0(c(thickness)))
+    }
+
     fn quantities_for_material(material: Constant<f64>) -> IsotropicLayerQuantities<J0> {
         IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             &material,
@@ -793,11 +817,15 @@ mod tests {
 
         let layer1_quantities = quantities_for_material(constant(4.0, 1.0));
 
+        let layer0_thickness = thickness(5.0);
+
+        let layer1_thickness = thickness(8.0);
+
         let mut retained = RetainedTransferLayers::new();
 
-        retained.push(layer0_matrix.clone(), layer0_quantities);
+        retained.push(layer0_matrix.clone(), layer0_quantities, layer0_thickness);
 
-        retained.push(layer1_matrix.clone(), layer1_quantities);
+        retained.push(layer1_matrix.clone(), layer1_quantities, layer1_thickness);
 
         let right_exterior_state =
             TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
