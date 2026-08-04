@@ -182,32 +182,34 @@ impl<R> InterfacePower<R> {
     }
 }
 
-pub(crate) fn project_interface_power<A>(
-    interfaces: Interfaces<InterfaceWaveData<A>>,
-    incident_flux_magnitude: &A::RealJet,
-) -> Interfaces<InterfacePower<A::RealJet>>
-where
-    A: RealScalarAlgebra + Clone,
-    A::RealJet: ScalarAlgebra,
-    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    interfaces.map(|interface| {
-        let (left, right) = interface.into_parts();
+impl<A> Interfaces<InterfaceWaveData<A>> {
+    pub(crate) fn into_power(
+        self,
+        incident_flux_magnitude: &A::RealJet,
+    ) -> Interfaces<InterfacePower<A::RealJet>>
+    where
+        A: RealScalarAlgebra + Clone,
+        A::RealJet: ScalarAlgebra,
+        <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+    {
+        self.map(|interface| {
+            let (left, right) = interface.into_parts();
 
-        let (left_waves, left_admittance) = left.into_parts();
+            let (left_waves, left_admittance) = left.into_parts();
 
-        let (right_waves, right_admittance) = right.into_parts();
+            let (right_waves, right_admittance) = right.into_parts();
 
-        let left_power =
-            project_directed_power(left_waves, left_admittance, incident_flux_magnitude);
+            let left_power =
+                project_directed_power(left_waves, left_admittance, incident_flux_magnitude);
 
-        let right_power =
-            project_directed_power(right_waves, right_admittance, incident_flux_magnitude);
+            let right_power =
+                project_directed_power(right_waves, right_admittance, incident_flux_magnitude);
 
-        InterfacePower::new(left_power, right_power)
-    })
+            InterfacePower::new(left_power, right_power)
+        })
+    }
 }
 
 pub(crate) fn project_directed_power<A>(

@@ -1,8 +1,10 @@
 use ndarray::Dimension;
 
 use crate::{
-    SpatialProfile, SpatialProfileError,
+    InterfacePower, SpatialProfile, SpatialProfileError,
+    algebra::ScalarAlgebra,
     field::{ScalarField, ScalarFieldView1},
+    observable::{Interfaces, Layers},
 };
 
 /// Normalized power balance across one finite layer.
@@ -72,6 +74,29 @@ impl<R> LayerPower<R> {
             right_flux: map(self.right_flux),
             absorbed: map(self.absorbed),
         }
+    }
+}
+
+impl<R> Interfaces<InterfacePower<R>> {
+    pub(crate) fn into_layer_power(self) -> Layers<LayerPower<R>>
+    where
+        R: ScalarAlgebra,
+    {
+        let interfaces = self.into_inner();
+
+        let mut layers = Vec::with_capacity(interfaces.len().saturating_sub(1));
+
+        for pair in interfaces.windows(2) {
+            let left_flux = pair[0].right_net_flux().clone();
+
+            let right_flux = pair[1].left_net_flux().clone();
+
+            let absorbed = left_flux.subtract(&right_flux);
+
+            layers.push(LayerPower::new(left_flux, right_flux, absorbed));
+        }
+
+        Layers::new(layers)
     }
 }
 

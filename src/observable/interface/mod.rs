@@ -31,12 +31,11 @@ pub use power::{DirectedPower, InterfacePower};
 pub use project::InterfaceProjectionError;
 pub use state::InterfaceStates;
 
-pub(crate) use power::project_interface_power;
 pub(crate) use project::{
     assemble_interface_wave_data, exterior_boundary_states, exterior_boundary_waves,
     project_layer_admittances,
 };
-pub(crate) use state::{ExteriorBoundaryStates, assemble_interface_states};
+pub(crate) use state::ExteriorBoundaryStates;
 pub(crate) use wave_data::{ExteriorBoundaryWaves, InterfaceSide, InterfaceWaveData};
 
 /// Interface-resolved quantities in physical left-to-right order.

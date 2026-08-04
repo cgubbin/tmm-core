@@ -21,16 +21,12 @@ use crate::{
     },
     observable::{
         BoundaryProjectionError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
-        Interfaces, IsotropicBrillouinEnergyData, LayerBoundaries, LayerBoundaryStates,
-        LayerBoundaryWaves, LayerEnergy, LayerEnergyError, LayerProjectionError, LayerWaveData,
-        Layers, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
-        assemble_interface_states, assemble_interface_wave_data, assemble_layer_wave_data,
-        canonical_energy_normalization, evaluate_brillouin_layer_energy_data,
-        evaluate_nondispersive_layer_energy_data, exterior_boundary_states,
-        exterior_boundary_waves, integrate_layer_wave_sequence, project_interface_power,
-        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
-        project_layer_brillouin_energy_sequence, project_layer_dissipation_sequence,
-        project_layer_energy_sequence, project_layer_power,
+        Interfaces, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy,
+        LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
+        ProjectPlaneWaveModeDeterminant, ProjectPower, assemble_interface_wave_data,
+        assemble_layer_integration_inputs, canonical_energy_normalization,
+        exterior_boundary_states, exterior_boundary_waves, project_layer_admittances,
+        project_layer_boundary_states, project_layer_boundary_waves,
     },
 };
 
@@ -218,11 +214,7 @@ where
             exterior.right_admittance(),
         );
 
-        Ok(assemble_interface_states(
-            layers,
-            exterior_states.left,
-            exterior_states.right,
-        ))
+        Ok(layers.into_interface_states(exterior_states.left, exterior_states.right))
     }
 
     pub fn interface_states(
@@ -287,17 +279,17 @@ where
         )
     }
 
-    pub(crate) fn raw_layer_wave_data(
+    pub(crate) fn raw_layer_integration_inputs(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<Layers<LayerWaveData<J>>, LayerProjectionError>
+    ) -> Result<Layers<LayerIntegrationInput<J>>, LayerProjectionError>
     where
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         J: Clone,
     {
         let boundary_waves = self.raw_layer_boundary_waves(incident_side)?;
 
-        assemble_layer_wave_data(&self.workspace, boundary_waves)
+        assemble_layer_integration_inputs(&self.workspace, boundary_waves)
     }
 }
 
@@ -365,10 +357,7 @@ where
 
         let incident_flux_magnitude = RealScalarAlgebra::real(incident_admittance);
 
-        Ok(project_interface_power(
-            interface_data,
-            &incident_flux_magnitude,
-        ))
+        Ok(interface_data.into_power(&incident_flux_magnitude))
     }
 
     pub fn interface_power(
@@ -410,9 +399,7 @@ where
         J::Dimension: Dimension,
         <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
     {
-        Ok(project_layer_power(
-            self.raw_interface_power(incident_side)?,
-        ))
+        Ok(self.raw_interface_power(incident_side)?.into_layer_power())
     }
 
     pub fn layer_power(
@@ -466,16 +453,15 @@ where
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
     {
-        let layers = self.raw_layer_wave_data(incident_side)?;
-
-        let integrated = integrate_layer_wave_sequence(layers);
+        let layers = self
+            .raw_layer_integration_inputs(incident_side)?
+            .integrate();
 
         let coordinates = self.problem().coordinates();
 
         let incident_flux = self.raw_incident_flux_magnitude(incident_side);
 
-        Ok(project_layer_dissipation_sequence(
-            integrated,
+        Ok(layers.into_dissipation(
             coordinates.vacuum_angular_wavenumber(),
             coordinates.parallel_angular_wavenumber(),
             &incident_flux,
@@ -520,28 +506,23 @@ where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
     {
-        let layer_data = self.raw_layer_wave_data(incident_side)?;
-
-        let integrated = integrate_layer_wave_sequence(layer_data);
+        let integrated = self
+            .raw_layer_integration_inputs(incident_side)?
+            .integrate();
 
         let problem = self.problem();
         let coordinates = problem.coordinates();
-
-        let energy_data =
-            evaluate_nondispersive_layer_energy_data::<Domain, M, J>(coordinates, problem.stack());
 
         let incident_flux = self.raw_incident_flux_magnitude(incident_side);
 
         let normalization =
             canonical_energy_normalization(coordinates.vacuum_angular_wavenumber(), &incident_flux);
 
-        project_layer_energy_sequence(
-            integrated,
-            energy_data,
+        Ok(integrated.into_nondispersive_energy(
             coordinates.vacuum_angular_wavenumber(),
             coordinates.parallel_angular_wavenumber(),
             &normalization,
-        )
+        ))
     }
 
     pub fn nondispersive_layer_energy(
@@ -568,25 +549,25 @@ where
         Ok(raw.into_differential_response(&J::Policy::default(), self.mapping()))
     }
 
-    fn raw_brillouin_energy_data<E>(&self) -> Layers<IsotropicBrillouinEnergyData<J>>
-    where
-        J: ScalarAlgebra + ConstitutiveSpectralFirstLift<E, M>,
-        J::Scalar: ComplexScalar,
-        J::Dimension: Dimension,
-        E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-    {
-        let problem = self.problem();
-        let coordinates = problem.coordinates();
+    // fn raw_brillouin_energy_data<E>(&self) -> Layers<IsotropicBrillouinEnergyData<J>>
+    // where
+    //     J: ScalarAlgebra + ConstitutiveSpectralFirstLift<E, M>,
+    //     J::Scalar: ComplexScalar,
+    //     J::Dimension: Dimension,
+    //     E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    // {
+    //     let problem = self.problem();
+    //     let coordinates = problem.coordinates();
 
-        evaluate_brillouin_layer_energy_data::<E, M, J>(
-            problem
-                .stack()
-                .layers()
-                .iter()
-                .map(|layer| layer.material()),
-            coordinates.vacuum_angular_wavenumber(),
-        )
-    }
+    //     evaluate_brillouin_layer_energy_data::<E, M, J>(
+    //         problem
+    //             .stack()
+    //             .layers()
+    //             .iter()
+    //             .map(|layer| layer.material()),
+    //         coordinates.vacuum_angular_wavenumber(),
+    //     )
+    // }
 
     pub(crate) fn raw_layer_brillouin_energy<E>(
         &self,
@@ -606,12 +587,6 @@ where
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
     {
-        let layers = self.raw_layer_wave_data(incident_side)?;
-
-        let integrated = integrate_layer_wave_sequence(layers);
-
-        let data = self.raw_brillouin_energy_data::<E>();
-
         let coordinates = self.problem().coordinates();
 
         let incident_flux = self.raw_incident_flux_magnitude(incident_side);
@@ -619,13 +594,23 @@ where
         let normalization =
             canonical_energy_normalization(coordinates.vacuum_angular_wavenumber(), &incident_flux);
 
-        project_layer_brillouin_energy_sequence(
-            integrated,
-            data,
+        let sequence = self
+            .raw_layer_integration_inputs(incident_side)?
+            .integrate()
+            .into_brillouin_input(
+                self.problem()
+                    .stack()
+                    .layers()
+                    .iter()
+                    .map(|layer| layer.material()),
+                coordinates.vacuum_angular_wavenumber(),
+            )?;
+
+        Ok(sequence.into_brillouin_energy(
             coordinates.vacuum_angular_wavenumber(),
             coordinates.parallel_angular_wavenumber(),
             &normalization,
-        )
+        ))
     }
 
     pub fn layer_energy(

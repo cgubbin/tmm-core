@@ -55,61 +55,63 @@ impl<A> InterfaceStates<A> {
     }
 }
 
-/// Assemble canonical interface states from finite-layer boundary states.
-///
-/// Inputs must be ordered in physical left-to-right layer order. A stack with
-/// `N` finite layers produces `N + 1` interface records.
-///
-/// For an empty finite stack, the two exterior states form the sole interface.
-pub(crate) fn assemble_interface_states<A>(
-    layers: LayerBoundaries<LayerBoundaryStates<A>>,
-    left_exterior: BoundaryState<A>,
-    right_exterior: BoundaryState<A>,
-) -> Interfaces<InterfaceStates<A>> {
-    let mut layers = layers.into_inner().into_iter();
+impl<A> LayerBoundaries<LayerBoundaryStates<A>> {
+    /// Assemble canonical interface states from finite-layer boundary states.
+    ///
+    /// Inputs must be ordered in physical left-to-right layer order. A stack with
+    /// `N` finite layers produces `N + 1` interface records.
+    ///
+    /// For an empty finite stack, the two exterior states form the sole interface.
+    pub(crate) fn into_interface_states(
+        self,
+        left_exterior: BoundaryState<A>,
+        right_exterior: BoundaryState<A>,
+    ) -> Interfaces<InterfaceStates<A>> {
+        let mut layers = self.into_inner().into_iter();
 
-    let Some(first) = layers.next() else {
-        return Interfaces::new(vec![InterfaceStates::new(left_exterior, right_exterior)]);
-    };
+        let Some(first) = layers.next() else {
+            return Interfaces::new(vec![InterfaceStates::new(left_exterior, right_exterior)]);
+        };
 
-    let (first_left, first_right) = first.into_parts();
+        let (first_left, first_right) = first.into_parts();
 
-    let mut interfaces = Vec::with_capacity(layers.len() + 2);
+        let mut interfaces = Vec::with_capacity(layers.len() + 2);
 
-    interfaces.push(InterfaceStates::new(left_exterior, first_left));
+        interfaces.push(InterfaceStates::new(left_exterior, first_left));
 
-    let mut previous_right = first_right;
+        let mut previous_right = first_right;
 
-    for layer in layers {
-        let (current_left, current_right) = layer.into_parts();
+        for layer in layers {
+            let (current_left, current_right) = layer.into_parts();
 
-        interfaces.push(InterfaceStates::new(previous_right, current_left));
+            interfaces.push(InterfaceStates::new(previous_right, current_left));
 
-        previous_right = current_right;
+            previous_right = current_right;
+        }
+
+        interfaces.push(InterfaceStates::new(previous_right, right_exterior));
+
+        Interfaces::new(interfaces)
     }
-
-    interfaces.push(InterfaceStates::new(previous_right, right_exterior));
-
-    Interfaces::new(interfaces)
 }
 
-/// Convert assembled wave data directly into canonical interface states.
-///
-/// This consumes the internal wave data and avoids cloning the directional
-/// waves solely to construct their states.
-pub(crate) fn states_from_interface_wave_data<A>(
-    interfaces: Interfaces<InterfaceWaveData<A>>,
-) -> Interfaces<InterfaceStates<A>>
-where
-    A: crate::algebra::ScalarAlgebra,
-    A::Scalar: crate::ComplexScalar,
-    A::Dimension: ndarray::Dimension,
-{
-    interfaces.map(|interface| {
-        let (left, right) = interface.into_parts();
+impl<A> Interfaces<InterfaceWaveData<A>> {
+    /// Convert assembled wave data directly into canonical interface states.
+    ///
+    /// This consumes the internal wave data and avoids cloning the directional
+    /// waves solely to construct their states.
+    pub(crate) fn into_states(self) -> Interfaces<InterfaceStates<A>>
+    where
+        A: crate::algebra::ScalarAlgebra,
+        A::Scalar: crate::ComplexScalar,
+        A::Dimension: ndarray::Dimension,
+    {
+        self.map(|interface| {
+            let (left, right) = interface.into_parts();
 
-        InterfaceStates::new(left.into_state(), right.into_state())
-    })
+            InterfaceStates::new(left.into_state(), right.into_state())
+        })
+    }
 }
 
 #[cfg(test)]

@@ -467,10 +467,7 @@ mod exterior_boundary_state_tests {
 
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        observable::{
-            BoundaryState, LayerBoundaries, LayerBoundaryStates, PlaneWaveAmplitudes,
-            assemble_interface_states,
-        },
+        observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates, PlaneWaveAmplitudes},
     };
 
     type C = Complex64;
