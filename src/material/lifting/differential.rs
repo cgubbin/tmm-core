@@ -10,7 +10,7 @@ use crate::{
     material::lifting::ConstitutiveDerivativeEvaluator,
 };
 
-pub(crate) trait ConstitutiveSpectralFirstLift<E, M>: ScalarAlgebra
+pub trait ConstitutiveSpectralFirstLift<E, M>: ScalarAlgebra
 where
     Self::Scalar: ComplexScalar,
     Self::Dimension: Dimension,
@@ -197,7 +197,7 @@ where
 
 #[cfg(test)]
 mod spectral_first_lift_tests {
-    use ndarray::{Array, Dimension, Ix0, arr0};
+    use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
 
     use super::*;
@@ -209,7 +209,7 @@ mod spectral_first_lift_tests {
         },
         differential::{BivariateGradient, BivariateHessian},
         domain::RealAxis,
-        material::{DerivativeOrder, EvaluateDifferentiableMaterial, EvaluateMaterial},
+        material::DerivativeOrder,
     };
 
     type C = Complex64;

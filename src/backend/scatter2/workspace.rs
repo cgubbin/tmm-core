@@ -13,6 +13,7 @@ use crate::{
         },
         workspace::ReconstructLayerBoundaryWaves,
     },
+    evaluate::PairWorkspace,
     input::IncidentSide,
 };
 
@@ -73,6 +74,7 @@ impl LayerCutIndices {
 /// The workspace always accumulates `solution`. Individual components and layer
 /// cut positions are retained only when internal fields were requested.
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Scatter2Workspace<A> {
     solution: PlaneWaveSolution<Scatter2Entries<A>>,
     retained: Option<RetainedScatterComponents<A>>,
@@ -109,6 +111,7 @@ impl<A> RetainedIsotropicLayers for Scatter2Workspace<A> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RetainedScatterComponents<A> {
     pub(super) components: Vec<Scatter2Entries<A>>,
     pub(super) layer_cuts: Vec<LayerCutIndices>,
@@ -416,34 +419,18 @@ where
 
     BidirectionalWaves::new(forward, backward)
 }
-// fn waves_at_cut<A>(
-//     left: &Scatter2Entries<A>,
-//     right: &Scatter2Entries<A>,
-//     left_incoming: &A,
-//     right_incoming: &A,
-// ) -> BidirectionalWaves<A>
-// where
-//     A: ScalarAlgebra,
-//     A::Scalar: ComplexScalar,
-//     A::Dimension: Dimension,
-// {
-//     let one = A::filled_constant_like(left.s11.value(), <A::Scalar as One>::one());
 
-//     let denominator = one.subtract(&left.s22.multiply(&right.s11));
+impl<A> PairWorkspace for Scatter2Workspace<A> {
+    type Thickness = A;
 
-//     let forward = left
-//         .s21
-//         .multiply(left_incoming)
-//         .add(&left.s22.multiply(&right.s12).multiply(right_incoming))
-//         .divide(&denominator);
+    fn pair_layer_count(&self) -> Option<usize> {
+        self.retained.as_ref().map(|retained| retained.num_layers())
+    }
 
-//     let backward = right
-//         .s11
-//         .multiply(&forward)
-//         .add(&right.s12.multiply(right_incoming));
-
-//     BidirectionalWaves::new(forward, backward)
-// }
+    fn pair_layer_thickness(&self, index: usize) -> Option<&Self::Thickness> {
+        self.retained.as_ref()?.get_thickness(index)
+    }
+}
 
 #[cfg(test)]
 mod tests {

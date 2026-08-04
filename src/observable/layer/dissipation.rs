@@ -69,6 +69,8 @@ impl<R> LayerDissipation<R> {
 }
 
 impl<A> IntegratedLayerData<A> {
+    /// Project this integrated layer into normalized electric, magnetic, and
+    /// total dissipation.
     fn into_dissipation(
         self,
         vacuum_angular_wavenumber: &A,
@@ -108,6 +110,9 @@ impl<A> IntegratedLayerData<A> {
 }
 
 impl<A> Layers<IntegratedLayerData<A>> {
+    /// Project every integrated finite layer into normalized dissipation.
+    ///
+    /// Results preserve physical left-to-right finite-layer order.
     pub(crate) fn into_dissipation(
         self,
         vacuum_angular_wavenumber: &A,
@@ -143,7 +148,11 @@ impl<A> Layers<IntegratedLayerData<A>> {
 /// electric = |k0|² Im(epsilon) / incident_flux
 /// magnetic = |k0|² Im(mu)      / incident_flux.
 /// ```
-pub(crate) fn dissipation_coefficients<A>(
+///
+/// The sign of `Im(epsilon)` and `Im(mu)` follows the crate's harmonic-time
+/// convention. Under the supported convention, passive constitutive loss
+/// gives positive coefficients.
+fn dissipation_coefficients<A>(
     vacuum_angular_wavenumber: &A,
     quantities: &IsotropicLayerQuantities<A>,
     incident_flux_magnitude: &A::RealJet,
@@ -165,282 +174,364 @@ where
     (electric, magnetic)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::LayerDissipation;
-
-//     #[test]
-//     fn stores_all_dissipation_components() {
-//         let dissipation = LayerDissipation::new(1, 2, 3);
-
-//         assert_eq!(dissipation.electric(), &1);
-//         assert_eq!(dissipation.magnetic(), &2);
-//         assert_eq!(dissipation.total(), &3);
-//     }
-
-//     #[test]
-//     fn into_parts_preserves_component_order() {
-//         let dissipation = LayerDissipation::new(1, 2, 3);
-
-//         assert_eq!(dissipation.into_parts(), (1, 2, 3),);
-//     }
-
-//     #[test]
-//     fn map_transforms_every_component() {
-//         let dissipation = LayerDissipation::new(1, 2, 3);
-
-//         let mapped = dissipation.map(|value| value * 10);
-
-//         assert_eq!(mapped.electric(), &10);
-//         assert_eq!(mapped.magnetic(), &20);
-//         assert_eq!(mapped.total(), &30);
-//     }
-
-//     #[test]
-//     fn map_supports_non_clone_storage() {
-//         #[derive(Debug, PartialEq)]
-//         struct NonClone(i32);
-
-//         let dissipation = LayerDissipation::new(NonClone(1), NonClone(2), NonClone(3));
-
-//         let mapped = dissipation.map(|value| value.0 * 10);
-
-//         assert_eq!(mapped.electric(), &10);
-//         assert_eq!(mapped.magnetic(), &20);
-//         assert_eq!(mapped.total(), &30);
-//     }
-// }
-
-// #[cfg(test)]
-// mod projection_tests {
-//     use approx::assert_relative_eq;
-//     use ndarray::{Ix0, arr0};
-//     use num_complex::Complex64;
-
-//     use super::*;
-
-//     use crate::{
-//         Polarisation,
-//         algebra::{ArrayJet0, ArrayJet1, ComplexJet, Jet0, RealParameter},
-//         backend::IsotropicLayerQuantities,
-//         observable::layer::IntegratedFieldNorms,
-//     };
-
-//     type C = Complex64;
-//     type A0 = ArrayJet0<C, Ix0, RealParameter>;
-//     type R0 = <A0 as ComplexJet>::RealJet;
-
-//     const TOLERANCE: f64 = 1.0e-12;
-
-//     fn complex_jet(value: C) -> A0 {
-//         Jet0::new(arr0(value))
-//     }
-
-//     fn real_jet(value: f64) -> R0 {
-//         Jet0::new(arr0(value))
-//     }
-
-//     fn real_scalar(value: &R0) -> f64 {
-//         value.value()[()]
-//     }
-
-//     fn assert_real_close(actual: f64, expected: f64) {
-//         assert_relative_eq!(
-//             actual,
-//             expected,
-//             epsilon = TOLERANCE,
-//             max_relative = TOLERANCE,
-//         );
-//     }
-
-//     fn quantities(epsilon: C, mu: C, polarisation: Polarisation) -> IsotropicLayerQuantities<A0> {
-//         IsotropicLayerQuantities::test_fixture(
-//             complex_jet(C::new(3.0, 0.2)),
-//             complex_jet(epsilon),
-//             complex_jet(mu),
-//             polarisation,
-//         )
-//     }
-
-//     #[test]
-//     fn coefficients_store_electric_and_magnetic_terms() {
-//         let coefficients = IsotropicDissipationCoefficients::new(1, 2);
-
-//         assert_eq!(coefficients.electric(), &1);
-//         assert_eq!(coefficients.magnetic(), &2);
-//     }
-
-//     #[test]
-//     fn coefficients_into_parts_preserves_order() {
-//         let coefficients = IsotropicDissipationCoefficients::new(1, 2);
-
-//         assert_eq!(coefficients.into_parts(), (1, 2),);
-//     }
-
-//     #[test]
-//     fn coefficients_map_transforms_both_components() {
-//         let coefficients = IsotropicDissipationCoefficients::new(1, 2);
-
-//         let mapped = coefficients.map(|value| value * 10);
-
-//         assert_eq!(mapped.electric(), &10);
-//         assert_eq!(mapped.magnetic(), &20);
-//     }
-
-//     #[test]
-//     fn projection_applies_both_coefficients() {
-//         let norms = IntegratedFieldNorms::new(real_jet(2.0), real_jet(3.0));
-
-//         let coefficients = IsotropicDissipationCoefficients::new(real_jet(5.0), real_jet(7.0));
-
-//         let dissipation = project_layer_dissipation(norms, &coefficients);
-
-//         assert_real_close(real_scalar(dissipation.electric()), 10.0);
-
-//         assert_real_close(real_scalar(dissipation.magnetic()), 21.0);
-
-//         assert_real_close(real_scalar(dissipation.total()), 31.0);
-//     }
-
-//     #[test]
-//     fn zero_electric_coefficient_removes_electric_term() {
-//         let dissipation = project_layer_dissipation(
-//             IntegratedFieldNorms::new(real_jet(2.0), real_jet(3.0)),
-//             &IsotropicDissipationCoefficients::new(real_jet(0.0), real_jet(7.0)),
-//         );
-
-//         assert_real_close(real_scalar(dissipation.electric()), 0.0);
-
-//         assert_real_close(real_scalar(dissipation.magnetic()), 21.0);
-
-//         assert_real_close(real_scalar(dissipation.total()), 21.0);
-//     }
-
-//     #[test]
-//     fn zero_magnetic_coefficient_removes_magnetic_term() {
-//         let dissipation = project_layer_dissipation(
-//             IntegratedFieldNorms::new(real_jet(2.0), real_jet(3.0)),
-//             &IsotropicDissipationCoefficients::new(real_jet(5.0), real_jet(0.0)),
-//         );
-
-//         assert_real_close(real_scalar(dissipation.electric()), 10.0);
-
-//         assert_real_close(real_scalar(dissipation.magnetic()), 0.0);
-
-//         assert_real_close(real_scalar(dissipation.total()), 10.0);
-//     }
-
-//     #[test]
-//     fn negative_coefficient_represents_gain() {
-//         let dissipation = project_layer_dissipation(
-//             IntegratedFieldNorms::new(real_jet(2.0), real_jet(3.0)),
-//             &IsotropicDissipationCoefficients::new(real_jet(-5.0), real_jet(0.0)),
-//         );
-
-//         assert_real_close(real_scalar(dissipation.total()), -10.0);
-//     }
-
-//     #[test]
-//     fn total_is_sum_of_components() {
-//         let dissipation = project_layer_dissipation(
-//             IntegratedFieldNorms::new(real_jet(2.5), real_jet(3.5)),
-//             &IsotropicDissipationCoefficients::new(real_jet(4.0), real_jet(6.0)),
-//         );
-
-//         assert_real_close(
-//             real_scalar(dissipation.total()),
-//             real_scalar(dissipation.electric()) + real_scalar(dissipation.magnetic()),
-//         );
-//     }
-
-//     #[test]
-//     fn coefficient_constructor_uses_vacuum_wavenumber_squared() {
-//         let quantities = quantities(
-//             C::new(2.0, 0.5),
-//             C::new(3.0, 0.25),
-//             Polarisation::TransverseElectric,
-//         );
-
-//         let coefficients = isotropic_dissipation_coefficients(
-//             &complex_jet(C::new(2.0, 0.0)),
-//             &quantities,
-//             &real_jet(5.0),
-//         );
-
-//         /*
-//          * |k0|² = 4
-//          *
-//          * electric = 4*0.5/5 = 0.4
-//          * magnetic = 4*0.25/5 = 0.2
-//          */
-//         assert_real_close(real_scalar(coefficients.electric()), 0.4);
-
-//         assert_real_close(real_scalar(coefficients.magnetic()), 0.2);
-//     }
-
-//     #[test]
-//     fn zero_material_loss_produces_zero_coefficients() {
-//         let quantities = quantities(
-//             C::new(2.0, 0.0),
-//             C::new(3.0, 0.0),
-//             Polarisation::TransverseMagnetic,
-//         );
-
-//         let coefficients = isotropic_dissipation_coefficients(
-//             &complex_jet(C::new(2.0, 0.0)),
-//             &quantities,
-//             &real_jet(5.0),
-//         );
-
-//         assert_real_close(real_scalar(coefficients.electric()), 0.0);
-
-//         assert_real_close(real_scalar(coefficients.magnetic()), 0.0);
-//     }
-
-//     #[test]
-//     fn coefficient_constructor_preserves_gain_sign() {
-//         let quantities = quantities(
-//             C::new(2.0, -0.5),
-//             C::new(3.0, 0.0),
-//             Polarisation::TransverseElectric,
-//         );
-
-//         let coefficients = isotropic_dissipation_coefficients(
-//             &complex_jet(C::new(2.0, 0.0)),
-//             &quantities,
-//             &real_jet(5.0),
-//         );
-
-//         assert_real_close(real_scalar(coefficients.electric()), -0.4);
-//     }
-
-//     #[test]
-//     fn projection_propagates_first_derivatives() {
-//         type A = ArrayJet1<C, Ix0, RealParameter>;
-
-//         type R = <A as ComplexJet>::RealJet;
-
-//         fn real_first(value: f64, first: f64) -> R {
-//             R::from_parts(arr0(value), arr0(first))
-//         }
-
-//         let norms = IntegratedFieldNorms::new(real_first(2.0, 3.0), real_first(5.0, 7.0));
-
-//         let coefficients =
-//             IsotropicDissipationCoefficients::new(real_first(11.0, 13.0), real_first(17.0, 19.0));
-
-//         let dissipation = project_layer_dissipation(norms, &coefficients);
-
-//         assert_eq!(dissipation.electric().value()[()], 22.0,);
-
-//         assert_eq!(dissipation.electric().first()[()], 3.0 * 11.0 + 2.0 * 13.0,);
-
-//         assert_eq!(dissipation.magnetic().value()[()], 85.0,);
-
-//         assert_eq!(dissipation.magnetic().first()[()], 7.0 * 17.0 + 5.0 * 19.0,);
-
-//         assert_eq!(dissipation.total().value()[()], 107.0,);
-
-//         assert_eq!(dissipation.total().first()[()], 273.0,);
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
+
+    use super::*;
+
+    use crate::{
+        Polarisation,
+        algebra::{ArrayJet0, ArrayJet1, ComplexJet, Jet0, RealParameter},
+        backend::IsotropicLayerQuantities,
+        observable::layer::{
+            IntegratedHermitianStateProducts, Layers, project::IntegratedLayerData,
+        },
+    };
+
+    type C = Complex64;
+
+    type A0 = ArrayJet0<C, Ix0, RealParameter>;
+    type R0 = <A0 as ComplexJet>::RealJet;
+
+    type A1 = ArrayJet1<C, Ix0, RealParameter>;
+    type R1 = <A1 as ComplexJet>::RealJet;
+
+    const TOLERANCE: f64 = 1.0e-12;
+
+    fn c(real: f64, imaginary: f64) -> C {
+        C::new(real, imaginary)
+    }
+
+    fn jet(value: C) -> A0 {
+        Jet0::new(arr0(value))
+    }
+
+    fn real_jet(value: f64) -> R0 {
+        Jet0::new(arr0(value))
+    }
+
+    fn scalar(value: &R0) -> f64 {
+        value.value()[()]
+    }
+
+    fn jet1(value: C, first: C) -> A1 {
+        A1::from_parts(arr0(value), arr0(first))
+    }
+
+    fn real_jet1(value: f64, first: f64) -> R1 {
+        R1::from_parts(arr0(value), arr0(first))
+    }
+
+    fn scalar1_value(value: &R1) -> f64 {
+        value.value()[()]
+    }
+
+    fn scalar1_first(value: &R1) -> f64 {
+        value.first()[()]
+    }
+
+    fn quantities(polarisation: Polarisation, epsilon: C, mu: C) -> IsotropicLayerQuantities<A0> {
+        IsotropicLayerQuantities::test_fixture(
+            jet(c(3.0, 0.0)),
+            jet(epsilon),
+            jet(mu),
+            polarisation,
+        )
+    }
+
+    fn state_products(
+        field_field: f64,
+        secondary_secondary: f64,
+    ) -> IntegratedHermitianStateProducts<A0> {
+        IntegratedHermitianStateProducts::new(
+            jet(c(field_field, 0.0)),
+            jet(c(secondary_secondary, 0.0)),
+            jet(c(0.0, 0.0)),
+            jet(c(0.0, 0.0)),
+        )
+    }
+
+    fn integrated_layer(
+        polarisation: Polarisation,
+        epsilon: C,
+        mu: C,
+        field_field: f64,
+        secondary_secondary: f64,
+    ) -> IntegratedLayerData<A0> {
+        IntegratedLayerData::new(
+            state_products(field_field, secondary_secondary),
+            quantities(polarisation, epsilon, mu),
+        )
+    }
+
+    #[test]
+    fn layer_dissipation_preserves_component_order() {
+        let dissipation = LayerDissipation::new(1, 2, 3);
+
+        assert_eq!(dissipation.electric(), &1);
+        assert_eq!(dissipation.magnetic(), &2);
+        assert_eq!(dissipation.total(), &3);
+
+        assert_eq!(dissipation.into_parts(), (1, 2, 3),);
+    }
+
+    #[test]
+    fn layer_dissipation_map_transforms_every_component() {
+        let dissipation = LayerDissipation::new(1, 2, 3);
+
+        let mapped = dissipation.map(|value| value * 10);
+
+        assert_eq!(mapped.electric(), &10);
+        assert_eq!(mapped.magnetic(), &20);
+        assert_eq!(mapped.total(), &30);
+    }
+
+    #[test]
+    fn electric_only_loss_produces_zero_magnetic_coefficient() {
+        let quantities = quantities(Polarisation::TransverseElectric, c(2.0, 0.4), c(3.0, 0.0));
+
+        let (electric, magnetic) =
+            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(5.0));
+
+        /*
+         * |k0|² Im(epsilon) / Finc
+         * = 4 * 0.4 / 5
+         * = 0.32
+         */
+        assert_relative_eq!(
+            scalar(&electric),
+            0.32,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar(&magnetic),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn magnetic_only_loss_produces_zero_electric_coefficient() {
+        let quantities = quantities(Polarisation::TransverseMagnetic, c(2.0, 0.0), c(3.0, 0.7));
+
+        let (electric, magnetic) =
+            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(5.0));
+
+        assert_relative_eq!(
+            scalar(&electric),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        /*
+         * 4 * 0.7 / 5 = 0.56
+         */
+        assert_relative_eq!(
+            scalar(&magnetic),
+            0.56,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn gain_preserves_negative_dissipation_coefficient() {
+        let quantities = quantities(Polarisation::TransverseElectric, c(2.0, -0.4), c(3.0, 0.0));
+
+        let (electric, magnetic) =
+            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(4.0));
+
+        assert_relative_eq!(
+            scalar(&electric),
+            -0.4,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar(&magnetic),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn incident_flux_normalizes_both_coefficients() {
+        let quantities = quantities(Polarisation::TransverseElectric, c(2.0, 0.5), c(3.0, 0.25));
+
+        let first = dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(2.0));
+
+        let second = dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(4.0));
+
+        assert_relative_eq!(
+            scalar(&second.0),
+            scalar(&first.0) / 2.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar(&second.1),
+            scalar(&first.1) / 2.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn integrated_layer_projects_total_as_component_sum() {
+        let layer = integrated_layer(
+            Polarisation::TransverseElectric,
+            c(2.0, 0.4),
+            c(3.0, 0.2),
+            5.0,
+            7.0,
+        );
+
+        let dissipation =
+            layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+
+        assert_relative_eq!(
+            scalar(dissipation.total()),
+            scalar(dissipation.electric()) + scalar(dissipation.magnetic()),
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn zero_material_loss_produces_zero_dissipation() {
+        let layer = integrated_layer(
+            Polarisation::TransverseMagnetic,
+            c(2.0, 0.0),
+            c(3.0, 0.0),
+            5.0,
+            7.0,
+        );
+
+        let dissipation =
+            layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+
+        assert_relative_eq!(
+            scalar(dissipation.electric()),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar(dissipation.magnetic()),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar(dissipation.total()),
+            0.0,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn layer_sequence_preserves_count_and_order() {
+        let layers = Layers::new(vec![
+            integrated_layer(
+                Polarisation::TransverseElectric,
+                c(2.0, 0.1),
+                c(3.0, 0.0),
+                5.0,
+                7.0,
+            ),
+            integrated_layer(
+                Polarisation::TransverseElectric,
+                c(2.0, 0.3),
+                c(3.0, 0.0),
+                5.0,
+                7.0,
+            ),
+        ]);
+
+        let projected =
+            layers.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+
+        assert_eq!(projected.len(), 2);
+
+        let first = projected.first().unwrap();
+        let second = projected.last().unwrap();
+
+        assert!(
+            scalar(first.total()) < scalar(second.total()),
+            "larger electric loss should remain in the second layer",
+        );
+    }
+
+    #[test]
+    fn dissipation_coefficients_propagate_first_derivatives() {
+        let quantities = IsotropicLayerQuantities::test_fixture(
+            jet1(c(3.0, 0.0), c(0.0, 0.0)),
+            jet1(c(2.0, 0.4), c(0.0, 0.3)),
+            jet1(c(3.0, 0.2), c(0.0, 0.5)),
+            Polarisation::TransverseElectric,
+        );
+
+        let vacuum = jet1(c(2.0, 0.0), c(0.5, 0.0));
+
+        let incident_flux = real_jet1(5.0, 0.7);
+
+        let (electric, magnetic) = dissipation_coefficients(&vacuum, &quantities, &incident_flux);
+
+        /*
+         * electric = k0² eps_i / F
+         *
+         * value:
+         *   4 * 0.4 / 5 = 0.32
+         *
+         * derivative:
+         *   [(2 k0 k0' eps_i + k0² eps_i') F
+         *      - k0² eps_i F'] / F²
+         */
+        let expected_electric_first =
+            ((2.0 * 2.0 * 0.5 * 0.4 + 4.0 * 0.3) * 5.0 - 4.0 * 0.4 * 0.7) / 25.0;
+
+        let expected_magnetic_first =
+            ((2.0 * 2.0 * 0.5 * 0.2 + 4.0 * 0.5) * 5.0 - 4.0 * 0.2 * 0.7) / 25.0;
+
+        assert_relative_eq!(
+            scalar1_value(&electric),
+            0.32,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar1_first(&electric),
+            expected_electric_first,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar1_value(&magnetic),
+            0.16,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            scalar1_first(&magnetic),
+            expected_magnetic_first,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+}

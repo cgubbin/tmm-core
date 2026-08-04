@@ -49,25 +49,33 @@ impl<R> LayerPower<R> {
     /// ```text
     /// dissipated = left_flux - right_flux
     /// ```
-    pub fn dissipated(&self) -> &R {
+    pub fn absorbed(&self) -> &R {
         &self.absorbed
     }
 
-    pub(crate) fn absorbed(&self) -> &R {
-        &self.absorbed
-    }
-
+    /// Consume the result and return `(left_flux, right_flux, absorbed)`.
     pub fn into_parts(self) -> (R, R, R) {
         (self.left_flux, self.right_flux, self.absorbed)
     }
 
+    /// Return the residual of the layer power-balance identity.
+    ///
+    /// ```text
+    /// left_flux - right_flux - absorbed
+    /// ```
+    ///
+    /// An internally consistent result should be zero up to numerical error.
     pub fn conservation_residual(&self) -> R
     where
-        R: for<'a> std::ops::Sub<&'a R, Output = R> + Clone,
+        R: ScalarAlgebra,
     {
-        self.left_flux.clone() - &self.right_flux - &self.absorbed
+        self.left_flux
+            .clone()
+            .subtract(&self.right_flux)
+            .subtract(&self.absorbed)
     }
 
+    /// Transform every stored power component.
     pub fn map<U>(self, mut map: impl FnMut(R) -> U) -> LayerPower<U> {
         LayerPower {
             left_flux: map(self.left_flux),
@@ -200,5 +208,36 @@ mod tests {
         assert_eq!(mapped.left_flux(), &10);
         assert_eq!(mapped.right_flux(), &20);
         assert_eq!(mapped.absorbed(), &30);
+    }
+
+    #[test]
+    fn interface_power_projects_adjacent_internal_fluxes() {
+        let interfaces = Interfaces::new(vec![
+            interface_power(100.0, 0.9),
+            interface_power(0.7, 200.0),
+        ]);
+
+        let layers = interfaces.into_layer_power();
+
+        let layer = layers.first().unwrap();
+
+        assert_eq!(scalar(layer.left_flux()), 0.9);
+        assert_eq!(scalar(layer.right_flux()), 0.7);
+
+        approx::assert_relative_eq!(scalar(&layer.absorbed()), 0.2, epsilon = 1e-15);
+    }
+
+    #[test]
+    fn one_interface_produces_no_finite_layer_power() {
+        let layers = Interfaces::new(vec![interface_power(1.0, 1.0)]).into_layer_power();
+
+        assert!(layers.is_empty());
+    }
+
+    #[test]
+    fn conservation_residual_is_zero_for_consistent_components() {
+        let power = LayerPower::new(jet(0.9), jet(0.6), jet(0.3));
+
+        approx::assert_relative_eq!(scalar(&power.conservation_residual()), 0.0, epsilon = 1e-15);
     }
 }

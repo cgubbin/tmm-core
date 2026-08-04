@@ -12,6 +12,7 @@ use crate::{
         solution::PlaneWaveSolutionView,
         workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
     },
+    evaluate::PairWorkspace,
 };
 
 use super::{
@@ -471,6 +472,18 @@ impl<A> Transfer2Entries<A> {
             .add(&self.m22.multiply(state.slope()));
 
         TransferState::new(field, slope)
+    }
+}
+
+impl<A> PairWorkspace for Transfer2Workspace<A> {
+    type Thickness = A;
+
+    fn pair_layer_count(&self) -> Option<usize> {
+        self.retained_layer_count()
+    }
+
+    fn pair_layer_thickness(&self, index: usize) -> Option<&Self::Thickness> {
+        self.layer_thickness(index)
     }
 }
 

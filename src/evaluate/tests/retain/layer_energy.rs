@@ -4,7 +4,6 @@ use ndarray::Array0;
 use crate::{
     IncidentSide, PlaneWaveEvaluator, Polarisation,
     backend::Scatter2,
-    observable::EnergyDefinition,
     test_support::{
         assertions::VALUE_TOLERANCE,
         planar::{scalar_real_input, two_layer_stack},
@@ -47,9 +46,7 @@ fn nondispersive_layer_energy_is_positive() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let energy = state
-                .nondispersive_layer_energy(IncidentSide::Left)
-                .unwrap();
+            let energy = state.nondispersive_layer_energy(side).unwrap();
 
             for layer in energy.value().iter() {
                 assert!(scalar(layer.electric()) >= 0.0,);

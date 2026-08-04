@@ -1,7 +1,6 @@
 use nalgebra::ComplexField;
-use num_traits::{FromPrimitive, One, float::FloatCore};
+use num_traits::{FromPrimitive, float::FloatCore};
 
-use crate::algebra::Jet2;
 
 pub(crate) fn exprel<C>(z: C) -> C
 where
@@ -50,7 +49,7 @@ where
         exprel_second_series(z)
     } else {
         let one = C::one();
-        let two = C::from_real(C::RealField::from_f64(2.0).expect("two must be representable"));
+        let two = one + one;
 
         /*
          * f''(z) =
@@ -312,7 +311,7 @@ mod jet_exprel_tests {
     use super::*;
 
     use crate::{
-        algebra::{Jet0, Jet1, JetBivariate1, JetBivariate2, RealParameter},
+        algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2, RealParameter},
         differential::{BivariateGradient, BivariateHessian},
     };
 

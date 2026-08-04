@@ -384,4 +384,3 @@ mod tests {
         assert_eq!(states.len(), 2);
     }
 }
-

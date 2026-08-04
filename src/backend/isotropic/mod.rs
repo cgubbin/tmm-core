@@ -131,6 +131,13 @@ impl<A> IsotropicLayerQuantities<A> {
         }
     }
 
+    pub(crate) fn admittance(&self) -> IsotropicLayerAdmittance<A>
+    where
+        A: ScalarAlgebra + Clone,
+    {
+        IsotropicLayerAdmittance::new(self.kappa.divide(self.factor()))
+    }
+
     pub(crate) fn into_admittance(self) -> IsotropicLayerAdmittance<A>
     where
         A: ScalarAlgebra,

@@ -85,6 +85,18 @@ pub fn scalar_real_input(k0: R, k_parallel: R) -> CoordinateInput<R, ndarray::Ix
     .unwrap()
 }
 
+pub fn sampled_real_input(k0: &'_ [R], k_parallel: &'_ [R]) -> CoordinateInput<R, ndarray::Ix1> {
+    CoordinateInput::samples(
+        Coordinates::new(
+            SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
+            InPlaneCoordinate::ParallelAngularWavenumber(InverseLengthUnit::PerCentimetre),
+        ),
+        ndarray::arr1(k0),
+        ndarray::arr1(k_parallel),
+    )
+    .unwrap()
+}
+
 /// Scalar complex-coordinate modal input.
 pub fn scalar_complex_input(k0: C, k_parallel: C) -> CoordinateInput<C, ndarray::Ix0> {
     CoordinateInput::point(

@@ -1,5 +1,9 @@
+mod aggregate;
+mod confinement;
 mod dissipation;
 mod energy;
+mod overlap;
+mod participation;
 mod power;
 
 use crate::{
@@ -96,7 +100,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::LayerPower;
+    use crate::{FiniteLayerIndex, LayerPower};
 
     use super::*;
 
@@ -202,10 +206,16 @@ mod tests {
             assert_eq!(branch.len(), 2);
         }
 
-        assert_eq!(value.get(0).unwrap().left_flux(), &1.0,);
+        assert_eq!(value.get(FiniteLayerIndex(0)).unwrap().left_flux(), &1.0,);
 
-        assert_eq!(axis0_axis1.get(0).unwrap().absorbed(), &25.0,);
+        assert_eq!(
+            axis0_axis1.get(FiniteLayerIndex(0)).unwrap().absorbed(),
+            &25.0,
+        );
 
-        assert_eq!(axis1_axis1.get(1).unwrap().right_flux(), &116.0,);
+        assert_eq!(
+            axis1_axis1.get(FiniteLayerIndex(1)).unwrap().right_flux(),
+            &116.0,
+        );
     }
 }

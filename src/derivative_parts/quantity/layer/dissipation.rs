@@ -228,69 +228,69 @@ mod tests {
         )
     }
 
-    fn layer_power(offset: f64) -> LayerDissipation<Probe> {
+    fn layer_dissipation(offset: f64) -> LayerDissipation<Probe> {
         LayerDissipation::new(probe(offset), probe(offset + 10.0), probe(offset + 20.0))
     }
 
-    fn assert_layer_power(actual: &LayerDissipation<f64>, left: f64, right: f64, total: f64) {
+    fn assert_layer_dissipation(actual: &LayerDissipation<f64>, left: f64, right: f64, total: f64) {
         assert_eq!(actual.electric(), &left);
         assert_eq!(actual.magnetic(), &right);
         assert_eq!(actual.total(), &total);
     }
 
     #[test]
-    fn layer_power_into_value_preserves_component_order() {
-        let value = layer_power(0.0).into_value().into_inner();
+    fn layer_dissipation_into_value_preserves_component_order() {
+        let value = layer_dissipation(0.0).into_value().into_inner();
 
-        assert_layer_power(&value, 1.0, 11.0, 21.0);
+        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
     }
 
     #[test]
-    fn layer_power_into_first_preserves_all_components() {
-        let (value, first) = layer_power(0.0).into_first().into_parts();
+    fn layer_dissipation_into_first_preserves_all_components() {
+        let (value, first) = layer_dissipation(0.0).into_first().into_parts();
 
-        assert_layer_power(&value, 1.0, 11.0, 21.0);
+        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_power(&first, 2.0, 12.0, 22.0);
+        assert_layer_dissipation(&first, 2.0, 12.0, 22.0);
     }
 
     #[test]
-    fn layer_power_into_second_preserves_all_components() {
-        let (value, first, second) = layer_power(0.0).into_second().into_parts();
+    fn layer_dissipation_into_second_preserves_all_components() {
+        let (value, first, second) = layer_dissipation(0.0).into_second().into_parts();
 
-        assert_layer_power(&value, 1.0, 11.0, 21.0);
+        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_power(&first, 2.0, 12.0, 22.0);
+        assert_layer_dissipation(&first, 2.0, 12.0, 22.0);
 
-        assert_layer_power(&second, 4.0, 14.0, 24.0);
+        assert_layer_dissipation(&second, 4.0, 14.0, 24.0);
     }
 
     #[test]
-    fn layer_power_into_bivariate_first_preserves_axes() {
-        let (value, axis0, axis1) = layer_power(0.0).into_bivariate_first().into_parts();
+    fn layer_dissipation_into_bivariate_first_preserves_axes() {
+        let (value, axis0, axis1) = layer_dissipation(0.0).into_bivariate_first().into_parts();
 
-        assert_layer_power(&value, 1.0, 11.0, 21.0);
+        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_power(&axis0, 2.0, 12.0, 22.0);
+        assert_layer_dissipation(&axis0, 2.0, 12.0, 22.0);
 
-        assert_layer_power(&axis1, 3.0, 13.0, 23.0);
+        assert_layer_dissipation(&axis1, 3.0, 13.0, 23.0);
     }
 
     #[test]
-    fn layer_power_into_bivariate_second_preserves_all_branches() {
+    fn layer_dissipation_into_bivariate_second_preserves_all_branches() {
         let (value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1) =
-            layer_power(0.0).into_bivariate_second().into_parts();
+            layer_dissipation(0.0).into_bivariate_second().into_parts();
 
-        assert_layer_power(&value, 1.0, 11.0, 21.0);
+        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_power(&axis0, 2.0, 12.0, 22.0);
+        assert_layer_dissipation(&axis0, 2.0, 12.0, 22.0);
 
-        assert_layer_power(&axis1, 3.0, 13.0, 23.0);
+        assert_layer_dissipation(&axis1, 3.0, 13.0, 23.0);
 
-        assert_layer_power(&axis0_axis0, 4.0, 14.0, 24.0);
+        assert_layer_dissipation(&axis0_axis0, 4.0, 14.0, 24.0);
 
-        assert_layer_power(&axis0_axis1, 5.0, 15.0, 25.0);
+        assert_layer_dissipation(&axis0_axis1, 5.0, 15.0, 25.0);
 
-        assert_layer_power(&axis1_axis1, 6.0, 16.0, 26.0);
+        assert_layer_dissipation(&axis1_axis1, 6.0, 16.0, 26.0);
     }
 }

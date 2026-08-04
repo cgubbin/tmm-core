@@ -1,8 +1,7 @@
 use num_complex::Complex;
 
 use crate::{
-    ComplexPlane, Polarisation,
-    ValidationConfig,
+    ComplexPlane, Polarisation, ValidationConfig,
     algebra::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
         HolomorphicParameter, Jet, RealParameter,
@@ -10,10 +9,7 @@ use crate::{
     backend::{Backend, PlaneWaveSolution},
     domain::RealAxis,
     evaluate::PlaneWaveResult,
-    input::{
-        CompileJet, CompilePlaneWaveError, CoordinateInput, compile_complex,
-        compile_real,
-    },
+    input::{CompileJet, CompilePlaneWaveError, CoordinateInput, compile_complex, compile_real},
     material::ConstitutiveEvaluator,
     parameter::{DerivativeMapping, Parameter},
     scalar::ComplexScalar,
@@ -649,7 +645,12 @@ impl<B> PlaneWaveEvaluator<B> {
             .retain(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
-        Ok(PlaneWaveState::new(canonical_problem, workspace, context))
+        Ok(PlaneWaveState::new(
+            canonical_problem,
+            workspace,
+            context,
+            polarisation,
+        ))
     }
 
     fn retain_complex_coordinate_space<J, M>(
@@ -683,7 +684,12 @@ impl<B> PlaneWaveEvaluator<B> {
             .retain(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
-        Ok(PlaneWaveState::new(canonical_problem, workspace, context))
+        Ok(PlaneWaveState::new(
+            canonical_problem,
+            workspace,
+            context,
+            polarisation,
+        ))
     }
 }
 

@@ -99,8 +99,7 @@ where
     }
 }
 
-pub(crate) trait ConstitutiveDerivativeEvaluator<C, D, M>:
-    ConstitutiveEvaluator<C, D, M>
+pub trait ConstitutiveDerivativeEvaluator<C, D, M>: ConstitutiveEvaluator<C, D, M>
 where
     C: ComplexScalar,
     D: Dimension,

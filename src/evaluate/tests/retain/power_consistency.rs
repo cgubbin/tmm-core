@@ -1,10 +1,8 @@
 use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
-use num_complex::Complex64;
 
 use crate::{
-    Constant, IncidentSide, MaterialStack, Parameter, PlaneWaveEvaluator, Polarisation, Stack,
-    Thickness,
+    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     observable::{InterfacePower, Interfaces},
     parameter::FiniteLayerIndex,

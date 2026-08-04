@@ -1,35 +1,48 @@
 //! Finite-layer observables and analytic homogeneous-layer integration.
 //!
-//! A stack containing `N` finite layers produces `N` layer records, ordered physically from left to
-//! right.
+//! A stack containing `N` finite layers produces `N` layer records in
+//! physical left-to-right order.
 //!
 //! The layer pipeline has three stages:
 //!
-//! 1. retained boundary waves and homogeneous-layer quantities are assembled into internal layer
-//!    data
-//! 2. directional-wave and canonical-state products are integrated analytically through each
-//!    homogeneous-layer
-//! 3. physical projections produce layer power, dissipation or energy
+//! 1. retained boundary waves and homogeneous-layer quantities are assembled
+//!    into internal layer data;
+//! 2. directional-wave and canonical-state products are integrated
+//!    analytically through each homogeneous layer;
+//! 3. physical projections produce layer power, dissipation, or energy.
+//!
+//! Real-input dissipation and energy use Hermitian products. Bilinear wave
+//! products are exposed internally for complex modal overlap and
+//! normalization.
 
+mod aggregate;
+mod confinement;
 mod dissipation;
 mod energy;
 mod integration;
+mod overlap;
+mod participation;
 mod power;
 mod project;
 
+pub use aggregate::{AggregateEnergy, LayerAggregateError};
+pub use confinement::{EnergyConfinement, LayerConfinementError};
 pub use dissipation::LayerDissipation;
 pub use energy::{LayerEnergy, LayerEnergyError};
+pub use overlap::{
+    AggregateHermitianOverlap, HermitianLayerOverlapInput, NormalizedHermitianOverlap,
+};
+pub use participation::{LayerParticipation, LayerParticipationError};
 pub use power::LayerPower;
 pub use project::LayerProjectionError;
 
-pub(crate) use energy::canonical_energy_normalization;
+pub(crate) use integration::{HermitianOverlapError, PairOperand};
 pub(crate) use integration::{
-    IntegratedStateProducts, IntegratedWaveProducts, integrate_bilinear_wave_products,
-    integrate_hermitian_wave_products,
+    IntegratedHermitianStateProducts, integrate_hermitian_wave_products,
+    project_integrated_field_norms,
 };
-pub(crate) use project::{
-    IntegratedLayerData, LayerIntegrationInput, assemble_layer_integration_inputs,
-};
+pub(crate) use overlap::{HermitianLayerOverlap, LayerOverlapOperand};
+pub(crate) use project::{LayerIntegrationInput, assemble_layer_integration_inputs};
 
 use crate::FiniteLayerIndex;
 
@@ -52,7 +65,7 @@ impl<T> Layers<T> {
         self.values.len()
     }
 
-    /// Return whether the stack contains non-finite layers
+    /// Return whether there are no finite-layer records.
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -75,6 +88,13 @@ impl<T> Layers<T> {
     /// Iterate in physical left-to-right order over finite-layer records.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &T> {
         self.values.iter()
+    }
+
+    pub fn iter_indexed(&self) -> impl ExactSizeIterator<Item = (FiniteLayerIndex, &T)> {
+        self.values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (FiniteLayerIndex(index), value))
     }
 
     pub(crate) fn into_inner(self) -> Vec<T> {

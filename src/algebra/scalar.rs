@@ -1,6 +1,6 @@
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
-use num_traits::{Float, FromPrimitive, float::FloatCore};
+use num_traits::{FromPrimitive, float::FloatCore};
 use std::fmt::Debug;
 
 use super::{
@@ -68,7 +68,7 @@ pub trait ScalarAlgebraExpRelExt: ScalarAlgebra {
 ///
 /// This trait is deliberately not implemented for jets parameterised by
 /// [`super::HolomorphicParameter`].
-pub(crate) trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
+pub trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
     fn conjugated(&self) -> Self;
 
     fn real(&self) -> Self::RealJet;

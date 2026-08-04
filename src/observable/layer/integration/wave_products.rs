@@ -160,7 +160,7 @@ where
 /// `forward_backward`.
 pub(crate) fn integrate_hermitian_wave_products<A>(
     waves: &BoundaryWaves<A>,
-    normal_wavevector: &A,
+    kappa: &A,
     thickness: &A,
 ) -> IntegratedWaveProducts<A>
 where
@@ -168,81 +168,7 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    let i = <A::Scalar as ComplexScalar>::i();
-
-    let conjugate_wavevector = normal_wavevector.conjugated();
-
-    let difference = normal_wavevector.subtract(&conjugate_wavevector);
-
-    let sum = normal_wavevector.add(&conjugate_wavevector);
-
-    /*
-     * conj(exp(+ikz)) exp(+ikz)
-     *
-     * = exp(-ik*z) exp(+ikz)
-     * = exp(i(k-k*)z)
-     */
-    let forward_forward_exponent = difference.scale(i);
-
-    /*
-     * conj(exp(-ikz)) exp(-ikz)
-     *
-     * = exp(+ik*z) exp(-ikz)
-     * = exp(-i(k-k*)z)
-     */
-    let backward_backward_exponent = difference.scale(-i);
-
-    /*
-     * conj(exp(+ikz)) exp(-ikz)
-     *
-     * = exp(-ik*z) exp(-ikz)
-     * = exp(-i(k+k*)z)
-     */
-    let forward_backward_exponent = sum.scale(-i);
-
-    /*
-     * conj(exp(-ikz)) exp(+ikz)
-     *
-     * = exp(+ik*z) exp(+ikz)
-     * = exp(+i(k+k*)z)
-     */
-    let backward_forward_exponent = sum.scale(i);
-
-    let forward_forward = waves
-        .forward()
-        .hermitian_product(waves.forward())
-        .multiply(&integrate_exponential(&forward_forward_exponent, thickness));
-
-    let backward_backward = waves
-        .backward()
-        .hermitian_product(waves.backward())
-        .multiply(&integrate_exponential(
-            &backward_backward_exponent,
-            thickness,
-        ));
-
-    let forward_backward = waves
-        .forward()
-        .hermitian_product(waves.backward())
-        .multiply(&integrate_exponential(
-            &forward_backward_exponent,
-            thickness,
-        ));
-
-    let backward_forward = waves
-        .backward()
-        .hermitian_product(waves.forward())
-        .multiply(&integrate_exponential(
-            &backward_forward_exponent,
-            thickness,
-        ));
-
-    IntegratedWaveProducts::new(
-        forward_forward,
-        backward_backward,
-        forward_backward,
-        backward_forward,
-    )
+    integrate_hermitian_cross_wave_products(waves, waves, kappa, kappa, thickness)
 }
 
 /// Analytically integrate bilinear directional-wave products.
@@ -342,9 +268,100 @@ where
     )
 }
 
+/// Analytically integrate Hermitian branch-pair products between two
+/// directional-wave solutions.
+///
+/// The left factor is complex-conjugated:
+///
+/// ```text
+/// forward_forward  = ∫ left_forward*  right_forward  dz
+/// backward_backward = ∫ left_backward* right_backward dz
+/// forward_backward = ∫ left_forward*  right_backward dz
+/// backward_forward = ∫ left_backward* right_forward  dz
+/// ```
+///
+/// The two solutions may have different normal wavevectors. They must refer
+/// to the same physical layer and therefore use the same integration
+/// thickness.
+pub(crate) fn integrate_hermitian_cross_wave_products<A>(
+    left_waves: &BoundaryWaves<A>,
+    right_waves: &BoundaryWaves<A>,
+    left_kappa: &A,
+    right_kappa: &A,
+    thickness: &A,
+) -> IntegratedWaveProducts<A>
+where
+    A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let i = <A::Scalar as ComplexScalar>::i();
+
+    let left_kappa_conjugated = left_kappa.conjugated();
+
+    /*
+     * exp(-i left_kappa* z)
+     * exp(+i right_kappa z)
+     */
+    let forward_forward_exponent = right_kappa.subtract(&left_kappa_conjugated).scale(i);
+
+    /*
+     * exp(+i left_kappa* z)
+     * exp(-i right_kappa z)
+     */
+    let backward_backward_exponent = left_kappa_conjugated.subtract(right_kappa).scale(i);
+
+    /*
+     * exp(-i left_kappa* z)
+     * exp(-i right_kappa z)
+     */
+    let forward_backward_exponent = left_kappa_conjugated.add(right_kappa).scale(-i);
+
+    /*
+     * exp(+i left_kappa* z)
+     * exp(+i right_kappa z)
+     */
+    let backward_forward_exponent = left_kappa_conjugated.add(right_kappa).scale(i);
+
+    let forward_forward = left_waves
+        .forward()
+        .hermitian_product(right_waves.forward())
+        .multiply(&integrate_exponential(&forward_forward_exponent, thickness));
+
+    let backward_backward = left_waves
+        .backward()
+        .hermitian_product(right_waves.backward())
+        .multiply(&integrate_exponential(
+            &backward_backward_exponent,
+            thickness,
+        ));
+
+    let forward_backward = left_waves
+        .forward()
+        .hermitian_product(right_waves.backward())
+        .multiply(&integrate_exponential(
+            &forward_backward_exponent,
+            thickness,
+        ));
+
+    let backward_forward = left_waves
+        .backward()
+        .hermitian_product(right_waves.forward())
+        .multiply(&integrate_exponential(
+            &backward_forward_exponent,
+            thickness,
+        ));
+
+    IntegratedWaveProducts::new(
+        forward_forward,
+        backward_backward,
+        forward_backward,
+        backward_forward,
+    )
+}
+
 #[cfg(test)]
 mod zero_order_tests {
-    use approx::assert_relative_eq;
     use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
 
@@ -353,7 +370,7 @@ mod zero_order_tests {
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
         observable::BoundaryWaves,
-        test_support::assertions::assert_complex_close,
+        test_support::assertions::{assert_complex_close, assert_zero_jet_close},
     };
 
     type C = Complex64;
@@ -368,6 +385,10 @@ mod zero_order_tests {
 
     fn jet(value: C) -> A {
         Jet0::new(arr0(value))
+    }
+
+    fn complex_jet(re: f64, im: f64) -> A {
+        Jet0::new(arr0(c(re, im)))
     }
 
     fn value(value: &A) -> C {
@@ -861,6 +882,75 @@ mod zero_order_tests {
             + value(right_products.backward_forward());
 
         assert_complex_close(left_total, right_total, QUADRATURE_TOLERANCE);
+    }
+
+    #[test]
+    fn hermitian_cross_product_reduces_to_self_product() {
+        let left_forward = c(0.8, 0.3);
+        let left_backward = c(-0.2, 0.5);
+        let waves = BoundaryWaves::new(jet(left_forward), jet(left_backward));
+
+        let kappa = complex_jet(1.3, 0.2);
+        let thickness = complex_jet(0.7, 0.0);
+
+        let self_product = integrate_hermitian_wave_products(&waves, &kappa, &thickness);
+
+        let cross_product =
+            integrate_hermitian_cross_wave_products(&waves, &waves, &kappa, &kappa, &thickness);
+
+        assert_eq!(cross_product, self_product);
+    }
+
+    #[test]
+    fn swapping_cross_product_operands_conjugates_and_transposes_branches() {
+        let left_forward = c(0.7, 0.1);
+        let left_backward = c(-0.3, 0.2);
+
+        let right_forward = c(0.5, -0.4);
+        let right_backward = c(0.2, 0.6);
+
+        let left = BoundaryWaves::new(jet(left_forward), jet(left_backward));
+        let right = BoundaryWaves::new(jet(right_forward), jet(right_backward));
+
+        let left_kappa = complex_jet(1.3, 0.2);
+        let right_kappa = complex_jet(0.9, 0.1);
+        let thickness = complex_jet(0.7, 0.0);
+
+        let left_right = integrate_hermitian_cross_wave_products(
+            &left,
+            &right,
+            &left_kappa,
+            &right_kappa,
+            &thickness,
+        );
+
+        let right_left = integrate_hermitian_cross_wave_products(
+            &right,
+            &left,
+            &right_kappa,
+            &left_kappa,
+            &thickness,
+        );
+
+        assert_zero_jet_close(
+            left_right.forward_forward(),
+            &right_left.forward_forward().conjugated(),
+        );
+
+        assert_zero_jet_close(
+            left_right.backward_backward(),
+            &right_left.backward_backward().conjugated(),
+        );
+
+        assert_zero_jet_close(
+            left_right.forward_backward(),
+            &right_left.backward_forward().conjugated(),
+        );
+
+        assert_zero_jet_close(
+            left_right.backward_forward(),
+            &right_left.forward_backward().conjugated(),
+        );
     }
 }
 

@@ -15,14 +15,15 @@
 
 use ndarray::Dimension;
 
-use crate::{
-    ComplexScalar,
-    algebra::{RealScalarAlgebra, ScalarAlgebra},
-};
+use crate::{ComplexScalar, algebra::RealScalarAlgebra};
 
 use super::IntegratedWaveProducts;
 
-/// Spatially integrated Hermitian products of the canonical layer state.
+/// Spatially integrated Hermitian products of the canonical isotropic state.
+///
+/// These products are valid for real-input physical analysis. The left state
+/// factor is complex-conjugated, so this representation is not holomorphic in
+/// complex modal coordinates.
 ///
 /// The entries are:
 ///
@@ -43,14 +44,14 @@ use super::IntegratedWaveProducts;
 /// The diagonal terms are real-valued mathematically, but remain represented
 /// by the complex algebra so derivative and storage handling stays uniform.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IntegratedStateProducts<A> {
+pub(crate) struct IntegratedHermitianStateProducts<A> {
     field_field: A,
     secondary_secondary: A,
     field_secondary: A,
     secondary_field: A,
 }
 
-impl<A> IntegratedStateProducts<A> {
+impl<A> IntegratedHermitianStateProducts<A> {
     pub(crate) const fn new(
         field_field: A,
         secondary_secondary: A,
@@ -90,8 +91,8 @@ impl<A> IntegratedStateProducts<A> {
         )
     }
 
-    pub(crate) fn map<B>(self, mut map: impl FnMut(A) -> B) -> IntegratedStateProducts<B> {
-        IntegratedStateProducts {
+    pub(crate) fn map<B>(self, mut map: impl FnMut(A) -> B) -> IntegratedHermitianStateProducts<B> {
+        IntegratedHermitianStateProducts {
             field_field: map(self.field_field),
             secondary_secondary: map(self.secondary_secondary),
             field_secondary: map(self.field_secondary),
@@ -103,15 +104,117 @@ impl<A> IntegratedStateProducts<A> {
 /// Transform integrated directional-wave products into integrated canonical
 /// state products.
 ///
-/// The characteristic slope is:
+/// The projected function is:
 ///
 /// ```text
-/// ξ = -i Y.
+/// field     = f + b
+/// secondary = ξ(b - f)
+/// ξ = -iY
 /// ```
-pub(crate) fn project_integrated_state_products<A>(
+pub(crate) fn project_integrated_hermitian_state_products<A>(
     products: &IntegratedWaveProducts<A>,
     admittance: &A,
-) -> IntegratedStateProducts<A>
+) -> IntegratedHermitianStateProducts<A>
+where
+    A: RealScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let cross = project_integrated_hermitian_cross_state_products(products, admittance, admittance);
+
+    let (field_field, secondary_secondary, field_secondary, secondary_field) = cross.into_parts();
+
+    IntegratedHermitianStateProducts::new(
+        field_field,
+        secondary_secondary,
+        field_secondary,
+        secondary_field,
+    )
+}
+
+/// Spatially integrated Hermitian cross-products of two canonical isotropic
+/// states.
+///
+/// The left state is conjugated:
+///
+/// ```text
+/// field_field
+///     = ∫ left_field* right_field dz
+///
+/// secondary_secondary
+///     = ∫ left_secondary* right_secondary dz
+///
+/// field_secondary
+///     = ∫ left_field* right_secondary dz
+///
+/// secondary_field
+///     = ∫ left_secondary* right_field dz
+/// ```
+///
+/// Cross-products are generally complex. Swapping the two solutions
+/// conjugates the result and exchanges the off-diagonal components.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct IntegratedHermitianCrossStateProducts<A> {
+    field_field: A,
+    secondary_secondary: A,
+    field_secondary: A,
+    secondary_field: A,
+}
+
+impl<A> IntegratedHermitianCrossStateProducts<A> {
+    pub(crate) const fn new(
+        field_field: A,
+        secondary_secondary: A,
+        field_secondary: A,
+        secondary_field: A,
+    ) -> Self {
+        Self {
+            field_field,
+            secondary_secondary,
+            field_secondary,
+            secondary_field,
+        }
+    }
+
+    pub(crate) fn field_field(&self) -> &A {
+        &self.field_field
+    }
+
+    pub(crate) fn secondary_secondary(&self) -> &A {
+        &self.secondary_secondary
+    }
+
+    pub(crate) fn field_secondary(&self) -> &A {
+        &self.field_secondary
+    }
+
+    pub(crate) fn secondary_field(&self) -> &A {
+        &self.secondary_field
+    }
+
+    pub(crate) fn into_parts(self) -> (A, A, A, A) {
+        (
+            self.field_field,
+            self.secondary_secondary,
+            self.field_secondary,
+            self.secondary_field,
+        )
+    }
+}
+
+/// Transform integrated Hermitian directional-wave cross-products into
+/// integrated canonical-state cross-products.
+///
+/// ```text
+/// field     = forward + backward
+/// secondary = ξ(backward - forward)
+/// ξ         = -iY
+/// ```
+pub(crate) fn project_integrated_hermitian_cross_state_products<A>(
+    products: &IntegratedWaveProducts<A>,
+    left_admittance: &A,
+    right_admittance: &A,
+) -> IntegratedHermitianCrossStateProducts<A>
 where
     A: RealScalarAlgebra,
     A::Scalar: ComplexScalar,
@@ -119,68 +222,49 @@ where
 {
     let i = <A::Scalar as ComplexScalar>::i();
 
-    let slope = admittance.scale(-i);
-    let slope_conjugate = slope.conjugated();
+    let left_slope = left_admittance.scale(-i);
+
+    let right_slope = right_admittance.scale(-i);
+
+    let left_slope_conjugated = left_slope.conjugated();
+
+    let ff = products.forward_forward();
+    let bb = products.backward_backward();
+    let fb = products.forward_backward();
+    let bf = products.backward_forward();
+
+    let field_field = ff.add(fb).add(bf).add(bb);
 
     /*
-     * |f + b|²
+     * (b_l - f_l)* (b_r - f_r)
      *
-     * = f* f + b* b + f* b + b* f.
+     * = bb - bf - fb + ff
      */
-    let field_field = products
-        .forward_forward()
-        .add(products.backward_backward())
-        .add(products.forward_backward())
-        .add(products.backward_forward());
+    let secondary_secondary = bb
+        .subtract(bf)
+        .subtract(fb)
+        .add(ff)
+        .multiply(&left_slope_conjugated.multiply(&right_slope));
 
     /*
-     * |ξ(b - f)|²
+     * (f_l + b_l)* ξ_r(b_r - f_r)
      *
-     * = ξ*ξ [f*f + b*b - f*b - b*f].
+     * = ξ_r(fb - ff + bb - bf)
      */
-    let difference_difference = products
-        .forward_forward()
-        .add(products.backward_backward())
-        .subtract(products.forward_backward())
-        .subtract(products.backward_forward());
-
-    let slope_norm_squared = slope_conjugate.multiply(&slope);
-
-    let secondary_secondary = difference_difference.multiply(&slope_norm_squared);
+    let field_secondary = fb.subtract(ff).add(bb).subtract(bf).multiply(&right_slope);
 
     /*
-     * (f + b)* ξ(b - f)
+     * [ξ_l(b_l - f_l)]* (f_r + b_r)
      *
-     * = ξ[-f*f + f*b - b*f + b*b].
+     * = ξ_l* (bf + bb - ff - fb)
      */
-    let field_difference = products
-        .forward_forward()
-        .scale(-<A::Scalar as num_traits::One>::one())
-        .add(products.forward_backward())
-        .subtract(products.backward_forward())
-        .add(products.backward_backward());
+    let secondary_field = bf
+        .add(bb)
+        .subtract(ff)
+        .subtract(fb)
+        .multiply(&left_slope_conjugated);
 
-    let field_secondary = field_difference.multiply(&slope);
-
-    /*
-     * Hermitian reverse product. Construct independently rather than simply
-     * conjugating the previous expression so derivative semantics remain
-     * explicit.
-     *
-     * [ξ(b-f)]* (f+b)
-     *
-     * = ξ*[-f*f - f*b + b*f + b*b].
-     */
-    let difference_field = products
-        .forward_forward()
-        .scale(-<A::Scalar as num_traits::One>::one())
-        .subtract(products.forward_backward())
-        .add(products.backward_forward())
-        .add(products.backward_backward());
-
-    let secondary_field = difference_field.multiply(&slope_conjugate);
-
-    IntegratedStateProducts::new(
+    IntegratedHermitianCrossStateProducts::new(
         field_field,
         secondary_secondary,
         field_secondary,
@@ -237,7 +321,7 @@ mod tests {
 
     #[test]
     fn integrated_state_products_store_all_components() {
-        let products = IntegratedStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
 
         assert_eq!(products.field_field(), &1);
         assert_eq!(products.secondary_secondary(), &2,);
@@ -247,14 +331,14 @@ mod tests {
 
     #[test]
     fn into_parts_preserves_component_order() {
-        let products = IntegratedStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
 
         assert_eq!(products.into_parts(), (1, 2, 3, 4),);
     }
 
     #[test]
     fn map_transforms_every_component() {
-        let products = IntegratedStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
 
         let mapped = products.map(|value| value * 10);
 
@@ -274,7 +358,8 @@ mod tests {
 
         let wave_products = integrate_hermitian_wave_products(&waves, &wavevector, &thickness);
 
-        let state_products = project_integrated_state_products(&wave_products, &admittance);
+        let state_products =
+            project_integrated_hermitian_state_products(&wave_products, &admittance);
 
         assert_complex_close(
             value(state_products.secondary_field()),
@@ -290,7 +375,8 @@ mod tests {
         let wave_products =
             integrate_hermitian_wave_products(&waves, &jet(c(2.4, 0.35)), &jet(c(1.7, 0.0)));
 
-        let state_products = project_integrated_state_products(&wave_products, &jet(c(1.8, 0.25)));
+        let state_products =
+            project_integrated_hermitian_state_products(&wave_products, &jet(c(1.8, 0.25)));
 
         assert_relative_eq!(
             value(state_products.field_field()).im,
@@ -321,7 +407,7 @@ mod tests {
             &jet(c(thickness, 0.0)),
         );
 
-        let actual = project_integrated_state_products(&wave_products, &jet(admittance));
+        let actual = project_integrated_hermitian_state_products(&wave_products, &jet(admittance));
 
         let slope = -C::i() * admittance;
 

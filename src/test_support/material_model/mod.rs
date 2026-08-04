@@ -6,7 +6,6 @@ pub(crate) mod magnetic_loss;
 
 pub(crate) use drude::Drude;
 pub(crate) use drude_lorentz::DrudeLorentz;
-pub(crate) use lorentz::Lorentz;
 
 /// Validation errors shared by analytical models.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]

@@ -1,16 +1,10 @@
-use approx::assert_relative_eq;
-use ndarray::{ArrayBase, Ix0, OwnedRepr};
-use num_complex::Complex64;
-
 use crate::{
     IncidentSide, PlaneWaveEvaluator, Polarisation,
     evaluate::query::PlaneWaveExternalQueries,
-    observable::{BoundaryState, InterfaceWaveData, Interfaces},
     test_support::{
-        C, TOLERANCE,
+        TOLERANCE,
         assertions::{
-            ValueArray, assert_array_close, assert_boundary_state_jet_close, assert_complex_close,
-            assert_zero_jet_close, assert_zero_jet_zero,
+            assert_boundary_state_jet_close, assert_zero_jet_close, assert_zero_jet_zero,
         },
         jet::unit_jet_like,
         planar::{scalar_real_input, single_layer_stack, two_layer_stack},

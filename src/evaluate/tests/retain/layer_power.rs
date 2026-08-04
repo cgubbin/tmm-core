@@ -63,7 +63,7 @@ fn lossless_layers_have_zero_absorption() {
                 .layer_power(side)
                 .unwrap();
 
-            for (index, layer) in response.value().iter().enumerate() {
+            for layer in response.value().iter() {
                 assert_relative_eq!(
                     scalar(layer.absorbed()),
                     0.0,
@@ -94,7 +94,7 @@ fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
     assert_eq!(layers.value().len() + 1, interfaces.value().len(),);
 
     for index in 0..layers.value().len() {
-        let layer = layers.value().get(index).unwrap();
+        let layer = layers.value().get(FiniteLayerIndex(index)).unwrap();
 
         let left_interface = interfaces.value().get(index).unwrap();
 
@@ -172,8 +172,8 @@ fn absorption_is_attributed_to_the_absorbing_layer() {
 
     assert_eq!(response.value().len(), 2);
 
-    let lossless = response.value().get(0).unwrap();
-    let absorbing = response.value().get(1).unwrap();
+    let lossless = response.value().get(FiniteLayerIndex(0)).unwrap();
+    let absorbing = response.value().get(FiniteLayerIndex(1)).unwrap();
 
     assert_relative_eq!(
         scalar(lossless.absorbed()),

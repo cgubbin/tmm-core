@@ -1,6 +1,5 @@
 use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
-use num_complex::Complex64;
 
 use crate::{
     IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
@@ -52,9 +51,9 @@ fn assert_layer_dissipation_matches_power(
     assert_eq!(dissipation.len(), power.len());
 
     for index in 0..dissipation.len() {
-        let dissipation = dissipation.get(index).unwrap();
+        let dissipation = dissipation.get(FiniteLayerIndex(index)).unwrap();
 
-        let power = power.get(index).unwrap();
+        let power = power.get(FiniteLayerIndex(index)).unwrap();
 
         assert_real_close(dissipation.total(), power.absorbed(), tolerance);
 
@@ -242,7 +241,7 @@ fn electric_loss_is_attributed_to_electric_dissipation() {
                 .layer_dissipation(incident_side)
                 .unwrap();
 
-            let layer = response.value().get(0).unwrap();
+            let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
 
             assert_real_zero(layer.magnetic(), VALUE_TOLERANCE);
 
@@ -275,7 +274,7 @@ fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
                 .layer_dissipation(incident_side)
                 .unwrap();
 
-            let layer = response.value().get(0).unwrap();
+            let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
 
             assert_real_zero(layer.electric(), VALUE_TOLERANCE);
 

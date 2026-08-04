@@ -118,16 +118,16 @@ where
 
         if self.drude_strength > R::zero() {
             let (a, b, c) = self.drude_derivatives(k0);
-            first = first + a;
-            second = second + b;
-            third = third + b;
+            first += a;
+            second += b;
+            third += c;
         }
 
         for oscillator in &self.oscillators {
             let (a, b, c) = oscillator.derivatives_at(k0);
-            first = first + a;
-            second = second + b;
-            third = third + b;
+            first += a;
+            second += b;
+            third += c;
         }
 
         convert_derivative_variable(first, second, third, order)
@@ -213,7 +213,7 @@ where
     fn relative_permittivity_derivative<I, C>(
         &self,
         vacuum_wavenumber: I,
-        order: DerivativeOrder,
+        _order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = R> + Copy,
@@ -263,7 +263,7 @@ where
     fn relative_permittivity_complex_derivative<I, C>(
         &self,
         vacuum_wavenumber: I,
-        order: DerivativeOrder,
+        _order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = R> + Copy,

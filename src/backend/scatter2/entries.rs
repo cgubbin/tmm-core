@@ -153,6 +153,7 @@ impl<A> Scatter2Entries<A> {
 }
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Scatter2ExteriorContext<A> {
     left_admittance: A,
     right_admittance: A,

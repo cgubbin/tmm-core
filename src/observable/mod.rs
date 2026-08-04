@@ -22,7 +22,10 @@ pub use interface::{
     DirectedPower, InterfacePower, InterfaceProjectionError, InterfaceStates, Interfaces,
 };
 pub use layer::{
-    LayerDissipation, LayerEnergy, LayerEnergyError, LayerPower, LayerProjectionError, Layers,
+    AggregateEnergy, AggregateHermitianOverlap, EnergyConfinement, HermitianLayerOverlapInput,
+    LayerAggregateError, LayerConfinementError, LayerDissipation, LayerEnergy, LayerEnergyError,
+    LayerParticipation, LayerParticipationError, LayerPower, LayerProjectionError, Layers,
+    NormalizedHermitianOverlap,
 };
 pub use mode::ModeResidual;
 pub use plane_wave::{PlaneWaveAmplitudes, PlaneWavePower};
@@ -34,7 +37,8 @@ pub(crate) use interface::{
     exterior_boundary_waves, project_layer_admittances,
 };
 pub(crate) use layer::{
-    IntegratedLayerData, LayerIntegrationInput, assemble_layer_integration_inputs,
-    canonical_energy_normalization,
+    HermitianLayerOverlap, HermitianOverlapError, LayerOverlapOperand, PairOperand,
+    project_integrated_field_norms,
 };
+pub(crate) use layer::{LayerIntegrationInput, assemble_layer_integration_inputs};
 pub(crate) use plane_wave::{ProjectAmplitudes, ProjectPower};

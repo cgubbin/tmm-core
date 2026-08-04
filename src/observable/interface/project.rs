@@ -467,7 +467,7 @@ mod exterior_boundary_state_tests {
 
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates, PlaneWaveAmplitudes},
+        observable::{BoundaryState, PlaneWaveAmplitudes},
     };
 
     type C = Complex64;
@@ -602,53 +602,5 @@ mod exterior_boundary_state_tests {
             C::new(1.0, 0.0) + reflection,
             right_xi * (C::new(1.0, 0.0) - reflection),
         );
-    }
-
-    #[test]
-    fn two_finite_layers_produce_three_interfaces_in_order() {
-        let layers = LayerBoundaries::new(vec![
-            LayerBoundaryStates::new(BoundaryState::new(10, 11), BoundaryState::new(12, 13)),
-            LayerBoundaryStates::new(BoundaryState::new(20, 21), BoundaryState::new(22, 23)),
-        ]);
-
-        let interfaces =
-            assemble_interface_states(layers, BoundaryState::new(0, 1), BoundaryState::new(30, 31));
-
-        assert_eq!(interfaces.len(), 3);
-
-        let actual: Vec<_> = interfaces
-            .iter()
-            .map(|interface| {
-                (
-                    *interface.left().field(),
-                    *interface.left().secondary(),
-                    *interface.right().field(),
-                    *interface.right().secondary(),
-                )
-            })
-            .collect();
-
-        assert_eq!(
-            actual,
-            vec![(0, 1, 10, 11), (12, 13, 20, 21), (22, 23, 30, 31),],
-        );
-    }
-
-    #[test]
-    fn empty_finite_stack_produces_one_exterior_interface() {
-        let interfaces = assemble_interface_states(
-            LayerBoundaries::new(Vec::new()),
-            BoundaryState::new(1, 2),
-            BoundaryState::new(3, 4),
-        );
-
-        assert_eq!(interfaces.len(), 1);
-
-        let interface = interfaces
-            .first()
-            .expect("one exterior interface should exist");
-
-        assert_eq!(interface.left().clone().into_parts(), (1, 2));
-        assert_eq!(interface.right().clone().into_parts(), (3, 4));
     }
 }

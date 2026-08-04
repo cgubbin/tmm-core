@@ -1,14 +1,11 @@
-use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
-use num_complex::Complex64;
 
 use crate::{
-    IncidentSide, PlaneWaveEvaluator, Polarisation,
+    FiniteLayerIndex, IncidentSide, PlaneWaveEvaluator, Polarisation,
     backend::{RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2},
     test_support::{
-        C, TOLERANCE,
-        assertions::assert_complex_close,
-        planar::{scalar_real_input, single_layer_stack, two_layer_stack},
+        C,
+        planar::{scalar_real_input, two_layer_stack},
     },
 };
 
@@ -30,7 +27,9 @@ fn layer_wave_data_returns_one_record_per_finite_layer() {
         )
         .unwrap();
 
-    let layers = state.raw_layer_wave_data(IncidentSide::Left).unwrap();
+    let layers = state
+        .raw_layer_integration_inputs(IncidentSide::Left)
+        .unwrap();
 
     assert_eq!(layers.len(), 2);
 }
@@ -49,12 +48,14 @@ fn layer_wave_data_uses_each_layers_left_boundary_waves() {
 
     let boundaries = state.raw_layer_boundary_waves(IncidentSide::Right).unwrap();
 
-    let layers = state.raw_layer_wave_data(IncidentSide::Right).unwrap();
+    let layers = state
+        .raw_layer_integration_inputs(IncidentSide::Right)
+        .unwrap();
 
     assert_eq!(layers.len(), boundaries.len());
 
     for index in 0..layers.len() {
-        let layer = layers.get(index).unwrap();
+        let layer = layers.get(FiniteLayerIndex(index)).unwrap();
         let boundary = boundaries.get(crate::FiniteLayerIndex(index)).unwrap();
 
         assert_eq!(
@@ -83,14 +84,16 @@ fn layer_wave_data_preserves_quantities_in_physical_order() {
         )
         .unwrap();
 
-    let layers = state.raw_layer_wave_data(IncidentSide::Left).unwrap();
+    let layers = state
+        .raw_layer_integration_inputs(IncidentSide::Left)
+        .unwrap();
 
     let workspace = state.workspace();
 
     assert_eq!(layers.len(), 2);
 
     for index in 0..layers.len() {
-        let layer = layers.get(index).unwrap();
+        let layer = layers.get(FiniteLayerIndex(index)).unwrap();
 
         let expected = workspace
             .layer_quantities(index)
@@ -116,7 +119,9 @@ fn layer_wave_data_preserves_thicknesses_in_physical_order() {
         )
         .unwrap();
 
-    let layers = state.raw_layer_wave_data(IncidentSide::Left).unwrap();
+    let layers = state
+        .raw_layer_integration_inputs(IncidentSide::Left)
+        .unwrap();
 
     let workspace = state.workspace();
 
@@ -126,7 +131,7 @@ fn layer_wave_data_preserves_thicknesses_in_physical_order() {
             .expect("retained thickness should exist");
 
         assert_eq!(
-            layers.get(index).unwrap().thickness(),
+            layers.get(FiniteLayerIndex(index)).unwrap().thickness(),
             expected,
             "thickness should remain aligned at layer {index}",
         );
@@ -145,15 +150,19 @@ fn incident_side_changes_waves_but_not_layer_metadata() {
         )
         .unwrap();
 
-    let left = state.raw_layer_wave_data(IncidentSide::Left).unwrap();
+    let left = state
+        .raw_layer_integration_inputs(IncidentSide::Left)
+        .unwrap();
 
-    let right = state.raw_layer_wave_data(IncidentSide::Right).unwrap();
+    let right = state
+        .raw_layer_integration_inputs(IncidentSide::Right)
+        .unwrap();
 
     assert_eq!(left.len(), right.len());
 
     for index in 0..left.len() {
-        let left_layer = left.get(index).unwrap();
-        let right_layer = right.get(index).unwrap();
+        let left_layer = left.get(FiniteLayerIndex(index)).unwrap();
+        let right_layer = right.get(FiniteLayerIndex(index)).unwrap();
 
         assert_eq!(left_layer.quantities(), right_layer.quantities(),);
 
@@ -180,7 +189,9 @@ fn transfer_backend_assembles_layer_wave_data() {
         )
         .unwrap();
 
-    let layers = state.raw_layer_wave_data(IncidentSide::Left).unwrap();
+    let layers = state
+        .raw_layer_integration_inputs(IncidentSide::Left)
+        .unwrap();
 
     assert_eq!(layers.len(), 2);
 }
