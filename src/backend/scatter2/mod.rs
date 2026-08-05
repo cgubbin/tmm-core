@@ -12,7 +12,7 @@ use crate::{
 };
 pub(crate) use entries::{Scatter2Entries, Scatter2ExteriorContext};
 pub use error::Scatter2Error;
-pub(crate) use workspace::Scatter2Workspace;
+pub(crate) use workspace::{RetainedScatterComponents, Scatter2Workspace};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;

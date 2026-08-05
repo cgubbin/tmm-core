@@ -1,7 +1,7 @@
 use std::ops::Neg;
 
 use nalgebra::ComplexField;
-use ndarray::Dimension;
+use ndarray::{Dimension, Ix0, NdIndex};
 use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
@@ -29,6 +29,7 @@ use crate::{
         exterior_boundary_waves, project_layer_admittances, project_layer_boundary_states,
         project_layer_boundary_waves,
     },
+    projection::{JetPointProjection, PointProjectionError, ProjectPoint},
 };
 
 use super::query::{
@@ -82,6 +83,28 @@ where
             context,
             polarisation,
         }
+    }
+
+    pub(crate) fn project_point<Idx>(
+        &self,
+        index: &Idx,
+    ) -> Result<PlaneWaveState<J::PointJet, I, M, W::Point>, PointProjectionError>
+    where
+        J: JetPointProjection,
+        J::PointJet: JetMapping<Mapping = J::Mapping>,
+        CanonicalProblem<M, J>:
+            ProjectPoint<Dimension = J::Dimension, Point = CanonicalProblem<M, J::PointJet>>,
+        W: ProjectPoint<Dimension = J::Dimension>,
+        CompilationContext<I, J::Dimension, J::Mapping>:
+            ProjectPoint<Dimension = J::Dimension, Point = CompilationContext<I, Ix0, J::Mapping>>,
+        Idx: NdIndex<J::Dimension> + Clone,
+    {
+        Ok(PlaneWaveState::new(
+            self.problem.project_point(index)?,
+            self.workspace.project_point(index)?,
+            self.context.project_point(index)?,
+            self.polarisation,
+        ))
     }
 
     /// Return the compiled canonical plane-wave problem.

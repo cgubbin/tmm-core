@@ -69,19 +69,19 @@ impl<A> Scatter2Entries<A> {
         Self { s11, s12, s21, s22 }
     }
 
-    pub(super) fn s11(&self) -> &A {
+    pub(crate) fn s11(&self) -> &A {
         &self.s11
     }
 
-    pub(super) fn s21(&self) -> &A {
+    pub(crate) fn s21(&self) -> &A {
         &self.s21
     }
 
-    pub(super) fn s12(&self) -> &A {
+    pub(crate) fn s12(&self) -> &A {
         &self.s12
     }
 
-    pub(super) fn s22(&self) -> &A {
+    pub(crate) fn s22(&self) -> &A {
         &self.s22
     }
 

@@ -3,7 +3,6 @@ use crate::{
     derivative_parts::{
         FirstBivariate, FirstDirectional, SecondBivariate, SecondDirectional, ValueOnly,
     },
-    evaluate::PairMappingCompatibility,
     parameter::{
         BivariateMapping, DerivativeMapping, DerivativeMappingError, DirectionalMapping,
         ValueMapping,
@@ -86,23 +85,5 @@ impl<I, P> JetMapping for JetBivariate2<I, P> {
         mapping: &DerivativeMapping,
     ) -> Result<Self::Mapping, DerivativeMappingError> {
         BivariateMapping::try_from_mapping(mapping)
-    }
-}
-
-impl PairMappingCompatibility for ValueMapping {
-    fn pair_mapping_compatible(&self, _other: &Self) -> bool {
-        true
-    }
-}
-
-impl PairMappingCompatibility for DirectionalMapping {
-    fn pair_mapping_compatible(&self, other: &Self) -> bool {
-        self == other
-    }
-}
-
-impl PairMappingCompatibility for BivariateMapping {
-    fn pair_mapping_compatible(&self, other: &Self) -> bool {
-        self == other
     }
 }

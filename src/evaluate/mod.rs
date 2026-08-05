@@ -9,7 +9,7 @@
 
 mod error;
 mod evaluator;
-mod pair;
+// mod pair;
 mod query;
 mod result;
 mod state;
@@ -21,5 +21,3 @@ pub use error::{PlaneWaveEvaluationError, SolveRequestError};
 pub use evaluator::PlaneWaveEvaluator;
 pub use result::PlaneWaveResult;
 pub use state::PlaneWaveState;
-
-pub(crate) use pair::{PairMappingCompatibility, PairWorkspace};

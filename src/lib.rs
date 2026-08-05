@@ -15,6 +15,7 @@ mod observable;
 mod parameter;
 mod response;
 // mod sampling;
+mod projection;
 mod scalar;
 pub mod spatial;
 pub mod stack;

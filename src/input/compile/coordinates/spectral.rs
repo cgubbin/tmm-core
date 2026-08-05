@@ -219,6 +219,7 @@ mod tests {
     impl Jet for RecordingJet {
         type Scalar = Complex<f64>;
         type Dimension = Ix0;
+        type PointJet = Self;
     }
 
     impl CanonicalCoordinateJet for RecordingJet {

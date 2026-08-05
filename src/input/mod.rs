@@ -16,7 +16,7 @@
 //! coordinate conversion or numerical evaluation themselves.
 
 pub(crate) mod canonical;
-mod compile;
+pub(crate) mod compile;
 mod coordinate;
 mod coordinate_input;
 mod error;
@@ -26,11 +26,11 @@ pub(crate) use canonical::{
     CanonicalBackendInput, CanonicalCoordinates, CanonicalProblem, CanonicalStack,
 };
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, JetMapping, compile_complex,
-    compile_real,
+    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping,
+    ProjectionConstraint, compile_complex, compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
-pub(crate) use coordinate_input::CoordinateReference;
+pub(crate) use coordinate_input::{CoordinateReference, CoordinateValues};
 
 pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
 pub use coordinate_input::{CoordinateInput, CoordinatePoint};

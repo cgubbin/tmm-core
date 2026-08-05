@@ -15,7 +15,7 @@
 //! dispersive material properties.
 
 // mod assignment;
-mod context;
+pub(crate) mod context;
 mod coordinates;
 mod error;
 mod layout;

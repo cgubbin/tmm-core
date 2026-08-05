@@ -271,6 +271,13 @@ impl<A> ExteriorAdmittanceProvider for Transfer2ExteriorContext<A> {
 }
 
 impl<J> Transfer2ExteriorContext<J> {
+    pub(crate) fn from_parts(left_admittance: J, right_admittance: J) -> Self {
+        Self {
+            left_admittance,
+            right_admittance,
+        }
+    }
+
     pub(super) fn new<E, M>(
         coordinates: &CanonicalCoordinates<J>,
         left_exterior: &M,

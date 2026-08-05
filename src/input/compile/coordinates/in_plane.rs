@@ -234,6 +234,7 @@ mod tests {
     impl crate::algebra::Jet for RecordingJet {
         type Scalar = Complex64;
         type Dimension = Ix0;
+        type PointJet = Self;
     }
 
     impl CanonicalCoordinateJet for RecordingJet {

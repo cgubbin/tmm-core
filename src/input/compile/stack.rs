@@ -247,6 +247,7 @@ mod tests {
     impl<D> crate::algebra::Jet for RecordingJet<Array<Complex64, D>> {
         type Scalar = Complex64;
         type Dimension = D;
+        type PointJet = RecordingJet<Array<Complex64, Ix0>>;
     }
 
     impl<D> SeedJet for RecordingJet<Array<Complex64, D>> {

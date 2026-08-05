@@ -12,7 +12,6 @@ use crate::{
         solution::PlaneWaveSolutionView,
         workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
     },
-    evaluate::PairWorkspace,
 };
 
 use super::{
@@ -133,6 +132,10 @@ pub(crate) struct RetainedTransferLayers<A> {
 impl<A> RetainedTransferLayers<A> {
     pub(crate) fn new() -> Self {
         Self { layers: Vec::new() }
+    }
+
+    pub(crate) fn from_layers(layers: Vec<RetainedTransferLayer<A>>) -> Self {
+        Self { layers }
     }
 
     pub(crate) fn with_capacity(capacity: usize) -> Self {
@@ -306,6 +309,17 @@ impl<A> Transfer2Workspace<A> {
         }
     }
 
+    pub(crate) fn from_parts(
+        solution: PlaneWaveSolution<Transfer2Entries<A>>,
+        retained: Option<RetainedTransferLayers<A>>,
+    ) -> Self {
+        Self { solution, retained }
+    }
+
+    pub(crate) fn solution(&self) -> &PlaneWaveSolution<Transfer2Entries<A>> {
+        &self.solution
+    }
+
     pub(crate) fn entries(&self) -> &Transfer2Entries<A> {
         self.solution.entries()
     }
@@ -472,18 +486,6 @@ impl<A> Transfer2Entries<A> {
             .add(&self.m22.multiply(state.slope()));
 
         TransferState::new(field, slope)
-    }
-}
-
-impl<A> PairWorkspace for Transfer2Workspace<A> {
-    type Thickness = A;
-
-    fn pair_layer_count(&self) -> Option<usize> {
-        self.retained_layer_count()
-    }
-
-    fn pair_layer_thickness(&self, index: usize) -> Option<&Self::Thickness> {
-        self.layer_thickness(index)
     }
 }
 

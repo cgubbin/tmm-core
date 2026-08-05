@@ -369,6 +369,7 @@ mod tests {
     impl crate::algebra::Jet for TestJet {
         type Scalar = Complex64;
         type Dimension = Ix0;
+        type PointJet = Self;
     }
 
     impl SeedJet for TestJet {

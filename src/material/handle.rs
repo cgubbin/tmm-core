@@ -28,6 +28,15 @@ where
     inner: Arc<dyn MaterialPoint<C>>,
 }
 
+impl<C> PartialEq for MaterialHandle<C>
+where
+    C: ComplexScalar,
+{
+    fn eq(&self, other: &Self) -> bool {
+        (self.type_name == other.type_name) && Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
 impl<M, C> From<M> for MaterialHandle<C>
 where
     M: Material<Real = C::RealField> + Send + Sync + 'static,
@@ -150,6 +159,15 @@ where
     }
 }
 
+impl<C> PartialEq for DifferentiableMaterialHandle<C>
+where
+    C: ComplexScalar,
+{
+    fn eq(&self, other: &Self) -> bool {
+        (self.type_name == other.type_name) && Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
 impl<C> EvaluateMaterial<C> for DifferentiableMaterialHandle<C>
 where
     C: ComplexScalar,
@@ -255,6 +273,15 @@ where
     }
 }
 
+impl<C> PartialEq for MeromorphicMaterialHandle<C>
+where
+    C: ComplexScalar,
+{
+    fn eq(&self, other: &Self) -> bool {
+        (self.type_name == other.type_name) && Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
 impl<C> EvaluateMaterial<C> for MeromorphicMaterialHandle<C>
 where
     C::RealField: Copy,
@@ -350,6 +377,15 @@ where
             .debug_struct("AnalyticalMaterialHandle")
             .field("type", &self.type_name)
             .finish_non_exhaustive()
+    }
+}
+
+impl<C> PartialEq for AnalyticalMaterialHandle<C>
+where
+    C: ComplexScalar,
+{
+    fn eq(&self, other: &Self) -> bool {
+        (self.type_name == other.type_name) && Arc::ptr_eq(&self.inner, &other.inner)
     }
 }
 

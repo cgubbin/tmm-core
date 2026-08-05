@@ -13,7 +13,6 @@ use crate::{
         },
         workspace::ReconstructLayerBoundaryWaves,
     },
-    evaluate::PairWorkspace,
     input::IncidentSide,
 };
 
@@ -143,6 +142,13 @@ impl<A> Scatter2Workspace<A> {
         }
     }
 
+    pub(crate) fn from_parts(
+        solution: PlaneWaveSolution<Scatter2Entries<A>>,
+        retained: Option<RetainedScatterComponents<A>>,
+    ) -> Self {
+        Self { solution, retained }
+    }
+
     pub(crate) fn into_parts(
         self,
     ) -> (
@@ -150,6 +156,14 @@ impl<A> Scatter2Workspace<A> {
         Option<RetainedScatterComponents<A>>,
     ) {
         (self.solution, self.retained)
+    }
+
+    pub(crate) fn solution(&self) -> &PlaneWaveSolution<Scatter2Entries<A>> {
+        &self.solution
+    }
+
+    pub(crate) fn retained(&self) -> Option<&RetainedScatterComponents<A>> {
+        self.retained.as_ref()
     }
 
     pub(crate) fn total(&self) -> &Scatter2Entries<A> {
@@ -299,6 +313,36 @@ impl<A> RetainedScatterComponents<A> {
     fn num_layers(&self) -> usize {
         self.quantities.len()
     }
+
+    pub(crate) fn components(&self) -> &Vec<Scatter2Entries<A>> {
+        &self.components
+    }
+
+    pub(crate) fn layer_cuts(&self) -> &Vec<LayerCutIndices> {
+        &self.layer_cuts
+    }
+
+    pub(crate) fn quantities(&self) -> &Vec<IsotropicLayerQuantities<A>> {
+        &self.quantities
+    }
+
+    pub(crate) fn thicknesses(&self) -> &Vec<A> {
+        &self.thicknesses
+    }
+
+    pub(crate) fn from_parts(
+        components: Vec<Scatter2Entries<A>>,
+        layer_cuts: Vec<LayerCutIndices>,
+        quantities: Vec<IsotropicLayerQuantities<A>>,
+        thicknesses: Vec<A>,
+    ) -> Self {
+        Self {
+            components,
+            layer_cuts,
+            quantities,
+            thicknesses,
+        }
+    }
 }
 
 fn prefix_cascades<A>(
@@ -418,18 +462,6 @@ where
     let backward = suffix.s11().multiply(&forward).add(&suffix_from_right);
 
     BidirectionalWaves::new(forward, backward)
-}
-
-impl<A> PairWorkspace for Scatter2Workspace<A> {
-    type Thickness = A;
-
-    fn pair_layer_count(&self) -> Option<usize> {
-        self.retained.as_ref().map(|retained| retained.num_layers())
-    }
-
-    fn pair_layer_thickness(&self, index: usize) -> Option<&Self::Thickness> {
-        self.retained.as_ref()?.get_thickness(index)
-    }
 }
 
 #[cfg(test)]

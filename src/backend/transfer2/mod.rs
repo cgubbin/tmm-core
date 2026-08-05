@@ -16,7 +16,7 @@ mod projection;
 mod state;
 mod workspace;
 
-pub(crate) use entries::Transfer2Entries;
+pub(crate) use entries::{Transfer2Entries, Transfer2ExteriorContext};
 pub use error::Transfer2Error;
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ pub(crate) use state::{
 #[cfg(test)]
 pub(crate) use workspace::right_exterior_waves;
 
-pub(crate) use workspace::Transfer2Workspace;
+pub(crate) use workspace::{RetainedTransferLayer, RetainedTransferLayers, Transfer2Workspace};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;

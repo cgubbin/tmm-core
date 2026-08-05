@@ -1,5 +1,5 @@
 use nalgebra::ComplexField;
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr};
 use num_traits::{FromPrimitive, float::FloatCore};
 use std::fmt::Debug;
 
@@ -11,6 +11,7 @@ use super::{
 pub trait Jet {
     type Dimension;
     type Scalar;
+    type PointJet: Jet<Dimension = Ix0, Scalar = Self::Scalar>;
 }
 
 pub trait ComplexJet: Jet {
@@ -142,6 +143,7 @@ where
 impl<C, D, P> Jet for ArrayJet0<C, D, P> {
     type Scalar = C;
     type Dimension = D;
+    type PointJet = ArrayJet0<C, Ix0, P>;
 }
 
 impl<C, D, P> ScalarAlgebra for ArrayJet0<C, D, P>
@@ -259,6 +261,7 @@ where
 impl<C, D, P> Jet for ArrayJet1<C, D, P> {
     type Scalar = C;
     type Dimension = D;
+    type PointJet = ArrayJet1<C, Ix0, P>;
 }
 
 impl<C, D, P> ScalarAlgebra for ArrayJet1<C, D, P>
@@ -401,6 +404,7 @@ where
 impl<C, D, P> Jet for ArrayJet2<C, D, P> {
     type Scalar = C;
     type Dimension = D;
+    type PointJet = ArrayJet2<C, Ix0, P>;
 }
 
 impl<C, D, P> ScalarAlgebra for ArrayJet2<C, D, P>
@@ -545,6 +549,7 @@ where
 impl<C, D, P> Jet for ArrayJetBivariate1<C, D, P> {
     type Scalar = C;
     type Dimension = D;
+    type PointJet = ArrayJetBivariate1<C, Ix0, P>;
 }
 
 impl<C, D, P> ScalarAlgebra for ArrayJetBivariate1<C, D, P>
@@ -689,6 +694,7 @@ where
 impl<C, D, P> Jet for ArrayJetBivariate2<C, D, P> {
     type Scalar = C;
     type Dimension = D;
+    type PointJet = ArrayJetBivariate2<C, Ix0, P>;
 }
 
 impl<C, D, P> ScalarAlgebra for ArrayJetBivariate2<C, D, P>
