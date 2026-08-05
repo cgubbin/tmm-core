@@ -28,7 +28,7 @@ fn layer_wave_data_returns_one_record_per_finite_layer() {
         .unwrap();
 
     let layers = state
-        .raw_layer_integration_inputs(IncidentSide::Left)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Left)
         .unwrap();
 
     assert_eq!(layers.len(), 2);
@@ -46,10 +46,12 @@ fn layer_wave_data_uses_each_layers_left_boundary_waves() {
         )
         .unwrap();
 
-    let boundaries = state.raw_layer_boundary_waves(IncidentSide::Right).unwrap();
+    let boundaries = state
+        .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
+        .unwrap();
 
     let layers = state
-        .raw_layer_integration_inputs(IncidentSide::Right)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Right)
         .unwrap();
 
     assert_eq!(layers.len(), boundaries.len());
@@ -85,7 +87,7 @@ fn layer_wave_data_preserves_quantities_in_physical_order() {
         .unwrap();
 
     let layers = state
-        .raw_layer_integration_inputs(IncidentSide::Left)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Left)
         .unwrap();
 
     let workspace = state.workspace();
@@ -120,7 +122,7 @@ fn layer_wave_data_preserves_thicknesses_in_physical_order() {
         .unwrap();
 
     let layers = state
-        .raw_layer_integration_inputs(IncidentSide::Left)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Left)
         .unwrap();
 
     let workspace = state.workspace();
@@ -151,11 +153,11 @@ fn incident_side_changes_waves_but_not_layer_metadata() {
         .unwrap();
 
     let left = state
-        .raw_layer_integration_inputs(IncidentSide::Left)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Left)
         .unwrap();
 
     let right = state
-        .raw_layer_integration_inputs(IncidentSide::Right)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Right)
         .unwrap();
 
     assert_eq!(left.len(), right.len());
@@ -190,7 +192,7 @@ fn transfer_backend_assembles_layer_wave_data() {
         .unwrap();
 
     let layers = state
-        .raw_layer_integration_inputs(IncidentSide::Left)
+        .raw_layer_integration_inputs_unchecked(IncidentSide::Left)
         .unwrap();
 
     assert_eq!(layers.len(), 2);

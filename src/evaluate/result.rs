@@ -7,7 +7,7 @@ use crate::{
     backend::PlaneWaveSolutionSource,
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
-    input::{CompilationContext, JetMapping},
+    input::{CompilationContext, JetMapping, ProjectionConstraint, ProjectionConstraintError},
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
@@ -77,27 +77,47 @@ where
     pub fn amplitudes(
         &self,
         incident_side: IncidentSide,
-    ) -> DifferentialResponseFor<J, RawAmplitudes<Self, J>>
+    ) -> Result<DifferentialResponseFor<J, RawAmplitudes<Self, J>>, ProjectionConstraintError>
     where
         S::Entries: ProjectAmplitudes,
         J::Policy: DerivativePartsPolicy<RawAmplitudes<Self, J>>,
         RawAmplitudes<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
-        self.raw_amplitudes(incident_side)
-            .into_differential_response(&J::Policy::default(), self.mapping())
+        if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
+            if side != incident_side {
+                return Err(ProjectionConstraintError {
+                    constraint: side,
+                    requested: incident_side,
+                });
+            }
+        }
+
+        Ok(self
+            .raw_amplitudes(incident_side)
+            .into_differential_response(&J::Policy::default(), self.mapping()))
     }
 
     pub fn power(
         &self,
         incident_side: IncidentSide,
-    ) -> DifferentialResponseFor<J, RawPower<Self, J>>
+    ) -> Result<DifferentialResponseFor<J, RawPower<Self, J>>, ProjectionConstraintError>
     where
         S::Entries: ProjectPower,
         J::Policy: DerivativePartsPolicy<RawPower<Self, J>>,
         RawPower<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
-        self.raw_power(incident_side)
-            .into_differential_response(&J::Policy::default(), self.mapping())
+        if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
+            if side != incident_side {
+                return Err(ProjectionConstraintError {
+                    constraint: side,
+                    requested: incident_side,
+                });
+            }
+        }
+
+        Ok(self
+            .raw_power(incident_side)
+            .into_differential_response(&J::Policy::default(), self.mapping()))
     }
 }
 

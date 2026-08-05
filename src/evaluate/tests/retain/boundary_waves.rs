@@ -56,7 +56,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .expect("left backend should retain")
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .expect("left workspace should contain retained layers");
 
                 let right_waves = right
@@ -66,7 +66,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .expect("right backend should retain")
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .expect("right workspace should contain retained layers");
 
                 assert_zero_layers_close(
@@ -91,7 +91,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -101,7 +101,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -126,7 +126,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -136,7 +136,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -161,7 +161,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -171,7 +171,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -196,7 +196,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -206,7 +206,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_eq!(left_waves.len(), 2);
@@ -233,7 +233,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -243,7 +243,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseElectric,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -268,7 +268,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -278,7 +278,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -303,7 +303,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -313,7 +313,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Polarisation::TransverseMagnetic,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_zero_layers_close(
@@ -339,7 +339,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -350,7 +350,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_first_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
@@ -374,7 +374,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -385,7 +385,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_first_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
@@ -407,7 +407,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -418,7 +418,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_second_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
@@ -442,7 +442,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 let right_waves = right
@@ -453,7 +453,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Right)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Right)
                     .unwrap();
 
                 assert_second_layers_close(&left_waves.into_inner(), &right_waves.into_inner());
@@ -480,7 +480,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -492,7 +492,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_bivariate_first_layers_close(
@@ -522,7 +522,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 let right_waves = right
@@ -534,7 +534,7 @@ macro_rules! retained_boundary_wave_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .raw_layer_boundary_waves(IncidentSide::Left)
+                    .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
                     .unwrap();
 
                 assert_bivariate_second_layers_close(
@@ -639,7 +639,9 @@ fn transfer_single_layer_waves_match_boundary_continuity() {
 
     let amplitudes = state.raw_amplitudes(IncidentSide::Left);
 
-    let actual = state.raw_layer_boundary_waves(IncidentSide::Left).unwrap();
+    let actual = state
+        .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
+        .unwrap();
 
     let expected = analytic_single_layer_boundary_waves(
         &amplitudes,
@@ -691,7 +693,9 @@ fn scatter_single_layer_waves_match_boundary_continuity() {
 
     let amplitudes = state.raw_amplitudes(IncidentSide::Left);
 
-    let actual = state.raw_layer_boundary_waves(IncidentSide::Left).unwrap();
+    let actual = state
+        .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
+        .unwrap();
 
     let expected = analytic_single_layer_boundary_waves(
         &amplitudes,
@@ -743,7 +747,9 @@ fn transfer_single_layer_reconstruction_localises_boundary_error() {
 
     let amplitudes = state.raw_amplitudes(IncidentSide::Left);
 
-    let actual = state.raw_layer_boundary_waves(IncidentSide::Left).unwrap();
+    let actual = state
+        .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
+        .unwrap();
 
     let expected = analytic_single_layer_boundary_waves(
         &amplitudes,
@@ -846,7 +852,7 @@ fn plane_wave_state_delegates_boundary_reconstruction_to_workspace() {
         .expect("retained evaluation should succeed");
 
     let from_state = state
-        .raw_layer_boundary_waves(IncidentSide::Left)
+        .raw_layer_boundary_waves_unchecked(IncidentSide::Left)
         .expect("state should retain boundary data");
 
     let from_workspace = state
@@ -1112,11 +1118,13 @@ macro_rules! boundary_observable_suite {
 
                 for side in [IncidentSide::Left, IncidentSide::Right] {
                     let raw = state
-                        .raw_layer_boundary_waves(side)
+                        .raw_layer_boundary_waves_unchecked(side)
                         .expect("raw boundary-wave projection should succeed");
 
-                    let response = state
-                        .boundary_waves(side)
+                    let excitation = state.excitation(side).expect("state should be projectable");
+
+                    let response = excitation
+                        .boundary_waves()
                         .expect("boundary-wave response should assemble");
 
                     assert_layer_waves_collection_close(
@@ -1143,11 +1151,13 @@ macro_rules! boundary_observable_suite {
 
                 for side in [IncidentSide::Left, IncidentSide::Right] {
                     let raw = state
-                        .raw_layer_boundary_states(side)
+                        .raw_layer_boundary_states_unchecked(side)
                         .expect("raw boundary-state projection should succeed");
 
-                    let response = state
-                        .boundary_states(side)
+                    let excitation = state.excitation(side).expect("state should be projectable");
+
+                    let response = excitation
+                        .boundary_states()
                         .expect("boundary-state response should assemble");
 
                     assert_layer_states_collection_close(
@@ -1172,9 +1182,13 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let waves = state.boundary_waves(IncidentSide::Left).unwrap();
+                let excitation = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable");
 
-                let states = state.boundary_states(IncidentSide::Left).unwrap();
+                let waves = excitation.boundary_waves().unwrap();
+
+                let states = excitation.boundary_states().unwrap();
 
                 assert_eq!(waves.value().len(), 2);
                 assert_eq!(states.value().len(), 2);
@@ -1202,7 +1216,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+                let excitation = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable");
+
+                let response = excitation.boundary_waves().unwrap();
 
                 assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
 
@@ -1227,7 +1245,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_states(IncidentSide::Right).unwrap();
+                let response = state
+                    .excitation(IncidentSide::Right)
+                    .expect("state should be projectable")
+                    .boundary_states()
+                    .unwrap();
 
                 assert_eq!(response.derivatives().parameter(), parameter,);
 
@@ -1250,7 +1272,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+                let response = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable")
+                    .boundary_waves()
+                    .unwrap();
 
                 assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
 
@@ -1276,7 +1302,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_states(IncidentSide::Right).unwrap();
+                let response = state
+                    .excitation(IncidentSide::Right)
+                    .expect("state should be projectable")
+                    .boundary_states()
+                    .unwrap();
 
                 assert_eq!(response.derivatives().parameter(), parameter,);
 
@@ -1304,7 +1334,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_waves(IncidentSide::Left).unwrap();
+                let response = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable")
+                    .boundary_waves()
+                    .unwrap();
 
                 assert_eq!(response.derivatives().parameters(), [axis0, axis1],);
 
@@ -1332,7 +1366,11 @@ macro_rules! boundary_observable_suite {
                     )
                     .unwrap();
 
-                let response = state.boundary_states(IncidentSide::Right).unwrap();
+                let response = state
+                    .excitation(IncidentSide::Right)
+                    .expect("state should be projectable")
+                    .boundary_states()
+                    .unwrap();
 
                 assert_eq!(response.derivatives().parameters(), [axis0, axis1],);
 
@@ -1379,16 +1417,23 @@ macro_rules! boundary_observable_equivalence_suite {
                     Polarisation::TransverseMagnetic,
                 ] {
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_response = left
+                        let left_state = left
                             .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap();
+                        let left_response = left_state
+                            .excitation(side)
                             .unwrap()
-                            .boundary_waves(side)
+                            .boundary_waves()
                             .unwrap();
 
-                        let right_response = right
+                        let right_state = right
                             .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap();
+
+                        let right_response = right_state
+                            .excitation(side)
                             .unwrap()
-                            .boundary_waves(side)
+                            .boundary_waves()
                             .unwrap();
 
                         assert_layer_waves_collection_close(
@@ -1413,16 +1458,23 @@ macro_rules! boundary_observable_equivalence_suite {
                     Polarisation::TransverseMagnetic,
                 ] {
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_response = left
+                        let left_state = left
                             .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap();
+                        let left_response = left_state
+                            .excitation(side)
                             .unwrap()
-                            .boundary_states(side)
+                            .boundary_states()
                             .unwrap();
 
-                        let right_response = right
+                        let right_state = right
                             .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
+                            .unwrap();
+
+                        let right_response = right_state
+                            .excitation(side)
                             .unwrap()
-                            .boundary_states(side)
+                            .boundary_states()
                             .unwrap();
 
                         assert_layer_states_collection_close(
@@ -1442,26 +1494,34 @@ macro_rules! boundary_observable_equivalence_suite {
 
                 let stack = two_layer_stack();
 
-                let left_response = left
+                let left_state = left
                     .retain_first(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseElectric,
                         Parameter::Spectral,
                     )
-                    .unwrap()
-                    .boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                let right_response = right
+                let left_response = left_state
+                    .excitation(IncidentSide::Left)
+                    .unwrap()
+                    .boundary_waves()
+                    .unwrap();
+
+                let right_state = right
                     .retain_first(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseElectric,
                         Parameter::Spectral,
                     )
+                    .unwrap();
+
+                let right_response = right_state
+                    .excitation(IncidentSide::Left)
                     .unwrap()
-                    .boundary_waves(IncidentSide::Left)
+                    .boundary_waves()
                     .unwrap();
 
                 assert_layer_waves_collection_close(
@@ -1487,26 +1547,34 @@ macro_rules! boundary_observable_equivalence_suite {
 
                 let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-                let left_response = left
+                let left_state = left
                     .retain_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseMagnetic,
                         parameter,
                     )
-                    .unwrap()
-                    .boundary_states(IncidentSide::Right)
                     .unwrap();
 
-                let right_response = right
+                let left_response = left_state
+                    .excitation(IncidentSide::Right)
+                    .unwrap()
+                    .boundary_states()
+                    .unwrap();
+
+                let right_state = right
                     .retain_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseMagnetic,
                         parameter,
                     )
+                    .unwrap();
+
+                let right_response = right_state
+                    .excitation(IncidentSide::Right)
                     .unwrap()
-                    .boundary_states(IncidentSide::Right)
+                    .boundary_states()
                     .unwrap();
 
                 assert_layer_states_collection_close(
@@ -1539,7 +1607,7 @@ macro_rules! boundary_observable_equivalence_suite {
                 let axis0 = Parameter::Spectral;
                 let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-                let left_response = left
+                let left_state = left
                     .retain_bivariate_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
@@ -1547,11 +1615,15 @@ macro_rules! boundary_observable_equivalence_suite {
                         axis0,
                         axis1,
                     )
-                    .unwrap()
-                    .boundary_waves(IncidentSide::Left)
                     .unwrap();
 
-                let right_response = right
+                let left_response = left_state
+                    .excitation(IncidentSide::Left)
+                    .unwrap()
+                    .boundary_waves()
+                    .unwrap();
+
+                let right_state = right
                     .retain_bivariate_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
@@ -1559,8 +1631,12 @@ macro_rules! boundary_observable_equivalence_suite {
                         axis0,
                         axis1,
                     )
+                    .unwrap();
+
+                let right_response = right_state
+                    .excitation(IncidentSide::Left)
                     .unwrap()
-                    .boundary_waves(IncidentSide::Left)
+                    .boundary_waves()
                     .unwrap();
 
                 assert_layer_waves_collection_close(

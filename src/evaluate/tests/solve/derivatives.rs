@@ -33,7 +33,7 @@ fn first_spectral_derivative_of_nondispersive_interface_is_zero() {
         )
         .expect("first-derivative evaluation should succeed");
 
-    let amplitudes = result.amplitudes(IncidentSide::Left);
+    let amplitudes = result.amplitudes(IncidentSide::Left).unwrap();
 
     assert_eq!(amplitudes.parameter(), Parameter::Spectral,);
 
@@ -66,7 +66,7 @@ fn second_spectral_derivative_of_nondispersive_interface_is_zero() {
         )
         .expect("second-derivative evaluation should succeed");
 
-    let amplitudes = result.amplitudes(IncidentSide::Left);
+    let amplitudes = result.amplitudes(IncidentSide::Left).unwrap();
 
     assert_eq!(amplitudes.parameter(), Parameter::Spectral,);
 
@@ -99,7 +99,7 @@ fn first_thickness_derivative_matches_central_difference() {
         )
         .expect("thickness derivative should succeed");
 
-    let analytic = differentiated.amplitudes(IncidentSide::Left);
+    let analytic = differentiated.amplitudes(IncidentSide::Left).unwrap();
 
     assert_eq!(analytic.parameter(), thickness_parameter(),);
 
@@ -113,6 +113,7 @@ fn first_thickness_derivative_matches_central_difference() {
         )
         .expect("lower finite-difference sample should succeed")
         .amplitudes(IncidentSide::Left)
+        .unwrap()
         .value()
         .reflection()[()];
 
@@ -124,6 +125,7 @@ fn first_thickness_derivative_matches_central_difference() {
         )
         .expect("upper finite-difference sample should succeed")
         .amplitudes(IncidentSide::Left)
+        .unwrap()
         .value()
         .reflection()[()];
 
@@ -148,7 +150,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //         )
 //         .expect("second thickness derivative should succeed");
 
-//     let analytic = differentiated.amplitudes(IncidentSide::Left);
+//     let analytic = differentiated.amplitudes(IncidentSide::Left).unwrap();
 
 //     let step = 2.0e-5;
 
@@ -159,14 +161,14 @@ fn first_thickness_derivative_matches_central_difference() {
 //             Polarisation::TransverseElectric,
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left)
+//         .amplitudes(IncidentSide::Left).unwrap()
 //         .value()
 //         .reflection()[()];
 
 //     let centre = evaluator
 //         .evaluate(input.clone(), &stack, Polarisation::TransverseElectric)
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left)
+//         .amplitudes(IncidentSide::Left).unwrap()
 //         .value()
 //         .reflection()[()];
 
@@ -177,7 +179,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //             Polarisation::TransverseElectric,
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left)
+//         .amplitudes(IncidentSide::Left).unwrap()
 //         .value()
 //         .reflection()[()];
 
@@ -206,7 +208,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //         )
 //         .expect("bivariate evaluation should succeed");
 
-//     let amplitudes = result.amplitudes(IncidentSide::Left);
+//     let amplitudes = result.amplitudes(IncidentSide::Left).unwrap();
 
 //     assert_eq!(
 //         amplitudes.parameters(),
@@ -236,7 +238,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //             thickness_parameter(),
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left);
+//         .amplitudes(IncidentSide::Left).unwrap();
 
 //     let reversed = evaluator
 //         .evaluate_bivariate_first(
@@ -247,7 +249,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //             Parameter::Spectral,
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left);
+//         .amplitudes(IncidentSide::Left).unwrap();
 
 //     assert_eq!(
 //         reversed.parameters(),
@@ -282,7 +284,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //             thickness_parameter(),
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left);
+//         .amplitudes(IncidentSide::Left).unwrap();
 
 //     let reversed = evaluator
 //         .evaluate_bivariate_second(
@@ -293,7 +295,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //             Parameter::Spectral,
 //         )
 //         .unwrap()
-//         .amplitudes(IncidentSide::Left);
+//         .amplitudes(IncidentSide::Left).unwrap();
 
 //     assert_complex_close(
 //         forward.gradient().axis0().reflection()[()],

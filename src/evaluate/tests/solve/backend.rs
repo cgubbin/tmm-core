@@ -86,9 +86,9 @@ macro_rules! backend_equivalence_suite {
                         .expect("right backend evaluation should succeed");
 
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_amplitudes = left_result.amplitudes(side);
+                        let left_amplitudes = left_result.amplitudes(side).unwrap();
 
-                        let right_amplitudes = right_result.amplitudes(side);
+                        let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
                             left_amplitudes.value(),
@@ -120,9 +120,9 @@ macro_rules! backend_equivalence_suite {
                         .expect("right backend evaluation should succeed");
 
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_amplitudes = left_result.amplitudes(side);
+                        let left_amplitudes = left_result.amplitudes(side).unwrap();
 
-                        let right_amplitudes = right_result.amplitudes(side);
+                        let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
                             left_amplitudes.value(),
@@ -154,9 +154,9 @@ macro_rules! backend_equivalence_suite {
                         .expect("right backend evaluation should succeed");
 
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_amplitudes = left_result.amplitudes(side);
+                        let left_amplitudes = left_result.amplitudes(side).unwrap();
 
-                        let right_amplitudes = right_result.amplitudes(side);
+                        let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
                             left_amplitudes.value(),
@@ -188,9 +188,9 @@ macro_rules! backend_equivalence_suite {
                         .unwrap();
 
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_power = left_result.power(side);
+                        let left_power = left_result.power(side).unwrap();
 
-                        let right_power = right_result.power(side);
+                        let right_power = right_result.power(side).unwrap();
 
                         assert_power_equal(
                             left_power.value(),
@@ -222,9 +222,9 @@ macro_rules! backend_equivalence_suite {
                         .unwrap();
 
                     for side in [IncidentSide::Left, IncidentSide::Right] {
-                        let left_power = left_result.power(side);
+                        let left_power = left_result.power(side).unwrap();
 
-                        let right_power = right_result.power(side);
+                        let right_power = right_result.power(side).unwrap();
 
                         assert_power_equal(
                             left_power.value(),
@@ -251,7 +251,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_first(
@@ -261,7 +262,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_eq!(left_response.parameter(), Parameter::Spectral,);
 
@@ -296,7 +298,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::InPlane,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_first(
@@ -306,7 +309,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::InPlane,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_amplitudes_equal(
                     left_response.value(),
@@ -339,7 +343,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_first(
@@ -349,7 +354,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_eq!(left_response.parameter(), parameter,);
 
@@ -386,7 +392,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_first(
@@ -396,7 +403,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 assert_power_equal(
                     left_response.value(),
@@ -427,7 +435,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_second(
@@ -437,7 +446,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_amplitudes_equal(
                     left_response.value(),
@@ -476,7 +486,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Right);
+                    .amplitudes(IncidentSide::Right)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_second(
@@ -486,7 +497,8 @@ macro_rules! backend_equivalence_suite {
                         parameter,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Right);
+                    .amplitudes(IncidentSide::Right)
+                    .unwrap();
 
                 assert_amplitudes_equal(
                     left_response.value(),
@@ -523,7 +535,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_second(
@@ -533,7 +546,8 @@ macro_rules! backend_equivalence_suite {
                         Parameter::Spectral,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 assert_power_equal(
                     left_response.value(),
@@ -575,7 +589,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_bivariate_first(
@@ -586,7 +601,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_eq!(left_response.parameters(), [axis0, axis1],);
 
@@ -632,7 +648,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_bivariate_second(
@@ -643,7 +660,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .amplitudes(IncidentSide::Left);
+                    .amplitudes(IncidentSide::Left)
+                    .unwrap();
 
                 assert_eq!(left_response.parameters(), [axis0, axis1],);
 
@@ -707,7 +725,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 let right_response = right
                     .evaluate_bivariate_second(
@@ -718,7 +737,8 @@ macro_rules! backend_equivalence_suite {
                         axis1,
                     )
                     .unwrap()
-                    .power(IncidentSide::Left);
+                    .power(IncidentSide::Left)
+                    .unwrap();
 
                 assert_power_equal(
                     left_response.value(),
@@ -782,9 +802,9 @@ macro_rules! backend_equivalence_suite {
                     .unwrap();
 
                 for side in [IncidentSide::Left, IncidentSide::Right] {
-                    let left_amplitudes = left_state.amplitudes(side);
+                    let left_amplitudes = left_state.excitation(side).unwrap().amplitudes();
 
-                    let right_amplitudes = right_state.amplitudes(side);
+                    let right_amplitudes = right_state.excitation(side).unwrap().amplitudes();
 
                     assert_amplitudes_equal(
                         left_amplitudes.value(),
@@ -792,9 +812,9 @@ macro_rules! backend_equivalence_suite {
                         VALUE_TOLERANCE,
                     );
 
-                    let left_power = left_state.power(side);
+                    let left_power = left_state.excitation(side).unwrap().power();
 
-                    let right_power = right_state.power(side);
+                    let right_power = right_state.excitation(side).unwrap().power();
 
                     assert_power_equal(left_power.value(), right_power.value(), VALUE_TOLERANCE);
                 }
@@ -826,9 +846,15 @@ macro_rules! backend_equivalence_suite {
                     )
                     .unwrap();
 
-                let left_response = left_state.amplitudes(IncidentSide::Left);
+                let left_response = left_state
+                    .excitation(IncidentSide::Left)
+                    .unwrap()
+                    .amplitudes();
 
-                let right_response = right_state.amplitudes(IncidentSide::Left);
+                let right_response = right_state
+                    .excitation(IncidentSide::Left)
+                    .unwrap()
+                    .amplitudes();
 
                 assert_amplitudes_equal(
                     left_response.value(),

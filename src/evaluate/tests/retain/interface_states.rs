@@ -30,7 +30,9 @@ macro_rules! interface_continuity_suite {
                     .expect("retained evaluation should succeed");
 
                 let response = state
-                    .interface_states(incident_side)
+                    .excitation(incident_side)
+                    .expect("state should be projectable")
+                    .interface_states()
                     .expect("interface states should assemble");
 
                 assert_interface_continuity(response.value(), VALUE_TOLERANCE);
@@ -96,16 +98,20 @@ macro_rules! interface_continuity_suite {
 
                 let stack = two_layer_stack();
 
-                let response = evaluator
+                let state = evaluator
                     .retain_first(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseElectric,
                         Parameter::Spectral,
                     )
-                    .unwrap()
-                    .interface_states(IncidentSide::Left)
                     .unwrap();
+
+                let response = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable")
+                    .interface_states()
+                    .expect("interface states should assemble");
 
                 assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
 
@@ -125,15 +131,19 @@ macro_rules! interface_continuity_suite {
 
                 let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-                let response = evaluator
+                let state = evaluator
                     .retain_first(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseMagnetic,
                         parameter,
                     )
-                    .unwrap()
-                    .interface_states(IncidentSide::Right)
+                    .unwrap();
+
+                let response = state
+                    .excitation(IncidentSide::Right)
+                    .expect("state should be projectable")
+                    .interface_states()
                     .unwrap();
 
                 assert_eq!(response.derivatives().parameter(), parameter,);
@@ -152,15 +162,19 @@ macro_rules! interface_continuity_suite {
 
                 let stack = two_layer_stack();
 
-                let response = evaluator
+                let state = evaluator
                     .retain_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
                         Polarisation::TransverseElectric,
                         Parameter::Spectral,
                     )
-                    .unwrap()
-                    .interface_states(IncidentSide::Left)
+                    .unwrap();
+
+                let response = state
+                    .excitation(IncidentSide::Left)
+                    .expect("state should be projectable")
+                    .interface_states()
                     .unwrap();
 
                 assert_interface_continuity(response.value(), VALUE_TOLERANCE);
@@ -186,7 +200,7 @@ macro_rules! interface_continuity_suite {
 
                 let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-                let response = evaluator
+                let state = evaluator
                     .retain_bivariate_second(
                         scalar_real_input(2.5, 0.31),
                         &stack,
@@ -194,8 +208,12 @@ macro_rules! interface_continuity_suite {
                         axis0,
                         axis1,
                     )
-                    .unwrap()
-                    .interface_states(IncidentSide::Right)
+                    .unwrap();
+
+                let response = state
+                    .excitation(IncidentSide::Right)
+                    .expect("state should be projectable")
+                    .interface_states()
                     .unwrap();
 
                 assert_eq!(response.derivatives().parameters(), [axis0, axis1],);

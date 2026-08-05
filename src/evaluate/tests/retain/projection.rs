@@ -79,8 +79,8 @@ fn projected_scatter_state_matches_direct_scalar_evaluation() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let projected = projected.power(side);
-        let direct = direct.power(side);
+        let projected = projected.excitation(side).unwrap().power();
+        let direct = direct.excitation(side).unwrap().power();
 
         assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
     }
@@ -115,8 +115,8 @@ fn projected_transfer_state_matches_direct_scalar_evaluation() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let projected = projected.power(side);
-        let direct = direct.power(side);
+        let projected = projected.excitation(side).unwrap().power();
+        let direct = direct.excitation(side).unwrap().power();
 
         assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
     }
@@ -153,8 +153,8 @@ fn projected_first_order_state_matches_direct_scalar_derivatives() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let projected = projected.power(side);
-        let direct = direct.power(side);
+        let projected = projected.excitation(side).unwrap().power();
+        let direct = direct.excitation(side).unwrap().power();
         assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
         assert_power_equivalent(projected.first(), direct.first(), DERIVATIVE_TOLERANCE);
     }
@@ -191,8 +191,8 @@ fn projected_second_order_state_matches_direct_scalar_derivatives() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let projected = projected.power(side);
-        let direct = direct.power(side);
+        let projected = projected.excitation(side).unwrap().power();
+        let direct = direct.excitation(side).unwrap().power();
         assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
         assert_power_equivalent(projected.first(), direct.first(), DERIVATIVE_TOLERANCE);
         assert_power_equivalent(projected.second(), direct.second(), DERIVATIVE_TOLERANCE);
@@ -268,9 +268,10 @@ fn external_power_commutes_with_point_projection() {
         )
         .unwrap();
 
-    let batch = state.power(IncidentSide::Left);
+    let batch = state.excitation(IncidentSide::Left).unwrap().power();
 
-    let point = state.project_point(&1).unwrap().power(IncidentSide::Left);
+    let point_state = state.project_point(&1).unwrap();
+    let point = point_state.excitation(IncidentSide::Left).unwrap().power();
 
     assert_relative_eq!(
         point.value().reflectance()[()],
@@ -306,12 +307,18 @@ fn interface_power_commutes_with_point_projection() {
         )
         .unwrap();
 
-    let batch = state.interface_power(IncidentSide::Left).unwrap();
-
-    let point = state
-        .project_point(&1)
+    let batch = state
+        .excitation(IncidentSide::Left)
         .unwrap()
-        .interface_power(IncidentSide::Left)
+        .interface_power()
+        .unwrap();
+
+    let point_state = state.project_point(&1).unwrap();
+
+    let point = point_state
+        .excitation(IncidentSide::Left)
+        .unwrap()
+        .interface_power()
         .unwrap();
 
     assert_eq!(point.value().len(), batch.value().len());
@@ -345,12 +352,18 @@ fn layer_power_commutes_with_point_projection() {
         )
         .unwrap();
 
-    let batch = state.layer_power(IncidentSide::Right).unwrap();
-
-    let point = state
-        .project_point(&2)
+    let batch = state
+        .excitation(IncidentSide::Right)
         .unwrap()
-        .layer_power(IncidentSide::Right)
+        .layer_power()
+        .unwrap();
+
+    let point_state = state.project_point(&2).unwrap();
+
+    let point = point_state
+        .excitation(IncidentSide::Right)
+        .unwrap()
+        .layer_power()
         .unwrap();
 
     assert_eq!(point.value().len(), batch.value().len());

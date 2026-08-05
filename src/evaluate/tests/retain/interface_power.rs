@@ -20,9 +20,13 @@ fn left_incidence_exterior_interface_power_matches_plane_wave_power() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let interfaces = state.interface_power(IncidentSide::Left).unwrap();
+    let external = excitation.power();
+
+    let interfaces = excitation.interface_power().unwrap();
 
     let first = interfaces.value().first().unwrap();
 
@@ -49,15 +53,19 @@ fn left_incidence_exterior_interface_power_matches_plane_wave_power() {
 fn net_flux_is_continuous_across_every_interface() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseMagnetic,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
+
+    let response = excitation.interface_power().unwrap();
 
     dbg!(&response);
 
@@ -74,15 +82,19 @@ fn net_flux_is_continuous_across_every_interface() {
 fn transfer_backend_projects_interface_power() {
     let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.value().len(), 3);
 }

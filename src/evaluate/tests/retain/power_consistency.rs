@@ -76,10 +76,14 @@ fn left_incidence_interface_power_matches_external_power() {
         )
         .expect("retained evaluation should succeed");
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
 
-    let interfaces = state
-        .interface_power(IncidentSide::Left)
+    let external = excitation.power();
+
+    let interfaces = excitation
+        .interface_power()
         .expect("interface power should project");
 
     let first = interfaces
@@ -121,10 +125,14 @@ fn right_incidence_interface_power_matches_external_power() {
         )
         .expect("retained evaluation should succeed");
 
-    let external = state.power(IncidentSide::Right);
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("projection should succeed");
 
-    let interfaces = state
-        .interface_power(IncidentSide::Right)
+    let external = excitation.power();
+
+    let interfaces = excitation
+        .interface_power()
         .expect("interface power should project");
 
     let first = interfaces
@@ -169,11 +177,15 @@ fn net_flux_is_continuous_across_every_interface() {
         Polarisation::TransverseMagnetic,
     ] {
         for incident_side in [IncidentSide::Left, IncidentSide::Right] {
-            let interfaces = evaluator
+            let state = evaluator
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
-                .unwrap()
-                .interface_power(incident_side)
                 .unwrap();
+
+            let excitation = state
+                .excitation(incident_side)
+                .expect("projection should succeed");
+
+            let interfaces = excitation.interface_power().unwrap();
 
             assert_net_flux_continuity(interfaces.value(), VALUE_TOLERANCE);
         }
@@ -195,9 +207,13 @@ fn exterior_flux_drop_matches_absorptance_from_both_sides() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let external = state.power(incident_side);
+            let excitation = state
+                .excitation(incident_side)
+                .expect("projection should succeed");
 
-            let interfaces = state.interface_power(incident_side).unwrap();
+            let external = excitation.power();
+
+            let interfaces = excitation.interface_power().unwrap();
 
             let first = interfaces.value().first().unwrap();
             let last = interfaces.value().last().unwrap();
@@ -222,16 +238,20 @@ fn exterior_flux_drop_matches_absorptance_from_both_sides() {
 fn first_interface_power_derivative_is_continuous() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseElectric,
             Parameter::Spectral,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.derivatives().parameter(), Parameter::Spectral,);
 
@@ -246,16 +266,20 @@ fn thickness_interface_power_derivative_is_continuous() {
 
     let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-    let response = evaluator
+    let state = evaluator
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseMagnetic,
             parameter,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Right)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.derivatives().parameter(), parameter,);
 
@@ -268,16 +292,20 @@ fn thickness_interface_power_derivative_is_continuous() {
 fn second_interface_power_derivatives_are_continuous() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain_second(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseElectric,
             Parameter::Spectral,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_net_flux_continuity(response.value(), VALUE_TOLERANCE);
 
@@ -293,7 +321,7 @@ fn bivariate_interface_power_derivatives_are_continuous() {
     let axis0 = Parameter::Spectral;
     let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
 
-    let response = evaluator
+    let state = evaluator
         .retain_bivariate_second(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
@@ -301,9 +329,13 @@ fn bivariate_interface_power_derivatives_are_continuous() {
             axis0,
             axis1,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Right)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.derivatives().parameters(), [axis0, axis1],);
 
@@ -337,9 +369,13 @@ fn interface_exterior_flux_derivative_matches_external_power_derivative() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
 
-    let interfaces = state.interface_power(IncidentSide::Left).unwrap();
+    let external = excitation.power();
+
+    let interfaces = excitation.interface_power().unwrap();
 
     let first_derivative = interfaces.derivatives().first();
 
@@ -367,15 +403,19 @@ fn interface_exterior_flux_derivative_matches_external_power_derivative() {
 fn transfer_backend_projects_interface_power() {
     let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.value().len(), 3);
 
@@ -393,11 +433,15 @@ fn absorbing_stack_net_flux_is_continuous_across_interfaces() {
         Polarisation::TransverseMagnetic,
     ] {
         for incident_side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = evaluator
+            let state = evaluator
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
-                .unwrap()
-                .interface_power(incident_side)
                 .unwrap();
+
+            let excitation = state
+                .excitation(incident_side)
+                .expect("projection should succeed");
+
+            let response = excitation.interface_power().unwrap();
 
             assert_net_flux_continuity(response.value(), VALUE_TOLERANCE);
         }
@@ -408,15 +452,19 @@ fn absorbing_stack_net_flux_is_continuous_across_interfaces() {
 fn absorbing_layer_reduces_forward_net_flux() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &absorbing_single_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_eq!(response.value().len(), 2);
 
@@ -467,9 +515,13 @@ fn absorbing_stack_flux_loss_matches_external_absorptance() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let external = state.power(incident_side);
+            let excitation = state
+                .excitation(incident_side)
+                .expect("projection should succeed");
 
-            let interfaces = state.interface_power(incident_side).unwrap();
+            let external = excitation.power();
+
+            let interfaces = excitation.interface_power().unwrap();
 
             let actual = exterior_absorbed_fraction(interfaces.value());
 
@@ -494,15 +546,19 @@ fn absorbing_stack_flux_loss_matches_external_absorptance() {
 fn lossy_internal_net_flux_includes_interference_terms() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &absorbing_two_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     // Choose a side inside the absorbing finite layer.
     let interface = response
@@ -527,16 +583,20 @@ fn lossy_internal_net_flux_includes_interference_terms() {
 fn absorbing_stack_first_power_derivative_is_continuous() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &absorbing_two_layer_stack(),
             Polarisation::TransverseElectric,
             Parameter::Spectral,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let response = excitation.interface_power().unwrap();
 
     assert_net_flux_continuity(response.value(), VALUE_TOLERANCE);
 
@@ -557,9 +617,11 @@ fn absorbing_stack_flux_loss_derivative_matches_absorptance_derivative() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let external = state.power(side);
+        let excitation = state.excitation(side).expect("projection should succeed");
 
-        let interfaces = state.interface_power(side).unwrap();
+        let external = excitation.power();
+
+        let interfaces = excitation.interface_power().unwrap();
 
         let derivative = interfaces.derivatives().first();
 
@@ -589,16 +651,20 @@ fn absorbing_internal_net_flux_derivative_matches_central_difference() {
     let in_plane = 0.31;
     let step = 1.0e-5;
 
-    let analytic = evaluator
+    let state = evaluator
         .retain_first(
             scalar_real_input(x, in_plane),
             &stack,
             Polarisation::TransverseElectric,
             Parameter::Spectral,
         )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("projection should succeed");
+
+    let analytic = excitation.interface_power().unwrap();
 
     let analytic_derivative = scalar(
         analytic
@@ -609,25 +675,37 @@ fn absorbing_internal_net_flux_derivative_matches_central_difference() {
             .right_net_flux(),
     );
 
-    let plus = evaluator
-        .retain(
-            scalar_real_input(x + step, in_plane),
-            &stack,
-            Polarisation::TransverseElectric,
-        )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
-        .unwrap();
+    let plus = {
+        let state = evaluator
+            .retain(
+                scalar_real_input(x + step, in_plane),
+                &stack,
+                Polarisation::TransverseElectric,
+            )
+            .unwrap();
 
-    let minus = evaluator
-        .retain(
-            scalar_real_input(x - step, in_plane),
-            &stack,
-            Polarisation::TransverseElectric,
-        )
-        .unwrap()
-        .interface_power(IncidentSide::Left)
-        .unwrap();
+        let excitation = state
+            .excitation(IncidentSide::Left)
+            .expect("projection should succeed");
+
+        excitation.interface_power().unwrap()
+    };
+
+    let minus = {
+        let state = evaluator
+            .retain(
+                scalar_real_input(x - step, in_plane),
+                &stack,
+                Polarisation::TransverseElectric,
+            )
+            .unwrap();
+
+        let excitation = state
+            .excitation(IncidentSide::Left)
+            .expect("projection should succeed");
+
+        excitation.interface_power().unwrap()
+    };
 
     let plus_value = scalar(plus.value().get(1).unwrap().right_net_flux());
 

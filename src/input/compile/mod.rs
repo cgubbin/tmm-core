@@ -23,6 +23,7 @@ mod problem;
 mod seed;
 mod stack;
 
+pub use context::ProjectionConstraintError;
 pub(crate) use context::{
     CompilationContext, CoordinateContext, ProjectionConstraint, StackContext,
 };

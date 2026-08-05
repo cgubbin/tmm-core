@@ -21,7 +21,9 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_nondispersive(
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_nondispersive(IncidentSide::Left, |_| true)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_nondispersive(|_| true)
         .unwrap();
 
     assert_relative_eq!(
@@ -43,13 +45,15 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
         .unwrap();
 
     let participation = state
-        .layer_participation_nondispersive(IncidentSide::Right)
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_participation_nondispersive()
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_nondispersive(IncidentSide::Right, |index| {
-            index == FiniteLayerIndex(1)
-        })
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_confinement_by_nondispersive(|index| index == FiniteLayerIndex(1))
         .unwrap();
 
     assert_relative_eq!(
@@ -98,7 +102,9 @@ fn nondispersive_unit_confinement_has_zero_first_derivative() {
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_nondispersive(IncidentSide::Left, |_| true)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_nondispersive(|_| true)
         .unwrap();
 
     assert_relative_eq!(
@@ -127,7 +133,9 @@ fn nondispersive_public_confinement_rejects_empty_selection() {
         .unwrap();
 
     let error = state
-        .layer_confinement_by_nondispersive(IncidentSide::Left, |_| false)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_nondispersive(|_| false)
         .expect_err("empty confinement selections must be rejected");
 
     assert!(matches!(
@@ -147,7 +155,9 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_dispersive() {
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_dispersive(IncidentSide::Left, |_| true)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_dispersive(|_| true)
         .unwrap();
 
     assert_relative_eq!(
@@ -169,11 +179,15 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
         .unwrap();
 
     let participation = state
-        .layer_participation_dispersive(IncidentSide::Right)
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_participation_dispersive()
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_dispersive(IncidentSide::Right, |index| index == FiniteLayerIndex(1))
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_confinement_by_dispersive(|index| index == FiniteLayerIndex(1))
         .unwrap();
 
     assert_relative_eq!(
@@ -222,7 +236,9 @@ fn dispersive_unit_confinement_has_zero_first_derivative() {
         .unwrap();
 
     let confinement = state
-        .layer_confinement_by_dispersive(IncidentSide::Left, |_| true)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_dispersive(|_| true)
         .unwrap();
 
     assert_relative_eq!(
@@ -251,7 +267,9 @@ fn dispersive_public_confinement_rejects_empty_selection() {
         .unwrap();
 
     let error = state
-        .layer_confinement_by_dispersive(IncidentSide::Left, |_| false)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_confinement_by_dispersive(|_| false)
         .expect_err("empty confinement selections must be rejected");
 
     assert!(matches!(

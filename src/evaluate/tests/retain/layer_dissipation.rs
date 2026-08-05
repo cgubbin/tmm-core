@@ -87,7 +87,7 @@ fn left_incident_flux_uses_left_exterior_admittance() {
         )
         .unwrap();
 
-    let incident_flux = state.raw_incident_flux_magnitude(IncidentSide::Left);
+    let incident_flux = state.raw_incident_flux_magnitude_unchecked(IncidentSide::Left);
 
     let expected = state.solution().context().left_admittance().real();
 
@@ -113,7 +113,7 @@ fn right_incident_flux_uses_right_exterior_admittance() {
         )
         .unwrap();
 
-    let incident_flux = state.raw_incident_flux_magnitude(IncidentSide::Right);
+    let incident_flux = state.raw_incident_flux_magnitude_unchecked(IncidentSide::Right);
 
     let expected = state.solution().context().right_admittance().real();
 
@@ -124,15 +124,19 @@ fn right_incident_flux_uses_right_exterior_admittance() {
 fn layer_dissipation_returns_one_record_per_finite_layer() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &absorbing_two_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .layer_dissipation(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
+
+    let response = excitation.layer_dissipation().unwrap();
 
     assert_eq!(response.value().len(), 2);
 }
@@ -148,11 +152,15 @@ fn lossless_stack_has_zero_layer_dissipation() {
         Polarisation::TransverseMagnetic,
     ] {
         for incident_side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = evaluator
+            let state = evaluator
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
-                .unwrap()
-                .layer_dissipation(incident_side)
                 .unwrap();
+
+            let excitation = state
+                .excitation(incident_side)
+                .expect("state should be projectable");
+
+            let response = excitation.layer_dissipation().unwrap();
 
             for layer in response.value().iter() {
                 assert_real_zero(layer.electric(), VALUE_TOLERANCE);
@@ -180,9 +188,13 @@ fn layer_dissipation_matches_layer_power_flux_loss() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let dissipation = state.layer_dissipation(incident_side).unwrap();
+            let excitation = state
+                .excitation(incident_side)
+                .expect("state should be projectable");
 
-            let power = state.layer_power(incident_side).unwrap();
+            let dissipation = excitation.layer_dissipation().unwrap();
+
+            let power = excitation.layer_power().unwrap();
 
             assert_layer_dissipation_matches_power(
                 dissipation.value(),
@@ -208,9 +220,13 @@ fn summed_layer_dissipation_matches_external_absorptance() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let dissipation = state.layer_dissipation(incident_side).unwrap();
+            let excitation = state
+                .excitation(incident_side)
+                .expect("state should be projectable");
 
-            let external = state.power(incident_side);
+            let dissipation = excitation.layer_dissipation().unwrap();
+
+            let external = excitation.power();
 
             assert_relative_eq!(
                 summed_dissipation(dissipation.value(),),
@@ -231,15 +247,19 @@ fn electric_loss_is_attributed_to_electric_dissipation() {
         Polarisation::TransverseMagnetic,
     ] {
         for incident_side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = evaluator
+            let state = evaluator
                 .retain(
                     scalar_real_input(2.5, 0.31),
                     &electric_loss_stack(),
                     polarisation,
                 )
-                .unwrap()
-                .layer_dissipation(incident_side)
                 .unwrap();
+
+            let excitation = state
+                .excitation(incident_side)
+                .expect("state should be projectable");
+
+            let response = excitation.layer_dissipation().unwrap();
 
             let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
 
@@ -264,15 +284,19 @@ fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
         Polarisation::TransverseMagnetic,
     ] {
         for incident_side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = evaluator
+            let state = evaluator
                 .retain(
                     scalar_real_input(2.5, 0.31),
                     &magnetic_loss_stack(),
                     polarisation,
                 )
-                .unwrap()
-                .layer_dissipation(incident_side)
                 .unwrap();
+
+            let excitation = state
+                .excitation(incident_side)
+                .expect("state should be projectable");
+
+            let response = excitation.layer_dissipation().unwrap();
 
             let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
 
@@ -302,9 +326,13 @@ fn first_layer_dissipation_derivative_matches_layer_power_derivative() {
             )
             .unwrap();
 
-        let dissipation = state.layer_dissipation(incident_side).unwrap();
+        let excitation = state
+            .excitation(incident_side)
+            .expect("state should be projectable");
 
-        let power = state.layer_power(incident_side).unwrap();
+        let dissipation = excitation.layer_dissipation().unwrap();
+
+        let power = excitation.layer_power().unwrap();
 
         assert_layer_dissipation_matches_power(dissipation.value(), power.value(), VALUE_TOLERANCE);
 
@@ -331,9 +359,13 @@ fn thickness_dissipation_derivative_matches_flux_loss_derivative() {
         )
         .unwrap();
 
-    let dissipation = state.layer_dissipation(IncidentSide::Right).unwrap();
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable");
 
-    let power = state.layer_power(IncidentSide::Right).unwrap();
+    let dissipation = excitation.layer_dissipation().unwrap();
+
+    let power = excitation.layer_power().unwrap();
 
     assert_eq!(dissipation.derivatives().parameter(), parameter,);
 
@@ -357,9 +389,13 @@ fn second_layer_dissipation_derivatives_match_flux_loss_derivatives() {
         )
         .unwrap();
 
-    let dissipation = state.layer_dissipation(IncidentSide::Left).unwrap();
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let power = state.layer_power(IncidentSide::Left).unwrap();
+    let dissipation = excitation.layer_dissipation().unwrap();
+
+    let power = excitation.layer_power().unwrap();
 
     assert_layer_dissipation_matches_power(dissipation.value(), power.value(), VALUE_TOLERANCE);
 
@@ -393,9 +429,13 @@ fn bivariate_layer_dissipation_matches_flux_loss_on_all_branches() {
         )
         .unwrap();
 
-    let dissipation = state.layer_dissipation(IncidentSide::Right).unwrap();
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable");
 
-    let power = state.layer_power(IncidentSide::Right).unwrap();
+    let dissipation = excitation.layer_dissipation().unwrap();
+
+    let power = excitation.layer_power().unwrap();
 
     assert_layer_dissipation_matches_power(dissipation.value(), power.value(), VALUE_TOLERANCE);
 
@@ -450,9 +490,13 @@ fn transfer_backend_layer_dissipation_matches_layer_power() {
         )
         .unwrap();
 
-    let dissipation = state.layer_dissipation(IncidentSide::Left).unwrap();
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let power = state.layer_power(IncidentSide::Left).unwrap();
+    let dissipation = excitation.layer_dissipation().unwrap();
+
+    let power = excitation.layer_power().unwrap();
 
     assert_layer_dissipation_matches_power(dissipation.value(), power.value(), VALUE_TOLERANCE);
 }

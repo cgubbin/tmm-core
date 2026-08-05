@@ -10,6 +10,7 @@
 mod error;
 mod evaluator;
 // mod pair;
+mod excitation;
 mod query;
 mod result;
 mod state;

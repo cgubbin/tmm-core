@@ -25,7 +25,9 @@ fn nondispersive_energy_returns_one_record_per_layer() {
         .unwrap();
 
     let energy = state
-        .nondispersive_layer_energy(IncidentSide::Left)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_energy_nondispersive()
         .unwrap();
 
     assert_eq!(energy.value().len(), 2);
@@ -46,7 +48,11 @@ fn nondispersive_layer_energy_is_positive() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let energy = state.nondispersive_layer_energy(side).unwrap();
+            let energy = state
+                .excitation(side)
+                .expect("state should be projectable")
+                .layer_energy_nondispersive()
+                .unwrap();
 
             for layer in energy.value().iter() {
                 assert!(scalar(layer.electric()) >= 0.0,);
@@ -70,7 +76,9 @@ fn nondispersive_energy_total_is_component_sum() {
         .unwrap();
 
     let energy = state
-        .nondispersive_layer_energy(IncidentSide::Right)
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_energy_nondispersive()
         .unwrap();
 
     for layer in energy.value().iter() {

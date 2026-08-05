@@ -20,7 +20,9 @@ fn public_nondispersive_layer_participation_returns_one_record_per_layer() {
         .unwrap();
 
     let participation = state
-        .layer_participation_nondispersive(IncidentSide::Left)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_participation_nondispersive()
         .unwrap();
 
     assert_eq!(participation.value().len(), 2);
@@ -37,7 +39,9 @@ fn public_nondispersive_layer_participation_sums_to_unity() {
         .unwrap();
 
     let participation = state
-        .layer_participation_nondispersive(IncidentSide::Right)
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_participation_nondispersive()
         .unwrap();
 
     let total: f64 = participation
@@ -66,7 +70,9 @@ fn public_nondispersive_participation_derivatives_sum_to_zero() {
         .unwrap();
 
     let participation = state
-        .layer_participation_nondispersive(IncidentSide::Left)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_participation_nondispersive()
         .unwrap();
 
     let value_sum: f64 = participation
@@ -108,7 +114,9 @@ fn public_dispersive_layer_participation_returns_one_record_per_layer() {
         .unwrap();
 
     let participation = state
-        .layer_participation_dispersive(IncidentSide::Left)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_participation_dispersive()
         .unwrap();
 
     assert_eq!(participation.value().len(), 2);
@@ -125,7 +133,9 @@ fn public_dispersive_layer_participation_sums_to_unity() {
         .unwrap();
 
     let participation = state
-        .layer_participation_dispersive(IncidentSide::Right)
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable")
+        .layer_participation_dispersive()
         .unwrap();
 
     let total: f64 = participation
@@ -154,7 +164,9 @@ fn public_dispersive_participation_derivatives_sum_to_zero() {
         .unwrap();
 
     let participation = state
-        .layer_participation_dispersive(IncidentSide::Left)
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable")
+        .layer_participation_dispersive()
         .unwrap();
 
     let value_sum: f64 = participation

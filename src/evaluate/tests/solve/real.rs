@@ -23,7 +23,7 @@ fn value_evaluation_matches_te_fresnel_interface() {
         .evaluate(input, &stack, Polarisation::TransverseElectric)
         .expect("evaluation should succeed");
 
-    let amplitudes = result.amplitudes(IncidentSide::Left);
+    let amplitudes = result.amplitudes(IncidentSide::Left).unwrap();
 
     let (expected_r, expected_t) = fresnel_amplitudes(1.0, 2.0, Polarisation::TransverseElectric);
 
@@ -45,7 +45,7 @@ fn value_evaluation_matches_tm_fresnel_interface() {
         .evaluate(input, &stack, Polarisation::TransverseMagnetic)
         .expect("evaluation should succeed");
 
-    let amplitudes = result.amplitudes(IncidentSide::Left);
+    let amplitudes = result.amplitudes(IncidentSide::Left).unwrap();
 
     let (expected_r, expected_t) = fresnel_amplitudes(1.0, 2.0, Polarisation::TransverseMagnetic);
 
@@ -65,7 +65,7 @@ fn power_matches_fresnel_coefficients() {
         .evaluate(input, &stack, Polarisation::TransverseElectric)
         .expect("evaluation should succeed");
 
-    let power = result.power(IncidentSide::Left);
+    let power = result.power(IncidentSide::Left).unwrap();
 
     let (expected_r, expected_t, expected_a) =
         fresnel_power(1.0, 2.0, Polarisation::TransverseElectric);
@@ -88,7 +88,7 @@ fn lossless_interface_conserves_power() {
         .evaluate(input, &stack, Polarisation::TransverseElectric)
         .expect("evaluation should succeed");
 
-    let power = result.power(IncidentSide::Left);
+    let power = result.power(IncidentSide::Left).unwrap();
     let power = power.value();
 
     let total = power.reflectance()[()] + power.transmittance()[()] + power.absorptance()[()];
@@ -108,7 +108,7 @@ fn right_incidence_uses_reversed_exterior_normalisation() {
         .evaluate(input, &stack, Polarisation::TransverseElectric)
         .expect("evaluation should succeed");
 
-    let amplitudes = result.amplitudes(IncidentSide::Right);
+    let amplitudes = result.amplitudes(IncidentSide::Right).unwrap();
 
     let (expected_r, expected_t) = fresnel_amplitudes(2.0, 1.0, Polarisation::TransverseElectric);
 
@@ -116,7 +116,7 @@ fn right_incidence_uses_reversed_exterior_normalisation() {
 
     assert_complex_close(amplitudes.value().transmission()[()], expected_t, TOLERANCE);
 
-    let power = result.power(IncidentSide::Right);
+    let power = result.power(IncidentSide::Right).unwrap();
 
     let total = power.value().reflectance()[()]
         + power.value().transmittance()[()]

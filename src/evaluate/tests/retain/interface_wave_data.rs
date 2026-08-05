@@ -25,7 +25,9 @@ fn one_layer_produces_two_interface_wave_records() {
         )
         .unwrap();
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Left).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Left)
+        .unwrap();
 
     assert_eq!(interfaces.len(), 2);
 }
@@ -42,7 +44,9 @@ fn two_layers_produce_three_interface_wave_records() {
         )
         .unwrap();
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Right).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Right)
+        .unwrap();
 
     assert_eq!(interfaces.len(), 3);
 }
@@ -61,7 +65,9 @@ fn left_incidence_interface_data_contains_expected_exterior_waves() {
 
     let amplitudes = state.raw_amplitudes(IncidentSide::Left);
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Left).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Left)
+        .unwrap();
 
     let first = interfaces.first().unwrap();
     let last = interfaces.last().unwrap();
@@ -92,7 +98,9 @@ fn right_incidence_interface_data_contains_expected_exterior_waves() {
 
     let amplitudes = state.raw_amplitudes(IncidentSide::Right);
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Right).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Right)
+        .unwrap();
 
     let first = interfaces.first().unwrap();
     let last = interfaces.last().unwrap();
@@ -121,7 +129,9 @@ fn every_interface_side_state_matches_its_waves_and_admittance() {
         )
         .unwrap();
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Left).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Left)
+        .unwrap();
 
     for interface in interfaces.iter() {
         for side in [interface.left(), interface.right()] {
@@ -146,9 +156,13 @@ fn interface_wave_data_states_match_interface_state_projection() {
         )
         .unwrap();
 
-    let wave_data = state.raw_interface_wave_data(IncidentSide::Right).unwrap();
+    let wave_data = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Right)
+        .unwrap();
 
-    let interface_states = state.raw_interface_states(IncidentSide::Right).unwrap();
+    let interface_states = state
+        .raw_interface_states_unchecked(IncidentSide::Right)
+        .unwrap();
 
     assert_eq!(wave_data.len(), interface_states.len(),);
 
@@ -171,7 +185,9 @@ fn transfer_backend_constructs_interface_wave_data() {
         )
         .unwrap();
 
-    let interfaces = state.raw_interface_wave_data(IncidentSide::Left).unwrap();
+    let interfaces = state
+        .raw_interface_wave_data_unchecked(IncidentSide::Left)
+        .unwrap();
 
     assert_eq!(interfaces.len(), 3);
 }

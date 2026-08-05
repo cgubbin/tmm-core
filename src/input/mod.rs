@@ -27,7 +27,7 @@ pub(crate) use canonical::{
 };
 pub(crate) use compile::{
     CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping,
-    ProjectionConstraint, compile_complex, compile_real,
+    ProjectionConstraint, ProjectionConstraintError, compile_complex, compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
 pub(crate) use coordinate_input::{CoordinateReference, CoordinateValues};

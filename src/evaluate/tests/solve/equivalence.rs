@@ -38,9 +38,9 @@ fn solve_and_retain_value_paths_have_identical_amplitudes() {
         .unwrap();
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
-        let solved = solved.amplitudes(side);
+        let solved = solved.amplitudes(side).unwrap();
 
-        let retained = retained.amplitudes(side);
+        let retained = retained.excitation(side).unwrap().amplitudes();
 
         assert_complex_close(
             solved.value().reflection()[()],
@@ -69,7 +69,8 @@ fn solve_and_retain_value_paths_have_identical_power() {
             Polarisation::TransverseMagnetic,
         )
         .unwrap()
-        .power(IncidentSide::Left);
+        .power(IncidentSide::Left)
+        .unwrap();
 
     let retained = evaluator
         .retain(
@@ -78,7 +79,9 @@ fn solve_and_retain_value_paths_have_identical_power() {
             Polarisation::TransverseMagnetic,
         )
         .unwrap()
-        .power(IncidentSide::Left);
+        .excitation(IncidentSide::Left)
+        .unwrap()
+        .power();
 
     assert_real_close(
         solved.value().reflectance()[()],
@@ -115,7 +118,8 @@ fn solve_and_retain_first_derivatives_are_identical() {
             parameter,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .amplitudes(IncidentSide::Left)
+        .unwrap();
 
     let retained = evaluator
         .retain_first(
@@ -125,7 +129,9 @@ fn solve_and_retain_first_derivatives_are_identical() {
             parameter,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .excitation(IncidentSide::Left)
+        .unwrap()
+        .amplitudes();
 
     assert_eq!(solved.parameter(), parameter);
     assert_eq!(retained.parameter(), parameter);
@@ -157,7 +163,8 @@ fn solve_and_retain_second_derivatives_are_identical() {
             Parameter::Spectral,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .amplitudes(IncidentSide::Left)
+        .unwrap();
 
     let retained = evaluator
         .retain_second(
@@ -167,7 +174,9 @@ fn solve_and_retain_second_derivatives_are_identical() {
             Parameter::Spectral,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .excitation(IncidentSide::Left)
+        .unwrap()
+        .amplitudes();
 
     assert_complex_close(
         solved.value().reflection()[()],
@@ -205,7 +214,8 @@ fn solve_and_retain_bivariate_results_are_identical() {
             thickness,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .amplitudes(IncidentSide::Left)
+        .unwrap();
 
     let retained = evaluator
         .retain_bivariate_second(
@@ -216,7 +226,9 @@ fn solve_and_retain_bivariate_results_are_identical() {
             thickness,
         )
         .unwrap()
-        .amplitudes(IncidentSide::Left);
+        .excitation(IncidentSide::Left)
+        .unwrap()
+        .amplitudes();
 
     assert_eq!(solved.parameters(), retained.parameters(),);
 

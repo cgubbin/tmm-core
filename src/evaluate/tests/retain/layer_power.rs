@@ -33,15 +33,19 @@ fn summed_absorption<R>(
 fn layer_power_returns_one_record_per_finite_layer() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .layer_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
+
+    let response = excitation.layer_power().unwrap();
 
     assert_eq!(response.value().len(), 2);
 }
@@ -57,11 +61,13 @@ fn lossless_layers_have_zero_absorption() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = evaluator
+            let state = evaluator
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
-                .unwrap()
-                .layer_power(side)
                 .unwrap();
+
+            let excitation = state.excitation(side).expect("state should be projectable");
+
+            let response = excitation.layer_power().unwrap();
 
             for layer in response.value().iter() {
                 assert_relative_eq!(
@@ -87,9 +93,13 @@ fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
         )
         .unwrap();
 
-    let interfaces = state.interface_power(IncidentSide::Left).unwrap();
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let layers = state.layer_power(IncidentSide::Left).unwrap();
+    let interfaces = excitation.interface_power().unwrap();
+
+    let layers = excitation.layer_power().unwrap();
 
     assert_eq!(layers.value().len() + 1, interfaces.value().len(),);
 
@@ -129,9 +139,11 @@ fn summed_layer_absorption_matches_external_absorptance() {
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let external = state.power(side);
+            let excitation = state.excitation(side).expect("state should be projectable");
 
-            let layers = state.layer_power(side).unwrap();
+            let external = excitation.power();
+
+            let layers = excitation.layer_power().unwrap();
 
             let actual: f64 = layers
                 .value()
@@ -160,15 +172,19 @@ fn summed_layer_absorption_matches_external_absorptance() {
 fn absorption_is_attributed_to_the_absorbing_layer() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack_with_lossless_first_layer(),
             Polarisation::TransverseElectric,
         )
-        .unwrap()
-        .layer_power(IncidentSide::Left)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
+
+    let response = excitation.layer_power().unwrap();
 
     assert_eq!(response.value().len(), 2);
 
@@ -192,15 +208,19 @@ fn absorption_is_attributed_to_the_absorbing_layer() {
 fn right_incidence_uses_same_left_minus_right_absorption_definition() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let response = evaluator
+    let state = evaluator
         .retain(
             scalar_real_input(2.5, 0.31),
             &absorbing_two_layer_stack(),
             Polarisation::TransverseMagnetic,
         )
-        .unwrap()
-        .layer_power(IncidentSide::Right)
         .unwrap();
+
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable");
+
+    let response = excitation.layer_power().unwrap();
 
     for layer in response.value().iter() {
         let expected = scalar(layer.left_flux()) - scalar(layer.right_flux());
@@ -236,9 +256,11 @@ fn summed_layer_absorption_derivative_matches_external_absorptance_derivative() 
             )
             .unwrap();
 
-        let external = state.power(side);
+        let excitation = state.excitation(side).expect("state should be projectable");
 
-        let layers = state.layer_power(side).unwrap();
+        let external = excitation.power();
+
+        let layers = excitation.layer_power().unwrap();
 
         let actual: f64 = layers
             .derivatives()
@@ -273,9 +295,13 @@ fn thickness_derivative_of_resolved_absorption_sums_to_external_derivative() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let layers = state.layer_power(IncidentSide::Left).unwrap();
+    let external = excitation.power();
+
+    let layers = excitation.layer_power().unwrap();
 
     assert_eq!(layers.derivatives().parameter(), parameter,);
 
@@ -309,9 +335,13 @@ fn summed_second_layer_absorption_derivative_matches_external_response() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let layers = state.layer_power(IncidentSide::Left).unwrap();
+    let external = excitation.power();
+
+    let layers = excitation.layer_power().unwrap();
 
     let actual_first: f64 = layers
         .derivatives()
@@ -359,9 +389,13 @@ fn bivariate_layer_absorption_derivatives_sum_to_external_derivatives() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Right);
+    let excitation = state
+        .excitation(IncidentSide::Right)
+        .expect("state should be projectable");
 
-    let layers = state.layer_power(IncidentSide::Right).unwrap();
+    let external = excitation.power();
+
+    let layers = excitation.layer_power().unwrap();
 
     let sum = |layers: &Layers<LayerPower<RealArray>>| {
         layers
@@ -426,9 +460,13 @@ fn transfer_backend_projects_layer_power() {
         )
         .unwrap();
 
-    let external = state.power(IncidentSide::Left);
+    let excitation = state
+        .excitation(IncidentSide::Left)
+        .expect("state should be projectable");
 
-    let layers = state.layer_power(IncidentSide::Left).unwrap();
+    let external = excitation.power();
+
+    let layers = excitation.layer_power().unwrap();
 
     assert_eq!(layers.value().len(), 2);
 

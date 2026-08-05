@@ -17,6 +17,16 @@ use crate::{
     stack::Thickness,
 };
 
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "an excitation from side {requested:?} cannot be built from a state \
+    constained to {constraint:?}"
+)]
+pub struct ProjectionConstraintError {
+    pub(crate) constraint: IncidentSide,
+    pub(crate) requested: IncidentSide,
+}
+
 /// Caller-facing information associated with a compiled backend problem.
 ///
 /// This context records:
