@@ -166,11 +166,11 @@ where
     }
 }
 
-impl<'a, J, I, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, I, ML, MR, WL, WR>
+impl<'a, J, R, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, R, ML, MR, WL, WR>
 where
     J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
-    J::Scalar: ComplexField,
-    I: ComplexField,
+    J::Scalar: ComplexField<RealField = R>,
+    R: ComplexField,
     J::Mapping: PartialEq,
     WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
     WR: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,

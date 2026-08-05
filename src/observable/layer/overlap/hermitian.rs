@@ -27,42 +27,18 @@
 use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, Polarisation,
+    ComplexScalar,
     algebra::{RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
-    backend::IsotropicLayerQuantities,
-    observable::{BoundaryProjectionError, BoundaryWaves, LayerProjectionError},
 };
 
-use super::{
-    LayerAggregateError, Layers,
+use super::super::{
+    LayerAggregateError, LayerOverlapOperand, Layers,
     integration::{
-        HermitianOverlapError, IntegratedHermitianFieldOverlap,
-        integrate_hermitian_cross_wave_products, project_integrated_hermitian_cross_state_products,
+        HermitianOverlapError, integrate_hermitian_cross_wave_products,
+        project_integrated_hermitian_cross_state_products,
         project_integrated_hermitian_field_overlap,
     },
 };
-
-/// Boundary waves and isotropic medium quantities for one overlap operand.
-///
-/// Waves are expressed at the physical layer's left boundary.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LayerOverlapOperand<A> {
-    waves: BoundaryWaves<A>,
-    quantities: IsotropicLayerQuantities<A>,
-}
-
-impl<A> LayerOverlapOperand<A> {
-    pub(crate) const fn new(
-        waves: BoundaryWaves<A>,
-        quantities: IsotropicLayerQuantities<A>,
-    ) -> Self {
-        Self { waves, quantities }
-    }
-
-    fn into_parts(self) -> (BoundaryWaves<A>, IsotropicLayerQuantities<A>) {
-        (self.waves, self.quantities)
-    }
-}
 
 /// Matched left and right solution data for one physical finite layer.
 ///
@@ -411,6 +387,7 @@ mod tests {
         Polarisation,
         algebra::{ArrayJet0, ArrayJet1, Jet0, RealParameter},
         backend::IsotropicLayerQuantities,
+        observable::BoundaryWaves,
     };
 
     type C = Complex64;

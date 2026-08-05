@@ -10,7 +10,7 @@ use crate::{
     observable::LayerAggregateError,
 };
 
-use super::state_products::IntegratedHermitianCrossStateProducts;
+use super::hermitian_state_products::IntegratedHermitianCrossStateProducts;
 
 /// Integrated Hermitian electric- and magnetic-field overlaps.
 ///
