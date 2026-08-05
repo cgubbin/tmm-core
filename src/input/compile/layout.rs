@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2},
     derivative_parts::{
@@ -16,7 +18,7 @@ mod sealed {
 #[doc(hidden)]
 pub trait JetMapping: sealed::Sealed {
     type Policy: Default;
-    type Mapping;
+    type Mapping: Debug + PartialEq;
 
     fn compile_mapping(
         mapping: &DerivativeMapping,

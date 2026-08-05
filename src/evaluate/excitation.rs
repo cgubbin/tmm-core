@@ -1,7 +1,7 @@
 use std::ops::Neg;
 
 use nalgebra::ComplexField;
-use ndarray::Dimension;
+use ndarray::{Dimension, Ix0};
 use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
     differential::IntoDifferentialResponse,
     evaluate::{
         PlaneWaveState,
+        pair::{PlaneWaveExcitationPair, PlaneWavePairError},
         query::{
             DifferentialResponseFor, PlaneWaveExternalQueries, PlaneWaveQuery, RawAmplitudes,
             RawPower,
@@ -34,6 +35,7 @@ use crate::{
     },
 };
 
+#[derive(Debug, Copy, Clone)]
 pub struct PlaneWaveExcitation<'a, J, I, M, W>
 where
     J: Jet + JetMapping,
@@ -52,11 +54,20 @@ where
     J::Dimension: Dimension,
     I: ComplexField,
 {
+    /// Construct an excitation after validating the state's projection constraint.
     pub(crate) fn new(state: &'a PlaneWaveState<J, I, M, W>, incident_side: IncidentSide) -> Self {
         Self {
             state,
             incident_side,
         }
+    }
+
+    pub(crate) fn state(&self) -> &'a PlaneWaveState<J, I, M, W> {
+        self.state
+    }
+
+    pub fn incident_side(&self) -> IncidentSide {
+        self.incident_side
     }
 
     pub(crate) fn into_parts(self) -> (&'a PlaneWaveState<J, I, M, W>, IncidentSide) {
@@ -163,8 +174,8 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, RawInterfacePower<J>>, InterfaceProjectionError>
     where
-        J: JetMapping + RealScalarAlgebra,
-        J::Policy: Default + DerivativePartsPolicy<RawInterfacePower<J>>,
+        J: RealScalarAlgebra,
+        J::Policy: DerivativePartsPolicy<RawInterfacePower<J>>,
         W: PlaneWaveSolutionSource
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
@@ -172,7 +183,6 @@ where
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
-        J::Dimension: Dimension,
         <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
         RawInterfacePower<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
@@ -186,8 +196,8 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, RawLayerPower<J>>, InterfaceProjectionError>
     where
-        J: JetMapping + RealScalarAlgebra + Clone,
-        J::Policy: Default + DerivativePartsPolicy<RawLayerPower<J>>,
+        J: RealScalarAlgebra,
+        J::Policy: DerivativePartsPolicy<RawLayerPower<J>>,
         W: PlaneWaveSolutionSource
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
@@ -195,7 +205,6 @@ where
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
-        J::Dimension: Dimension,
         <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
         RawLayerPower<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
@@ -212,11 +221,11 @@ where
         LayerProjectionError,
     >
     where
-        J: JetMapping + RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One,
-        J::Policy: Default + DerivativePartsPolicy<Layers<LayerDissipation<J::RealJet>>>,
+        J::Policy: DerivativePartsPolicy<Layers<LayerDissipation<J::RealJet>>>,
         Layers<LayerDissipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
@@ -231,15 +240,11 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
     where
-        J: ComplexJet
-            + RealScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveLift<RealAxis, M>
-            + Clone,
+        J: ComplexJet + RealScalarAlgebra + ScalarAlgebraExpRelExt + ConstitutiveLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        J::Policy: Default + DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
+        J::Policy: DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
         Layers<LayerEnergy<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
@@ -258,15 +263,11 @@ where
         LayerParticipationError,
     >
     where
-        J: ComplexJet
-            + RealScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveLift<RealAxis, M>
-            + Clone,
+        J: ComplexJet + RealScalarAlgebra + ScalarAlgebraExpRelExt + ConstitutiveLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        J::Policy: Default + DerivativePartsPolicy<Layers<LayerParticipation<J::RealJet>>>,
+        J::Policy: DerivativePartsPolicy<Layers<LayerParticipation<J::RealJet>>>,
         Layers<LayerParticipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
@@ -284,15 +285,11 @@ where
         mut include: impl FnMut(FiniteLayerIndex) -> bool,
     ) -> Result<DifferentialResponseFor<J, EnergyConfinement<J::RealJet>>, LayerConfinementError>
     where
-        J: ComplexJet
-            + RealScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveLift<RealAxis, M>
-            + Clone,
+        J: ComplexJet + RealScalarAlgebra + ScalarAlgebraExpRelExt + ConstitutiveLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        J::Policy: Default + DerivativePartsPolicy<EnergyConfinement<J::RealJet>>,
+        J::Policy: DerivativePartsPolicy<EnergyConfinement<J::RealJet>>,
         EnergyConfinement<J::RealJet>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
@@ -309,14 +306,12 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
     where
-        J: JetMapping
-            + ComplexJet
+        J: ComplexJet
             + RealScalarAlgebra
             + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<RealAxis, M>
-            + Clone,
+            + ConstitutiveSpectralFirstLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
-        J::Policy: Default + DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
+        J::Policy: DerivativePartsPolicy<Layers<LayerEnergy<J::RealJet>>>,
         Layers<LayerEnergy<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: FromPrimitive + One,
@@ -341,12 +336,11 @@ where
         J: ComplexJet
             + RealScalarAlgebra
             + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<RealAxis, M>
-            + Clone,
+            + ConstitutiveSpectralFirstLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        J::Policy: Default + DerivativePartsPolicy<Layers<LayerParticipation<J::RealJet>>>,
+        J::Policy: DerivativePartsPolicy<Layers<LayerParticipation<J::RealJet>>>,
         Layers<LayerParticipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
@@ -367,12 +361,11 @@ where
         J: ComplexJet
             + RealScalarAlgebra
             + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<RealAxis, M>
-            + Clone,
+            + ConstitutiveSpectralFirstLift<RealAxis, M>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        J::Policy: Default + DerivativePartsPolicy<EnergyConfinement<J::RealJet>>,
+        J::Policy: DerivativePartsPolicy<EnergyConfinement<J::RealJet>>,
         EnergyConfinement<J::RealJet>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
@@ -383,5 +376,28 @@ where
             .raw_dispersive_layer_energy_unchecked(self.incident_side)?
             .confinement_by(|index, _| include(index))?
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
+    }
+}
+
+impl<'a, J, I, M, W> PlaneWaveExcitation<'a, J, I, M, W>
+where
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq,
+    J::Scalar: ComplexField,
+    I: ComplexField,
+    J::Mapping: PartialEq,
+    W: RetainedIsotropicLayers<Algebra = J>,
+{
+    /// Form a validated pair with another scalar excitation.
+    ///
+    /// This excitation becomes the reference operand. Hermitian contractions
+    /// conjugate it; bilinear contractions do not.
+    pub fn pair_with<M2, W2>(
+        self,
+        comparison: PlaneWaveExcitation<'a, J, I, M2, W2>,
+    ) -> Result<PlaneWaveExcitationPair<'a, J, I, M, M2, W, W2>, PlaneWavePairError>
+    where
+        W2: RetainedIsotropicLayers<Algebra = J>,
+    {
+        PlaneWaveExcitationPair::new(self, comparison)
     }
 }
