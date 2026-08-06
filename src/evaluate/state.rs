@@ -5,8 +5,8 @@ use ndarray::{Dimension, Ix0, NdIndex};
 use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
-    Polarisation, RealAxis,
+    ComplexPlane, ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower,
+    PlaneWaveAmplitudes, Polarisation, RealAxis,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
@@ -14,6 +14,7 @@ use crate::{
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
+    evaluate::mode::{ModeReconstructionError, PlaneWaveMode},
     input::{
         CanonicalProblem, CompilationContext, JetMapping, ProjectionConstraint,
         ProjectionConstraintError,
@@ -23,9 +24,10 @@ use crate::{
         lifting::ConstitutiveDerivativeEvaluator,
     },
     observable::{
-        BoundaryProjectionError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
-        Interfaces, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy,
-        LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
+        AggregateBilinearNormalization, BilinearLayerNormalization, BoundaryProjectionError,
+        InterfaceProjectionError, InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries,
+        LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy, LayerEnergyError,
+        LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
         ProjectPlaneWaveModeDeterminant, assemble_interface_wave_data,
         assemble_layer_integration_inputs, exterior_boundary_states, exterior_boundary_waves,
         project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
@@ -474,6 +476,116 @@ where
     J::Policy: Default,
     W: PlaneWaveSolutionSource,
 {
+    pub fn mode(&self) -> Result<PlaneWaveMode<'_, J, M, W>, ModeReconstructionError> {
+        Ok(PlaneWaveMode::new(self))
+    }
+    // pub(crate) fn raw_layer_bilinear_boundary_waves_unchecked(
+    //     &self,
+    // ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, BoundaryProjectionError>
+    // where
+    //     W: ReconstructLayerBoundaryWaves<Algebra = J>,
+    // {
+    //     project_layer_boundary_waves(&self.workspace, incident_side)
+    // }
+
+    // pub(crate) fn raw_layer_bilinear_integration_inputs_unchecked(
+    //     &self,
+    // ) -> Result<Layers<LayerIntegrationInput<J>>, LayerProjectionError>
+    // where
+    //     W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    //     J: Clone,
+    // {
+    //     let boundary_waves = self.raw_layer_bilinear_boundary_waves_unchecked()?;
+
+    //     assemble_layer_integration_inputs(&self.workspace, boundary_waves)
+    // }
+
+    // pub(crate) fn raw_qnm_normalisation_unchecked(
+    //     &self,
+    // ) -> Result<Layers<BilinearLayerNormalization<J>>, LayerEnergyError>
+    // where
+    //     J: ComplexJet
+    //         + ScalarAlgebra
+    //         + ScalarAlgebraExpRelExt
+    //         + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+    //         + Clone,
+    //     J::RealJet: ScalarAlgebra,
+    //     J::Scalar: ComplexScalar,
+    //     <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+    //     J::Dimension: Dimension,
+    //     ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    //     W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    // {
+    //     let coordinates = self.problem().coordinates();
+
+    //     let sequence = self
+    //         .raw_layer_bilinear_integration_inputs_unchecked()?
+    //         .integrate_bilinear()
+    //         .into_brillouin_layers(
+    //             self.problem()
+    //                 .stack()
+    //                 .layers()
+    //                 .iter()
+    //                 .map(|layer| layer.material()),
+    //             coordinates.vacuum_angular_wavenumber(),
+    //         )?;
+
+    //     Ok(sequence.into_qnm_normalisation(
+    //         coordinates.vacuum_angular_wavenumber(),
+    //         coordinates.parallel_angular_wavenumber(),
+    //     ))
+    // }
+
+    // pub fn qnm_normalisation_contributions(
+    //     &self,
+    // ) -> Result<DifferentialResponseFor<J, Layers<BilinearLayerNormalization<J>>>, LayerEnergyError>
+    // where
+    //     J: ComplexJet
+    //         + ScalarAlgebra
+    //         + ScalarAlgebraExpRelExt
+    //         + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+    //         + Clone,
+    //     J::RealJet: ScalarAlgebra,
+    //     J::Scalar: ComplexScalar,
+    //     <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+    //     J::Dimension: Dimension,
+    //     ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    //     W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    //     J::Policy: DerivativePartsPolicy<Layers<BilinearLayerNormalization<J>>>,
+    //     Layers<BilinearLayerNormalization<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+    // {
+    //     Ok(self
+    //         .raw_qnm_normalisation_unchecked()?
+    //         .into_differential_response(&J::Policy::default(), self.mapping()))
+    // }
+
+    // pub fn qnm_normalisation(
+    //     &self,
+    // ) -> Result<DifferentialResponseFor<J, AggregateBilinearNormalization<J>>, LayerEnergyError>
+    // where
+    //     J: ComplexJet
+    //         + ScalarAlgebra
+    //         + ScalarAlgebraExpRelExt
+    //         + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+    //         + Clone,
+    //     J::RealJet: ScalarAlgebra,
+    //     J::Scalar: ComplexScalar,
+    //     <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+    //     J::Dimension: Dimension,
+    //     ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    //     W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+    //     J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
+    //     AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+    // {
+    //     Ok(self
+    //         .raw_qnm_normalisation_unchecked()?
+    //         .aggregate()?
+    //         .into_differential_response(&J::Policy::default(), self.mapping()))
+    // }
+
     pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<Self, J>>
     where
         W::Entries: ProjectPlaneWaveModeDeterminant,

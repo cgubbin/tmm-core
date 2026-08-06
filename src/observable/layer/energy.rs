@@ -7,6 +7,13 @@ use crate::{
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::IsotropicLayerQuantities,
     material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
+    observable::{
+        LayerAggregateError,
+        layer::{
+            integration::project_integrated_bilinear_field_overlap,
+            overlap::BilinearLayerNormalization, project::IntegratedBilinearLayerData,
+        },
+    },
 };
 
 use super::{
@@ -16,6 +23,9 @@ use super::{
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum LayerEnergyError {
+    #[error(transparent)]
+    Aggregation(#[from] LayerAggregateError),
+
     #[error(transparent)]
     Projection(#[from] LayerProjectionError),
 
@@ -196,6 +206,87 @@ impl<A> Layers<IntegratedLayerData<A>> {
                         mu_spectral_first,
                     );
                     BrillouinLayerInput::new(layer, material)
+                })
+                .collect(),
+        ))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BrillouinBilinearLayerInput<A> {
+    integrated: IntegratedBilinearLayerData<A>,
+    derivative: BrillouinConstitutiveDerivatives<A>,
+}
+
+impl<A> BrillouinBilinearLayerInput<A> {
+    pub(crate) const fn new(
+        integrated: IntegratedBilinearLayerData<A>,
+        derivative: BrillouinConstitutiveDerivatives<A>,
+    ) -> Self {
+        Self {
+            integrated,
+            derivative,
+        }
+    }
+
+    pub(crate) fn integrated(&self) -> &IntegratedBilinearLayerData<A> {
+        &self.integrated
+    }
+
+    pub(crate) fn derivative(&self) -> &BrillouinConstitutiveDerivatives<A> {
+        &self.derivative
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        IntegratedBilinearLayerData<A>,
+        BrillouinConstitutiveDerivatives<A>,
+    ) {
+        (self.integrated, self.derivative)
+    }
+}
+
+impl<A> Layers<IntegratedBilinearLayerData<A>> {
+    pub(crate) fn into_brillouin_layers<'a, E, M>(
+        self,
+        materials: impl ExactSizeIterator<Item = &'a M>,
+        vacuum_angular_wavenumber: &A,
+    ) -> Result<Layers<BrillouinBilinearLayerInput<A>>, LayerEnergyError>
+    where
+        M: 'a,
+        A: ScalarAlgebra + ConstitutiveSpectralFirstLift<E, M>,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        E: ConstitutiveDerivativeEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        if self.len() != materials.len() {
+            return Err(LayerEnergyError::MaterialCountMismatch {
+                layer_count: self.len(),
+                material_count: materials.len(),
+            });
+        }
+
+        Ok(Layers::new(
+            self.into_inner()
+                .into_iter()
+                .zip(materials)
+                .map(|(layer, material)| {
+                    let epsilon_spectral_first = A::relative_permittivity_spectral_first(
+                        material,
+                        vacuum_angular_wavenumber,
+                    );
+
+                    let mu_spectral_first = A::relative_permeability_spectral_first(
+                        material,
+                        vacuum_angular_wavenumber,
+                    );
+
+                    let material = BrillouinConstitutiveDerivatives::new(
+                        epsilon_spectral_first,
+                        mu_spectral_first,
+                    );
+                    BrillouinBilinearLayerInput::new(layer, material)
                 })
                 .collect(),
         ))
@@ -393,6 +484,57 @@ where
     LayerEnergy::new(electric, magnetic, total)
 }
 
+impl<A> BrillouinBilinearLayerInput<A> {
+    fn into_qnm_normalisation(
+        self,
+        vacuum_angular_wavenumber: &A,
+        parallel_angular_wavenumber: &A,
+    ) -> BilinearLayerNormalization<A>
+    where
+        A: ScalarAlgebra,
+    {
+        let (layer, constitutive) = self.into_parts();
+
+        let (state_products, quantities) = layer.into_parts();
+
+        /*
+         * These are the unweighted, unconjugated field products:
+         *
+         * electric = ∫ E · E dz
+         * magnetic = ∫ H · H dz
+         */
+        let field_overlap = project_integrated_bilinear_field_overlap(
+            &state_products,
+            &quantities,
+            &quantities,
+            vacuum_angular_wavenumber,
+            vacuum_angular_wavenumber,
+            parallel_angular_wavenumber,
+            parallel_angular_wavenumber,
+        );
+
+        let (epsilon_spectral_first, mu_spectral_first) = constitutive.into_parts();
+
+        /*
+         * ∂(k0 ε)/∂k0 = ε + k0 ∂ε/∂k0
+         * ∂(k0 μ)/∂k0 = μ + k0 ∂μ/∂k0
+         */
+        let electric_weight = quantities
+            .epsilon()
+            .add(&vacuum_angular_wavenumber.multiply(&epsilon_spectral_first));
+
+        let magnetic_weight = quantities
+            .mu()
+            .add(&vacuum_angular_wavenumber.multiply(&mu_spectral_first));
+
+        let electric = field_overlap.electric().multiply(&electric_weight);
+
+        let magnetic = field_overlap.magnetic().multiply(&magnetic_weight);
+
+        BilinearLayerNormalization::new(electric, magnetic)
+    }
+}
+
 impl<A> Layers<BrillouinLayerInput<A>> {
     pub(crate) fn into_brillouin_energy(
         self,
@@ -418,6 +560,21 @@ impl<A> Layers<BrillouinLayerInput<A>> {
     }
 }
 
+impl<A> Layers<BrillouinBilinearLayerInput<A>> {
+    pub(crate) fn into_qnm_normalisation(
+        self,
+        vacuum_angular_wavenumber: &A,
+        parallel_angular_wavenumber: &A,
+    ) -> Layers<BilinearLayerNormalization<A>>
+    where
+        A: ScalarAlgebra,
+    {
+        self.map(|each| {
+            each.into_qnm_normalisation(vacuum_angular_wavenumber, parallel_angular_wavenumber)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
@@ -432,7 +589,7 @@ mod tests {
         backend::IsotropicLayerQuantities,
         material::DifferentiableMaterialHandle,
         observable::layer::{
-            IntegratedHermitianStateProducts, Layers, project::IntegratedLayerData,
+            IntegratedHermitianCrossStateProducts, Layers, project::IntegratedLayerData,
         },
     };
 
@@ -487,8 +644,8 @@ mod tests {
     fn state_products(
         field_field: f64,
         secondary_secondary: f64,
-    ) -> IntegratedHermitianStateProducts<A0> {
-        IntegratedHermitianStateProducts::new(
+    ) -> IntegratedHermitianCrossStateProducts<A0> {
+        IntegratedHermitianCrossStateProducts::new(
             jet(c(field_field, 0.0)),
             jet(c(secondary_secondary, 0.0)),
             jet(c(0.0, 0.0)),

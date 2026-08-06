@@ -366,11 +366,11 @@ mod tests {
         )
     }
 
-    fn layer_dissipation(offset: f64) -> HermitianLayerOverlap<Probe> {
+    fn hermitian_overlap(offset: f64) -> HermitianLayerOverlap<Probe> {
         HermitianLayerOverlap::new(probe(offset), probe(offset + 10.0), probe(offset + 20.0))
     }
 
-    fn assert_layer_dissipation(
+    fn assert_hermitian_overlap(
         actual: &HermitianLayerOverlap<f64>,
         left: f64,
         right: f64,
@@ -382,59 +382,59 @@ mod tests {
     }
 
     #[test]
-    fn layer_dissipation_into_value_preserves_component_order() {
-        let value = layer_dissipation(0.0).into_value().into_inner();
+    fn hermitian_overlap_into_value_preserves_component_order() {
+        let value = hermitian_overlap(0.0).into_value().into_inner();
 
-        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
+        assert_hermitian_overlap(&value, 1.0, 11.0, 21.0);
     }
 
     #[test]
-    fn layer_dissipation_into_first_preserves_all_components() {
-        let (value, first) = layer_dissipation(0.0).into_first().into_parts();
+    fn hermitian_overlap_into_first_preserves_all_components() {
+        let (value, first) = hermitian_overlap(0.0).into_first().into_parts();
 
-        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
+        assert_hermitian_overlap(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_dissipation(&first, 2.0, 12.0, 22.0);
+        assert_hermitian_overlap(&first, 2.0, 12.0, 22.0);
     }
 
     #[test]
-    fn layer_dissipation_into_second_preserves_all_components() {
-        let (value, first, second) = layer_dissipation(0.0).into_second().into_parts();
+    fn hermitian_overlap_into_second_preserves_all_components() {
+        let (value, first, second) = hermitian_overlap(0.0).into_second().into_parts();
 
-        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
+        assert_hermitian_overlap(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_dissipation(&first, 2.0, 12.0, 22.0);
+        assert_hermitian_overlap(&first, 2.0, 12.0, 22.0);
 
-        assert_layer_dissipation(&second, 4.0, 14.0, 24.0);
+        assert_hermitian_overlap(&second, 4.0, 14.0, 24.0);
     }
 
     #[test]
-    fn layer_dissipation_into_bivariate_first_preserves_axes() {
-        let (value, axis0, axis1) = layer_dissipation(0.0).into_bivariate_first().into_parts();
+    fn hermitian_overlap_into_bivariate_first_preserves_axes() {
+        let (value, axis0, axis1) = hermitian_overlap(0.0).into_bivariate_first().into_parts();
 
-        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
+        assert_hermitian_overlap(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_dissipation(&axis0, 2.0, 12.0, 22.0);
+        assert_hermitian_overlap(&axis0, 2.0, 12.0, 22.0);
 
-        assert_layer_dissipation(&axis1, 3.0, 13.0, 23.0);
+        assert_hermitian_overlap(&axis1, 3.0, 13.0, 23.0);
     }
 
     #[test]
-    fn layer_dissipation_into_bivariate_second_preserves_all_branches() {
+    fn hermitian_overlap_into_bivariate_second_preserves_all_branches() {
         let (value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1) =
-            layer_dissipation(0.0).into_bivariate_second().into_parts();
+            hermitian_overlap(0.0).into_bivariate_second().into_parts();
 
-        assert_layer_dissipation(&value, 1.0, 11.0, 21.0);
+        assert_hermitian_overlap(&value, 1.0, 11.0, 21.0);
 
-        assert_layer_dissipation(&axis0, 2.0, 12.0, 22.0);
+        assert_hermitian_overlap(&axis0, 2.0, 12.0, 22.0);
 
-        assert_layer_dissipation(&axis1, 3.0, 13.0, 23.0);
+        assert_hermitian_overlap(&axis1, 3.0, 13.0, 23.0);
 
-        assert_layer_dissipation(&axis0_axis0, 4.0, 14.0, 24.0);
+        assert_hermitian_overlap(&axis0_axis0, 4.0, 14.0, 24.0);
 
-        assert_layer_dissipation(&axis0_axis1, 5.0, 15.0, 25.0);
+        assert_hermitian_overlap(&axis0_axis1, 5.0, 15.0, 25.0);
 
-        assert_layer_dissipation(&axis1_axis1, 6.0, 16.0, 26.0);
+        assert_hermitian_overlap(&axis1_axis1, 6.0, 16.0, 26.0);
     }
 }
 

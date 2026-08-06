@@ -1,14 +1,7 @@
 //! Projection of canonical-state cross-products into complete Hermitian
 //! electric- and magnetic-field overlaps.
 
-use thiserror::Error;
-
-use crate::{
-    FiniteLayerIndex, Polarisation,
-    algebra::{RealScalarAlgebra, ScalarAlgebra},
-    backend::IsotropicLayerQuantities,
-    observable::LayerAggregateError,
-};
+use crate::{Polarisation, algebra::RealScalarAlgebra, backend::IsotropicLayerQuantities};
 
 use super::hermitian_state_products::IntegratedHermitianCrossStateProducts;
 
@@ -44,77 +37,6 @@ impl<A> IntegratedHermitianFieldOverlap<A> {
     }
 }
 
-/// Operand involved in a pairwise retained-state operation.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum PairOperand {
-    Reference,
-    Comparison,
-}
-
-impl std::fmt::Display for PairOperand {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Reference => formatter.write_str("reference"),
-            Self::Comparison => formatter.write_str("comparison"),
-        }
-    }
-}
-
-/// Failure to construct or evaluate a Hermitian pair of retained plane-wave
-/// solutions.
-#[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum HermitianOverlapError {
-    /// The compiled sampled array shapes differ.
-    #[error(
-        "reference sampled shape {reference:?} does not match comparison \
-         sampled shape {comparison:?}"
-    )]
-    SampleShapeMismatch {
-        reference: Vec<usize>,
-        comparison: Vec<usize>,
-    },
-
-    /// The states were compiled with different polarizations.
-    #[error(
-        "Hermitian overlap requires matching polarizations; reference is \
-         {reference:?}, comparison is {comparison:?}"
-    )]
-    PolarisationMismatch {
-        reference: Polarisation,
-        comparison: Polarisation,
-    },
-
-    /// The retained finite-layer counts differ.
-    #[error(
-        "reference finite-layer count {reference_count} does not match \
-         comparison finite-layer count {comparison_count}"
-    )]
-    LayerCountMismatch {
-        reference_count: usize,
-        comparison_count: usize,
-    },
-
-    /// Corresponding finite layers do not occupy the same physical interval.
-    #[error(
-        "finite layer {index:?} has incompatible reference and comparison \
-         thicknesses"
-    )]
-    LayerThicknessMismatch { index: FiniteLayerIndex },
-
-    /// The two jet mappings do not assign the same meaning to derivative
-    /// components.
-    #[error("reference and comparison differential mappings are incompatible")]
-    DifferentialMappingMismatch,
-
-    /// A state does not retain the layer data required by pairwise
-    /// observables.
-    #[error("{operand} state does not retain finite-layer analysis data")]
-    LayersNotRetained { operand: PairOperand },
-
-    #[error("error in layer in aggregation {0}")]
-    Aggregate(LayerAggregateError),
-}
-
 pub(crate) fn project_integrated_hermitian_field_overlap<A>(
     state: &IntegratedHermitianCrossStateProducts<A>,
     reference_quantities: &IsotropicLayerQuantities<A>,
@@ -123,20 +45,14 @@ pub(crate) fn project_integrated_hermitian_field_overlap<A>(
     comparison_vacuum_angular_wavenumber: &A,
     reference_parallel_angular_wavenumber: &A,
     comparison_parallel_angular_wavenumber: &A,
-) -> Result<IntegratedHermitianFieldOverlap<A>, HermitianOverlapError>
+) -> IntegratedHermitianFieldOverlap<A>
 where
     A: RealScalarAlgebra,
 {
-    let reference_polarisation = reference_quantities.polarisation();
-
-    let comparison_polarisation = comparison_quantities.polarisation();
-
-    if reference_polarisation != comparison_polarisation {
-        return Err(HermitianOverlapError::PolarisationMismatch {
-            reference: reference_polarisation,
-            comparison: comparison_polarisation,
-        });
-    }
+    debug_assert_eq!(
+        reference_quantities.polarisation(),
+        comparison_quantities.polarisation()
+    );
 
     /*
      * Cross-transverse coefficient:
@@ -170,7 +86,7 @@ where
         .multiply(&transverse)
         .add(&field.multiply(&longitudinal));
 
-    Ok(match reference_polarisation {
+    match reference_quantities.polarisation() {
         Polarisation::TransverseElectric => {
             IntegratedHermitianFieldOverlap::new(field.clone(), reconstructed)
         }
@@ -178,7 +94,7 @@ where
         Polarisation::TransverseMagnetic => {
             IntegratedHermitianFieldOverlap::new(reconstructed, field.clone())
         }
-    })
+    }
 }
 
 #[cfg(test)]
@@ -274,28 +190,6 @@ mod tests {
     }
 
     #[test]
-    fn rejects_mismatched_polarisations() {
-        let error = project_integrated_hermitian_field_overlap(
-            &state_products(c(2.0, 0.3), c(5.0, -0.7)),
-            &quantities(Polarisation::TransverseElectric, c(2.0, 0.0), c(3.0, 0.0)),
-            &quantities(Polarisation::TransverseMagnetic, c(2.0, 0.0), c(3.0, 0.0)),
-            &jet(c(2.0, 0.0)),
-            &jet(c(2.0, 0.0)),
-            &jet(c(0.4, 0.0)),
-            &jet(c(0.4, 0.0)),
-        )
-        .expect_err("TE and TM fields must not be contracted together");
-
-        assert_eq!(
-            error,
-            HermitianOverlapError::PolarisationMismatch {
-                reference: Polarisation::TransverseElectric,
-                comparison: Polarisation::TransverseMagnetic,
-            },
-        );
-    }
-
-    #[test]
     fn te_projection_uses_scalar_field_as_electric_overlap() {
         /*
          * Identical real coordinates:
@@ -329,8 +223,7 @@ mod tests {
             &jet(c(2.0, 0.0)),
             &jet(c(0.6, 0.0)),
             &jet(c(0.6, 0.0)),
-        )
-        .unwrap();
+        );
 
         let expected_magnetic = secondary / 4.0 + field / 100.0;
 
@@ -361,8 +254,7 @@ mod tests {
             &jet(c(2.0, 0.0)),
             &jet(c(0.6, 0.0)),
             &jet(c(0.6, 0.0)),
-        )
-        .unwrap();
+        );
 
         let expected_electric = secondary / 4.0 + field * 0.0225;
 
@@ -387,8 +279,7 @@ mod tests {
             &jet(comparison_k0),
             &jet(c(0.0, 0.0)),
             &jet(c(0.0, 0.0)),
-        )
-        .unwrap();
+        );
 
         let expected = secondary / (reference_k0.conj() * comparison_k0);
 
@@ -423,8 +314,7 @@ mod tests {
             &jet(comparison_k0),
             &jet(reference_beta),
             &jet(comparison_beta),
-        )
-        .unwrap();
+        );
 
         let reference_longitudinal = reference_beta / (reference_k0 * reference_mu);
 
@@ -449,8 +339,7 @@ mod tests {
             &jet(c(3.0, 0.0)),
             &jet(c(0.0, 0.0)),
             &jet(c(0.0, 0.0)),
-        )
-        .unwrap();
+        );
 
         assert_complex_relative_eq(scalar(overlap.electric()), field);
 
@@ -471,8 +360,7 @@ mod tests {
             &jet(c(2.0, 0.0)),
             &jet(c(0.6, 0.0)),
             &jet(c(0.6, 0.0)),
-        )
-        .unwrap();
+        );
 
         assert_complex_relative_eq(scalar(overlap.electric()), c(5.0, 0.0));
 
@@ -512,8 +400,7 @@ mod tests {
             &jet1(c(2.0, 0.0), c(0.0, 0.0)),
             &jet1(c(0.6, 0.0), c(0.0, 0.0)),
             &jet1(c(0.6, 0.0), c(0.0, 0.0)),
-        )
-        .unwrap();
+        );
 
         let expected_electric_first = c(11.0, -3.0);
 
@@ -546,8 +433,7 @@ mod tests {
             &jet(c(2.5, -0.1)),
             &jet(c(0.6, 0.2)),
             &jet(c(0.4, -0.3)),
-        )
-        .unwrap();
+        );
 
         let comparison_reference = project_integrated_hermitian_field_overlap(
             &comparison_reference_state,
@@ -557,8 +443,7 @@ mod tests {
             &jet(c(2.0, 0.3)),
             &jet(c(0.4, -0.3)),
             &jet(c(0.6, 0.2)),
-        )
-        .unwrap();
+        );
 
         assert_complex_relative_eq(
             scalar(reference_comparison.electric()),

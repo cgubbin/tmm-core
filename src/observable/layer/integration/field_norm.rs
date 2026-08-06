@@ -21,7 +21,7 @@ use crate::{
     backend::IsotropicLayerQuantities,
 };
 
-use super::IntegratedHermitianStateProducts;
+use super::IntegratedHermitianCrossStateProducts;
 
 /// Spatially integrated squared electromagnetic field magnitudes.
 ///
@@ -84,7 +84,7 @@ impl<R> IntegratedFieldNorms<R> {
 ///
 /// For TM, the electric and magnetic roles are exchanged.
 pub(crate) fn project_integrated_field_norms<A>(
-    state: &IntegratedHermitianStateProducts<A>,
+    state: &IntegratedHermitianCrossStateProducts<A>,
     quantities: &IsotropicLayerQuantities<A>,
     vacuum_angular_wavenumber: &A,
     parallel_angular_wavenumber: &A,
@@ -241,8 +241,8 @@ mod tests {
     fn state_products(
         field_field: C,
         secondary_secondary: C,
-    ) -> IntegratedHermitianStateProducts<A0> {
-        IntegratedHermitianStateProducts::new(
+    ) -> IntegratedHermitianCrossStateProducts<A0> {
+        IntegratedHermitianCrossStateProducts::new(
             jet(field_field),
             jet(secondary_secondary),
             jet(c(0.0, 0.0)),
@@ -525,7 +525,7 @@ mod tests {
          * magnetic first:
          *   13/4 + 11/100 = 3.36
          */
-        let state = IntegratedHermitianStateProducts::new(
+        let state = IntegratedHermitianCrossStateProducts::new(
             jet1(c(5.0, 0.0), c(11.0, 0.0)),
             jet1(c(7.0, 0.0), c(13.0, 0.0)),
             jet1(c(0.0, 0.0), c(0.0, 0.0)),
@@ -600,7 +600,7 @@ mod tests {
             c(43.0, 0.0),
         );
 
-        let state = IntegratedHermitianStateProducts::new(
+        let state = IntegratedHermitianCrossStateProducts::new(
             field,
             secondary,
             constant_bivariate2(c(0.0, 0.0)),

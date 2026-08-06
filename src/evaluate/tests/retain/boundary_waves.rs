@@ -7,7 +7,7 @@ use crate::{
     algebra::ScalarAlgebra,
     backend::{
         BidirectionalWaves, ExteriorAdmittanceProvider, IsotropicLayerQuantities,
-        PlaneWaveSolutionSource, ReconstructLayerBoundaryWaves, Scatter2, Transfer2,
+        ReconstructLayerBoundaryWaves, Scatter2, Transfer2,
         transfer2::{
             TransferState, bidirectional_waves_from_state, right_exterior_waves,
             transfer_state_from_waves, transfer_state_slope,

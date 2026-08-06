@@ -1,18 +1,55 @@
 mod bilinear;
+mod error;
 mod hermitian;
 
 pub use bilinear::{
-    AggregateBilinearOverlap, BilinearLayerOverlapInput, NormalizedBilinearOverlap,
+    AggregateBilinearNormalization, AggregateBilinearOverlap, BilinearLayerNormalization,
 };
 
-pub use hermitian::{
-    AggregateHermitianOverlap, HermitianLayerOverlapInput, NormalizedHermitianOverlap,
-};
+pub use hermitian::{AggregateHermitianOverlap, NormalizedHermitianOverlap};
 
-pub(crate) use bilinear::BilinearLayerOverlap;
-pub(crate) use hermitian::HermitianLayerOverlap;
+pub(crate) use bilinear::{BilinearLayerOverlap, BilinearLayerOverlapInput};
+pub(crate) use error::{OverlapError, PairOperand};
+pub(crate) use hermitian::{HermitianLayerOverlap, HermitianLayerOverlapInput};
 
 use crate::{backend::IsotropicLayerQuantities, observable::BoundaryWaves};
+
+/// Matched left and right solution data for one physical finite layer.
+///
+/// The two operands must refer to the same physical layer. `thickness` is the
+/// common physical integration interval.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LayerOverlapInput<A> {
+    left: LayerOverlapOperand<A>,
+    right: LayerOverlapOperand<A>,
+    thickness: A,
+}
+
+impl<A> LayerOverlapInput<A> {
+    pub(crate) const fn new(
+        left: LayerOverlapOperand<A>,
+        right: LayerOverlapOperand<A>,
+        thickness: A,
+    ) -> Self {
+        Self {
+            left,
+            right,
+            thickness,
+        }
+    }
+
+    fn into_parts(self) -> (LayerOverlapOperand<A>, LayerOverlapOperand<A>, A) {
+        (self.left, self.right, self.thickness)
+    }
+
+    pub(crate) fn into_hermitian(self) -> HermitianLayerOverlapInput<A> {
+        HermitianLayerOverlapInput::new(self.left, self.right, self.thickness)
+    }
+
+    pub(crate) fn into_bilinear(self) -> BilinearLayerOverlapInput<A> {
+        BilinearLayerOverlapInput::new(self.left, self.right, self.thickness)
+    }
+}
 
 /// Boundary waves and isotropic medium quantities for one overlap operand.
 ///

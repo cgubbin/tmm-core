@@ -3,13 +3,19 @@ use thiserror::Error;
 
 use crate::{
     ComplexScalar,
-    algebra::{RealScalarAlgebra, ScalarAlgebraExpRelExt},
+    algebra::{RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{IsotropicLayerQuantities, RetainedIsotropicLayers},
-    observable::{BoundaryProjectionError, BoundaryWaves, LayerBoundaries, LayerBoundaryWaves},
+    observable::{
+        BoundaryProjectionError, BoundaryWaves, LayerBoundaries, LayerBoundaryWaves,
+        layer::integration::{
+            IntegratedBilinearCrossStateProducts, integrate_bilinear_wave_products,
+            project_integrated_bilinear_state_products,
+        },
+    },
 };
 
 use super::{
-    IntegratedHermitianStateProducts, Layers, integrate_hermitian_wave_products,
+    IntegratedHermitianCrossStateProducts, Layers, integrate_hermitian_wave_products,
     integration::project_integrated_hermitian_state_products,
 };
 
@@ -92,13 +98,13 @@ impl<A> LayerIntegrationInput<A> {
 /// have been constructed.
 #[derive(Clone, Debug)]
 pub(crate) struct IntegratedLayerData<A> {
-    state_products: IntegratedHermitianStateProducts<A>,
+    state_products: IntegratedHermitianCrossStateProducts<A>,
     quantities: IsotropicLayerQuantities<A>,
 }
 
 impl<A> IntegratedLayerData<A> {
     pub(super) const fn new(
-        state_products: IntegratedHermitianStateProducts<A>,
+        state_products: IntegratedHermitianCrossStateProducts<A>,
         quantities: IsotropicLayerQuantities<A>,
     ) -> Self {
         Self {
@@ -107,7 +113,7 @@ impl<A> IntegratedLayerData<A> {
         }
     }
 
-    pub(crate) fn state_products(&self) -> &IntegratedHermitianStateProducts<A> {
+    pub(crate) fn state_products(&self) -> &IntegratedHermitianCrossStateProducts<A> {
         &self.state_products
     }
 
@@ -118,7 +124,48 @@ impl<A> IntegratedLayerData<A> {
     pub(super) fn into_parts(
         self,
     ) -> (
-        IntegratedHermitianStateProducts<A>,
+        IntegratedHermitianCrossStateProducts<A>,
+        IsotropicLayerQuantities<A>,
+    ) {
+        (self.state_products, self.quantities)
+    }
+}
+
+/// Analytically integrated Bilinear canonical-state products and
+/// constitutive quantities for one finite layer.
+///
+/// This type is specific to complex-input Bilinear analysis. The original wave
+/// products and thickness are discarded after the canonical-state products
+/// have been constructed.
+#[derive(Clone, Debug)]
+pub(crate) struct IntegratedBilinearLayerData<A> {
+    state_products: IntegratedBilinearCrossStateProducts<A>,
+    quantities: IsotropicLayerQuantities<A>,
+}
+
+impl<A> IntegratedBilinearLayerData<A> {
+    pub(super) const fn new(
+        state_products: IntegratedBilinearCrossStateProducts<A>,
+        quantities: IsotropicLayerQuantities<A>,
+    ) -> Self {
+        Self {
+            state_products,
+            quantities,
+        }
+    }
+
+    pub(crate) fn state_products(&self) -> &IntegratedBilinearCrossStateProducts<A> {
+        &self.state_products
+    }
+
+    pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
+        &self.quantities
+    }
+
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        IntegratedBilinearCrossStateProducts<A>,
         IsotropicLayerQuantities<A>,
     ) {
         (self.state_products, self.quantities)
@@ -187,6 +234,25 @@ impl<A> LayerIntegrationInput<A> {
     }
 }
 
+impl<A> LayerIntegrationInput<A> {
+    fn integrate_bilinear(self) -> IntegratedBilinearLayerData<A>
+    where
+        A: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+    {
+        let (waves, quantities, thickness) = self.into_parts();
+
+        let products = integrate_bilinear_wave_products(&waves, quantities.kappa(), &thickness);
+
+        let admittance = quantities.admittance().into_inner();
+
+        let state_products = project_integrated_bilinear_state_products(&products, &admittance);
+
+        IntegratedBilinearLayerData::new(state_products, quantities)
+    }
+}
+
 impl<A> Layers<LayerIntegrationInput<A>> {
     pub(crate) fn integrate(self) -> Layers<IntegratedLayerData<A>>
     where
@@ -195,6 +261,17 @@ impl<A> Layers<LayerIntegrationInput<A>> {
         A::Dimension: Dimension,
     {
         self.map(LayerIntegrationInput::integrate)
+    }
+}
+
+impl<A> Layers<LayerIntegrationInput<A>> {
+    pub(crate) fn integrate_bilinear(self) -> Layers<IntegratedBilinearLayerData<A>>
+    where
+        A: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+    {
+        self.map(LayerIntegrationInput::integrate_bilinear)
     }
 }
 

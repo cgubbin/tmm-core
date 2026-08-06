@@ -23,7 +23,8 @@ pub(crate) use solution::{
 pub use transfer2::{Transfer2, Transfer2Error};
 pub(crate) use waves::{BidirectionalWaves, LayerBoundaryWaves};
 pub(crate) use workspace::{
-    ReconstructLayerBoundaryWaves, RetainedIsotropicLayers, SolutionWorkspace,
+    ReconstructLayerBoundaryWaves, ReconstructLayerModeWaves, RetainedIsotropicLayers,
+    SolutionWorkspace,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

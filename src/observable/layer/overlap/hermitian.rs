@@ -31,13 +31,16 @@ use crate::{
     algebra::{RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
 };
 
-use super::super::{
-    LayerAggregateError, LayerOverlapOperand, Layers,
-    integration::{
-        HermitianOverlapError, integrate_hermitian_cross_wave_products,
-        project_integrated_hermitian_cross_state_products,
-        project_integrated_hermitian_field_overlap,
+use super::{
+    super::{
+        LayerAggregateError, LayerOverlapOperand, Layers,
+        integration::{
+            integrate_hermitian_cross_wave_products,
+            project_integrated_hermitian_cross_state_products,
+            project_integrated_hermitian_field_overlap,
+        },
     },
+    OverlapError,
 };
 
 /// Matched left and right solution data for one physical finite layer.
@@ -244,7 +247,7 @@ impl<A> HermitianLayerOverlapInput<A> {
         right_vacuum_angular_wavenumber: &A,
         left_parallel_angular_wavenumber: &A,
         right_parallel_angular_wavenumber: &A,
-    ) -> Result<HermitianLayerOverlap<A>, HermitianOverlapError>
+    ) -> Result<HermitianLayerOverlap<A>, OverlapError>
     where
         A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
@@ -268,6 +271,17 @@ impl<A> HermitianLayerOverlapInput<A> {
 
         let right_admittance = right_quantities.admittance().into_inner();
 
+        let left_polarisation = left_quantities.polarisation();
+
+        let right_polarisation = right_quantities.polarisation();
+
+        if left_polarisation != right_polarisation {
+            return Err(OverlapError::PolarisationMismatch {
+                reference: left_polarisation,
+                comparison: right_polarisation,
+            });
+        }
+
         let state = project_integrated_hermitian_cross_state_products(
             &products,
             &left_admittance,
@@ -282,7 +296,7 @@ impl<A> HermitianLayerOverlapInput<A> {
             right_vacuum_angular_wavenumber,
             left_parallel_angular_wavenumber,
             right_parallel_angular_wavenumber,
-        )?;
+        );
 
         Ok(HermitianLayerOverlap::new(
             field.electric().clone(),
@@ -304,7 +318,7 @@ where
         right_vacuum_angular_wavenumber: &A,
         left_parallel_angular_wavenumber: &A,
         right_parallel_angular_wavenumber: &A,
-    ) -> Result<Layers<HermitianLayerOverlap<A>>, HermitianOverlapError> {
+    ) -> Result<Layers<HermitianLayerOverlap<A>>, OverlapError> {
         self.into_inner()
             .into_iter()
             .map(|layer| {

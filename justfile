@@ -77,6 +77,9 @@ run *args:
 watch:
     cargo watch -x check -x test
 
+check:
+    cargo watch -x check 
+
 bench:
     cargo bench
 

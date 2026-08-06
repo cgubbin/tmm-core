@@ -19,119 +19,6 @@ use crate::{ComplexScalar, algebra::RealScalarAlgebra};
 
 use super::IntegratedWaveProducts;
 
-/// Spatially integrated Hermitian products of the canonical isotropic state.
-///
-/// These products are valid for real-input physical analysis. The left state
-/// factor is complex-conjugated, so this representation is not holomorphic in
-/// complex modal coordinates.
-///
-/// The entries are:
-///
-/// ```text
-/// field_field
-///     = ∫ field* field dz
-///
-/// secondary_secondary
-///     = ∫ secondary* secondary dz
-///
-/// field_secondary
-///     = ∫ field* secondary dz
-///
-/// secondary_field
-///     = ∫ secondary* field dz
-/// ```
-///
-/// The diagonal terms are real-valued mathematically, but remain represented
-/// by the complex algebra so derivative and storage handling stays uniform.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IntegratedHermitianStateProducts<A> {
-    field_field: A,
-    secondary_secondary: A,
-    field_secondary: A,
-    secondary_field: A,
-}
-
-impl<A> IntegratedHermitianStateProducts<A> {
-    pub(crate) const fn new(
-        field_field: A,
-        secondary_secondary: A,
-        field_secondary: A,
-        secondary_field: A,
-    ) -> Self {
-        Self {
-            field_field,
-            secondary_secondary,
-            field_secondary,
-            secondary_field,
-        }
-    }
-
-    pub(crate) fn field_field(&self) -> &A {
-        &self.field_field
-    }
-
-    pub(crate) fn secondary_secondary(&self) -> &A {
-        &self.secondary_secondary
-    }
-
-    pub(crate) fn field_secondary(&self) -> &A {
-        &self.field_secondary
-    }
-
-    pub(crate) fn secondary_field(&self) -> &A {
-        &self.secondary_field
-    }
-
-    pub(crate) fn into_parts(self) -> (A, A, A, A) {
-        (
-            self.field_field,
-            self.secondary_secondary,
-            self.field_secondary,
-            self.secondary_field,
-        )
-    }
-
-    pub(crate) fn map<B>(self, mut map: impl FnMut(A) -> B) -> IntegratedHermitianStateProducts<B> {
-        IntegratedHermitianStateProducts {
-            field_field: map(self.field_field),
-            secondary_secondary: map(self.secondary_secondary),
-            field_secondary: map(self.field_secondary),
-            secondary_field: map(self.secondary_field),
-        }
-    }
-}
-
-/// Transform integrated directional-wave products into integrated canonical
-/// state products.
-///
-/// The projected function is:
-///
-/// ```text
-/// field     = f + b
-/// secondary = ξ(b - f)
-/// ξ = -iY
-/// ```
-pub(crate) fn project_integrated_hermitian_state_products<A>(
-    products: &IntegratedWaveProducts<A>,
-    admittance: &A,
-) -> IntegratedHermitianStateProducts<A>
-where
-    A: RealScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let cross = project_integrated_hermitian_cross_state_products(products, admittance, admittance);
-
-    let (field_field, secondary_secondary, field_secondary, secondary_field) = cross.into_parts();
-
-    IntegratedHermitianStateProducts::new(
-        field_field,
-        secondary_secondary,
-        field_secondary,
-        secondary_field,
-    )
-}
-
 /// Spatially integrated Hermitian cross-products of two canonical isotropic
 /// states.
 ///
@@ -200,6 +87,49 @@ impl<A> IntegratedHermitianCrossStateProducts<A> {
             self.secondary_field,
         )
     }
+
+    pub(crate) fn map<B>(
+        self,
+        mut map: impl FnMut(A) -> B,
+    ) -> IntegratedHermitianCrossStateProducts<B> {
+        IntegratedHermitianCrossStateProducts::new(
+            map(self.field_field),
+            map(self.secondary_secondary),
+            map(self.field_secondary),
+            map(self.secondary_field),
+        )
+    }
+}
+
+/// Transform integrated directional-wave products into integrated canonical
+/// state products.
+///
+/// The projected function is:
+///
+/// ```text
+/// field     = f + b
+/// secondary = ξ(b - f)
+/// ξ = -iY
+/// ```
+pub(crate) fn project_integrated_hermitian_state_products<A>(
+    products: &IntegratedWaveProducts<A>,
+    admittance: &A,
+) -> IntegratedHermitianCrossStateProducts<A>
+where
+    A: RealScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let cross = project_integrated_hermitian_cross_state_products(products, admittance, admittance);
+
+    let (field_field, secondary_secondary, field_secondary, secondary_field) = cross.into_parts();
+
+    IntegratedHermitianCrossStateProducts::new(
+        field_field,
+        secondary_secondary,
+        field_secondary,
+        secondary_field,
+    )
 }
 
 /// Transform integrated Hermitian directional-wave cross-products into
@@ -321,7 +251,7 @@ mod tests {
 
     #[test]
     fn integrated_state_products_store_all_components() {
-        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianCrossStateProducts::new(1, 2, 3, 4);
 
         assert_eq!(products.field_field(), &1);
         assert_eq!(products.secondary_secondary(), &2,);
@@ -331,14 +261,14 @@ mod tests {
 
     #[test]
     fn into_parts_preserves_component_order() {
-        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianCrossStateProducts::new(1, 2, 3, 4);
 
         assert_eq!(products.into_parts(), (1, 2, 3, 4),);
     }
 
     #[test]
     fn map_transforms_every_component() {
-        let products = IntegratedHermitianStateProducts::new(1, 2, 3, 4);
+        let products = IntegratedHermitianCrossStateProducts::new(1, 2, 3, 4);
 
         let mapped = products.map(|value| value * 10);
 

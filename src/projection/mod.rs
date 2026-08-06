@@ -183,7 +183,7 @@ mod tests {
     use crate::{
         algebra::{
             ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet, Jet0,
-            Jet1, Jet2, JetBivariate1, JetBivariate2, RealParameter, ScalarAlgebra,
+            Jet1, Jet2, RealParameter, ScalarAlgebra,
         },
         differential::{BivariateGradient, BivariateHessian},
     };

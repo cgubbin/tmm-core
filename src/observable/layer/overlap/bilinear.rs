@@ -2,19 +2,189 @@ use ndarray::Dimension;
 
 use crate::{
     ComplexScalar,
-    algebra::{RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
+    algebra::{ScalarAlgebra, ScalarAlgebraExpRelExt},
+    observable::layer::integration::{
+        integrate_bilinear_cross_wave_products, project_integrated_bilinear_cross_state_products,
+        project_integrated_bilinear_field_overlap,
+    },
 };
 
-use super::super::{
-    LayerAggregateError, LayerOverlapOperand, Layers, integration::BilinearOverlapError,
+use super::{
+    super::{LayerAggregateError, LayerOverlapOperand, Layers},
+    OverlapError,
 };
+
+/// Dispersive bilinear contribution to a quasinormal-mode normalization.
+///
+/// ```text
+/// electric = ∫ E · ∂(k0 ε)/∂k0 E dz
+/// magnetic = ∫ H · ∂(k0 μ)/∂k0 H dz
+/// total    = electric - magnetic
+/// ```
+///
+/// No complex conjugation is applied.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BilinearLayerNormalization<C> {
+    electric: C,
+    magnetic: C,
+    total: C,
+}
+
+impl<C> BilinearLayerNormalization<C> {
+    pub(crate) fn new(electric: C, magnetic: C) -> Self
+    where
+        C: ScalarAlgebra,
+    {
+        let total = electric.subtract(&magnetic);
+
+        Self {
+            electric,
+            magnetic,
+            total,
+        }
+    }
+
+    pub(crate) const fn from_parts(electric: C, magnetic: C, total: C) -> Self {
+        Self {
+            electric,
+            magnetic,
+            total,
+        }
+    }
+
+    pub fn electric(&self) -> &C {
+        &self.electric
+    }
+
+    pub fn magnetic(&self) -> &C {
+        &self.magnetic
+    }
+
+    pub fn total(&self) -> &C {
+        &self.total
+    }
+
+    pub fn into_parts(self) -> (C, C, C) {
+        (self.electric, self.magnetic, self.total)
+    }
+
+    pub fn normalise_by(mut self, total: &C) -> Self
+    where
+        C: ScalarAlgebra,
+    {
+        self.electric = self.electric.divide(total);
+        self.magnetic = self.magnetic.divide(total);
+        self.total = self.total.divide(total);
+
+        self
+    }
+
+    pub fn map<U>(self, mut map: impl FnMut(C) -> U) -> BilinearLayerNormalization<U> {
+        BilinearLayerNormalization {
+            electric: map(self.electric),
+            magnetic: map(self.magnetic),
+            total: map(self.total),
+        }
+    }
+}
+
+pub struct AggregateBilinearNormalization<C> {
+    electric: C,
+    magnetic: C,
+    total: C,
+}
+
+impl<C> AggregateBilinearNormalization<C> {
+    pub(crate) const fn from_parts(electric: C, magnetic: C, total: C) -> Self {
+        Self {
+            electric,
+            magnetic,
+            total,
+        }
+    }
+
+    /// Return the aggregate electric-field overlap.
+    pub fn electric(&self) -> &C {
+        &self.electric
+    }
+
+    /// Return the aggregate magnetic-field overlap.
+    pub fn magnetic(&self) -> &C {
+        &self.magnetic
+    }
+
+    /// Return the aggregate total field overlap.
+    pub fn total(&self) -> &C {
+        &self.total
+    }
+
+    /// Consume the aggregate and return `(electric, magnetic, total)`.
+    pub fn into_parts(self) -> (C, C, C) {
+        (self.electric, self.magnetic, self.total)
+    }
+
+    /// Transform every aggregate component.
+    pub fn map<U>(self, mut map: impl FnMut(C) -> U) -> AggregateBilinearNormalization<U> {
+        AggregateBilinearNormalization {
+            electric: map(self.electric),
+            magnetic: map(self.magnetic),
+            total: map(self.total),
+        }
+    }
+}
+
+impl<A> Layers<BilinearLayerNormalization<A>> {
+    pub(crate) fn aggregate(&self) -> Result<AggregateBilinearNormalization<A>, LayerAggregateError>
+    where
+        A: ScalarAlgebra,
+    {
+        let mut layers = self.iter();
+
+        let first = layers.next().ok_or(LayerAggregateError::EmptyLayers)?;
+
+        let mut electric = first.electric().clone();
+
+        let mut magnetic = first.magnetic().clone();
+
+        let mut total = first.total().clone();
+
+        for layer in layers {
+            electric = electric.add(layer.electric());
+
+            magnetic = magnetic.add(layer.magnetic());
+
+            total = total.add(layer.total());
+        }
+
+        Ok(AggregateBilinearNormalization::from_parts(
+            electric, magnetic, total,
+        ))
+    }
+}
+
+fn bilinear_normalization_coefficients<A>(
+    vacuum_angular_wavenumber: &A,
+    epsilon: &A,
+    epsilon_first: &A,
+    mu: &A,
+    mu_first: &A,
+) -> (A, A)
+where
+    A: ScalarAlgebra,
+{
+    let electric = epsilon.add(&vacuum_angular_wavenumber.multiply(epsilon_first));
+
+    let magnetic = mu.add(&vacuum_angular_wavenumber.multiply(mu_first));
+
+    (electric, magnetic)
+}
 
 /// Matched left and right solution data for one physical finite layer.
 ///
 /// The two operands must refer to the same physical layer. `thickness` is the
 /// common physical integration interval.
 #[derive(Clone, Debug, PartialEq)]
-pub struct BilinearLayerOverlapInput<A> {
+pub(crate) struct BilinearLayerOverlapInput<A> {
     left: LayerOverlapOperand<A>,
     right: LayerOverlapOperand<A>,
     thickness: A,
@@ -56,7 +226,7 @@ pub struct BilinearLayerOverlap<C> {
 }
 
 impl<C> BilinearLayerOverlap<C> {
-    pub(crate) fn new(electric: C, magnetic: C, total: C) -> Self {
+    pub(crate) fn from_parts(electric: C, magnetic: C, total: C) -> Self {
         Self {
             electric,
             magnetic,
@@ -105,7 +275,7 @@ pub struct AggregateBilinearOverlap<C> {
 }
 
 impl<C> AggregateBilinearOverlap<C> {
-    pub(crate) const fn new(electric: C, magnetic: C, total: C) -> Self {
+    pub(crate) const fn from_parts(electric: C, magnetic: C, total: C) -> Self {
         Self {
             electric,
             magnetic,
@@ -143,69 +313,6 @@ impl<C> AggregateBilinearOverlap<C> {
     }
 }
 
-/// Componentwise normalized Bilinear overlap between two solutions.
-///
-/// Each component is normalized independently:
-///
-/// ```text
-/// electric = cross_electric
-///          / sqrt(left_self_electric right_self_electric)
-///
-/// magnetic = cross_magnetic
-///          / sqrt(left_self_magnetic right_self_magnetic)
-///
-/// total    = cross_total
-///          / sqrt(left_self_total right_self_total)
-/// ```
-///
-/// For nonzero self-overlaps, identical solutions have unit normalized
-/// overlap. Orthogonal solutions have zero overlap under the selected form.
-#[derive(Clone, Debug, PartialEq)]
-pub struct NormalizedBilinearOverlap<C> {
-    electric: C,
-    magnetic: C,
-    total: C,
-}
-
-impl<C> NormalizedBilinearOverlap<C> {
-    const fn new(electric: C, magnetic: C, total: C) -> Self {
-        Self {
-            electric,
-            magnetic,
-            total,
-        }
-    }
-
-    /// Return the normalized electric overlap.
-    pub fn electric(&self) -> &C {
-        &self.electric
-    }
-
-    /// Return the normalized magnetic overlap.
-    pub fn magnetic(&self) -> &C {
-        &self.magnetic
-    }
-
-    /// Return the normalized total overlap.
-    pub fn total(&self) -> &C {
-        &self.total
-    }
-
-    /// Consume the result and return `(electric, magnetic, total)`.
-    pub fn into_parts(self) -> (C, C, C) {
-        (self.electric, self.magnetic, self.total)
-    }
-
-    /// Transform every normalized component.
-    pub fn map<U>(self, mut map: impl FnMut(C) -> U) -> NormalizedBilinearOverlap<U> {
-        NormalizedBilinearOverlap {
-            electric: map(self.electric),
-            magnetic: map(self.magnetic),
-            total: map(self.total),
-        }
-    }
-}
-
 impl<A> BilinearLayerOverlapInput<A> {
     fn integrate(
         self,
@@ -213,9 +320,9 @@ impl<A> BilinearLayerOverlapInput<A> {
         right_vacuum_angular_wavenumber: &A,
         left_parallel_angular_wavenumber: &A,
         right_parallel_angular_wavenumber: &A,
-    ) -> Result<BilinearLayerOverlap<A>, HermitianOverlapError>
+    ) -> Result<BilinearLayerOverlap<A>, OverlapError>
     where
-        A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
+        A: ScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
@@ -237,6 +344,17 @@ impl<A> BilinearLayerOverlapInput<A> {
 
         let right_admittance = right_quantities.admittance().into_inner();
 
+        let left_polarisation = left_quantities.polarisation();
+
+        let right_polarisation = right_quantities.polarisation();
+
+        if left_polarisation != right_polarisation {
+            return Err(OverlapError::PolarisationMismatch {
+                reference: left_polarisation,
+                comparison: right_polarisation,
+            });
+        }
+
         let state = project_integrated_bilinear_cross_state_products(
             &products,
             &left_admittance,
@@ -251,9 +369,9 @@ impl<A> BilinearLayerOverlapInput<A> {
             right_vacuum_angular_wavenumber,
             left_parallel_angular_wavenumber,
             right_parallel_angular_wavenumber,
-        )?;
+        );
 
-        Ok(BilinearLayerOverlap::new(
+        Ok(BilinearLayerOverlap::from_parts(
             field.electric().clone(),
             field.magnetic().clone(),
             field.electric().add(field.magnetic()),
@@ -263,7 +381,7 @@ impl<A> BilinearLayerOverlapInput<A> {
 
 impl<A> Layers<BilinearLayerOverlapInput<A>>
 where
-    A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
+    A: ScalarAlgebra + ScalarAlgebraExpRelExt,
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
@@ -273,7 +391,7 @@ where
         right_vacuum_angular_wavenumber: &A,
         left_parallel_angular_wavenumber: &A,
         right_parallel_angular_wavenumber: &A,
-    ) -> Result<Layers<BilinearLayerOverlap<A>>, HermitianOverlapError> {
+    ) -> Result<Layers<BilinearLayerOverlap<A>>, OverlapError> {
         self.into_inner()
             .into_iter()
             .map(|layer| {
@@ -312,34 +430,143 @@ where
             total = total.add(layer.total());
         }
 
-        Ok(AggregateBilinearOverlap::new(electric, magnetic, total))
+        Ok(AggregateBilinearOverlap::from_parts(
+            electric, magnetic, total,
+        ))
     }
 }
 
-impl<C> AggregateBilinearOverlap<C>
-where
-    C: ScalarAlgebra,
-{
-    /// Normalize this cross-overlap by the corresponding left and right
-    /// self-overlaps.
-    pub fn normalized(&self, left_self: &Self, right_self: &Self) -> NormalizedBilinearOverlap<C> {
-        let electric_denominator = left_self.electric().multiply(right_self.electric()).sqrt();
+#[cfg(test)]
+mod tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
 
-        let magnetic_denominator = left_self.magnetic().multiply(right_self.magnetic()).sqrt();
+    use super::*;
 
-        let total_denominator = left_self.total().multiply(right_self.total()).sqrt();
+    use crate::{
+        algebra::{ArrayJet0, Jet, Jet0, RealParameter},
+        observable::Layers,
+    };
 
-        NormalizedBilinearOverlap::new(
-            self.electric().divide(&electric_denominator),
-            self.magnetic().divide(&magnetic_denominator),
-            self.total().divide(&total_denominator),
-        )
+    type A = ArrayJet0<Complex64, Ix0, RealParameter>;
+
+    const TOLERANCE: f64 = 1.0e-12;
+
+    fn jet(value: Complex64) -> A {
+        Jet0::new(arr0(value))
     }
 
-    /// Return the componentwise normalized overlap of this result with itself.
-    ///
-    /// This returns unity for every nonzero component.
-    pub fn self_normalized(&self) -> NormalizedBilinearOverlap<C> {
-        self.normalized(self, self)
+    fn scalar(value: &A) -> Complex64 {
+        value.value()[()]
+    }
+
+    fn assert_complex_close(actual: Complex64, expected: Complex64) {
+        assert_relative_eq!(
+            actual.re,
+            expected.re,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+
+        assert_relative_eq!(
+            actual.im,
+            expected.im,
+            epsilon = TOLERANCE,
+            max_relative = TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn bilinear_layer_overlap_into_parts_preserves_order() {
+        let overlap = BilinearLayerOverlap::from_parts(
+            jet(Complex64::new(1.0, 0.0)),
+            jet(Complex64::new(2.0, 0.0)),
+            jet(Complex64::new(3.0, 0.0)),
+        );
+
+        let (electric, magnetic, total) = overlap.into_parts();
+
+        assert_eq!(scalar(&electric), Complex64::new(1.0, 0.0));
+        assert_eq!(scalar(&magnetic), Complex64::new(2.0, 0.0));
+        assert_eq!(scalar(&total), Complex64::new(3.0, 0.0));
+    }
+
+    #[test]
+    fn bilinear_layer_overlap_map_transforms_every_component() {
+        let overlap = BilinearLayerOverlap::from_parts(1, 2, 3);
+
+        let mapped = overlap.map(|value| format!("value-{value}"));
+
+        assert_eq!(mapped.electric(), "value-1");
+        assert_eq!(mapped.magnetic(), "value-2");
+        assert_eq!(mapped.total(), "value-3");
+    }
+
+    #[test]
+    fn aggregate_sums_all_layers() {
+        let layers = Layers::new(vec![
+            BilinearLayerOverlap::from_parts(
+                jet(Complex64::new(1.0, 1.0)),
+                jet(Complex64::new(2.0, 0.0)),
+                jet(Complex64::new(3.0, 1.0)),
+            ),
+            BilinearLayerOverlap::from_parts(
+                jet(Complex64::new(3.0, -1.0)),
+                jet(Complex64::new(4.0, 2.0)),
+                jet(Complex64::new(7.0, 1.0)),
+            ),
+        ]);
+
+        let aggregate = layers.aggregate().unwrap();
+
+        assert_complex_close(scalar(aggregate.electric()), Complex64::new(4.0, 0.0));
+
+        assert_complex_close(scalar(aggregate.magnetic()), Complex64::new(6.0, 2.0));
+
+        assert_complex_close(scalar(aggregate.total()), Complex64::new(10.0, 2.0));
+    }
+
+    #[test]
+    fn aggregate_rejects_empty_layers() {
+        let layers: Layers<BilinearLayerOverlap<A>> = Layers::new(Vec::new());
+
+        let error = layers.aggregate().unwrap_err();
+
+        assert_eq!(error, LayerAggregateError::EmptyLayers);
+    }
+
+    #[test]
+    fn aggregate_total_is_component_sum() {
+        let layers = Layers::new(vec![
+            BilinearLayerOverlap::from_parts(
+                jet(Complex64::new(1.0, 1.0)),
+                jet(Complex64::new(2.0, 0.0)),
+                jet(Complex64::new(3.0, 1.0)),
+            ),
+            BilinearLayerOverlap::from_parts(
+                jet(Complex64::new(3.0, -1.0)),
+                jet(Complex64::new(4.0, 2.0)),
+                jet(Complex64::new(7.0, 1.0)),
+            ),
+        ]);
+
+        let aggregate = layers.aggregate().unwrap();
+
+        assert_complex_close(
+            scalar(aggregate.total()),
+            scalar(aggregate.electric()) + scalar(aggregate.magnetic()),
+        );
+    }
+
+    #[test]
+    fn aggregate_map_transforms_every_component() {
+        let aggregate = AggregateBilinearOverlap::from_parts(1, 2, 3);
+
+        let mapped = aggregate.map(|value| value * 10);
+
+        assert_eq!(mapped.electric(), &10);
+        assert_eq!(mapped.magnetic(), &20);
+        assert_eq!(mapped.total(), &30);
     }
 }

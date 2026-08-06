@@ -135,6 +135,19 @@ where
     thickness.multiply(&argument.exprel())
 }
 
+pub(crate) fn integrate_bilinear_wave_products<A>(
+    waves: &BoundaryWaves<A>,
+    kappa: &A,
+    thickness: &A,
+) -> IntegratedWaveProducts<A>
+where
+    A: ScalarAlgebra + ScalarAlgebraExpRelExt,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    integrate_bilinear_cross_wave_products(waves, waves, kappa, kappa, thickness)
+}
+
 /// Analytically integrate Hermitian directional-wave products.
 ///
 /// For:
@@ -193,7 +206,7 @@ where
 /// right wave sets. In a modal-normalisation calculation, the caller is
 /// responsible for providing the appropriate primal and dual or adjoint
 /// fields, propagation branches, and boundary conventions.
-pub(crate) fn integrate_bilinear_wave_products<A>(
+pub(crate) fn integrate_bilinear_cross_wave_products<A>(
     left_waves: &BoundaryWaves<A>,
     right_waves: &BoundaryWaves<A>,
     left_normal_wavevector: &A,
@@ -209,7 +222,7 @@ where
 
     let sum = left_normal_wavevector.add(right_normal_wavevector);
 
-    let difference = left_normal_wavevector.subtract(right_normal_wavevector);
+    let left_minus_right = left_normal_wavevector.subtract(right_normal_wavevector);
 
     /*
      * exp(+ik_l z) exp(+ik_r z)
@@ -224,12 +237,12 @@ where
     /*
      * exp(+ik_l z) exp(-ik_r z)
      */
-    let forward_backward_exponent = difference.scale(i);
+    let forward_backward_exponent = left_minus_right.scale(i);
 
     /*
      * exp(-ik_l z) exp(+ik_r z)
      */
-    let backward_forward_exponent = difference.scale(-i);
+    let backward_forward_exponent = left_minus_right.scale(-i);
 
     let forward_forward = left_waves
         .forward()
@@ -479,7 +492,7 @@ mod zero_order_tests {
 
     #[test]
     fn zero_thickness_produces_zero_bilinear_products() {
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(jet(c(1.0, 0.2)), jet(c(-0.3, 0.4))),
             &BoundaryWaves::new(jet(c(0.6, -0.1)), jet(c(0.2, 0.7))),
             &jet(c(2.0, 0.3)),
@@ -637,7 +650,7 @@ mod zero_order_tests {
         let right_wavevector = c(2.1, -0.1);
         let thickness = 0.9;
 
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(jet(left_forward), jet(left_backward)),
             &BoundaryWaves::new(jet(right_forward), jet(right_backward)),
             &jet(left_wavevector),
@@ -779,7 +792,7 @@ mod zero_order_tests {
         let right_wavevector = c(2.1, -0.1);
         let thickness = 0.9;
 
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(jet(left_forward), jet(left_backward)),
             &BoundaryWaves::new(jet(right_forward), jet(right_backward)),
             &jet(left_wavevector),
@@ -1101,7 +1114,7 @@ mod derivative_tests {
         right_wavevector: C,
         thickness: C,
     ) -> [C; 4] {
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(jet(left_forward), jet(left_backward)),
             &BoundaryWaves::new(jet(right_forward), jet(right_backward)),
             &jet(left_wavevector),
@@ -1431,7 +1444,7 @@ mod derivative_tests {
 
         let thickness_first = c(0.08, 0.0);
 
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(
                 jet1(left_forward, left_forward_first),
                 jet1(left_backward, left_backward_first),
@@ -1495,7 +1508,7 @@ mod derivative_tests {
 
         let thickness_first = c(0.08, 0.0);
 
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(
                 jet2(left_forward, left_forward_first, c(0.0, 0.0)),
                 jet2(left_backward, left_backward_first, c(0.0, 0.0)),
@@ -1630,7 +1643,7 @@ mod derivative_tests {
         let right_wavevector_axis1 = c(-0.02, 0.04);
         let thickness_axis1 = c(0.08, 0.0);
 
-        let products = integrate_bilinear_wave_products(
+        let products = integrate_bilinear_cross_wave_products(
             &BoundaryWaves::new(
                 bivariate2(
                     left_forward,
@@ -1819,5 +1832,278 @@ mod derivative_tests {
         let expected = std::array::from_fn(|index| (plus[index] - minus[index]) / (2.0 * step));
 
         assert_product_arrays_close(analytic, expected, 1.0e-10);
+    }
+}
+
+#[cfg(test)]
+mod bilinear_tests {
+    use approx::assert_relative_eq;
+    use ndarray::{Ix0, arr0};
+    use num_complex::Complex64;
+
+    use super::*;
+
+    use crate::{
+        algebra::{ArrayJet0, Jet, Jet0, RealParameter},
+        observable::BoundaryWaves,
+    };
+
+    type A = ArrayJet0<Complex64, Ix0, RealParameter>;
+
+    const TOLERANCE: f64 = 1.0e-11;
+
+    fn jet(value: Complex64) -> A {
+        Jet0::new(arr0(value))
+    }
+
+    fn scalar(value: &A) -> Complex64 {
+        value.value()[()]
+    }
+
+    fn waves(forward: Complex64, backward: Complex64) -> BoundaryWaves<A> {
+        BoundaryWaves::new(jet(forward), jet(backward))
+    }
+
+    fn assert_complex_close(actual: Complex64, expected: Complex64) {
+        crate::test_support::assertions::assert_complex_close(actual, expected, TOLERANCE)
+    }
+
+    fn exponential_integral(exponent: Complex64, thickness: f64) -> Complex64 {
+        if exponent.norm() < 1.0e-12 {
+            Complex64::new(thickness, 0.0)
+        } else {
+            ((exponent * thickness).exp() - Complex64::new(1.0, 0.0)) / exponent
+        }
+    }
+
+    #[test]
+    fn bilinear_wave_products_vanish_for_zero_thickness() {
+        let left = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let right = waves(Complex64::new(-1.0, 4.0), Complex64::new(5.0, 2.0));
+
+        let products = integrate_bilinear_cross_wave_products(
+            &left,
+            &right,
+            &jet(Complex64::new(0.7, 0.2)),
+            &jet(Complex64::new(0.4, -0.1)),
+            &jet(Complex64::new(0.0, 0.0)),
+        );
+
+        assert_complex_close(scalar(products.forward_forward()), Complex64::new(0.0, 0.0));
+
+        assert_complex_close(
+            scalar(products.backward_backward()),
+            Complex64::new(0.0, 0.0),
+        );
+
+        assert_complex_close(
+            scalar(products.forward_backward()),
+            Complex64::new(0.0, 0.0),
+        );
+
+        assert_complex_close(
+            scalar(products.backward_forward()),
+            Complex64::new(0.0, 0.0),
+        );
+    }
+
+    #[test]
+    fn bilinear_wave_products_reduce_to_amplitude_products_for_zero_wavevectors() {
+        let left = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let right = waves(Complex64::new(-1.0, 4.0), Complex64::new(5.0, 2.0));
+
+        let thickness = 0.8;
+
+        let products = integrate_bilinear_cross_wave_products(
+            &left,
+            &right,
+            &jet(Complex64::new(0.0, 0.0)),
+            &jet(Complex64::new(0.0, 0.0)),
+            &jet(Complex64::new(thickness, 0.0)),
+        );
+
+        assert_complex_close(
+            scalar(products.forward_forward()),
+            Complex64::new(2.0, 1.0) * Complex64::new(-1.0, 4.0) * thickness,
+        );
+
+        assert_complex_close(
+            scalar(products.backward_backward()),
+            Complex64::new(3.0, -2.0) * Complex64::new(5.0, 2.0) * thickness,
+        );
+
+        assert_complex_close(
+            scalar(products.forward_backward()),
+            Complex64::new(2.0, 1.0) * Complex64::new(5.0, 2.0) * thickness,
+        );
+
+        assert_complex_close(
+            scalar(products.backward_forward()),
+            Complex64::new(3.0, -2.0) * Complex64::new(-1.0, 4.0) * thickness,
+        );
+    }
+
+    #[test]
+    fn equal_wavevectors_make_mixed_products_constant() {
+        let left = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let right = waves(Complex64::new(-1.0, 4.0), Complex64::new(5.0, 2.0));
+
+        let kappa = Complex64::new(0.7, 0.2);
+        let thickness = 0.8;
+
+        let products = integrate_bilinear_cross_wave_products(
+            &left,
+            &right,
+            &jet(kappa),
+            &jet(kappa),
+            &jet(Complex64::new(thickness, 0.0)),
+        );
+
+        assert_complex_close(
+            scalar(products.forward_backward()),
+            Complex64::new(2.0, 1.0) * Complex64::new(5.0, 2.0) * thickness,
+        );
+
+        assert_complex_close(
+            scalar(products.backward_forward()),
+            Complex64::new(3.0, -2.0) * Complex64::new(-1.0, 4.0) * thickness,
+        );
+    }
+
+    #[test]
+    fn opposite_wavevectors_make_same_direction_products_constant() {
+        let left = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let right = waves(Complex64::new(-1.0, 4.0), Complex64::new(5.0, 2.0));
+
+        let left_kappa = Complex64::new(0.7, 0.2);
+        let right_kappa = -left_kappa;
+        let thickness = 0.8;
+
+        let products = integrate_bilinear_cross_wave_products(
+            &left,
+            &right,
+            &jet(left_kappa),
+            &jet(right_kappa),
+            &jet(Complex64::new(thickness, 0.0)),
+        );
+
+        assert_complex_close(
+            scalar(products.forward_forward()),
+            Complex64::new(2.0, 1.0) * Complex64::new(-1.0, 4.0) * thickness,
+        );
+
+        assert_complex_close(
+            scalar(products.backward_backward()),
+            Complex64::new(3.0, -2.0) * Complex64::new(5.0, 2.0) * thickness,
+        );
+    }
+
+    #[test]
+    fn bilinear_wave_products_match_direct_exponential_integrals() {
+        let lf = Complex64::new(2.0, 1.0);
+        let lb = Complex64::new(3.0, -2.0);
+
+        let rf = Complex64::new(-1.0, 4.0);
+        let rb = Complex64::new(5.0, 2.0);
+
+        let left_kappa = Complex64::new(0.7, 0.2);
+        let right_kappa = Complex64::new(0.4, -0.1);
+        let thickness = 0.8;
+
+        let products = integrate_bilinear_cross_wave_products(
+            &waves(lf, lb),
+            &waves(rf, rb),
+            &jet(left_kappa),
+            &jet(right_kappa),
+            &jet(Complex64::new(thickness, 0.0)),
+        );
+
+        let i = Complex64::new(0.0, 1.0);
+
+        assert_complex_close(
+            scalar(products.forward_forward()),
+            lf * rf * exponential_integral(i * (left_kappa + right_kappa), thickness),
+        );
+
+        assert_complex_close(
+            scalar(products.backward_backward()),
+            lb * rb * exponential_integral(-i * (left_kappa + right_kappa), thickness),
+        );
+
+        assert_complex_close(
+            scalar(products.forward_backward()),
+            lf * rb * exponential_integral(i * (left_kappa - right_kappa), thickness),
+        );
+
+        assert_complex_close(
+            scalar(products.backward_forward()),
+            lb * rf * exponential_integral(-i * (left_kappa - right_kappa), thickness),
+        );
+    }
+
+    #[test]
+    fn exchanging_operands_transposes_mixed_wave_products() {
+        let left = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let right = waves(Complex64::new(-1.0, 4.0), Complex64::new(5.0, 2.0));
+
+        let left_kappa = jet(Complex64::new(0.7, 0.2));
+        let right_kappa = jet(Complex64::new(0.4, -0.1));
+        let thickness = jet(Complex64::new(0.8, 0.0));
+
+        let left_right = integrate_bilinear_cross_wave_products(
+            &left,
+            &right,
+            &left_kappa,
+            &right_kappa,
+            &thickness,
+        );
+
+        let right_left = integrate_bilinear_cross_wave_products(
+            &right,
+            &left,
+            &right_kappa,
+            &left_kappa,
+            &thickness,
+        );
+
+        assert_complex_close(
+            scalar(left_right.forward_forward()),
+            scalar(right_left.forward_forward()),
+        );
+
+        assert_complex_close(
+            scalar(left_right.backward_backward()),
+            scalar(right_left.backward_backward()),
+        );
+
+        assert_complex_close(
+            scalar(left_right.forward_backward()),
+            scalar(right_left.backward_forward()),
+        );
+
+        assert_complex_close(
+            scalar(left_right.backward_forward()),
+            scalar(right_left.forward_backward()),
+        );
+    }
+
+    #[test]
+    fn bilinear_self_wrapper_matches_cross_function_with_identical_operands() {
+        let waves = waves(Complex64::new(2.0, 1.0), Complex64::new(3.0, -2.0));
+
+        let kappa = jet(Complex64::new(0.7, 0.2));
+        let thickness = jet(Complex64::new(0.8, 0.0));
+
+        let self_products = integrate_bilinear_wave_products(&waves, &kappa, &thickness);
+
+        let cross_products =
+            integrate_bilinear_cross_wave_products(&waves, &waves, &kappa, &kappa, &thickness);
+
+        assert_eq!(self_products, cross_products);
     }
 }

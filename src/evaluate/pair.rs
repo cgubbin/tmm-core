@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     ComplexScalar, FiniteLayerIndex, Polarisation,
-    algebra::{Jet, RealScalarAlgebra, ScalarAlgebraExpRelExt},
+    algebra::{Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{PlaneWaveSolutionSource, ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -14,9 +14,10 @@ use crate::{
     },
     input::JetMapping,
     observable::{
-        AggregateHermitianOverlap, BoundaryProjectionError, HermitianLayerOverlap,
-        HermitianLayerOverlapInput, HermitianOverlapError, LayerAggregateError,
-        LayerOverlapOperand, Layers,
+        AggregateBilinearOverlap, AggregateHermitianOverlap, BilinearLayerOverlap,
+        BilinearLayerOverlapInput, BoundaryProjectionError, HermitianLayerOverlap,
+        HermitianLayerOverlapInput, LayerAggregateError, LayerOverlapInput, LayerOverlapOperand,
+        Layers, OverlapError,
     },
 };
 
@@ -80,7 +81,7 @@ pub enum PlaneWavePairError {
     },
 
     #[error(transparent)]
-    HermitianProjection(#[from] HermitianOverlapError),
+    Projection(#[from] OverlapError),
 
     #[error(transparent)]
     Aggregation(#[from] LayerAggregateError),
@@ -166,18 +167,17 @@ where
     }
 }
 
-impl<'a, J, R, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, R, ML, MR, WL, WR>
+impl<'a, J, I, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, I, ML, MR, WL, WR>
 where
     J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
-    J::Scalar: ComplexField<RealField = R>,
-    R: ComplexField,
+    J::Scalar: ComplexField,
+    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
     J::Mapping: PartialEq,
     WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
     WR: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
 {
-    fn hermitian_layer_inputs(
-        &self,
-    ) -> Result<Layers<HermitianLayerOverlapInput<J>>, PlaneWavePairError> {
+    fn layer_inputs(&self) -> Result<Layers<LayerOverlapInput<J>>, PlaneWavePairError> {
         let reference_state = self.reference.state();
 
         let comparison_state = self.comparison.state();
@@ -260,7 +260,7 @@ where
 
             let (comparison_left, _) = comparison_boundaries.into_parts();
 
-            inputs.push(HermitianLayerOverlapInput::new(
+            inputs.push(LayerOverlapInput::new(
                 LayerOverlapOperand::new(reference_left, reference_quantities),
                 LayerOverlapOperand::new(comparison_left, comparison_quantities),
                 thickness,
@@ -269,12 +269,29 @@ where
 
         Ok(Layers::new(inputs))
     }
+}
+
+impl<'a, J, R, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, R, ML, MR, WL, WR>
+where
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
+    J::Scalar: ComplexField<RealField = R>,
+    R: ComplexField,
+    J::Mapping: PartialEq,
+    WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    WR: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+{
+    fn hermitian_layer_inputs(
+        &self,
+    ) -> Result<Layers<HermitianLayerOverlapInput<J>>, PlaneWavePairError> {
+        self.layer_inputs()
+            .map(|layers| layers.map(|each| each.into_hermitian()))
+    }
 
     fn raw_layer_hermitian_overlap(
         &self,
     ) -> Result<Layers<HermitianLayerOverlap<J>>, PlaneWavePairError>
     where
-        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         J::Scalar: ComplexScalar,
     {
         let reference_coordinates = self.reference.state().problem().coordinates();
@@ -295,7 +312,7 @@ where
         &self,
     ) -> Result<AggregateHermitianOverlap<J>, PlaneWavePairError>
     where
-        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         J::Scalar: ComplexScalar,
     {
         Ok(self.raw_layer_hermitian_overlap()?.aggregate()?)
@@ -305,7 +322,7 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, Layers<HermitianLayerOverlap<J>>>, PlaneWavePairError>
     where
-        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         J::Scalar: ComplexScalar,
         J::Policy: DerivativePartsPolicy<Layers<HermitianLayerOverlap<J>>>,
         Layers<HermitianLayerOverlap<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
@@ -320,7 +337,7 @@ where
         &self,
     ) -> Result<DifferentialResponseFor<J, AggregateHermitianOverlap<J>>, PlaneWavePairError>
     where
-        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
+        J: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         J::Scalar: ComplexScalar,
         J::Policy: DerivativePartsPolicy<AggregateHermitianOverlap<J>>,
         AggregateHermitianOverlap<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
@@ -328,6 +345,103 @@ where
     {
         Ok(self
             .raw_aggregate_hermitian_overlap()?
+            .into_differential_response(&J::Policy::default(), self.reference().state().mapping()))
+    }
+}
+
+impl<'a, J, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, J::Scalar, ML, MR, WL, WR>
+where
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
+    J::Scalar: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
+    J::Mapping: PartialEq,
+    WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    WR: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+{
+    fn bilinear_layer_inputs(
+        &self,
+    ) -> Result<Layers<BilinearLayerOverlapInput<J>>, PlaneWavePairError> {
+        self.layer_inputs()
+            .map(|layers| layers.map(|each| each.into_bilinear()))
+    }
+
+    fn raw_layer_bilinear_overlap(
+        &self,
+    ) -> Result<Layers<BilinearLayerOverlap<J>>, PlaneWavePairError>
+    where
+        J: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        J::Scalar: ComplexScalar,
+    {
+        let reference_coordinates = self.reference.state().problem().coordinates();
+
+        let comparison_coordinates = self.comparison.state().problem().coordinates();
+
+        self.bilinear_layer_inputs()?
+            .integrate(
+                reference_coordinates.vacuum_angular_wavenumber(),
+                comparison_coordinates.vacuum_angular_wavenumber(),
+                reference_coordinates.parallel_angular_wavenumber(),
+                comparison_coordinates.parallel_angular_wavenumber(),
+            )
+            .map_err(Into::into)
+    }
+
+    fn raw_aggregate_bilinear_overlap(
+        &self,
+    ) -> Result<AggregateBilinearOverlap<J>, PlaneWavePairError>
+    where
+        J: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        J::Scalar: ComplexScalar,
+    {
+        Ok(self.raw_layer_bilinear_overlap()?.aggregate()?)
+    }
+
+    /// Calculate the layer-resolved bilinear field overlap.
+    ///
+    /// Neither operand is conjugated:
+    ///
+    /// ```text
+    /// electric = ∫ E_reference · E_comparison dz
+    /// magnetic = ∫ H_reference · H_comparison dz
+    /// total    = electric + magnetic
+    /// ```
+    ///
+    /// The result contains one record per finite layer, in physical
+    /// left-to-right order. Exterior media are not included.
+    ///
+    /// This is an unweighted field overlap. It is not by itself a complete
+    /// dispersive quasinormal-mode normalization.
+    pub fn layer_bilinear_overlap(
+        &self,
+    ) -> Result<DifferentialResponseFor<J, Layers<BilinearLayerOverlap<J>>>, PlaneWavePairError>
+    where
+        J: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        J::Scalar: ComplexScalar,
+        J::Policy: DerivativePartsPolicy<Layers<BilinearLayerOverlap<J>>>,
+        Layers<BilinearLayerOverlap<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        WL: PlaneWaveSolutionSource,
+    {
+        Ok(self
+            .raw_layer_bilinear_overlap()?
+            .into_differential_response(&J::Policy::default(), self.reference().state().mapping()))
+    }
+
+    /// Calculate the bilinear field overlap aggregated over all finite layers.
+    ///
+    /// Neither operand is conjugated. Aggregation is performed on the full
+    /// jet-valued layer results before differential decomposition.
+    pub fn aggregate_bilinear_overlap(
+        &self,
+    ) -> Result<DifferentialResponseFor<J, AggregateBilinearOverlap<J>>, PlaneWavePairError>
+    where
+        J: ScalarAlgebra + ScalarAlgebraExpRelExt,
+        J::Scalar: ComplexScalar,
+        J::Policy: DerivativePartsPolicy<AggregateBilinearOverlap<J>>,
+        AggregateBilinearOverlap<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        WL: PlaneWaveSolutionSource,
+    {
+        Ok(self
+            .raw_aggregate_bilinear_overlap()?
             .into_differential_response(&J::Policy::default(), self.reference().state().mapping()))
     }
 }

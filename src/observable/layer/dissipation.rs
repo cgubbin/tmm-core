@@ -187,7 +187,7 @@ mod tests {
         algebra::{ArrayJet0, ArrayJet1, ComplexJet, Jet0, RealParameter},
         backend::IsotropicLayerQuantities,
         observable::layer::{
-            IntegratedHermitianStateProducts, Layers, project::IntegratedLayerData,
+            IntegratedHermitianCrossStateProducts, Layers, project::IntegratedLayerData,
         },
     };
 
@@ -245,8 +245,8 @@ mod tests {
     fn state_products(
         field_field: f64,
         secondary_secondary: f64,
-    ) -> IntegratedHermitianStateProducts<A0> {
-        IntegratedHermitianStateProducts::new(
+    ) -> IntegratedHermitianCrossStateProducts<A0> {
+        IntegratedHermitianCrossStateProducts::new(
             jet(c(field_field, 0.0)),
             jet(c(secondary_secondary, 0.0)),
             jet(c(0.0, 0.0)),

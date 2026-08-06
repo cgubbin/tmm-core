@@ -1,6 +1,7 @@
 use crate::{
     IncidentSide,
     backend::{IsotropicLayerQuantities, LayerBoundaryWaves},
+    evaluate::ModeReconstructionError,
 };
 
 use super::{PlaneWaveSolution, PlaneWaveSolutionSource};
@@ -26,4 +27,20 @@ pub trait RetainedIsotropicLayers {
     fn layer_quantities(&self, index: usize) -> Option<&IsotropicLayerQuantities<Self::Algebra>>;
 
     fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra>;
+}
+
+/// Reconstruct directional waves for an outgoing homogeneous modal solution.
+///
+/// Unlike [`ReconstructLayerBoundaryWaves`], this operation has no incident
+/// side. The workspace must construct a nonzero solution of the outgoing
+/// homogeneous boundary system and propagate it through all finite layers.
+///
+/// The reconstructed mode retains an arbitrary complex amplitude. Modal
+/// normalization is applied later.
+pub(crate) trait ReconstructLayerModeWaves {
+    type Algebra;
+
+    fn reconstruct_layer_mode_waves(
+        &self,
+    ) -> Result<Vec<LayerBoundaryWaves<Self::Algebra>>, ModeReconstructionError>;
 }

@@ -91,7 +91,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Ix0, Ix1, arr1};
+    use ndarray::{Ix1, arr1};
     use num_complex::Complex64;
 
     use super::*;
