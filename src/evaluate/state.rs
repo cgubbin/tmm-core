@@ -9,7 +9,7 @@ use crate::{
     Polarisation, RealAxis,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
-        ExteriorAdmittanceProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
+        ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
         PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
@@ -210,7 +210,7 @@ where
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes,
         <W::Entries as ProjectAmplitudes>::Amplitudes: Into<PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J: ScalarAlgebra + Clone,
         J::Scalar: ComplexScalar + One + Zero,
         J::Dimension: Dimension,
@@ -240,7 +240,7 @@ where
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J: ScalarAlgebra + Clone,
         J::Scalar: ComplexScalar + One + Zero,
         J::Dimension: Dimension,
@@ -303,7 +303,7 @@ where
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J: RealScalarAlgebra + Clone,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
@@ -335,7 +335,7 @@ where
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J: RealScalarAlgebra + Clone,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
@@ -354,7 +354,7 @@ where
     where
         J: ComplexJet + RealScalarAlgebra,
         J::RealJet: ScalarAlgebra,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let context = self.solution().context();
 
@@ -376,7 +376,7 @@ where
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: One,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let layers = self
             .raw_layer_integration_inputs_unchecked(incident_side)?
@@ -408,7 +408,7 @@ where
         <J::RealJet as Jet>::Scalar: One + FromPrimitive,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let integrated = self
             .raw_layer_integration_inputs_unchecked(incident_side)?
@@ -442,7 +442,7 @@ where
         J::Dimension: Dimension,
         E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let coordinates = self.problem().coordinates();
 

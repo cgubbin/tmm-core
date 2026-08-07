@@ -5,7 +5,7 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower,
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
         scatter2::{Scatter2ExteriorContext, entries::transfer_state_slope},
     },
     observable::{BoundaryState, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
@@ -279,7 +279,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
 

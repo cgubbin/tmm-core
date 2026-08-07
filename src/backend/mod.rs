@@ -20,7 +20,7 @@ pub(crate) use mode::{
 };
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use solution::{
-    ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
+    ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
     PlaneWaveSolutionView,
 };
 pub use transfer2::{Transfer2, Transfer2Error};

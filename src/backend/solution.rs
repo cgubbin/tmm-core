@@ -3,11 +3,13 @@ use crate::{
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
-pub trait ExteriorAdmittanceProvider {
+pub trait ExteriorContextProvider {
     type Algebra;
 
     fn left_admittance(&self) -> &Self::Algebra;
     fn right_admittance(&self) -> &Self::Algebra;
+    fn left_kappa(&self) -> &Self::Algebra;
+    fn right_kappa(&self) -> &Self::Algebra;
 }
 
 pub trait PlaneWaveEntries {

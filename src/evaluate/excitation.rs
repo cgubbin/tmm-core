@@ -8,8 +8,7 @@ use crate::{
     ComplexScalar, FiniteLayerIndex, IncidentSide, LayerDissipation, PlaneWaveAmplitudes, RealAxis,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
-        RetainedIsotropicLayers,
+        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -122,7 +121,7 @@ where
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes,
         <W::Entries as ProjectAmplitudes>::Amplitudes: Into<PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J: ScalarAlgebra + Clone,
         J::Scalar: ComplexScalar + One + Zero,
         J::Dimension: Dimension,
@@ -181,7 +180,7 @@ where
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
         <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
@@ -203,7 +202,7 @@ where
             + ReconstructLayerBoundaryWaves<Algebra = J>
             + RetainedIsotropicLayers<Algebra = J>,
         W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar + One + Zero,
         <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
@@ -229,7 +228,7 @@ where
         J::Policy: DerivativePartsPolicy<Layers<LayerDissipation<J::RealJet>>>,
         Layers<LayerDissipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -249,7 +248,7 @@ where
         Layers<LayerEnergy<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -272,7 +271,7 @@ where
         Layers<LayerParticipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -294,7 +293,7 @@ where
         EnergyConfinement<J::RealJet>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -319,7 +318,7 @@ where
         J::Dimension: Dimension,
         RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -345,7 +344,7 @@ where
         Layers<LayerParticipation<J::RealJet>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state
@@ -370,7 +369,7 @@ where
         EnergyConfinement<J::RealJet>: IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         RealAxis: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         Ok(self
             .state

@@ -6,9 +6,9 @@ use crate::{
     ComplexPlane, ComplexScalar,
     algebra::{ComplexJet, Jet, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
-        ExteriorAdmittanceProvider, ModalSolutionSource, ModeReconstructionError,
-        PlaneWaveEntries, PlaneWaveModeCandidate, PlaneWaveSolutionSource,
-        ReconstructLayerModeWaves, RetainedIsotropicLayers,
+        ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
+        PlaneWaveModeCandidate, PlaneWaveSolutionSource, ReconstructLayerModeWaves,
+        RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -19,10 +19,9 @@ use crate::{
     input::JetMapping,
     material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
     observable::{
-        AggregateBilinearNormalization, BilinearLayerNormalization,
-        LayerAggregateError, LayerBoundaries, LayerBoundaryWaves, LayerEnergyError,
-        LayerIntegrationInput, LayerProjectionError, Layers, assemble_layer_integration_inputs,
-        project_layer_mode_waves,
+        AggregateBilinearNormalization, BilinearLayerNormalization, LayerAggregateError,
+        LayerBoundaries, LayerBoundaryWaves, LayerEnergyError, LayerIntegrationInput,
+        LayerProjectionError, Layers, assemble_layer_integration_inputs, project_layer_mode_waves,
     },
 };
 
@@ -151,7 +150,7 @@ where
         J::Dimension: Dimension,
         ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
         W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let coordinates = self.state().problem().coordinates();
 
@@ -192,7 +191,7 @@ where
         J::Dimension: Dimension,
         ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
         W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J::Policy: DerivativePartsPolicy<Layers<BilinearLayerNormalization<J>>>,
         Layers<BilinearLayerNormalization<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
@@ -216,7 +215,7 @@ where
         J::Dimension: Dimension,
         ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
         W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorAdmittanceProvider<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
         AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {

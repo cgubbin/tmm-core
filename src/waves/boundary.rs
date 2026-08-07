@@ -7,6 +7,9 @@
 
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use num_traits::{One, Zero};
+
+use crate::{ComplexScalar, IncidentSide, algebra::ScalarAlgebra};
 
 /// Forward- and backward-propagating wave amplitudes at one longitudinal
 /// position.
@@ -111,6 +114,35 @@ impl<A> ExteriorBoundaryWaves<A> {
 
     pub(crate) fn into_parts(self) -> (BidirectionalWaves<A>, BidirectionalWaves<A>) {
         (self.left, self.right)
+    }
+}
+
+impl<A> ExteriorBoundaryWaves<A>
+where
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    pub(crate) fn from_amplitudes(
+        reflection: &A,
+        transmission: &A,
+        incident_side: IncidentSide,
+    ) -> Self {
+        let zero = A::filled_constant_like(reflection.value(), <A::Scalar as Zero>::zero());
+
+        let one = A::filled_constant_like(reflection.value(), <A::Scalar as One>::one());
+
+        match incident_side {
+            IncidentSide::Left => Self::new(
+                BidirectionalWaves::new(one, reflection.clone()),
+                BidirectionalWaves::new(transmission.clone(), zero),
+            ),
+
+            IncidentSide::Right => Self::new(
+                BidirectionalWaves::new(zero, transmission.clone()),
+                BidirectionalWaves::new(reflection.clone(), one),
+            ),
+        }
     }
 }
 

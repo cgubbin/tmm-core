@@ -6,6 +6,24 @@ use crate::{
 
 use num_traits::One;
 
+pub trait Amplitudes {
+    type Algebra;
+    fn reflection(&self) -> &Self::Algebra;
+    fn transmission(&self) -> &Self::Algebra;
+}
+
+impl<C> Amplitudes for PlaneWaveAmplitudes<C> {
+    type Algebra = C;
+
+    fn reflection(&self) -> &Self::Algebra {
+        &self.reflection
+    }
+
+    fn transmission(&self) -> &Self::Algebra {
+        &self.transmission
+    }
+}
+
 pub trait ProjectAmplitudes: PlaneWaveEntries {
     type Amplitudes;
 
@@ -390,7 +408,12 @@ mod projection_tests {
         left_admittance: impl Into<C>,
         right_admittance: impl Into<C>,
     ) -> Scatter2ExteriorContext<Algebra> {
-        Scatter2ExteriorContext::from_parts(scalar(left_admittance), scalar(right_admittance))
+        Scatter2ExteriorContext::from_parts(
+            scalar(left_admittance),
+            scalar(right_admittance),
+            scalar(0.0),
+            scalar(0.0),
+        )
 
         // If no constructor exists, use:
         //

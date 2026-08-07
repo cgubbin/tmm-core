@@ -40,4 +40,4 @@ pub(crate) use layer::{
     HermitianLayerOverlapInput, LayerOverlapInput, LayerOverlapOperand, OverlapError,
 };
 pub(crate) use layer::{LayerIntegrationInput, assemble_layer_integration_inputs};
-pub(crate) use plane_wave::{ProjectAmplitudes, ProjectPower};
+pub(crate) use plane_wave::{Amplitudes, ProjectAmplitudes, ProjectPower};

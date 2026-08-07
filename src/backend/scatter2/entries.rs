@@ -23,7 +23,7 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
         isotropic::IsotropicLayerQuantities,
     },
     input::{CanonicalCoordinates, IncidentSide},
@@ -161,9 +161,11 @@ impl<A> Scatter2Entries<A> {
 pub struct Scatter2ExteriorContext<A> {
     left_admittance: A,
     right_admittance: A,
+    left_kappa: A,
+    right_kappa: A,
 }
 
-impl<A> ExteriorAdmittanceProvider for Scatter2ExteriorContext<A> {
+impl<A> ExteriorContextProvider for Scatter2ExteriorContext<A> {
     type Algebra = A;
     fn left_admittance(&self) -> &Self::Algebra {
         &self.left_admittance
@@ -172,13 +174,28 @@ impl<A> ExteriorAdmittanceProvider for Scatter2ExteriorContext<A> {
     fn right_admittance(&self) -> &Self::Algebra {
         &self.right_admittance
     }
+
+    fn left_kappa(&self) -> &Self::Algebra {
+        &self.left_kappa
+    }
+
+    fn right_kappa(&self) -> &Self::Algebra {
+        &self.right_kappa
+    }
 }
 
 impl<J> Scatter2ExteriorContext<J> {
-    pub(crate) fn from_parts(left_admittance: J, right_admittance: J) -> Self {
+    pub(crate) fn from_parts(
+        left_admittance: J,
+        right_admittance: J,
+        left_kappa: J,
+        right_kappa: J,
+    ) -> Self {
         Self {
             left_admittance,
             right_admittance,
+            left_kappa,
+            right_kappa,
         }
     }
 
@@ -201,6 +218,8 @@ impl<J> Scatter2ExteriorContext<J> {
             IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
 
         Self {
+            left_kappa: left_quantities.kappa().clone(),
+            right_kappa: right_quantities.kappa().clone(),
             left_admittance: left_quantities.into_admittance().into_inner(),
             right_admittance: right_quantities.into_admittance().into_inner(),
         }
@@ -210,6 +229,13 @@ impl<J> Scatter2ExteriorContext<J> {
         match side {
             IncidentSide::Left => (&self.left_admittance, &self.right_admittance),
             IncidentSide::Right => (&self.right_admittance, &self.left_admittance),
+        }
+    }
+
+    pub(super) fn incident_and_transmitted_kappa(&self, side: IncidentSide) -> (&J, &J) {
+        match side {
+            IncidentSide::Left => (&self.left_kappa, &self.right_kappa),
+            IncidentSide::Right => (&self.right_kappa, &self.left_kappa),
         }
     }
 }

@@ -6,13 +6,16 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
-        ExteriorAdmittanceProvider, ModalSolutionSource, ModeReconstructionError,
+        ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError,
         PlaneWaveModeCandidate, PlaneWaveSolution, PlaneWaveSolutionSource,
         ReconstructLayerModeWaves, RunMode, SolutionWorkspace, isotropic::IsotropicLayerQuantities,
         solution::PlaneWaveSolutionView, transfer2::entries::right_gauged_mode_candidate,
         workspace::RetainedIsotropicLayers,
     },
-    waves::{BidirectionalWaves, LayerBoundaryWaves, ReconstructLayerBoundaryWaves},
+    waves::{
+        BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves,
+        ReconstructLayerBoundaryWaves,
+    },
 };
 
 use super::{

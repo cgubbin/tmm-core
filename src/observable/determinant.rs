@@ -73,7 +73,12 @@ mod projection_tests {
         left_admittance: impl Into<C>,
         right_admittance: impl Into<C>,
     ) -> Scatter2ExteriorContext<Algebra> {
-        Scatter2ExteriorContext::from_parts(scalar(left_admittance), scalar(right_admittance))
+        Scatter2ExteriorContext::from_parts(
+            scalar(left_admittance),
+            scalar(right_admittance),
+            scalar(0.0),
+            scalar(0.0),
+        )
     }
 
     #[test]

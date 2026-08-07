@@ -45,7 +45,7 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
         isotropic::IsotropicLayerQuantities, transfer2::error::Transfer2Entry,
     },
     input::CanonicalCoordinates,
@@ -256,9 +256,11 @@ impl<A> Transfer2Entries<A> {
 pub struct Transfer2ExteriorContext<A> {
     left_admittance: A,
     right_admittance: A,
+    left_kappa: A,
+    right_kappa: A,
 }
 
-impl<A> ExteriorAdmittanceProvider for Transfer2ExteriorContext<A> {
+impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
     type Algebra = A;
 
     fn left_admittance(&self) -> &A {
@@ -268,13 +270,28 @@ impl<A> ExteriorAdmittanceProvider for Transfer2ExteriorContext<A> {
     fn right_admittance(&self) -> &A {
         &self.right_admittance
     }
+
+    fn left_kappa(&self) -> &A {
+        &self.left_kappa
+    }
+
+    fn right_kappa(&self) -> &A {
+        &self.right_kappa
+    }
 }
 
 impl<J> Transfer2ExteriorContext<J> {
-    pub(crate) fn from_parts(left_admittance: J, right_admittance: J) -> Self {
+    pub(crate) fn from_parts(
+        left_admittance: J,
+        right_admittance: J,
+        left_kappa: J,
+        right_kappa: J,
+    ) -> Self {
         Self {
             left_admittance,
             right_admittance,
+            left_kappa,
+            right_kappa,
         }
     }
 
@@ -297,6 +314,8 @@ impl<J> Transfer2ExteriorContext<J> {
             IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
 
         Self {
+            left_kappa: left_quantities.kappa().clone(),
+            right_kappa: right_quantities.kappa().clone(),
             left_admittance: left_quantities.into_admittance().into_inner(),
             right_admittance: right_quantities.into_admittance().into_inner(),
         }

@@ -3,7 +3,7 @@ use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
     IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
-    backend::{ExteriorAdmittanceProvider, scatter2::Scatter2, transfer2::Transfer2},
+    backend::{ExteriorContextProvider, scatter2::Scatter2, transfer2::Transfer2},
     observable::{LayerDissipation, LayerPower, Layers},
     parameter::FiniteLayerIndex,
     test_support::{

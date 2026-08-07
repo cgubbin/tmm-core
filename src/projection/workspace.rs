@@ -1,5 +1,5 @@
 use crate::backend::{
-    ExteriorAdmittanceProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
+    ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
     scatter2::{
         RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
         Scatter2ProjectiveEntries, Scatter2Workspace,
@@ -130,6 +130,8 @@ where
         Ok(Scatter2ExteriorContext::from_parts(
             self.left_admittance().project_point(index)?,
             self.right_admittance().project_point(index)?,
+            self.left_kappa().project_point(index)?,
+            self.right_kappa().project_point(index)?,
         ))
     }
 }
@@ -168,6 +170,8 @@ where
         Ok(Transfer2ExteriorContext::from_parts(
             self.left_admittance().project_point(index)?,
             self.right_admittance().project_point(index)?,
+            self.left_kappa().project_point(index)?,
+            self.right_kappa().project_point(index)?,
         ))
     }
 }
@@ -330,7 +334,12 @@ mod tests {
 
     #[test]
     fn scatter_exterior_context_projects_both_admittances() {
-        let context = Scatter2ExteriorContext::from_parts(jet(&[2.0, 3.0]), jet(&[5.0, 7.0]));
+        let context = Scatter2ExteriorContext::from_parts(
+            jet(&[2.0, 3.0]),
+            jet(&[5.0, 7.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+        );
 
         let point = context.project_point(&1).unwrap();
 
@@ -347,7 +356,12 @@ mod tests {
 
     #[test]
     fn transfer_exterior_context_projects_both_admittances() {
-        let context = Transfer2ExteriorContext::from_parts(jet(&[2.0, 3.0]), jet(&[5.0, 7.0]));
+        let context = Transfer2ExteriorContext::from_parts(
+            jet(&[2.0, 3.0]),
+            jet(&[5.0, 7.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+        );
 
         let point = context.project_point(&0).unwrap();
 

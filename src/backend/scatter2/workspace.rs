@@ -4,7 +4,7 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        ExteriorAdmittanceProvider, IsotropicLayerQuantities, ModalSolutionSource,
+        ExteriorContextProvider, IsotropicLayerQuantities, ModalSolutionSource,
         ModeReconstructionError, PlaneWaveModeCandidate, PlaneWaveSolution,
         PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructLayerModeWaves,
         RetainedIsotropicLayers, RunMode, SolutionWorkspace,

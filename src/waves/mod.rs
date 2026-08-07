@@ -3,9 +3,51 @@ mod propagation;
 mod sampling;
 
 pub(crate) use boundary::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
+use ndarray::Dimension;
 pub(crate) use propagation::{PropagateLayerWaves, PropagateWaves};
 
-use crate::IncidentSide;
+use crate::{
+    ComplexScalar, IncidentSide,
+    algebra::{Jet, ScalarAlgebra},
+    backend::PlaneWaveSolutionSource,
+    observable::{Amplitudes, ProjectAmplitudes},
+};
+
+pub trait ReconstructExteriorBoundaryWaves: PlaneWaveSolutionSource
+where
+    Self::Entries: ProjectAmplitudes,
+    <Self::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = Self::Algebra>,
+    Self::Algebra: ScalarAlgebra + Clone,
+    <Self::Algebra as Jet>::Scalar: ComplexScalar,
+    <Self::Algebra as Jet>::Dimension: Dimension,
+{
+    type Algebra;
+
+    fn reconstruct_exterior_boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> ExteriorBoundaryWaves<Self::Algebra> {
+        let amplitudes = self.solution().amplitudes(incident_side);
+
+        ExteriorBoundaryWaves::from_amplitudes(
+            amplitudes.reflection(),
+            amplitudes.transmission(),
+            incident_side,
+        )
+    }
+}
+
+impl<T, A> ReconstructExteriorBoundaryWaves for T
+where
+    T: PlaneWaveSolutionSource,
+    T::Entries: ProjectAmplitudes,
+    <T::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
+    A: ScalarAlgebra + Clone,
+    <A as Jet>::Scalar: ComplexScalar,
+    <A as Jet>::Dimension: Dimension,
+{
+    type Algebra = A;
+}
 
 pub trait ReconstructLayerBoundaryWaves {
     type Algebra;
