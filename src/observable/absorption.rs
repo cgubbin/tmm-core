@@ -1,10 +1,5 @@
-use crate::{
-    SpatialProfile, SpatialProfileError,
-    field::{ScalarField, ScalarFieldView1},
-    observable::components::ElectromagneticComponents,
-};
+use crate::observable::components::ElectromagneticComponents;
 
-use ndarray::Dimension;
 
 /// Time-averaged volumetric electromagnetic dissipation density.
 ///
@@ -18,26 +13,6 @@ use ndarray::Dimension;
 #[derive(Clone, Debug, PartialEq)]
 pub struct DissipationDensity<R> {
     components: ElectromagneticComponents<R>,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for DissipationDensity<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = DissipationDensity<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(DissipationDensity {
-            components: self.components.spatial_profile(excitation_index)?,
-        })
-    }
 }
 
 impl<R> DissipationDensity<R> {
@@ -93,26 +68,6 @@ impl<R> DissipationDensity<R> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerDissipation<R> {
     components: ElectromagneticComponents<R>,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for LayerDissipation<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = LayerDissipation<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(LayerDissipation {
-            components: self.components.spatial_profile(excitation_index)?,
-        })
-    }
 }
 
 impl<R> LayerDissipation<R> {

@@ -22,11 +22,15 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
         RealScalarAlgebra, ScalarAlgebra,
     },
-    backend::{ExteriorAdmittanceProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
+    backend::{
+        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        isotropic::IsotropicLayerQuantities,
+    },
     input::{CanonicalCoordinates, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{
-        PlaneWaveDeterminant, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower,
+        BoundaryState, PlaneWaveDeterminant, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant,
+        ProjectPower,
     },
 };
 
@@ -321,9 +325,9 @@ where
     type Determinant = PlaneWaveDeterminant<J>;
 
     fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
-        let value = characteristic_function(self, &exterior.left_admittance);
+        let candidate = right_gauged_mode_candidate(self, exterior.left_admittance());
 
-        PlaneWaveDeterminant::new(value)
+        PlaneWaveDeterminant::new(candidate.into_projective_residual())
     }
 }
 
@@ -336,28 +340,28 @@ where
     admittance.scale(-<A::Scalar as ComplexScalar>::i())
 }
 
-/// Construct the outgoing-mode residual from scattering entries.
-///
-/// The entry type may be a sampled array, first-order jet, or second-order jet.
-fn characteristic_function<A>(entries: &Scatter2Entries<A>, left_admittance: &A) -> A
+pub(crate) fn right_gauged_mode_candidate<A>(
+    entries: &Scatter2Entries<A>,
+    left_admittance: &A,
+) -> PlaneWaveModeCandidate<A>
 where
     A: ScalarAlgebra,
-    A::Scalar: ComplexScalar + One,
+    A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    let slope = transfer_state_slope(left_admittance);
+    let left_slope = transfer_state_slope(left_admittance);
 
-    let two = A::filled_constant_like(
-        slope.value(),
-        <A::Scalar as One>::one() + <A::Scalar as One>::one(),
-    );
+    let left_incoming = entries.s21().reciprocal();
 
-    let numerator = two.multiply(&slope);
+    let left_outgoing = entries.s11().divide(entries.s21());
 
-    /*
-     * s21 is transmission from left to right.
-     */
-    numerator.divide(&entries.s21)
+    let field = left_incoming.add(&left_outgoing);
+
+    let secondary = left_outgoing.subtract(&left_incoming).multiply(&left_slope);
+
+    let residual = left_slope.multiply(&field).subtract(&secondary);
+
+    PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), residual)
 }
 
 #[cfg(test)]
@@ -831,56 +835,5 @@ mod determinant_helper_tests {
         let expected = -Complex64::i() * Complex64::new(2.0, 3.0);
 
         assert_complex_close(value(&slope), expected, TOLERANCE);
-    }
-
-    #[test]
-    fn characteristic_function_matches_manual_formula() {
-        let entries = entries_with_s21(5.0);
-        let admittance = scalar(7.0);
-
-        let residual = characteristic_function(&entries, &admittance);
-
-        let expected = 2.0 * (-Complex64::i() * 7.0) / 5.0;
-
-        assert_complex_close(value(&residual), expected, TOLERANCE);
-    }
-
-    #[test]
-    fn characteristic_function_is_linear_in_left_admittance() {
-        let entries = entries_with_s21(Complex64::new(3.0, -1.0));
-
-        let admittance = scalar(Complex64::new(2.0, 0.5));
-        let scaled_admittance = scalar(4.0 * Complex64::new(2.0, 0.5));
-
-        let residual = characteristic_function(&entries, &admittance);
-        let scaled_residual = characteristic_function(&entries, &scaled_admittance);
-
-        assert_complex_close(value(&scaled_residual), 4.0 * residual[()], TOLERANCE);
-    }
-
-    #[test]
-    fn characteristic_function_is_inverse_in_s21() {
-        let admittance = scalar(Complex64::new(2.0, 0.5));
-
-        let first_entries = entries_with_s21(Complex64::new(3.0, -1.0));
-
-        let second_entries = entries_with_s21(2.0 * Complex64::new(3.0, -1.0));
-
-        let first = characteristic_function(&first_entries, &admittance);
-        let second = characteristic_function(&second_entries, &admittance);
-
-        assert_complex_close(value(&second), 0.5 * first[()], TOLERANCE);
-    }
-
-    #[test]
-    fn characteristic_function_for_unit_s21_is_twice_the_transfer_slope() {
-        let entries = entries_with_s21(1.0);
-        let admittance = scalar(Complex64::new(2.0, 3.0));
-
-        let residual = characteristic_function(&entries, &admittance);
-
-        let expected = 2.0 * (-Complex64::i() * Complex64::new(2.0, 3.0));
-
-        assert_complex_close(value(&residual), expected, TOLERANCE);
     }
 }

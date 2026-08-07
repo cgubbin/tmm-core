@@ -24,7 +24,9 @@ pub use project::BoundaryProjectionError;
 pub use state::{BoundaryState, LayerBoundaryStates};
 pub use waves::{BoundaryWaves, LayerBoundaryWaves};
 
-pub(crate) use project::{project_layer_boundary_states, project_layer_boundary_waves};
+pub(crate) use project::{
+    project_layer_boundary_states, project_layer_boundary_waves, project_layer_mode_waves,
+};
 
 use crate::FiniteLayerIndex;
 

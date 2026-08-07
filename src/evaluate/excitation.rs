@@ -9,7 +9,7 @@ use crate::{
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
-        ReconstructLayerBoundaryWaves, RetainedIsotropicLayers,
+        RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -33,6 +33,7 @@ use crate::{
         LayerConfinementError, LayerEnergy, LayerEnergyError, LayerParticipation,
         LayerParticipationError, LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
     },
+    waves::ReconstructLayerBoundaryWaves,
 };
 
 #[derive(Debug, Copy, Clone)]

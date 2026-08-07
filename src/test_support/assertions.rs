@@ -3,12 +3,12 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
         ScalarAlgebra,
     },
-    backend::BidirectionalWaves,
     observable::{
         BoundaryState, BoundaryWaves, InterfaceStates, Interfaces, LayerBoundaries,
         LayerBoundaryStates, LayerBoundaryWaves,
     },
     test_support::jet::J0,
+    waves::BidirectionalWaves,
 };
 
 use super::{C, c};

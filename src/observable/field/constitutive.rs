@@ -1,9 +1,4 @@
-use ndarray::Dimension;
 
-use crate::{
-    SpatialProfile, SpatialProfileError, VectorField,
-    field::VectorFieldView1,
-};
 
 /// Pointwise Cartesian electric displacement and magnetic induction phasor fields.
 ///
@@ -14,31 +9,6 @@ use crate::{
 pub struct ConstitutiveFields<V> {
     electric_displacement: V,
     magnetic_induction: V,
-}
-
-impl<C, D> SpatialProfile<D::Smaller> for ConstitutiveFields<VectorField<C, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = ConstitutiveFields<VectorFieldView1<'a, C>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(ConstitutiveFields {
-            electric_displacement: self
-                .electric_displacement
-                .profile_last_axis(excitation_index)?,
-            magnetic_induction: self
-                .magnetic_induction
-                .profile_last_axis(excitation_index)?,
-        })
-    }
 }
 
 impl<V> ConstitutiveFields<V> {

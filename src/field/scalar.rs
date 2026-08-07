@@ -3,8 +3,6 @@
 use ndarray::{Array, ArrayView, ArrayView1, Dimension, Ix1};
 use std::ops::{Index, IndexMut};
 
-use crate::{SpatialProfileError, spatial::array_profile};
-
 /// A scalar-valued field stored in an `ndarray`.
 ///
 /// `D` describes the complete array dimension. The type does not assign
@@ -117,18 +115,6 @@ where
         F: FnMut(C) -> B,
     {
         ScalarField::new(self.values.mapv(map))
-    }
-
-    pub fn profile_last_axis(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<ScalarFieldView1<'_, C>, SpatialProfileError>
-    where
-        D::Smaller: Dimension<Larger = D>,
-    {
-        let values = array_profile(self.values.view(), excitation_index)?;
-
-        Ok(ScalarFieldView1::new(values))
     }
 }
 
@@ -340,110 +326,5 @@ mod tests {
         let values: Vec<_> = field.iter().copied().collect();
 
         assert_eq!(values, vec![1, 2, 3]);
-    }
-}
-
-#[cfg(test)]
-mod spatial_profile_tests {
-    use super::*;
-    use crate::SpatialProfileError;
-    use ndarray::{Array2, Array3, IntoDimension, Ix0, Ix1, Ix2, arr1, arr2, array};
-
-    #[test]
-    fn extracts_profile_from_scalar_field() {
-        let field = ScalarField::new(Array3::from_shape_fn((2, 3, 4), |(i, j, k)| {
-            100 * i + 10 * j + k
-        }));
-
-        let profile = field.profile_last_axis(&[1, 2].into_dimension()).unwrap();
-
-        assert_eq!(profile.values(), array![120, 121, 122, 123].view(),);
-    }
-
-    #[test]
-    fn extracts_profile_from_one_dimensional_field() {
-        let field = ScalarField::new(array![1, 2, 3]);
-
-        let profile = field.profile_last_axis(&[].into_dimension()).unwrap();
-
-        assert_eq!(profile.values(), field.values().view());
-    }
-
-    #[test]
-    fn scalar_field_profiles_point_response() {
-        // Excitation dimension: Ix0
-        // Stored field dimension: Ix1
-        let values = arr1(&[10.0, 11.0, 12.0]);
-
-        let field = ScalarField::new(values);
-
-        let profile = field
-            .profile_last_axis(&Ix0())
-            .expect("point profile should succeed");
-
-        assert_eq!(profile.values(), arr1(&[10.0, 11.0, 12.0]).view());
-    }
-
-    #[test]
-    fn scalar_field_profiles_one_dimensional_excitation() {
-        // Shape: (excitation, position)
-        let values = arr2(&[[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [30.0, 31.0, 32.0]]);
-
-        let field = ScalarField::new(values);
-
-        let profile = field
-            .profile_last_axis(&Ix1(1))
-            .expect("profile should succeed");
-
-        assert_eq!(profile.values(), arr1(&[20.0, 21.0, 22.0]).view());
-    }
-
-    #[test]
-    fn scalar_field_profiles_two_dimensional_excitation() {
-        // Shape: (spectral, in_plane, position)
-        let values = Array3::from_shape_fn((2, 3, 4), |(i, j, k)| {
-            100.0 * i as f64 + 10.0 * j as f64 + k as f64
-        });
-
-        let field = ScalarField::new(values);
-
-        let profile = field
-            .profile_last_axis(&Ix2(1, 2))
-            .expect("profile should succeed");
-
-        assert_eq!(profile.values(), arr1(&[120.0, 121.0, 122.0, 123.0]).view(),);
-    }
-
-    #[test]
-    fn scalar_field_profile_rejects_out_of_bounds_index() {
-        let values = Array2::<f64>::zeros((2, 3));
-        let field = ScalarField::new(values);
-
-        let error = field
-            .profile_last_axis(&Ix1(2))
-            .expect_err("index should be out of bounds");
-
-        assert!(matches!(
-            error,
-            SpatialProfileError::ExcitationIndexOutOfBounds { .. }
-        ));
-    }
-
-    #[test]
-    fn scalar_field_profile_is_a_view() {
-        let values = arr2(&[[10.0, 11.0, 12.0], [20.0, 21.0, 22.0]]);
-
-        let field = ScalarField::new(values);
-
-        let profile = field
-            .profile_last_axis(&Ix1(1))
-            .expect("profile should succeed");
-
-        let source_ptr = field.values().as_ptr();
-
-        // The selected second row starts three elements after the array base.
-        let expected_ptr = unsafe { source_ptr.add(3) };
-
-        assert_eq!(profile.values().as_ptr(), expected_ptr);
     }
 }

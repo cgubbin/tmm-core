@@ -12,7 +12,7 @@ use std::fmt::Debug;
 pub trait CartesianScalarAlgebra: ScalarAlgebra {
     type Vector: CartesianVectorAlgebra<Coefficient = Self::Scalar, ScalarField = Self>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 }
 
 pub trait CartesianVectorAlgebra: Clone + Sized {
@@ -56,7 +56,7 @@ where
 {
     type Vector = Jet0<VectorField<T, D>, P>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         Jet0::new(VectorField::new_unchecked(
             x.into_inner(),
             y.into_inner(),
@@ -73,7 +73,7 @@ where
 {
     type Vector = Jet1<VectorField<T, D>, P>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         let (x_value, x_first) = x.into_parts();
         let (y_value, y_first) = y.into_parts();
         let (z_value, z_first) = z.into_parts();
@@ -93,7 +93,7 @@ where
 {
     type Vector = Jet2<VectorField<T, D>, P>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         let (x_value, x_first, x_second) = x.into_parts();
         let (y_value, y_first, y_second) = y.into_parts();
         let (z_value, z_first, z_second) = z.into_parts();
@@ -114,7 +114,7 @@ where
 {
     type Vector = JetBivariate1<VectorField<T, D>, P>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         let (x_value, x_gradient) = x.into_parts();
         let (y_value, y_gradient) = y.into_parts();
         let (z_value, z_gradient) = z.into_parts();
@@ -139,7 +139,7 @@ where
 {
     type Vector = JetBivariate2<VectorField<T, D>, P>;
 
-    fn into_cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
+    fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector {
         let (x_value, x_gradient, x_hessian) = x.into_parts();
         let (y_value, y_gradient, y_hessian) = y.into_parts();
         let (z_value, z_gradient, z_hessian) = z.into_parts();
@@ -529,14 +529,14 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn arrays_are_assembled_into_cartesian_vector() {
+    fn arrays_are_assembled_cartesian_vector() {
         let x = arr1(&[c(1.0, 2.0), c(3.0, 4.0)]);
 
         let y = arr1(&[c(5.0, 6.0), c(7.0, 8.0)]);
 
         let z = arr1(&[c(9.0, 10.0), c(11.0, 12.0)]);
 
-        let result = <Scalar as CartesianScalarAlgebra>::into_cartesian_vector(
+        let result = <Scalar as CartesianScalarAlgebra>::cartesian_vector(
             Jet0::new(x.clone()),
             Jet0::new(y.clone()),
             Jet0::new(z.clone()),
@@ -555,7 +555,7 @@ mod tests {
 
         let z = Jet1::from_parts(arr1(&[c(5.0, 0.0)]), arr1(&[c(6.0, 0.0)]));
 
-        let result = <FirstScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
+        let result = <FirstScalar as CartesianScalarAlgebra>::cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),
@@ -588,7 +588,7 @@ mod tests {
             arr1(&[c(9.0, 0.0)]),
         );
 
-        let result = <SecondScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
+        let result = <SecondScalar as CartesianScalarAlgebra>::cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),
@@ -635,7 +635,7 @@ mod tests {
             arr1(&[c(18.0, 0.0)]),
         );
 
-        let result = <BivariateScalar as CartesianScalarAlgebra>::into_cartesian_vector(x, y, z);
+        let result = <BivariateScalar as CartesianScalarAlgebra>::cartesian_vector(x, y, z);
 
         assert_vector_close(
             result.value(),

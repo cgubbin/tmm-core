@@ -6,8 +6,7 @@ use crate::{
     ComplexScalar, PlaneWaveAmplitudes, RealAxis,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, ExteriorAdmittanceProvider, IsotropicLayerQuantities,
-        ReconstructLayerBoundaryWaves, Scatter2, Transfer2,
+        ExteriorAdmittanceProvider, IsotropicLayerQuantities, Scatter2, Transfer2,
         transfer2::{
             TransferState, bidirectional_waves_from_state, right_exterior_waves,
             transfer_state_from_waves, transfer_state_slope,
@@ -30,6 +29,7 @@ use crate::{
         jet::{J0, zero_jet_from_real_value},
         planar::{scalar_real_input, single_layer_stack, two_layer_stack},
     },
+    waves::{BidirectionalWaves, ReconstructLayerBoundaryWaves},
 };
 
 macro_rules! retained_boundary_wave_equivalence_suite {
@@ -617,7 +617,7 @@ where
 
     let right = waves_from_state(&right_field, &right_state_slope, &layer_slope);
 
-    crate::backend::LayerBoundaryWaves::new(left, right).into()
+    crate::waves::LayerBoundaryWaves::new(left, right).into()
 }
 
 #[test]

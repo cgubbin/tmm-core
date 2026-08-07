@@ -1,20 +1,12 @@
 use approx::assert_relative_eq;
-use nalgebra::ComplexField;
-use ndarray::{Array0, Dimension};
+use ndarray::Array0;
 
 use crate::{
     FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, PlaneWavePower, Polarisation,
-    algebra::{Jet, ScalarAlgebra},
-    backend::{PlaneWaveSolutionSource, scatter2::Scatter2, transfer2::Transfer2},
-    derivative_parts::DerivativePartsPolicy,
-    differential::IntoDifferentialResponse,
-    evaluate::{PlaneWaveState, query::RawPower},
-    input::JetMapping,
-    observable::ProjectPower,
+    algebra::ScalarAlgebra,
+    backend::{scatter2::Scatter2, transfer2::Transfer2},
     projection::PointProjectionError,
     test_support::{
-        C,
-        assertions::assert_complex_close,
         planar::{sampled_real_input, scalar_real_input, two_layer_stack},
         stack::differentiable_lossless_two_layer_stack,
     },

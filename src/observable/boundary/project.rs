@@ -12,7 +12,11 @@ use thiserror::Error;
 use crate::{
     ComplexScalar, IncidentSide,
     algebra::{Jet, ScalarAlgebra},
-    backend::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+    backend::{
+        ModeReconstructionError, PlaneWaveModeCandidate, ReconstructLayerModeWaves,
+        RetainedIsotropicLayers,
+    },
+    waves::ReconstructLayerBoundaryWaves,
 };
 
 use super::{LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves};
@@ -142,6 +146,21 @@ where
     Ok(LayerBoundaries::new(states))
 }
 
+/// Reconstruct directional waves at both boundaries of every finite layer.
+pub(crate) fn project_layer_mode_waves<A, W>(
+    workspace: &W,
+    seed: &PlaneWaveModeCandidate<A>,
+) -> Result<LayerBoundaries<LayerBoundaryWaves<A>>, ModeReconstructionError>
+where
+    W: ReconstructLayerModeWaves<Algebra = A>,
+{
+    let waves = workspace.reconstruct_layer_mode_waves(seed)?;
+
+    Ok(LayerBoundaries::new(
+        waves.into_iter().map(Into::into).collect(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use ndarray::{Ix0, arr0};
@@ -152,12 +171,13 @@ mod tests {
     use crate::{
         Polarisation, RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::{
-            BidirectionalWaves as BackendBoundaryWaves, IsotropicLayerQuantities,
-            LayerBoundaryWaves as BackendLayerBoundaryWaves,
-        },
+        backend::IsotropicLayerQuantities,
         input::CanonicalCoordinates,
         material::Constant,
+        waves::{
+            BidirectionalWaves as BackendBoundaryWaves,
+            LayerBoundaryWaves as BackendLayerBoundaryWaves,
+        },
     };
 
     type C = Complex64;

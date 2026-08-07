@@ -4,16 +4,18 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
     },
     backend::{
-        BidirectionalWaves, IsotropicLayerQuantities, LayerBoundaryWaves, PlaneWaveSolution,
-        PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers, RunMode,
-        SolutionWorkspace,
+        ExteriorAdmittanceProvider, IsotropicLayerQuantities, ModalSolutionSource,
+        ModeReconstructionError, PlaneWaveModeCandidate, PlaneWaveSolution,
+        PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructLayerModeWaves,
+        RetainedIsotropicLayers, RunMode, SolutionWorkspace,
         scatter2::{
-            Scatter2ExteriorContext,
+            Scatter2ExteriorContext, Scatter2ProjectiveEntries, cascade_projection,
             entries::{Scatter2Entries, cascade},
         },
-        workspace::ReconstructLayerBoundaryWaves,
     },
     input::IncidentSide,
+    waves::ReconstructLayerBoundaryWaves,
+    waves::{BidirectionalWaves, LayerBoundaryWaves},
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
@@ -62,6 +64,50 @@ impl LayerCutIndices {
     }
 }
 
+/// Regularized projective data for the right-outgoing modal chart.
+///
+/// The physical scattering entries satisfy:
+///
+/// ```text
+/// s11 = left_reflection_numerator / denominator
+/// s21 = transmission_numerator    / denominator
+/// ```
+///
+/// The modal candidate is represented projectively, so no division by the
+/// transmission numerator is required.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Scatter2ModalData<A> {
+    denominator: A,
+    left_reflection_numerator: A,
+    transmission_numerator: A,
+}
+
+impl<A> Scatter2ModalData<A> {
+    pub(crate) const fn new(
+        denominator: A,
+        left_reflection_numerator: A,
+        transmission_numerator: A,
+    ) -> Self {
+        Self {
+            denominator,
+            left_reflection_numerator,
+            transmission_numerator,
+        }
+    }
+
+    pub(crate) fn denominator(&self) -> &A {
+        &self.denominator
+    }
+
+    pub(crate) fn left_reflection_numerator(&self) -> &A {
+        &self.left_reflection_numerator
+    }
+
+    pub(crate) fn transmission_numerator(&self) -> &A {
+        &self.transmission_numerator
+    }
+}
+
 /// Workspace used while constructing a scalar-channel scattering response.
 ///
 /// `A` determines the derivative order carried by each scattering entry:
@@ -75,12 +121,12 @@ impl LayerCutIndices {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct Scatter2Workspace<A> {
-    solution: PlaneWaveSolution<Scatter2Entries<A>>,
+    solution: PlaneWaveSolution<Scatter2ProjectiveEntries<A>>,
     retained: Option<RetainedScatterComponents<A>>,
 }
 
 impl<A> PlaneWaveSolutionSource for Scatter2Workspace<A> {
-    type Entries = Scatter2Entries<A>;
+    type Entries = Scatter2ProjectiveEntries<A>;
 
     fn solution(&self) -> PlaneWaveSolutionView<'_, Self::Entries> {
         self.solution.as_view()
@@ -130,9 +176,10 @@ impl<A> Scatter2Workspace<A> {
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
-        Self {
-            solution: PlaneWaveSolution::new(Scatter2Entries::identity_like(source), context),
+        let entries = Scatter2ProjectiveEntries::identity_like(source);
 
+        Self {
+            solution: PlaneWaveSolution::new(entries, context),
             retained: mode.is_requested().then(|| RetainedScatterComponents {
                 components: Vec::with_capacity(layer_count.saturating_mul(2).saturating_add(1)),
                 layer_cuts: Vec::with_capacity(layer_count),
@@ -143,7 +190,7 @@ impl<A> Scatter2Workspace<A> {
     }
 
     pub(crate) fn from_parts(
-        solution: PlaneWaveSolution<Scatter2Entries<A>>,
+        solution: PlaneWaveSolution<Scatter2ProjectiveEntries<A>>,
         retained: Option<RetainedScatterComponents<A>>,
     ) -> Self {
         Self { solution, retained }
@@ -152,31 +199,47 @@ impl<A> Scatter2Workspace<A> {
     pub(crate) fn into_parts(
         self,
     ) -> (
-        PlaneWaveSolution<Scatter2Entries<A>>,
+        PlaneWaveSolution<Scatter2ProjectiveEntries<A>>,
         Option<RetainedScatterComponents<A>>,
     ) {
         (self.solution, self.retained)
     }
 
-    pub(crate) fn solution(&self) -> &PlaneWaveSolution<Scatter2Entries<A>> {
+    pub(crate) fn solution(&self) -> &PlaneWaveSolution<Scatter2ProjectiveEntries<A>> {
         &self.solution
+    }
+
+    pub(crate) fn entries(&self) -> &Scatter2ProjectiveEntries<A> {
+        &self.solution.entries()
+    }
+
+    fn total(&self) -> Scatter2Entries<A>
+    where
+        A: ScalarAlgebra,
+    {
+        self.solution.entries().entries()
+    }
+
+    pub(crate) fn total_projection(&self) -> Scatter2Entries<A>
+    where
+        A: ScalarAlgebra,
+    {
+        self.solution.entries().entries()
     }
 
     pub(crate) fn retained(&self) -> Option<&RetainedScatterComponents<A>> {
         self.retained.as_ref()
     }
 
-    pub(crate) fn total(&self) -> &Scatter2Entries<A> {
-        self.solution.entries()
-    }
-
     pub(crate) fn append(&mut self, component: Scatter2Entries<A>)
     where
         A: ScalarAlgebra,
-        A::Scalar: ComplexScalar,
+        A::Scalar: ComplexScalar + One,
         A::Dimension: Dimension,
     {
-        let total = cascade(self.solution.entries(), &component);
+        let component_projection = Scatter2ProjectiveEntries::from_entries(&component);
+
+        let total = cascade_projection(self.solution.entries(), &component_projection);
 
         self.solution.replace_entries(total);
 
@@ -258,48 +321,16 @@ impl<A> RetainedScatterComponents<A> {
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
-        let prefixes = prefix_cascades(&self.components, source);
+        let zero = A::filled_constant_like(source, A::Scalar::zero());
 
-        let suffixes = suffix_cascades(&self.components, source);
-
-        /*
-         * Incoming amplitudes are represented using the same algebra as the
-         * scattering entries. For jets, both are constants: changing a stack or
-         * spectral parameter does not change the imposed unit incident amplitude.
-         */
-        let zero = A::filled_constant_like(source, <A::Scalar as Zero>::zero());
-
-        let one = A::filled_constant_like(source, <A::Scalar as One>::one());
+        let one = A::filled_constant_like(source, A::Scalar::one());
 
         let (left_incoming, right_incoming) = match incident_side {
             IncidentSide::Left => (one, zero),
-
             IncidentSide::Right => (zero, one),
         };
 
-        self.layer_cuts
-            .iter()
-            .map(|cuts| {
-                let left_cut = cuts.left();
-                let right_cut = cuts.right();
-
-                let left = waves_at_cut(
-                    &prefixes[left_cut],
-                    &suffixes[left_cut],
-                    &left_incoming,
-                    &right_incoming,
-                );
-
-                let right = waves_at_cut(
-                    &prefixes[right_cut],
-                    &suffixes[right_cut],
-                    &left_incoming,
-                    &right_incoming,
-                );
-
-                LayerBoundaryWaves::new(left, right)
-            })
-            .collect()
+        self.reconstruct_from_incoming_waves(&left_incoming, &right_incoming, source)
     }
 
     fn get_quantities(&self, layer_index: usize) -> Option<&IsotropicLayerQuantities<A>> {
@@ -464,6 +495,100 @@ where
     BidirectionalWaves::new(forward, backward)
 }
 
+impl<A> ModalSolutionSource for Scatter2Workspace<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar + One,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn modal_boundary_solution(
+        &self,
+    ) -> Result<PlaneWaveModeCandidate<A>, ModeReconstructionError> {
+        Ok(self
+            .solution()
+            .entries()
+            .right_gauged_mode_candidate(self.solution().context().left_admittance()))
+    }
+}
+
+impl<A> ReconstructLayerModeWaves for Scatter2Workspace<A>
+where
+    A: ScalarAlgebra + Clone,
+    A::Scalar: ComplexScalar + Zero,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_layer_mode_waves(
+        &self,
+        candidate: &PlaneWaveModeCandidate<A>,
+    ) -> Result<Vec<LayerBoundaryWaves<A>>, ModeReconstructionError> {
+        let retained = self
+            .retained()
+            .ok_or(ModeReconstructionError::ModeDataNotRetained)?;
+
+        let source = self.sample_source();
+
+        let left_incoming = self.solution().entries().denominator().clone();
+
+        let right_incoming = A::filled_constant_like(source, A::Scalar::zero());
+
+        let waves =
+            retained.reconstruct_from_incoming_waves(&left_incoming, &right_incoming, source);
+
+        debug_assert_eq!(waves.len(), retained.num_layers(),);
+
+        /*
+         * `candidate` must be the candidate produced from the same projective
+         * solution. Verify its left state in debug builds if convenient.
+         */
+        let _ = candidate;
+
+        Ok(waves)
+    }
+}
+
+impl<A> RetainedScatterComponents<A> {
+    pub(crate) fn reconstruct_from_incoming_waves(
+        &self,
+        left_incoming: &A,
+        right_incoming: &A,
+        source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+    ) -> Vec<LayerBoundaryWaves<A>>
+    where
+        A: ScalarAlgebra + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+    {
+        let prefixes = prefix_cascades(&self.components, source);
+
+        let suffixes = suffix_cascades(&self.components, source);
+
+        self.layer_cuts
+            .iter()
+            .map(|cuts| {
+                let left = waves_at_cut(
+                    &prefixes[cuts.left()],
+                    &suffixes[cuts.left()],
+                    left_incoming,
+                    right_incoming,
+                );
+
+                let right = waves_at_cut(
+                    &prefixes[cuts.right()],
+                    &suffixes[cuts.right()],
+                    left_incoming,
+                    right_incoming,
+                );
+
+                LayerBoundaryWaves::new(left, right)
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ndarray::{ArrayBase, Ix0, OwnedRepr, arr0};
@@ -477,12 +602,12 @@ mod tests {
         Polarisation, RealAxis,
         algebra::ScalarAlgebra,
         backend::{
-            IsotropicLayerQuantities, RunMode, Scatter2, SolutionWorkspace,
+            IsotropicLayerQuantities, ModalSolutionSource, ReconstructLayerModeWaves, RunMode,
+            Scatter2, SolutionWorkspace,
             scatter2::{
                 Scatter2ExteriorContext,
                 entries::{Scatter2Entries, cascade},
             },
-            workspace::ReconstructLayerBoundaryWaves,
         },
         input::{CanonicalCoordinates, CanonicalStack, IncidentSide},
         material::{Constant, ConstitutiveLift},
@@ -499,6 +624,8 @@ mod tests {
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
             },
         },
+        waves::LayerBoundaryWaves,
+        waves::ReconstructLayerBoundaryWaves,
     };
 
     type Entries0 = Scatter2Entries<J0>;
@@ -629,7 +756,7 @@ mod tests {
 
         workspace.append(component.clone());
 
-        assert_entries_close(workspace.total(), &component, TOLERANCE);
+        assert_entries_close(&workspace.total(), &component, TOLERANCE);
     }
 
     #[test]
@@ -648,7 +775,7 @@ mod tests {
         let solution = workspace.into_solution();
         let (entries, ..) = solution.into_parts();
 
-        assert_entries_close(&entries, &component, TOLERANCE);
+        assert_entries_close(&entries.into_entries(), &component, TOLERANCE);
     }
 
     #[test]
@@ -668,7 +795,7 @@ mod tests {
 
         let expected = cascade(&first, &second);
 
-        assert_entries_close(workspace.total(), &expected, TOLERANCE);
+        assert_entries_close(&workspace.total(), &expected, TOLERANCE);
     }
 
     #[test]
@@ -730,7 +857,7 @@ mod tests {
 
         let expected = cascade(&interface, &propagation);
 
-        assert_entries_close(workspace.total(), &expected, TOLERANCE);
+        assert_entries_close(&workspace.total(), &expected, TOLERANCE);
     }
 
     #[test]
@@ -1478,5 +1605,150 @@ mod tests {
             &Scatter2Entries::identity_like(&source),
             TOLERANCE,
         );
+    }
+
+    fn assert_layer_boundary_waves_close(
+        actual: &LayerBoundaryWaves<J0>,
+        expected: &LayerBoundaryWaves<J0>,
+    ) {
+        assert_bidirectional_waves_close(actual.left(), expected.left(), TOLERANCE);
+
+        assert_bidirectional_waves_close(actual.right(), expected.right(), TOLERANCE);
+    }
+
+    fn assert_layer_boundary_waves_scaled(
+        actual: &LayerBoundaryWaves<J0>,
+        expected: &LayerBoundaryWaves<J0>,
+        scale: C,
+    ) {
+        for (actual, expected) in [
+            (actual.left().forward(), expected.left().forward()),
+            (actual.left().backward(), expected.left().backward()),
+            (actual.right().forward(), expected.right().forward()),
+            (actual.right().backward(), expected.right().backward()),
+        ] {
+            assert_complex_close(actual.value()[()], scale * expected.value()[()], TOLERANCE);
+        }
+    }
+
+    fn retained_components_fixture() -> RetainedScatterComponents<J0> {
+        RetainedScatterComponents {
+            components: vec![
+                first_component(),
+                second_component(),
+                third_component(),
+                transparent_component(),
+            ],
+
+            layer_cuts: vec![LayerCutIndices::new(1, 2), LayerCutIndices::new(3, 4)],
+
+            quantities: vec![sample_quantities(), sample_quantities()],
+
+            thicknesses: vec![sample_thickness(), sample_thickness()],
+        }
+    }
+
+    #[test]
+    fn arbitrary_incoming_reconstruction_returns_one_record_per_layer() {
+        let source = arr0(c(0.0));
+
+        let retained = retained_components_fixture();
+
+        let waves = retained.reconstruct_from_incoming_waves(
+            &zero_jet_from_value(c(0.7)),
+            &zero_jet_from_value(c(-0.2)),
+            &source,
+        );
+
+        assert_eq!(waves.len(), retained.num_layers(),);
+    }
+
+    #[test]
+    fn arbitrary_incoming_reconstruction_is_linear() {
+        let source = arr0(c(0.0));
+
+        let retained = retained_components_fixture();
+
+        let left = zero_jet_from_value(c(0.7));
+
+        let right = zero_jet_from_value(c(-0.2));
+
+        let scale = c(1.7) + C::i() * c(-0.4);
+
+        let base = retained.reconstruct_from_incoming_waves(&left, &right, &source);
+
+        let scaled = retained.reconstruct_from_incoming_waves(
+            &left.scale(scale),
+            &right.scale(scale),
+            &source,
+        );
+
+        for (actual, expected) in scaled.iter().zip(&base) {
+            assert_layer_boundary_waves_scaled(actual, expected, scale);
+        }
+    }
+
+    #[test]
+    fn driven_reconstruction_delegates_to_general_incoming_reconstruction() {
+        let source = arr0(c(0.0));
+
+        let retained = retained_components_fixture();
+
+        let driven = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
+
+        let general = retained.reconstruct_from_incoming_waves(
+            &zero_jet_from_value(c(1.0)),
+            &zero_jet_from_value(c(0.0)),
+            &source,
+        );
+
+        assert_eq!(driven.len(), general.len());
+
+        for (actual, expected) in driven.iter().zip(&general) {
+            assert_layer_boundary_waves_close(actual, expected);
+        }
+    }
+
+    #[test]
+    fn projective_modal_reconstruction_uses_denominator_as_left_incoming_wave() {
+        let source = arr0(c(0.0));
+
+        let context = make_context(&zero_jet_from_array(source.clone()));
+
+        let mut workspace: Scatter2Workspace<J0> =
+            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
+
+        workspace.append_layer(
+            first_component(),
+            second_component(),
+            sample_quantities(),
+            sample_thickness(),
+        );
+
+        workspace.append_layer(
+            third_component(),
+            transparent_component(),
+            sample_quantities(),
+            sample_thickness(),
+        );
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let actual = workspace.reconstruct_layer_mode_waves(&candidate).unwrap();
+
+        let expected = workspace
+            .retained()
+            .unwrap()
+            .reconstruct_from_incoming_waves(
+                workspace.solution().entries().denominator(),
+                &zero_jet_from_value(c(0.0)),
+                &source,
+            );
+
+        assert_eq!(actual.len(), expected.len());
+
+        for (actual, expected) in actual.iter().zip(&expected) {
+            assert_layer_boundary_waves_close(actual, expected);
+        }
     }
 }

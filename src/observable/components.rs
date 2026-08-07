@@ -1,39 +1,9 @@
-use crate::{
-    SpatialProfile, SpatialProfileError,
-    field::{ScalarField, ScalarFieldView1},
-};
-
-use ndarray::Dimension;
-
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ElectromagneticComponents<R> {
     electric: R,
     magnetic: R,
     coupling: R,
     total: R,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for ElectromagneticComponents<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = ElectromagneticComponents<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(ElectromagneticComponents {
-            electric: self.electric.profile_last_axis(excitation_index)?,
-            magnetic: self.magnetic.profile_last_axis(excitation_index)?,
-            coupling: self.coupling.profile_last_axis(excitation_index)?,
-            total: self.total.profile_last_axis(excitation_index)?,
-        })
-    }
 }
 
 impl<R> ElectromagneticComponents<R> {

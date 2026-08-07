@@ -12,9 +12,8 @@
 use std::ops::Neg;
 
 use crate::{
-    ComplexScalar, SpatialProfile, SpatialProfileError,
+    ComplexScalar,
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
-    field::{ScalarField, ScalarFieldView1},
     observable::BoundaryWaves,
 };
 
@@ -48,28 +47,6 @@ pub struct DirectedPower<R> {
     forward_flux: R,
     backward_flux: R,
     net_flux: R,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for DirectedPower<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = DirectedPower<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(DirectedPower {
-            forward_flux: self.forward_flux.profile_last_axis(excitation_index)?,
-            backward_flux: self.backward_flux.profile_last_axis(excitation_index)?,
-            net_flux: self.net_flux.profile_last_axis(excitation_index)?,
-        })
-    }
 }
 
 impl<R> DirectedPower<R> {
@@ -124,27 +101,6 @@ impl<R> DirectedPower<R> {
 pub struct InterfacePower<R> {
     left: DirectedPower<R>,
     right: DirectedPower<R>,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for InterfacePower<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = InterfacePower<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(InterfacePower {
-            left: self.left.spatial_profile(excitation_index)?,
-            right: self.right.spatial_profile(excitation_index)?,
-        })
-    }
 }
 
 impl<R> InterfacePower<R> {

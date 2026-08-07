@@ -18,7 +18,6 @@
 //! mappings.
 
 use crate::{
-    SpatialProfile, SpatialProfileError,
     differential::{
         BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DirectionalFirst,
         DirectionalSecond,
@@ -26,7 +25,6 @@ use crate::{
     parameter::Parameter,
 };
 
-use ndarray::Dimension;
 
 /// A value paired with caller-facing differential information.
 ///
@@ -144,39 +142,11 @@ impl<V, X> DifferentialResponse<V, BivariateSecond<X>> {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NoDerivatives;
 
-impl<ED> SpatialProfile<ED> for NoDerivatives
-where
-    ED: Dimension,
-{
-    type Profile<'a>
-        = NoDerivatives
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        _excitation_index: &ED,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(NoDerivatives)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use ndarray::Ix2;
-
-    #[test]
-    fn no_derivatives_profiles_to_no_derivatives() {
-        let derivatives = NoDerivatives;
-
-        let profile = derivatives
-            .spatial_profile(&Ix2(1, 2))
-            .expect("NoDerivatives profiling should be infallible");
-
-        assert_eq!(profile, NoDerivatives);
-    }
+    
 
     #[test]
     fn response_preserves_value_and_derivatives() {

@@ -102,8 +102,8 @@ impl<A> BoundaryWaves<A> {
     }
 }
 
-impl<A> From<crate::backend::BidirectionalWaves<A>> for BoundaryWaves<A> {
-    fn from(value: crate::backend::BidirectionalWaves<A>) -> Self {
+impl<A> From<crate::waves::BidirectionalWaves<A>> for BoundaryWaves<A> {
+    fn from(value: crate::waves::BidirectionalWaves<A>) -> Self {
         let (forward, backward) = value.into_parts();
         Self::new(forward, backward)
     }
@@ -162,8 +162,8 @@ impl<A> LayerBoundaryWaves<A> {
     }
 }
 
-impl<A> From<crate::backend::LayerBoundaryWaves<A>> for LayerBoundaryWaves<A> {
-    fn from(value: crate::backend::LayerBoundaryWaves<A>) -> Self {
+impl<A> From<crate::waves::LayerBoundaryWaves<A>> for LayerBoundaryWaves<A> {
+    fn from(value: crate::waves::LayerBoundaryWaves<A>) -> Self {
         let (left, right) = value.into_parts();
 
         Self::new(BoundaryWaves::from(left), BoundaryWaves::from(right))
@@ -179,7 +179,7 @@ mod tests {
     use super::*;
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::{
+        waves::{
             BidirectionalWaves as BackendBoundaryWaves,
             LayerBoundaryWaves as BackendLayerBoundaryWaves,
         },

@@ -6,7 +6,6 @@ use crate::{
         JetRealPart, JetScaleBy,
     },
     field::FieldShapeError,
-    spatial::{SpatialProfileError, array_profile},
 };
 use nalgebra::ComplexField;
 use ndarray::{Array, ArrayView, ArrayView1, Dimension, Ix1};
@@ -296,24 +295,6 @@ where
         self.x.mapv(|value| value.modulus_squared())
             + self.y.mapv(|value| value.modulus_squared())
             + self.z.mapv(|value| value.modulus_squared())
-    }
-
-    pub(crate) fn profile_last_axis(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<VectorFieldView1<'_, C>, SpatialProfileError>
-    where
-        D::Smaller: Dimension<Larger = D>,
-    {
-        let x = array_profile(self.x.view(), excitation_index)?;
-
-        let y = array_profile(self.y.view(), excitation_index)?;
-
-        let z = array_profile(self.z.view(), excitation_index)?;
-
-        // VectorField guarantees matching component shapes, so profile
-        // extraction preserves matching lengths.
-        Ok(VectorFieldView1::new_unchecked(x, y, z))
     }
 }
 
@@ -1184,47 +1165,5 @@ mod tests {
             JetHermitianProduct::jet_hermitian_product(&lhs, &rhs,),
             lhs.hermitian_dot(&rhs),
         );
-    }
-}
-
-#[cfg(test)]
-mod spatial_profile_tests {
-    use super::*;
-    use ndarray::{Array2, Array3, IntoDimension, Ix2, arr1, array};
-
-    #[test]
-    fn extracts_all_vector_components_at_same_coordinate() {
-        let x = Array2::from_shape_fn((2, 3), |(i, k)| 100 * i + k);
-
-        let y = Array2::from_shape_fn((2, 3), |(i, k)| 1_000 + 100 * i + k);
-
-        let z = Array2::from_shape_fn((2, 3), |(i, k)| 2_000 + 100 * i + k);
-
-        let field = VectorField::new(x, y, z).unwrap();
-        let profile = field.profile_last_axis(&[1].into_dimension()).unwrap();
-
-        assert_eq!(profile.x(), array![100, 101, 102].view());
-        assert_eq!(profile.y(), array![1_100, 1_101, 1_102].view(),);
-        assert_eq!(profile.z(), array![2_100, 2_101, 2_102].view(),);
-    }
-
-    #[test]
-    fn vector_field_profiles_all_components() {
-        let x = Array3::from_shape_fn((2, 2, 3), |(i, j, k)| {
-            100.0 * i as f64 + 10.0 * j as f64 + k as f64
-        });
-
-        let y = x.mapv(|value| value + 1_000.0);
-        let z = x.mapv(|value| value + 2_000.0);
-
-        let field = VectorField::new(x, y, z).unwrap();
-
-        let profile = field
-            .profile_last_axis(&Ix2(1, 0))
-            .expect("profile should succeed");
-
-        assert_eq!(profile.x(), arr1(&[100.0, 101.0, 102.0]).view(),);
-        assert_eq!(profile.y(), arr1(&[1100.0, 1101.0, 1102.0]).view(),);
-        assert_eq!(profile.z(), arr1(&[2100.0, 2101.0, 2102.0]).view(),);
     }
 }

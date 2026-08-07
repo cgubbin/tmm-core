@@ -31,7 +31,7 @@ pub use dissipation::LayerDissipation;
 pub use energy::{LayerEnergy, LayerEnergyError};
 pub use overlap::{
     AggregateBilinearNormalization, AggregateBilinearOverlap, AggregateHermitianOverlap,
-    BilinearLayerNormalization, NormalizedHermitianOverlap,
+    BilinearLayerNormalization,
 };
 pub use participation::{LayerParticipation, LayerParticipationError};
 pub use power::LayerPower;
@@ -39,13 +39,12 @@ pub use project::LayerProjectionError;
 
 pub(crate) use integration::{
     IntegratedHermitianCrossStateProducts, integrate_hermitian_wave_products,
-    project_integrated_field_norms,
 };
 pub(crate) use overlap::{
     BilinearLayerOverlap, BilinearLayerOverlapInput, HermitianLayerOverlap,
     HermitianLayerOverlapInput, LayerOverlapInput, LayerOverlapOperand,
 };
-pub(crate) use overlap::{OverlapError, PairOperand};
+pub(crate) use overlap::OverlapError;
 pub(crate) use project::{LayerIntegrationInput, assemble_layer_integration_inputs};
 
 use crate::FiniteLayerIndex;

@@ -1,7 +1,8 @@
 use crate::backend::{
     ExteriorAdmittanceProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
     scatter2::{
-        RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext, Scatter2Workspace,
+        RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
+        Scatter2ProjectiveEntries, Scatter2Workspace,
     },
     transfer2::{
         RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries, Transfer2ExteriorContext,
@@ -70,6 +71,27 @@ where
         Ok(PlaneWaveSolution::new(
             self.entries().project_point(index)?,
             self.context().project_point(index)?,
+        ))
+    }
+}
+
+impl<J> ProjectPoint for Scatter2ProjectiveEntries<J>
+where
+    J: ProjectPoint,
+{
+    type Dimension = J::Dimension;
+    type Point = Scatter2ProjectiveEntries<J::Point>;
+
+    fn project_point<I>(&self, index: &I) -> Result<Self::Point, PointProjectionError>
+    where
+        I: ndarray::NdIndex<Self::Dimension> + Clone,
+    {
+        Ok(Scatter2ProjectiveEntries::from_parts(
+            self.denominator().project_point(index)?,
+            self.n11().project_point(index)?,
+            self.n12().project_point(index)?,
+            self.n21().project_point(index)?,
+            self.n22().project_point(index)?,
         ))
     }
 }

@@ -24,6 +24,18 @@ pub enum Parameter {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FiniteLayerIndex(pub(crate) usize);
 
+impl FiniteLayerIndex {
+    pub(crate) fn new(value: usize) -> Self {
+        value.into()
+    }
+}
+
+impl Into<FiniteLayerIndex> for usize {
+    fn into(self) -> FiniteLayerIndex {
+        FiniteLayerIndex(self)
+    }
+}
+
 impl Parameter {
     pub(crate) fn validate(self, finite_layer_count: usize) -> Result<(), ThicknessSeedError> {
         match self {

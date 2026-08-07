@@ -183,7 +183,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        algebra::{ArrayJet0, Jet, Jet0, RealParameter},
+        algebra::{ArrayJet0, Jet0, RealParameter},
         observable::layer::integration::IntegratedWaveProducts,
     };
 

@@ -79,7 +79,6 @@ mod tests {
             CompilationContext, CoordinateContext, CoordinateValues, ProjectionConstraint,
             compile::StackContext,
         },
-        test_support::planar::single_layer_stack,
     };
 
     fn values() -> CoordinateValues<Complex64, Ix1> {

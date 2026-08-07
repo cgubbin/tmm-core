@@ -1,9 +1,6 @@
-use ndarray::Dimension;
 use num_traits::One;
 
 use crate::algebra::RealCartesianVectorAlgebra;
-use crate::field::{VectorField, VectorFieldView1};
-use crate::{SpatialProfile, SpatialProfileError};
 
 /// Pointwise Cartesian electric and magnetic phasor fields.
 ///
@@ -46,27 +43,6 @@ impl<V> ElectromagneticFields<V> {
             electric: f(self.electric),
             magnetic: f(self.magnetic),
         }
-    }
-}
-
-impl<C, D> SpatialProfile<D::Smaller> for ElectromagneticFields<VectorField<C, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = ElectromagneticFields<VectorFieldView1<'a, C>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(ElectromagneticFields {
-            electric: self.electric.profile_last_axis(excitation_index)?,
-            magnetic: self.magnetic.profile_last_axis(excitation_index)?,
-        })
     }
 }
 
@@ -143,13 +119,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array1, Array3, Ix1, Ix2, arr1};
+    use ndarray::{Array1, Ix1, arr1};
     use num_complex::Complex64;
 
     use crate::{
         algebra::{Jet0, RealParameter},
         field::VectorField,
-        spatial::SpatialProfile,
     };
 
     use super::*;
@@ -307,43 +282,5 @@ mod tests {
         assert_real_array_close(averaged.y(), &complex.y().mapv(|value| value.re));
 
         assert_real_array_close(averaged.z(), &complex.z().mapv(|value| value.re));
-    }
-
-    #[test]
-    fn electromagnetic_fields_profile_electric_and_magnetic_fields() {
-        let base = Array3::from_shape_fn((2, 2, 3), |(i, j, k)| {
-            100.0 * i as f64 + 10.0 * j as f64 + k as f64
-        });
-
-        let electric = VectorField::new(
-            base.clone(),
-            base.mapv(|value| value + 1000.0),
-            base.mapv(|value| value + 2000.0),
-        )
-        .unwrap();
-
-        let magnetic = VectorField::new(
-            base.mapv(|value| value + 3000.0),
-            base.mapv(|value| value + 4000.0),
-            base.mapv(|value| value + 5000.0),
-        )
-        .unwrap();
-
-        let fields: ElectromagneticFields<VectorField<f64, ndarray::Ix3>> =
-            ElectromagneticFields::new(electric, magnetic);
-
-        let profile = fields
-            .spatial_profile(&Ix2(1, 1))
-            .expect("profile should succeed");
-
-        assert_eq!(profile.electric().x(), arr1(&[110.0, 111.0, 112.0]).view(),);
-        assert_eq!(
-            profile.electric().y(),
-            arr1(&[1110.0, 1111.0, 1112.0]).view(),
-        );
-        assert_eq!(
-            profile.magnetic().z(),
-            arr1(&[5110.0, 5111.0, 5112.0]).view(),
-        );
     }
 }

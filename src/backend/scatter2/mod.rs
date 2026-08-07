@@ -1,6 +1,7 @@
 mod backend;
 mod entries;
 mod error;
+mod projection;
 mod workspace;
 
 use crate::{
@@ -13,6 +14,8 @@ use crate::{
 pub(crate) use entries::{Scatter2Entries, Scatter2ExteriorContext};
 pub use error::Scatter2Error;
 pub(crate) use workspace::{RetainedScatterComponents, Scatter2Workspace};
+
+pub(crate) use projection::{Scatter2ProjectiveEntries, cascade_projection};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
@@ -36,7 +39,7 @@ where
     <J::Scalar as ComplexField>::RealField: Copy,
 {
     type Error = Scatter2Error;
-    type Entries = Scatter2Entries<J>;
+    type Entries = Scatter2ProjectiveEntries<J>;
     type Workspace = Scatter2Workspace<J>;
 
     fn solve<M>(

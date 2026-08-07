@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::{
     ComplexScalar, FiniteLayerIndex, Polarisation,
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
-    backend::{PlaneWaveSolutionSource, ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+    backend::{PlaneWaveSolutionSource, RetainedIsotropicLayers},
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
     evaluate::{
@@ -19,6 +19,7 @@ use crate::{
         HermitianLayerOverlapInput, LayerAggregateError, LayerOverlapInput, LayerOverlapOperand,
         Layers, OverlapError,
     },
+    waves::ReconstructLayerBoundaryWaves,
 };
 
 /// Operand involved in a pairwise plane-wave operation.

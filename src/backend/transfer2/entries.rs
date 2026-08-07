@@ -45,16 +45,16 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities,
-        transfer2::error::Transfer2Entry,
+        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        isotropic::IsotropicLayerQuantities, transfer2::error::Transfer2Entry,
     },
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
-    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+    observable::{BoundaryState, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
 use super::{
-    projection::{outgoing_residual, right_incoming_column, right_outgoing_column},
+    projection::{right_incoming_column, right_outgoing_column},
     state::transfer_state_slope,
 };
 
@@ -438,8 +438,27 @@ where
 
         let right_slope = transfer_state_slope(exterior.right_admittance());
 
-        PlaneWaveDeterminant::new(outgoing_residual(self, &left_slope, &right_slope))
+        let candidate = right_gauged_mode_candidate(self, &left_slope, &right_slope);
+
+        PlaneWaveDeterminant::new(candidate.into_projective_residual())
     }
+}
+
+pub(crate) fn right_gauged_mode_candidate<A>(
+    entries: &Transfer2Entries<A>,
+    left_slope: &A,
+    right_slope: &A,
+) -> PlaneWaveModeCandidate<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let (field, secondary) = right_outgoing_column(entries, right_slope);
+
+    let residual = left_slope.multiply(&field).subtract(&secondary);
+
+    PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), residual)
 }
 
 #[cfg(test)]
@@ -675,6 +694,7 @@ mod projection_tests {
 
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
+        backend::transfer2::projection::outgoing_residual,
         input::{CanonicalCoordinates, IncidentSide},
         test_support::materials::constant,
     };

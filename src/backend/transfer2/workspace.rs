@@ -6,18 +6,22 @@ use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes,
     algebra::ScalarAlgebra,
     backend::{
-        BidirectionalWaves, ExteriorAdmittanceProvider, LayerBoundaryWaves, PlaneWaveSolution,
-        PlaneWaveSolutionSource, RunMode, SolutionWorkspace,
-        isotropic::IsotropicLayerQuantities,
-        solution::PlaneWaveSolutionView,
-        workspace::{ReconstructLayerBoundaryWaves, RetainedIsotropicLayers},
+        ExteriorAdmittanceProvider, ModalSolutionSource, ModeReconstructionError,
+        PlaneWaveModeCandidate, PlaneWaveSolution, PlaneWaveSolutionSource,
+        ReconstructLayerModeWaves, RunMode, SolutionWorkspace, isotropic::IsotropicLayerQuantities,
+        solution::PlaneWaveSolutionView, transfer2::entries::right_gauged_mode_candidate,
+        workspace::RetainedIsotropicLayers,
     },
+    waves::{BidirectionalWaves, LayerBoundaryWaves, ReconstructLayerBoundaryWaves},
 };
 
 use super::{
     Transfer2Entries,
     entries::Transfer2ExteriorContext,
-    state::{TransferState, bidirectional_waves_from_state, transfer_state_from_waves},
+    state::{
+        TransferState, bidirectional_waves_from_state, transfer_state_from_waves,
+        transfer_state_slope,
+    },
 };
 
 /// The transfer states at the two boundaries of one finite layer.
@@ -486,6 +490,87 @@ impl<A> Transfer2Entries<A> {
             .add(&self.m22.multiply(state.slope()));
 
         TransferState::new(field, slope)
+    }
+}
+
+impl<A> ModalSolutionSource for Transfer2Workspace<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar + One,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn modal_boundary_solution(
+        &self,
+    ) -> Result<
+        crate::backend::PlaneWaveModeCandidate<Self::Algebra>,
+        crate::backend::ModeReconstructionError,
+    > {
+        let left_slope = transfer_state_slope(self.solution().context().left_admittance());
+
+        let right_slope = transfer_state_slope(self.solution().context().right_admittance());
+
+        Ok(right_gauged_mode_candidate(
+            self.entries(),
+            &left_slope,
+            &right_slope,
+        ))
+    }
+}
+
+impl<A> ReconstructLayerModeWaves for Transfer2Workspace<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar + One,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_layer_mode_waves(
+        &self,
+        candidate: &PlaneWaveModeCandidate<A>,
+    ) -> Result<Vec<LayerBoundaryWaves<A>>, ModeReconstructionError> {
+        let retained = self
+            .retained()
+            .ok_or(ModeReconstructionError::ModeDataNotRetained)?;
+
+        let right_slope = transfer_state_slope(self.solution().context().right_admittance());
+
+        /*
+         * Right-gauged outgoing state:
+         *
+         * right outgoing amplitude = 1
+         * right incoming amplitude = 0
+         *
+         * Therefore:
+         *
+         * field     = 1
+         * secondary = right_slope
+         */
+        let one = A::filled_constant_like(right_slope.value(), A::Scalar::one());
+
+        let right_state = TransferState::new(one, right_slope);
+
+        let waves = retained.reconstruct_layer_boundary_waves(right_state);
+
+        debug_assert_eq!(
+            waves.len(),
+            retained.len(),
+            "modal reconstruction must produce one wave record per retained layer",
+        );
+
+        /*
+         * The candidate contains the left state produced by propagating this
+         * same right-gauged state through the complete transfer matrix.
+         *
+         * It is deliberately not used as the propagation seed: retained
+         * transfer matrices map right states to left states, so propagating
+         * from the stored left state would require inversion.
+         */
+        let _ = candidate;
+
+        Ok(waves)
     }
 }
 

@@ -6,7 +6,8 @@ use crate::{
     ComplexPlane, ComplexScalar,
     algebra::{ComplexJet, Jet, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
-        ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
+        ExteriorAdmittanceProvider, ModalSolutionSource, ModeReconstructionError,
+        PlaneWaveEntries, PlaneWaveModeCandidate, PlaneWaveSolutionSource,
         ReconstructLayerModeWaves, RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
@@ -18,42 +19,37 @@ use crate::{
     input::JetMapping,
     material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
     observable::{
-        AggregateBilinearNormalization, BilinearLayerNormalization, LayerAggregateError,
-        LayerBoundaries, LayerBoundaryWaves, LayerIntegrationInput, LayerProjectionError, Layers,
-        assemble_layer_integration_inputs,
+        AggregateBilinearNormalization, BilinearLayerNormalization,
+        LayerAggregateError, LayerBoundaries, LayerBoundaryWaves, LayerEnergyError,
+        LayerIntegrationInput, LayerProjectionError, Layers, assemble_layer_integration_inputs,
+        project_layer_mode_waves,
     },
 };
 
 use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum ModeReconstructionError {
-    #[error("workspace does not retain the data required for modal reconstruction")]
-    ModeDataNotRetained,
+pub enum QnmNormalisationError {
+    #[error(transparent)]
+    ModeProjection(#[from] ModeLayerProjectionError),
 
-    #[error("the outgoing boundary system has no usable modal null vector")]
-    NoModalNullVector,
+    #[error(transparent)]
+    Energy(#[from] LayerEnergyError),
 
-    #[error("the outgoing boundary system has a degenerate modal null space")]
-    DegenerateNullSpace,
+    #[error(transparent)]
+    Aggregate(#[from] LayerAggregateError),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum ModeLayerProjectionError {
+    #[error(transparent)]
+    Reconstruction(#[from] ModeReconstructionError),
 
     #[error(transparent)]
     LayerProjection(#[from] LayerProjectionError),
-
-    #[error(transparent)]
-    Aggregation(#[from] LayerAggregateError),
-
-    #[error(
-        "reconstructed modal boundary-wave count {wave_count} does not match \
-         retained finite-layer count {layer_count}"
-    )]
-    LayerCountMismatch {
-        wave_count: usize,
-        layer_count: usize,
-    },
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone)]
 pub struct PlaneWaveMode<'a, J, M, W>
 where
     J: Jet + JetMapping,
@@ -61,6 +57,7 @@ where
     J::Dimension: Dimension,
 {
     state: &'a PlaneWaveState<J, J::Scalar, M, W>,
+    seed: PlaneWaveModeCandidate<J>,
 }
 
 impl<'a, J, M, W> PlaneWaveMode<'a, J, M, W>
@@ -70,16 +67,43 @@ where
     J::Dimension: Dimension,
 {
     /// Construct an excitation after validating the state's projection constraint.
-    pub(crate) fn new(state: &'a PlaneWaveState<J, J::Scalar, M, W>) -> Self {
-        Self { state }
+    pub(crate) fn new(
+        state: &'a PlaneWaveState<J, J::Scalar, M, W>,
+    ) -> Result<Self, ModeReconstructionError>
+    where
+        W: ModalSolutionSource<Algebra = J>,
+    {
+        let seed = state.workspace().modal_boundary_solution()?;
+
+        Ok(Self { state, seed })
     }
 
     pub(crate) fn state(&self) -> &'a PlaneWaveState<J, J::Scalar, M, W> {
         self.state
     }
 
-    pub(crate) fn into_inner(self) -> &'a PlaneWaveState<J, J::Scalar, M, W> {
-        self.state
+    pub(crate) fn seed(&self) -> &PlaneWaveModeCandidate<J> {
+        &self.seed
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        &'a PlaneWaveState<J, J::Scalar, M, W>,
+        PlaneWaveModeCandidate<J>,
+    ) {
+        (self.state, self.seed)
+    }
+}
+
+impl<J, M, W> std::fmt::Debug for PlaneWaveMode<'_, J, M, W>
+where
+    J: Jet + JetMapping,
+    J::Scalar: ComplexField,
+    J::Dimension: Dimension,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PlaneWaveMode").finish_non_exhaustive()
     }
 }
 
@@ -94,12 +118,12 @@ where
     pub(crate) fn raw_layer_mode_waves_unchecked(
         &self,
     ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, ModeReconstructionError> {
-        todo!()
+        project_layer_mode_waves(self.state.workspace(), self.seed())
     }
 
     pub(crate) fn raw_layer_integration_inputs_unchecked(
         &self,
-    ) -> Result<Layers<LayerIntegrationInput<J>>, ModeReconstructionError>
+    ) -> Result<Layers<LayerIntegrationInput<J>>, ModeLayerProjectionError>
     where
         W: RetainedIsotropicLayers<Algebra = J>,
         J: Clone,
@@ -114,7 +138,7 @@ where
 
     pub(crate) fn raw_qnm_normalisation_unchecked(
         &self,
-    ) -> Result<Layers<BilinearLayerNormalization<J>>, ModeReconstructionError>
+    ) -> Result<Layers<BilinearLayerNormalization<J>>, QnmNormalisationError>
     where
         J: ComplexJet
             + ScalarAlgebra
@@ -142,8 +166,7 @@ where
                     .iter()
                     .map(|layer| layer.material()),
                 coordinates.vacuum_angular_wavenumber(),
-            )
-            .unwrap(); // TODO: Change this error type and catch
+            )?;
 
         Ok(sequence.into_qnm_normalisation(
             coordinates.vacuum_angular_wavenumber(),
@@ -155,7 +178,7 @@ where
         &self,
     ) -> Result<
         DifferentialResponseFor<J, Layers<BilinearLayerNormalization<J>>>,
-        ModeReconstructionError,
+        QnmNormalisationError,
     >
     where
         J: ComplexJet
@@ -180,10 +203,7 @@ where
 
     pub fn qnm_normalisation(
         &self,
-    ) -> Result<
-        DifferentialResponseFor<J, AggregateBilinearNormalization<J>>,
-        ModeReconstructionError,
-    >
+    ) -> Result<DifferentialResponseFor<J, AggregateBilinearNormalization<J>>, QnmNormalisationError>
     where
         J: ComplexJet
             + ScalarAlgebra

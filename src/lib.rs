@@ -13,13 +13,13 @@ mod input;
 pub mod material;
 mod observable;
 mod parameter;
-mod response;
-// mod sampling;
 mod projection;
+mod response;
 mod scalar;
-pub mod spatial;
+mod spatial;
 pub mod stack;
 mod tensor;
+mod waves;
 
 #[cfg(test)]
 mod test_support;
@@ -40,14 +40,12 @@ pub use material::{
 pub use field::VectorField;
 pub use observable::{
     ConstitutiveFields, DirectedPower, DissipationDensity, ElectromagneticFields, EnergyDensity,
-    FieldIndexError, InterfacePower, LayerDissipation, LayerPower, ModeResidual,
-    PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower, StoredEnergy,
+    FieldIndexError, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
+    PlaneWaveDeterminant, PlaneWavePower, StoredEnergy,
 };
 pub use parameter::{FiniteLayerIndex, Parameter};
 pub use response::Response;
 pub use scalar::ComplexScalar;
-
-pub use spatial::{SpatialProfile, SpatialProfileError};
 
 pub use stack::{
     AnalyticalMaterialStack, DifferentiableMaterialStack, Layer, MaterialStack,

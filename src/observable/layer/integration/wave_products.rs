@@ -1837,14 +1837,14 @@ mod derivative_tests {
 
 #[cfg(test)]
 mod bilinear_tests {
-    use approx::assert_relative_eq;
+    
     use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
 
     use super::*;
 
     use crate::{
-        algebra::{ArrayJet0, Jet, Jet0, RealParameter},
+        algebra::{ArrayJet0, Jet0, RealParameter},
         observable::BoundaryWaves,
     };
 

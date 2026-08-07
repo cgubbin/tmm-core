@@ -6,6 +6,7 @@ mod jet_one;
 mod jet_two;
 mod jet_zero;
 mod scalar;
+mod stack;
 
 pub(crate) use exprel::{exprel, exprel_first, exprel_second};
 pub(crate) use jet_bivariate_one::{ArrayJetBivariate1, JetBivariate1};
@@ -16,6 +17,7 @@ pub(crate) use jet_zero::{ArrayJet0, Jet0};
 pub(crate) use scalar::{
     ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
 };
+pub(crate) use stack::JetStack;
 
 pub(crate) use cartesian::RealCartesianVectorAlgebra;
 

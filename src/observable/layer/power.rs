@@ -1,9 +1,7 @@
-use ndarray::Dimension;
 
 use crate::{
-    InterfacePower, SpatialProfile, SpatialProfileError,
+    InterfacePower,
     algebra::ScalarAlgebra,
-    field::{ScalarField, ScalarFieldView1},
     observable::{Interfaces, Layers},
 };
 
@@ -105,28 +103,6 @@ impl<R> Interfaces<InterfacePower<R>> {
         }
 
         Layers::new(layers)
-    }
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for LayerPower<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = LayerPower<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(LayerPower {
-            left_flux: self.left_flux.profile_last_axis(excitation_index)?,
-            right_flux: self.right_flux.profile_last_axis(excitation_index)?,
-            absorbed: self.absorbed.profile_last_axis(excitation_index)?,
-        })
     }
 }
 

@@ -8,24 +8,23 @@ use crate::{
 use ndarray::Dimension;
 
 mod isotropic;
+mod mode;
 pub(crate) mod scatter2;
 mod solution;
 pub(crate) mod transfer2;
-mod waves;
 mod workspace;
 
 pub(crate) use isotropic::IsotropicLayerQuantities;
+pub(crate) use mode::{
+    ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate, ReconstructLayerModeWaves,
+};
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use solution::{
     ExteriorAdmittanceProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
     PlaneWaveSolutionView,
 };
 pub use transfer2::{Transfer2, Transfer2Error};
-pub(crate) use waves::{BidirectionalWaves, LayerBoundaryWaves};
-pub(crate) use workspace::{
-    ReconstructLayerBoundaryWaves, ReconstructLayerModeWaves, RetainedIsotropicLayers,
-    SolutionWorkspace,
-};
+pub(crate) use workspace::{RetainedIsotropicLayers, SolutionWorkspace};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RunMode {

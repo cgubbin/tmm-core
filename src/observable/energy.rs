@@ -1,10 +1,5 @@
-use crate::{
-    SpatialProfile, SpatialProfileError,
-    field::{ScalarField, ScalarFieldView1},
-    observable::components::ElectromagneticComponents,
-};
+use crate::observable::components::ElectromagneticComponents;
 
-use ndarray::Dimension;
 
 /// Time-averaged electromagnetic energy density.
 ///
@@ -16,26 +11,6 @@ use ndarray::Dimension;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnergyDensity<R> {
     components: ElectromagneticComponents<R>,
-}
-
-impl<R, D> SpatialProfile<D::Smaller> for EnergyDensity<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = EnergyDensity<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(EnergyDensity {
-            components: self.components.spatial_profile(excitation_index)?,
-        })
-    }
 }
 
 impl<R> EnergyDensity<R> {
@@ -91,26 +66,6 @@ pub struct StoredEnergy<R> {
     components: ElectromagneticComponents<R>,
 }
 
-impl<R, D> SpatialProfile<D::Smaller> for StoredEnergy<ScalarField<R, D>>
-where
-    D: Dimension,
-    D::Smaller: Dimension<Larger = D>,
-{
-    type Profile<'a>
-        = StoredEnergy<ScalarFieldView1<'a, R>>
-    where
-        Self: 'a;
-
-    fn spatial_profile(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<Self::Profile<'_>, SpatialProfileError> {
-        Ok(StoredEnergy {
-            components: self.components.spatial_profile(excitation_index)?,
-        })
-    }
-}
-
 impl<R> StoredEnergy<R> {
     pub(crate) fn new(electric: R, magnetic: R, coupling: R, total: R) -> Self {
         Self {
@@ -154,11 +109,11 @@ impl<R> StoredEnergy<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::field::ScalarField;
+    
 
-    use super::{EnergyDensity, SpatialProfile, StoredEnergy};
+    use super::{EnergyDensity, StoredEnergy};
 
-    use ndarray::{Array2, Ix1, arr1};
+    
 
     #[test]
     fn energy_density_stores_all_components() {
@@ -232,43 +187,5 @@ mod tests {
 
         assert_eq!(density.into_parts(), (10, 20, 30, 40));
         assert_eq!(stored.into_parts(), (50, 60, 70, 80));
-    }
-
-    #[test]
-    fn energy_density_profiles_all_terms() {
-        let electric = ScalarField::new(Array2::from_shape_fn((2, 3), |(i, k)| {
-            10.0 * i as f64 + k as f64
-        }));
-
-        let magnetic = ScalarField::new(Array2::from_shape_fn((2, 3), |(i, k)| {
-            100.0 + 10.0 * i as f64 + k as f64
-        }));
-
-        let coupling = ScalarField::new(Array2::from_shape_fn((2, 3), |(i, k)| {
-            100.0 + 10.0 * i as f64 + k as f64
-        }));
-
-        let total = ScalarField::new(Array2::from_shape_fn((2, 3), |(i, k)| {
-            200.0 + 10.0 * i as f64 + k as f64
-        }));
-
-        let density = EnergyDensity::new(electric, magnetic, coupling, total);
-
-        let profile = density
-            .spatial_profile(&Ix1(1))
-            .expect("profile should succeed");
-
-        assert_eq!(
-            profile.electric().values(),
-            arr1(&[10.0, 11.0, 12.0]).view(),
-        );
-        assert_eq!(
-            profile.magnetic().values(),
-            arr1(&[110.0, 111.0, 112.0]).view(),
-        );
-        assert_eq!(
-            profile.total().values(),
-            arr1(&[210.0, 211.0, 212.0]).view(),
-        );
     }
 }

@@ -1,16 +1,13 @@
 use crate::{
-    ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, SpatialProfile,
-    SpatialProfileError, VectorField,
-    differential::DifferentialResponse,
-    field::ScalarField,
-    input::CoordinatePoint,
+    ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, VectorField,
+    differential::DifferentialResponse, field::ScalarField, input::CoordinatePoint,
     response::StackRegion,
 };
 
 use super::{FieldMetadata, Response};
 
 use nalgebra::ComplexField;
-use ndarray::{ArrayView1, Dimension, IntoDimension};
+use ndarray::{ArrayView1, Dimension};
 
 /// A borrowed field response at one canonical excitation point.
 ///
@@ -69,46 +66,3 @@ pub type DissipationDensityResponse<R, ED, D> = Response<
     D,
     FieldMetadata<R, ED>,
 >;
-
-impl<O, D, R, ED> Response<O, D, FieldMetadata<R, ED>>
-where
-    R: Copy,
-    ED: Dimension,
-    O: SpatialProfile<ED>,
-    D: SpatialProfile<ED>,
-{
-    /// Extracts a borrowed profile at one excitation point.
-    ///
-    /// All excitation axes are selected and the final spatial axis is retained.
-    /// The returned profile includes both observable values and derivatives.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SpatialProfileError`] if `excitation_index` is outside the
-    /// evaluated excitation domain.
-    pub fn profile<I>(
-        &self,
-        excitation_index: I,
-    ) -> Result<FieldProfile<'_, O::Profile<'_>, D::Profile<'_>, R>, SpatialProfileError>
-    where
-        I: IntoDimension<Dim = ED>,
-    {
-        let excitation_index = excitation_index.into_dimension();
-
-        let values = self.observables().spatial_profile(&excitation_index)?;
-
-        let derivatives = self.derivatives().spatial_profile(&excitation_index)?;
-
-        let excitation = self.metadata().input().get_point(excitation_index).expect(
-            "field response metadata and observables must have \
-                 matching excitation dimensions",
-        );
-
-        Ok(FieldProfile {
-            response: DifferentialResponse::new(values, derivatives),
-            excitation,
-            positions_cm: self.metadata().positions_cm().view(),
-            regions: self.metadata().regions().view(),
-        })
-    }
-}

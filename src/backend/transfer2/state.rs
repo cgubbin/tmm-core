@@ -30,7 +30,7 @@
 use nalgebra::ComplexField;
 use ndarray::Dimension;
 
-use crate::{ComplexScalar, algebra::ScalarAlgebra, backend::BidirectionalWaves};
+use crate::{ComplexScalar, algebra::ScalarAlgebra, waves::BidirectionalWaves};
 
 /// Transfer state at one spatial boundary.
 ///
@@ -142,8 +142,8 @@ mod tests {
     use super::*;
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::BidirectionalWaves,
         test_support::{C, TOLERANCE, c},
+        waves::BidirectionalWaves,
     };
 
     type A = ArrayJet0<C, Ix0, RealParameter>;

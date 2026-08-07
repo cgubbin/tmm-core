@@ -21,6 +21,5 @@ mod tests;
 
 pub use error::{PlaneWaveEvaluationError, SolveRequestError};
 pub use evaluator::PlaneWaveEvaluator;
-pub use mode::{ModeReconstructionError, PlaneWaveMode};
 pub use result::PlaneWaveResult;
 pub use state::PlaneWaveState;

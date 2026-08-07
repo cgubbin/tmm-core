@@ -1,5 +1,3 @@
-use approx::assert_relative_eq;
-use nalgebra::ComplexField;
 use num_complex::Complex64;
 
 use crate::{

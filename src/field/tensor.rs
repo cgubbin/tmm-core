@@ -1,10 +1,6 @@
 //! Cartesian rank-two tensor-valued array fields.
 
-use crate::{
-    SpatialProfileError,
-    field::FieldShapeError,
-    spatial::array_profile,
-};
+use crate::field::FieldShapeError;
 use ndarray::{Array, ArrayView1, Dimension, Ix1};
 
 /// One Cartesian rank-two tensor value.
@@ -262,26 +258,6 @@ where
             self.zy.map(&mut map),
             self.zz.map(map),
         )
-    }
-
-    pub(crate) fn profile_last_axis(
-        &self,
-        excitation_index: &D::Smaller,
-    ) -> Result<TensorFieldView1<'_, C>, SpatialProfileError>
-    where
-        D::Smaller: Dimension<Larger = D>,
-    {
-        Ok(TensorFieldView1::new_unchecked(
-            array_profile(self.xx.view(), excitation_index)?,
-            array_profile(self.xy.view(), excitation_index)?,
-            array_profile(self.xz.view(), excitation_index)?,
-            array_profile(self.yx.view(), excitation_index)?,
-            array_profile(self.yy.view(), excitation_index)?,
-            array_profile(self.yz.view(), excitation_index)?,
-            array_profile(self.zx.view(), excitation_index)?,
-            array_profile(self.zy.view(), excitation_index)?,
-            array_profile(self.zz.view(), excitation_index)?,
-        ))
     }
 }
 

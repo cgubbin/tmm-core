@@ -1,12 +1,12 @@
 use crate::{
-    LayerDissipation, LayerPower, Response, SpatialProfile, SpatialProfileError, StoredEnergy,
+    LayerDissipation, LayerPower, Response, StoredEnergy,
     differential::DifferentialResponse,
     field::ScalarField,
     input::CoordinatePoint,
     response::{LayerLocation, LayerMetadata},
 };
 
-use ndarray::{ArrayView1, Dimension, IntoDimension};
+use ndarray::{ArrayView1, Dimension};
 
 pub type LayerPowerResponse<R, ED, D> =
     Response<LayerPower<ScalarField<R, <ED as Dimension>::Larger>>, LayerMetadata<R, ED>, D>;
@@ -46,47 +46,5 @@ impl<'a, F, D, R> LayerProfile<'a, F, D, R> {
 
     pub fn layers(&self) -> ArrayView1<'a, LayerLocation<R>> {
         self.layers
-    }
-}
-
-impl<O, D, R, ED> Response<O, D, LayerMetadata<R, ED>>
-where
-    R: Copy,
-    ED: Dimension,
-    O: SpatialProfile<ED>,
-    D: SpatialProfile<ED>,
-{
-    /// Extracts a borrowed profile at one excitation point.
-    ///
-    /// All excitation axes are selected and the final spatial axis is retained.
-    /// The returned profile includes both observable values and derivatives.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SpatialProfileError`] if `excitation_index` is outside the
-    /// evaluated excitation domain.
-    pub fn profile<I>(
-        &self,
-        excitation_index: I,
-    ) -> Result<LayerProfile<'_, O::Profile<'_>, D::Profile<'_>, R>, SpatialProfileError>
-    where
-        I: IntoDimension<Dim = ED>,
-    {
-        let excitation_index = excitation_index.into_dimension();
-
-        let values = self.observables().spatial_profile(&excitation_index)?;
-
-        let derivatives = self.derivatives().spatial_profile(&excitation_index)?;
-
-        let excitation = self.metadata().input().get_point(excitation_index).expect(
-            "field response metadata and observables must have \
-                 matching excitation dimensions",
-        );
-
-        Ok(LayerProfile {
-            response: DifferentialResponse::new(values, derivatives),
-            excitation,
-            layers: self.metadata().layers().view(),
-        })
     }
 }

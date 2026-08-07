@@ -1,16 +1,16 @@
-use num_traits::{Float, Zero};
+use num_traits::{Float, FromPrimitive, Zero};
 use std::fmt;
-use tmm_units::{LengthUnit, UnitLabel};
+use tmm_units::LengthUnit;
 
+use crate::spatial::Length;
+
+/// A length which is guaranteed to be greater than or equal to zero
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Thickness<F> {
-    value: F,
-    length_unit: LengthUnit,
-}
+pub struct Thickness<F>(Length<F>);
 
 impl<F> Thickness<F> {
     fn new(value: F, length_unit: LengthUnit) -> Self {
-        Self { value, length_unit }
+        Self(Length::new(value, length_unit))
     }
 
     pub fn centimetres(value: F) -> Self {
@@ -33,21 +33,29 @@ impl<F> Thickness<F> {
     where
         F: Zero,
     {
-        Self {
-            value: F::zero(),
-            length_unit: LengthUnit::Centimetre,
-        }
+        Self::new(F::zero(), LengthUnit::Centimetre)
     }
 
     pub fn is_zero(&self) -> bool
     where
         F: Float,
     {
-        self.value == F::zero()
+        self.0.value() == F::zero()
     }
 
     pub(crate) fn into_parts(self) -> (F, LengthUnit) {
-        (self.value, self.length_unit)
+        self.0.into_parts()
+    }
+
+    pub(crate) fn into_inner(self) -> Length<F> {
+        self.0
+    }
+
+    pub(crate) fn as_cm(&self) -> F
+    where
+        F: Float + FromPrimitive,
+    {
+        self.0.as_cm()
     }
 }
 
@@ -56,6 +64,6 @@ where
     F: Float + std::fmt::Debug + fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.value, self.length_unit.symbol())
+        write!(f, "{}", self.0,)
     }
 }
