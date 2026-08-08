@@ -258,6 +258,9 @@ pub struct Transfer2ExteriorContext<A> {
     right_admittance: A,
     left_kappa: A,
     right_kappa: A,
+    vacuum_angular_wavenumber: A,
+    parallel_angular_wavenumber: A,
+    polarisation: Polarisation,
 }
 
 impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
@@ -278,6 +281,18 @@ impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
     fn right_kappa(&self) -> &A {
         &self.right_kappa
     }
+
+    fn vacuum_angular_wavenumber(&self) -> &Self::Algebra {
+        &self.vacuum_angular_wavenumber
+    }
+
+    fn parallel_angular_wavenumber(&self) -> &Self::Algebra {
+        &self.parallel_angular_wavenumber
+    }
+
+    fn polarisation(&self) -> Polarisation {
+        self.polarisation
+    }
 }
 
 impl<J> Transfer2ExteriorContext<J> {
@@ -286,12 +301,18 @@ impl<J> Transfer2ExteriorContext<J> {
         right_admittance: J,
         left_kappa: J,
         right_kappa: J,
+        vacuum_angular_wavenumber: J,
+        parallel_angular_wavenumber: J,
+        polarisation: Polarisation,
     ) -> Self {
         Self {
             left_admittance,
             right_admittance,
             left_kappa,
             right_kappa,
+            vacuum_angular_wavenumber,
+            parallel_angular_wavenumber,
+            polarisation,
         }
     }
 
@@ -318,6 +339,9 @@ impl<J> Transfer2ExteriorContext<J> {
             right_kappa: right_quantities.kappa().clone(),
             left_admittance: left_quantities.into_admittance().into_inner(),
             right_admittance: right_quantities.into_admittance().into_inner(),
+            vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),
+            parallel_angular_wavenumber: coordinates.parallel_angular_wavenumber().clone(),
+            polarisation,
         }
     }
 }

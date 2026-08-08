@@ -5,6 +5,7 @@ mod sampling;
 pub(crate) use boundary::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
 use ndarray::Dimension;
 pub(crate) use propagation::{PropagateLayerWaves, PropagateWaves};
+pub(crate) use sampling::{WaveSamplingContext, WaveSamplingError};
 
 use crate::{
     ComplexScalar, IncidentSide,

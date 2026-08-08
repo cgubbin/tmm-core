@@ -15,7 +15,9 @@ pub use boundary::{
 };
 pub use determinant::PlaneWaveDeterminant;
 pub use energy::{EnergyDensity, StoredEnergy};
-pub use field::{ConstitutiveFields, ElectromagneticFields, FieldIndexError};
+pub use field::{
+    ConstitutiveFields, ElectromagneticFields, FieldIndexError, FieldReconstructionError,
+};
 pub use interface::{
     DirectedPower, InterfacePower, InterfaceProjectionError, InterfaceStates, Interfaces,
 };
@@ -31,6 +33,7 @@ pub(crate) use boundary::{
     project_layer_boundary_states, project_layer_boundary_waves, project_layer_mode_waves,
 };
 pub(crate) use determinant::ProjectPlaneWaveModeDeterminant;
+pub(crate) use field::FieldSamplingContext;
 pub(crate) use interface::{
     InterfaceWaveData, assemble_interface_wave_data, exterior_boundary_states,
     exterior_boundary_waves, project_layer_admittances,

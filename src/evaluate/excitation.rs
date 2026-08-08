@@ -2,11 +2,15 @@ use std::ops::Neg;
 
 use nalgebra::ComplexField;
 use ndarray::{Dimension, Ix0};
-use num_traits::{FromPrimitive, One, Zero};
+use num_traits::{Float, FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexScalar, FiniteLayerIndex, IncidentSide, LayerDissipation, PlaneWaveAmplitudes, RealAxis,
-    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
+    ComplexScalar, ElectromagneticFields, FiniteLayerIndex, IncidentSide, LayerDissipation,
+    PlaneWaveAmplitudes, RealAxis, VectorField,
+    algebra::{
+        CartesianScalarAlgebra, ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra,
+        ScalarAlgebraExpRelExt,
+    },
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
     },
@@ -27,11 +31,13 @@ use crate::{
         lifting::ConstitutiveDerivativeEvaluator,
     },
     observable::{
-        BoundaryProjectionError, EnergyConfinement, InterfaceProjectionError, InterfaceStates,
-        Interfaces, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves,
-        LayerConfinementError, LayerEnergy, LayerEnergyError, LayerParticipation,
-        LayerParticipationError, LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
+        Amplitudes, BoundaryProjectionError, EnergyConfinement, FieldReconstructionError,
+        FieldSamplingContext, InterfaceProjectionError, InterfaceStates, Interfaces,
+        LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerConfinementError,
+        LayerEnergy, LayerEnergyError, LayerParticipation, LayerParticipationError,
+        LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
     },
+    spatial::FieldSampling,
     waves::ReconstructLayerBoundaryWaves,
 };
 
@@ -376,6 +382,42 @@ where
             .raw_dispersive_layer_energy_unchecked(self.incident_side)?
             .confinement_by(|index, _| include(index))?
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
+    }
+
+    pub fn evaluate_fields(
+        self,
+        sampling: &FieldSampling<R>,
+    ) -> Result<
+        DifferentialResponseFor<
+            J,
+            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        J::Policy: DerivativePartsPolicy<
+            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let context = FieldSamplingContext::new(self.state.workspace());
+
+        let sampling = sampling.resolve(self.state.stack())?.compile();
+
+        let reconstructed = context.reconstruct(self.incident_side, &sampling)?;
+
+        Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 }
 

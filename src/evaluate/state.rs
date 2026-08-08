@@ -6,7 +6,7 @@ use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
     ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
-    Polarisation, RealAxis,
+    Polarisation, RealAxis, Stack,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
@@ -66,6 +66,7 @@ where
     problem: CanonicalProblem<M, J>,
     workspace: W,
     context: CompilationContext<I, J::Dimension, J::Mapping>,
+    stack: Stack<M, <J::Scalar as ComplexField>::RealField>,
     polarisation: Polarisation,
 }
 
@@ -80,12 +81,14 @@ where
         problem: CanonicalProblem<M, J>,
         workspace: W,
         context: CompilationContext<I, J::Dimension, J::Mapping>,
+        stack: Stack<M, <J::Scalar as ComplexField>::RealField>,
         polarisation: Polarisation,
     ) -> Self {
         Self {
             problem,
             workspace,
             context,
+            stack,
             polarisation,
         }
     }
@@ -119,11 +122,13 @@ where
         CompilationContext<I, J::Dimension, J::Mapping>:
             ProjectPoint<Dimension = J::Dimension, Point = CompilationContext<I, Ix0, J::Mapping>>,
         Idx: NdIndex<J::Dimension> + Clone,
+        M: Clone,
     {
         Ok(PlaneWaveState::new(
             self.problem.project_point(index)?,
             self.workspace.project_point(index)?,
             self.context.project_point(index)?,
+            self.stack.clone(),
             self.polarisation,
         ))
     }
@@ -131,6 +136,10 @@ where
     /// Return the compiled canonical plane-wave problem.
     pub fn problem(&self) -> &CanonicalProblem<M, J> {
         &self.problem
+    }
+
+    pub fn stack(&self) -> &Stack<M, <J::Scalar as ComplexField>::RealField> {
+        &self.stack
     }
 
     /// Return the computed workspace
@@ -172,6 +181,7 @@ where
             problem: self.problem,
             workspace: map(self.workspace),
             context: self.context,
+            stack: self.stack,
             polarisation: self.polarisation,
         }
     }

@@ -85,29 +85,32 @@ pub enum FieldSamplingError<R> {
     InvalidExteriorDistance { distance: Length<R> },
 }
 
-/// One physical position at which fields are to be evaluated.
-///
-/// Coordinates are local to the containing region rather than global stack
-/// coordinates. This preserves which side of an interface was requested.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum FieldPosition<R> {
-    /// Position in the left semi-infinite exterior.
-    ///
-    /// `distance` is measured outward, to the left, from the stack boundary.
-    LeftExterior { distance: Length<R> },
+pub(crate) enum ResolvedLayerPosition<R> {
+    /// Fixed physical distance from the left boundary.
+    FromLeft(Length<R>),
 
-    /// Position in a finite layer.
-    ///
-    /// `offset` is measured rightward from the layer's left boundary.
-    Layer {
-        index: FiniteLayerIndex,
-        offset: Length<R>,
+    /// Fixed physical distance from the right boundary.
+    FromRight(Length<R>),
+
+    /// Fraction of the current layer thickness measured from the left.
+    Fraction(R),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum FieldPosition<R> {
+    LeftExterior {
+        distance: Length<R>,
     },
 
-    /// Position in the right semi-infinite exterior.
-    ///
-    /// `distance` is measured outward, to the right, from the stack boundary.
-    RightExterior { distance: Length<R> },
+    Layer {
+        index: FiniteLayerIndex,
+        position: ResolvedLayerPosition<R>,
+    },
+
+    RightExterior {
+        distance: Length<R>,
+    },
 }
 
 impl<R> FieldPosition<R>
@@ -129,24 +132,24 @@ where
     pub fn layer_left(index: impl Into<FiniteLayerIndex>) -> Self {
         Self::Layer {
             index: index.into(),
-            offset: Length::zero(),
+            position: ResolvedLayerPosition::FromLeft(Length::zero()),
         }
     }
 
-    pub fn layer_right(index: impl Into<FiniteLayerIndex>, thickness: Thickness<R>) -> Self {
+    pub fn layer_right(index: impl Into<FiniteLayerIndex>) -> Self {
         Self::Layer {
             index: index.into(),
-            offset: thickness.into_inner(),
+            position: ResolvedLayerPosition::FromRight(Length::zero()),
         }
     }
 
-    pub fn layer_centre(index: impl Into<FiniteLayerIndex>, thickness: Thickness<R>) -> Self
+    pub fn layer_centre(index: impl Into<FiniteLayerIndex>) -> Self
     where
         R: Float,
     {
         Self::Layer {
             index: index.into(),
-            offset: thickness.into_inner().half(),
+            position: ResolvedLayerPosition::Fraction(R::one() / (R::one() + R::one())),
         }
     }
 }
@@ -411,7 +414,9 @@ impl<R> FieldSampling<R> {
                     {
                         positions.push(FieldPosition::Layer {
                             index,
-                            offset: layer.thickness().into_inner().half(),
+                            position: ResolvedLayerPosition::Fraction(
+                                R::one() / (R::one() + R::one()),
+                            ),
                         });
                     }
                 }
@@ -425,12 +430,12 @@ impl<R> FieldSampling<R> {
                     {
                         positions.push(FieldPosition::Layer {
                             index,
-                            offset: Length::zero(),
+                            position: ResolvedLayerPosition::FromLeft(Length::zero()),
                         });
 
                         positions.push(FieldPosition::Layer {
                             index,
-                            offset: layer.thickness().into_inner(),
+                            position: ResolvedLayerPosition::FromRight(Length::zero()),
                         });
                     }
                 }
@@ -535,7 +540,7 @@ where
 
             positions.push(FieldPosition::Layer {
                 index,
-                offset: *offset,
+                position: ResolvedLayerPosition::FromLeft(*offset),
             });
         }
 
@@ -543,7 +548,10 @@ where
             for &offset in offsets {
                 validate_layer_offset(index, offset, thickness)?;
 
-                positions.push(FieldPosition::Layer { index, offset });
+                positions.push(FieldPosition::Layer {
+                    index,
+                    position: ResolvedLayerPosition::FromLeft(offset),
+                });
             }
         }
 
@@ -552,15 +560,62 @@ where
             include_left,
             include_right,
         } => {
-            let offsets = uniform_layer_offsets(thickness, *points, *include_left, *include_right)?;
+            let fractions = uniform_layer_fractions(*points, *include_left, *include_right)?;
 
-            for offset in offsets {
-                positions.push(FieldPosition::Layer { index, offset });
+            for fraction in fractions {
+                positions.push(FieldPosition::Layer {
+                    index,
+                    position: ResolvedLayerPosition::Fraction(fraction),
+                });
             }
         }
     }
 
     Ok(())
+}
+
+fn uniform_layer_fractions<R>(
+    points: usize,
+    include_left: bool,
+    include_right: bool,
+) -> Result<Vec<R>, FieldSamplingError<R>>
+where
+    R: Copy + Float,
+{
+    if points == 0 {
+        return Err(FieldSamplingError::EmptyUniformSampling);
+    }
+
+    if points == 1 {
+        return match (include_left, include_right) {
+            (true, true) => Err(FieldSamplingError::AmbiguousSinglePointLayerSampling),
+
+            (true, false) => Ok(vec![R::zero()]),
+
+            (false, true) => Ok(vec![R::one()]),
+
+            (false, false) => Ok(vec![R::one() / (R::one() + R::one())]),
+        };
+    }
+
+    let left_exclusion = usize::from(!include_left);
+
+    let right_exclusion = usize::from(!include_right);
+
+    let denominator_count = points - 1 + left_exclusion + right_exclusion;
+
+    let denominator =
+        R::from(denominator_count).expect("usize point count should be representable");
+
+    let first_index = left_exclusion;
+
+    Ok((0..points)
+        .map(|sample| {
+            let index = first_index + sample;
+
+            R::from(index).expect("usize sample index should be representable") / denominator
+        })
+        .collect())
 }
 
 fn uniform_closed_interval_from_zero<R>(
@@ -587,56 +642,6 @@ where
             let index = R::from(index).expect("usize sample index should be representable");
 
             step_size.scale_by(index)
-        })
-        .collect())
-}
-
-fn uniform_layer_offsets<R>(
-    thickness: Thickness<R>,
-    points: usize,
-    include_left: bool,
-    include_right: bool,
-) -> Result<Vec<Length<R>>, FieldSamplingError<R>>
-where
-    R: Copy + Float,
-{
-    if points == 0 {
-        return Err(FieldSamplingError::EmptyUniformSampling);
-    }
-
-    let thickness = thickness.into_inner();
-
-    if points == 1 {
-        return match (include_left, include_right) {
-            (true, true) => Err(FieldSamplingError::AmbiguousSinglePointLayerSampling),
-
-            (true, false) => Ok(vec![Length::zero()]),
-
-            (false, true) => Ok(vec![thickness]),
-
-            (false, false) => Ok(vec![thickness.half()]),
-        };
-    }
-
-    let left_exclusion = usize::from(!include_left);
-
-    let right_exclusion = usize::from(!include_right);
-
-    let denominator_count = points - 1 + left_exclusion + right_exclusion;
-
-    let denominator =
-        R::from(denominator_count).expect("usize point count should be representable");
-
-    let first_index = left_exclusion;
-
-    Ok((0..points)
-        .map(|sample| {
-            let index = first_index + sample;
-
-            let fraction =
-                R::from(index).expect("usize sample index should be representable") / denominator;
-
-            thickness.scale_by(fraction)
         })
         .collect())
 }
@@ -714,19 +719,19 @@ mod tests {
     fn assert_same_length(actual: Length<R>, expected: Length<R>) {
         let error = (actual.as_cm() - expected.as_cm()).abs();
 
-        assert!(
-            error <= 1.0e-14,
-            "expected {:?}, got {:?}",
-            expected,
-            actual,
-        );
+        assert!(error <= 1.0e-14, "expected {expected:?}, got {actual:?}",);
     }
 
-    fn assert_lengths(actual: &[Length<R>], expected: &[Length<R>]) {
+    fn assert_fractions(actual: &[R], expected: &[R]) {
         assert_eq!(actual.len(), expected.len());
 
         for (&actual, &expected) in actual.iter().zip(expected) {
-            assert_same_length(actual, expected);
+            approx::assert_relative_eq!(
+                actual,
+                expected,
+                epsilon = 1.0e-14,
+                max_relative = 1.0e-14,
+            );
         }
     }
 
@@ -755,42 +760,36 @@ mod tests {
     }
 
     #[test]
-    fn layer_left_is_zero_offset() {
+    fn layer_left_is_zero_distance_from_left() {
         assert_eq!(
             FieldPosition::<R>::layer_left(FiniteLayerIndex(3)),
             FieldPosition::Layer {
                 index: FiniteLayerIndex(3),
-                offset: Length::zero(),
+                position: ResolvedLayerPosition::FromLeft(Length::zero()),
             },
         );
     }
 
     #[test]
-    fn layer_right_uses_complete_layer_thickness() {
-        let thickness = thickness_nm(750.0);
-
+    fn layer_right_is_zero_distance_from_right() {
         assert_eq!(
-            FieldPosition::layer_right(FiniteLayerIndex(2), thickness,),
+            FieldPosition::<R>::layer_right(FiniteLayerIndex(2)),
             FieldPosition::Layer {
                 index: FiniteLayerIndex(2),
-                offset: thickness.into_inner(),
+                position: ResolvedLayerPosition::FromRight(Length::zero()),
             },
         );
     }
 
     #[test]
-    fn layer_centre_uses_half_layer_thickness() {
-        let thickness = thickness_um(2.0);
-
-        let FieldPosition::Layer { index, offset } =
-            FieldPosition::layer_centre(FiniteLayerIndex(4), thickness)
-        else {
-            panic!("expected finite-layer position");
-        };
-
-        assert_eq!(index, FiniteLayerIndex(4));
-
-        assert_same_length(offset, um(1.0));
+    fn layer_centre_is_half_layer_fraction() {
+        assert_eq!(
+            FieldPosition::<R>::layer_centre(FiniteLayerIndex(4)),
+            FieldPosition::Layer {
+                index: FiniteLayerIndex(4),
+                position: ResolvedLayerPosition::Fraction(0.5),
+            },
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -846,12 +845,12 @@ mod tests {
         );
 
         assert_eq!(
-            ExteriorSampling::distances(vec![nm(100.0), um(1.0)],),
-            ExteriorSampling::Distances(vec![nm(100.0), um(1.0)],),
+            ExteriorSampling::distances(vec![nm(100.0), um(1.0)]),
+            ExteriorSampling::Distances(vec![nm(100.0), um(1.0)]),
         );
 
         assert_eq!(
-            ExteriorSampling::uniform(5, um(2.0),),
+            ExteriorSampling::uniform(5, um(2.0)),
             ExteriorSampling::Uniform {
                 points: 5,
                 distance: um(2.0),
@@ -878,12 +877,12 @@ mod tests {
         assert_eq!(
             sampling.regions(),
             &[
-                FieldSamplingRegion::LeftExterior(ExteriorSampling::Point(um(1.0),),),
+                FieldSamplingRegion::LeftExterior(ExteriorSampling::Point(um(1.0)),),
                 FieldSamplingRegion::Layer {
                     index: FiniteLayerIndex(1),
-                    sampling: LayerSampling::Point(nm(250.0),),
+                    sampling: LayerSampling::Point(nm(250.0)),
                 },
-                FieldSamplingRegion::RightExterior(ExteriorSampling::Point(um(2.0),),),
+                FieldSamplingRegion::RightExterior(ExteriorSampling::Point(um(2.0)),),
                 FieldSamplingRegion::LayerCentres,
                 FieldSamplingRegion::LayerInterfaces,
             ],
@@ -911,21 +910,26 @@ mod tests {
     fn uniform_closed_interval_includes_zero_and_end() {
         let values = uniform_closed_interval_from_zero(um(2.0), 5).unwrap();
 
-        assert_lengths(&values, &[um(0.0), um(0.5), um(1.0), um(1.5), um(2.0)]);
+        let expected = [um(0.0), um(0.5), um(1.0), um(1.5), um(2.0)];
+
+        for (&actual, &expected) in values.iter().zip(&expected) {
+            assert_same_length(actual, expected);
+        }
     }
 
     #[test]
     fn one_point_closed_interval_returns_zero() {
         let values = uniform_closed_interval_from_zero(um(5.0), 1).unwrap();
 
-        assert_lengths(&values, &[um(0.0)]);
+        assert_eq!(values.len(), 1);
+        assert_same_length(values[0], um(0.0));
     }
 
     #[test]
     fn zero_point_closed_interval_is_rejected() {
         assert_eq!(
-            uniform_closed_interval_from_zero(um(2.0), 0,),
-            Err(FieldSamplingError::EmptyUniformSampling,),
+            uniform_closed_interval_from_zero(um(2.0), 0),
+            Err(FieldSamplingError::EmptyUniformSampling),
         );
     }
 
@@ -984,71 +988,158 @@ mod tests {
     }
 
     // ---------------------------------------------------------------------
-    // Uniform layer expansion
+    // Uniform layer fractions
     // ---------------------------------------------------------------------
 
     #[test]
     fn uniform_layer_sampling_includes_both_boundaries() {
-        let offsets = uniform_layer_offsets(thickness_um(2.0), 5, true, true).unwrap();
+        let fractions = uniform_layer_fractions::<R>(5, true, true).unwrap();
 
-        assert_lengths(&offsets, &[um(0.0), um(0.5), um(1.0), um(1.5), um(2.0)]);
+        assert_fractions(&fractions, &[0.0, 0.25, 0.5, 0.75, 1.0]);
     }
 
     #[test]
     fn uniform_layer_sampling_excludes_both_boundaries() {
-        let offsets = uniform_layer_offsets(thickness_um(1.0), 3, false, false).unwrap();
+        let fractions = uniform_layer_fractions::<R>(3, false, false).unwrap();
 
-        assert_lengths(&offsets, &[um(0.25), um(0.5), um(0.75)]);
+        assert_fractions(&fractions, &[0.25, 0.5, 0.75]);
     }
 
     #[test]
     fn uniform_layer_sampling_can_include_only_left_boundary() {
-        let offsets = uniform_layer_offsets(thickness_um(1.0), 3, true, false).unwrap();
+        let fractions = uniform_layer_fractions::<R>(3, true, false).unwrap();
 
-        assert_lengths(&offsets, &[um(0.0), um(1.0 / 3.0), um(2.0 / 3.0)]);
+        assert_fractions(&fractions, &[0.0, 1.0 / 3.0, 2.0 / 3.0]);
     }
 
     #[test]
     fn uniform_layer_sampling_can_include_only_right_boundary() {
-        let offsets = uniform_layer_offsets(thickness_um(1.0), 3, false, true).unwrap();
+        let fractions = uniform_layer_fractions::<R>(3, false, true).unwrap();
 
-        assert_lengths(&offsets, &[um(1.0 / 3.0), um(2.0 / 3.0), um(1.0)]);
+        assert_fractions(&fractions, &[1.0 / 3.0, 2.0 / 3.0, 1.0]);
     }
 
     #[test]
     fn one_interior_layer_sample_is_layer_centre() {
-        let offsets = uniform_layer_offsets(thickness_um(2.0), 1, false, false).unwrap();
+        let fractions = uniform_layer_fractions::<R>(1, false, false).unwrap();
 
-        assert_lengths(&offsets, &[um(1.0)]);
+        assert_eq!(fractions, vec![0.5]);
     }
 
     #[test]
     fn one_left_inclusive_layer_sample_is_left_boundary() {
-        let offsets = uniform_layer_offsets(thickness_um(2.0), 1, true, false).unwrap();
+        let fractions = uniform_layer_fractions::<R>(1, true, false).unwrap();
 
-        assert_lengths(&offsets, &[um(0.0)]);
+        assert_eq!(fractions, vec![0.0]);
     }
 
     #[test]
     fn one_right_inclusive_layer_sample_is_right_boundary() {
-        let offsets = uniform_layer_offsets(thickness_um(2.0), 1, false, true).unwrap();
+        let fractions = uniform_layer_fractions::<R>(1, false, true).unwrap();
 
-        assert_lengths(&offsets, &[um(2.0)]);
+        assert_eq!(fractions, vec![1.0]);
     }
 
     #[test]
     fn one_sample_cannot_represent_both_distinct_layer_boundaries() {
         assert_eq!(
-            uniform_layer_offsets(thickness_um(2.0), 1, true, true,),
-            Err(FieldSamplingError::AmbiguousSinglePointLayerSampling,),
+            uniform_layer_fractions::<R>(1, true, true),
+            Err(FieldSamplingError::AmbiguousSinglePointLayerSampling),
         );
     }
 
     #[test]
     fn zero_uniform_layer_samples_are_rejected() {
         assert_eq!(
-            uniform_layer_offsets(thickness_um(2.0), 0, true, false,),
-            Err(FieldSamplingError::EmptyUniformSampling,),
+            uniform_layer_fractions::<R>(0, true, false),
+            Err(FieldSamplingError::EmptyUniformSampling),
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // Layer expansion
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn explicit_layer_point_is_fixed_from_left() {
+        let mut positions = Vec::new();
+
+        expand_layer(
+            FiniteLayerIndex(0),
+            thickness_nm(500.0),
+            &LayerSampling::point(nm(125.0)),
+            &mut positions,
+        )
+        .unwrap();
+
+        assert_eq!(
+            positions,
+            vec![FieldPosition::Layer {
+                index: FiniteLayerIndex(0),
+                position: ResolvedLayerPosition::FromLeft(nm(125.0)),
+            }],
+        );
+    }
+
+    #[test]
+    fn explicit_layer_offsets_are_fixed_from_left() {
+        let mut positions = Vec::new();
+
+        expand_layer(
+            FiniteLayerIndex(0),
+            thickness_nm(500.0),
+            &LayerSampling::offsets([nm(100.0), nm(250.0), nm(400.0)]),
+            &mut positions,
+        )
+        .unwrap();
+
+        assert_eq!(
+            positions,
+            vec![
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::FromLeft(nm(100.0)),
+                },
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::FromLeft(nm(250.0)),
+                },
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::FromLeft(nm(400.0)),
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn uniform_layer_expansion_preserves_fractional_coordinates() {
+        let mut positions = Vec::new();
+
+        expand_layer(
+            FiniteLayerIndex(0),
+            thickness_nm(500.0),
+            &LayerSampling::uniform_with_boundaries(3, true, true),
+            &mut positions,
+        )
+        .unwrap();
+
+        assert_eq!(
+            positions,
+            vec![
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::Fraction(0.0),
+                },
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::Fraction(0.5),
+                },
+                FieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position: ResolvedLayerPosition::Fraction(1.0),
+                },
+            ],
         );
     }
 
@@ -1058,7 +1149,7 @@ mod tests {
 
     #[test]
     fn zero_exterior_distance_is_valid() {
-        assert_eq!(validate_exterior_distance(um(0.0),), Ok(()),);
+        assert_eq!(validate_exterior_distance(um(0.0)), Ok(()),);
     }
 
     #[test]
@@ -1066,8 +1157,8 @@ mod tests {
         let distance = um(-1.0);
 
         assert_eq!(
-            validate_exterior_distance(distance,),
-            Err(FieldSamplingError::InvalidExteriorDistance { distance },),
+            validate_exterior_distance(distance),
+            Err(FieldSamplingError::InvalidExteriorDistance { distance }),
         );
     }
 
@@ -1076,7 +1167,7 @@ mod tests {
         let distance = um(R::NAN);
 
         assert!(matches!(
-            validate_exterior_distance(distance,),
+            validate_exterior_distance(distance),
             Err(FieldSamplingError::InvalidExteriorDistance { .. }),
         ));
     }
@@ -1116,7 +1207,7 @@ mod tests {
                 layer: FiniteLayerIndex(2),
                 offset,
                 thickness,
-            },),
+            }),
         );
     }
 
@@ -1131,7 +1222,7 @@ mod tests {
                 layer: FiniteLayerIndex(2),
                 offset,
                 thickness,
-            },),
+            }),
         );
     }
 
@@ -1153,7 +1244,7 @@ mod tests {
     fn empty_sampling_resolves_to_empty_sampling() {
         let actual = FieldSampling::<R>::new().resolve(&stack()).unwrap();
 
-        assert_eq!(actual, ResolvedFieldSampling::new(Vec::new(),),);
+        assert_eq!(actual, ResolvedFieldSampling::new(Vec::new()),);
     }
 
     #[test]
@@ -1171,7 +1262,7 @@ mod tests {
                 FieldPosition::LeftExterior { distance: um(1.0) },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(0),
-                    offset: nm(125.0),
+                    position: ResolvedLayerPosition::FromLeft(nm(125.0),),
                 },
                 FieldPosition::RightExterior { distance: um(2.0) },
             ]),
@@ -1225,13 +1316,13 @@ mod tests {
             actual,
             ResolvedFieldSampling::new(vec![FieldPosition::Layer {
                 index: FiniteLayerIndex(0),
-                offset: um(0.25),
+                position: ResolvedLayerPosition::FromLeft(um(0.25),),
             },]),
         );
     }
 
     #[test]
-    fn resolve_layer_centres_uses_each_layers_own_thickness_unit() {
+    fn resolve_layer_centres_preserves_fractional_position() {
         let actual = FieldSampling::<R>::new()
             .layer_centres()
             .resolve(&stack())
@@ -1242,18 +1333,18 @@ mod tests {
             ResolvedFieldSampling::new(vec![
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(0),
-                    offset: nm(250.0),
+                    position: ResolvedLayerPosition::Fraction(0.5),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: um(1.0),
+                    position: ResolvedLayerPosition::Fraction(0.5),
                 },
             ]),
         );
     }
 
     #[test]
-    fn resolve_layer_interfaces_retains_both_sides_of_internal_interface() {
+    fn resolve_layer_interfaces_preserves_boundary_reference_side() {
         let actual = FieldSampling::<R>::new()
             .layer_interfaces()
             .resolve(&stack())
@@ -1264,26 +1355,26 @@ mod tests {
             ResolvedFieldSampling::new(vec![
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(0),
-                    offset: Length::zero(),
+                    position: ResolvedLayerPosition::FromLeft(Length::zero(),),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(0),
-                    offset: nm(500.0),
+                    position: ResolvedLayerPosition::FromRight(Length::zero(),),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: Length::zero(),
+                    position: ResolvedLayerPosition::FromLeft(Length::zero(),),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: um(2.0),
+                    position: ResolvedLayerPosition::FromRight(Length::zero(),),
                 },
             ]),
         );
     }
 
     #[test]
-    fn resolve_uniform_layer_sampling_uses_actual_layer_thickness() {
+    fn resolve_uniform_layer_sampling_preserves_fractional_positions() {
         let actual = FieldSampling::new()
             .layer(
                 1,
@@ -1301,15 +1392,15 @@ mod tests {
             ResolvedFieldSampling::new(vec![
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: um(0.0),
+                    position: ResolvedLayerPosition::Fraction(0.0),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: um(1.0),
+                    position: ResolvedLayerPosition::Fraction(0.5),
                 },
                 FieldPosition::Layer {
                     index: FiniteLayerIndex(1),
-                    offset: um(2.0),
+                    position: ResolvedLayerPosition::Fraction(1.0),
                 },
             ]),
         );

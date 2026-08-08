@@ -1,4 +1,5 @@
 mod boundary_waves;
+mod fields;
 mod interface_power;
 mod interface_states;
 mod interface_wave_data;

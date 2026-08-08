@@ -1,12 +1,15 @@
-use crate::backend::{
-    ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
-    scatter2::{
-        RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
-        Scatter2ProjectiveEntries, Scatter2Workspace,
-    },
-    transfer2::{
-        RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries, Transfer2ExteriorContext,
-        Transfer2Workspace,
+use crate::{
+    Stack,
+    backend::{
+        ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
+        scatter2::{
+            RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
+            Scatter2ProjectiveEntries, Scatter2Workspace,
+        },
+        transfer2::{
+            RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries,
+            Transfer2ExteriorContext, Transfer2Workspace,
+        },
     },
 };
 
@@ -132,6 +135,9 @@ where
             self.right_admittance().project_point(index)?,
             self.left_kappa().project_point(index)?,
             self.right_kappa().project_point(index)?,
+            self.vacuum_angular_wavenumber().project_point(index)?,
+            self.parallel_angular_wavenumber().project_point(index)?,
+            self.polarisation(),
         ))
     }
 }
@@ -172,6 +178,9 @@ where
             self.right_admittance().project_point(index)?,
             self.left_kappa().project_point(index)?,
             self.right_kappa().project_point(index)?,
+            self.vacuum_angular_wavenumber().project_point(index)?,
+            self.parallel_angular_wavenumber().project_point(index)?,
+            self.polarisation(),
         ))
     }
 }
@@ -339,6 +348,9 @@ mod tests {
             jet(&[5.0, 7.0]),
             jet(&[0.0, 0.0]),
             jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            Polarisation::TransverseElectric,
         );
 
         let point = context.project_point(&1).unwrap();
@@ -361,6 +373,9 @@ mod tests {
             jet(&[5.0, 7.0]),
             jet(&[0.0, 0.0]),
             jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            Polarisation::TransverseElectric,
         );
 
         let point = context.project_point(&0).unwrap();

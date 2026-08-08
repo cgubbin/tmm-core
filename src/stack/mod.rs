@@ -244,6 +244,14 @@ impl<M, F> Stack<M, F> {
 
         config.validate_thicknesses(&thicknesses[..])
     }
+
+    pub(crate) fn into_parts(self) -> (M, Vec<Layer<M, F>>, M) {
+        (
+            self.left_exterior,
+            self.layers_left_to_right,
+            self.right_exterior,
+        )
+    }
 }
 
 #[cfg(test)]

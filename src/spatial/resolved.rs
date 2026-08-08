@@ -62,9 +62,9 @@ impl<R> ResolvedFieldSampling<R> {
                 FieldPosition::LeftExterior { distance } => CanonicalFieldPosition::LeftExterior {
                     distance: distance.into_canonical(),
                 },
-                FieldPosition::Layer { index, offset } => CanonicalFieldPosition::Layer {
+                FieldPosition::Layer { index, position } => CanonicalFieldPosition::Layer {
                     index,
-                    offset: offset.into_canonical(),
+                    position: position.into(),
                 },
                 FieldPosition::RightExterior { distance } => {
                     CanonicalFieldPosition::RightExterior {
@@ -82,9 +82,10 @@ impl<R> ResolvedFieldSampling<R> {
 mod tests {
     use super::*;
 
-    // Adjust these imports to the precise location/names used by sampling.rs.
-    use crate::FiniteLayerIndex;
-    use crate::spatial::Length;
+    use crate::{
+        FiniteLayerIndex,
+        spatial::{CanonicalLayerPosition, Length, ResolvedLayerPosition},
+    };
 
     #[test]
     fn exposes_positions() {
@@ -94,7 +95,7 @@ mod tests {
             },
             FieldPosition::Layer {
                 index: FiniteLayerIndex::new(1),
-                offset: Length::nanometres(20.0),
+                position: ResolvedLayerPosition::FromLeft(Length::nanometres(20.0)),
             },
         ];
 
@@ -124,8 +125,12 @@ mod tests {
             FieldPosition::LeftExterior {
                 distance: Length::nanometres(10.0),
             },
+            FieldPosition::Layer {
+                index: FiniteLayerIndex::new(0),
+                position: ResolvedLayerPosition::FromRight(Length::micrometres(2.0)),
+            },
             FieldPosition::RightExterior {
-                distance: Length::micrometres(2.0),
+                distance: Length::micrometres(3.0),
             },
         ];
 
@@ -134,48 +139,86 @@ mod tests {
         assert_eq!(resolved.into_positions(), positions);
     }
 
+    fn assert_canonical_layer_position_close(
+        actual: &CanonicalLayerPosition<f64>,
+        expected: &CanonicalLayerPosition<f64>,
+    ) {
+        match (actual, expected) {
+            (
+                CanonicalLayerPosition::FromLeft(actual),
+                CanonicalLayerPosition::FromLeft(expected),
+            )
+            | (
+                CanonicalLayerPosition::FromRight(actual),
+                CanonicalLayerPosition::FromRight(expected),
+            )
+            | (
+                CanonicalLayerPosition::Fraction(actual),
+                CanonicalLayerPosition::Fraction(expected),
+            ) => {
+                approx::assert_relative_eq!(actual, expected);
+            }
+
+            _ => panic!("layer-position variants did not match"),
+        }
+    }
+
     fn assert_canonical_field_position_close(
         actual: &CanonicalFieldPosition<f64>,
         expected: &CanonicalFieldPosition<f64>,
     ) {
         match (actual, expected) {
             (
-                CanonicalFieldPosition::LeftExterior { distance: first },
-                CanonicalFieldPosition::LeftExterior { distance: second },
-            ) => approx::assert_relative_eq!(first, second),
-            (
-                CanonicalFieldPosition::RightExterior { distance: first },
-                CanonicalFieldPosition::RightExterior { distance: second },
-            ) => approx::assert_relative_eq!(first, second),
-            (
-                CanonicalFieldPosition::Layer {
-                    offset: first_offset,
-                    index: first_index,
-                },
-                CanonicalFieldPosition::Layer {
-                    offset: second_offset,
-                    index: second_index,
-                },
+                CanonicalFieldPosition::LeftExterior { distance: actual },
+                CanonicalFieldPosition::LeftExterior { distance: expected },
+            )
+            | (
+                CanonicalFieldPosition::RightExterior { distance: actual },
+                CanonicalFieldPosition::RightExterior { distance: expected },
             ) => {
-                assert_eq!(first_index, second_index);
-                approx::assert_relative_eq!(first_offset, second_offset);
+                approx::assert_relative_eq!(actual, expected);
             }
 
-            _ => panic!("enum variants did not match"),
+            (
+                CanonicalFieldPosition::Layer {
+                    index: actual_index,
+                    position: actual_position,
+                },
+                CanonicalFieldPosition::Layer {
+                    index: expected_index,
+                    position: expected_position,
+                },
+            ) => {
+                assert_eq!(actual_index, expected_index);
+
+                assert_canonical_layer_position_close(actual_position, expected_position);
+            }
+
+            _ => panic!("field-position variants did not match"),
         }
     }
 
     #[test]
     fn compile_preserves_regions_and_converts_distances() {
-        let layer = FiniteLayerIndex::new(2);
+        let layer0 = FiniteLayerIndex::new(0);
+        let layer1 = FiniteLayerIndex::new(1);
+        let layer2 = FiniteLayerIndex::new(2);
 
         let resolved = ResolvedFieldSampling::new(vec![
             FieldPosition::LeftExterior {
                 distance: Length::nanometres(100.0),
             },
             FieldPosition::Layer {
-                index: layer,
-                offset: Length::micrometres(2.0),
+                index: layer0,
+                position: ResolvedLayerPosition::FromLeft(Length::micrometres(2.0)),
+            },
+            FieldPosition::Layer {
+                index: layer1,
+                position: ResolvedLayerPosition::FromRight(Length::millimetres(3.0)),
+            },
+            FieldPosition::Layer {
+                index: layer2,
+                position: ResolvedLayerPosition::Fraction(0.25),
             },
             FieldPosition::RightExterior {
                 distance: Length::centimetres(3.0),
@@ -184,14 +227,67 @@ mod tests {
 
         let compiled = resolved.compile();
 
-        for (actual, expected) in compiled.positions().iter().zip(&[
+        let expected = [
             CanonicalFieldPosition::LeftExterior { distance: 1.0e-5 },
             CanonicalFieldPosition::Layer {
-                index: layer,
-                offset: 2.0e-4,
+                index: layer0,
+                position: CanonicalLayerPosition::FromLeft(2.0e-4),
+            },
+            CanonicalFieldPosition::Layer {
+                index: layer1,
+                position: CanonicalLayerPosition::FromRight(0.3),
+            },
+            CanonicalFieldPosition::Layer {
+                index: layer2,
+                position: CanonicalLayerPosition::Fraction(0.25),
             },
             CanonicalFieldPosition::RightExterior { distance: 3.0 },
-        ]) {
+        ];
+
+        assert_eq!(compiled.positions().len(), expected.len());
+
+        for (actual, expected) in compiled.positions().iter().zip(expected.iter()) {
+            assert_canonical_field_position_close(actual, expected);
+        }
+    }
+
+    #[test]
+    fn compile_preserves_layer_position_semantics() {
+        let layer = FiniteLayerIndex::new(0);
+
+        let resolved = ResolvedFieldSampling::new(vec![
+            FieldPosition::Layer {
+                index: layer,
+                position: ResolvedLayerPosition::FromLeft(Length::nanometres(100.0)),
+            },
+            FieldPosition::Layer {
+                index: layer,
+                position: ResolvedLayerPosition::FromRight(Length::nanometres(100.0)),
+            },
+            FieldPosition::Layer {
+                index: layer,
+                position: ResolvedLayerPosition::Fraction(0.5),
+            },
+        ]);
+
+        let compiled = resolved.compile();
+
+        let expected = [
+            CanonicalFieldPosition::Layer {
+                index: layer,
+                position: CanonicalLayerPosition::FromLeft(1.0e-5),
+            },
+            CanonicalFieldPosition::Layer {
+                index: layer,
+                position: CanonicalLayerPosition::FromRight(1.0e-5),
+            },
+            CanonicalFieldPosition::Layer {
+                index: layer,
+                position: CanonicalLayerPosition::Fraction(0.5),
+            },
+        ];
+
+        for (actual, expected) in compiled.positions().iter().zip(expected.iter()) {
             assert_canonical_field_position_close(actual, expected);
         }
     }

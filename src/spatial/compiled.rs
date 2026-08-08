@@ -1,4 +1,6 @@
-use crate::FiniteLayerIndex;
+use num_traits::{Float, FromPrimitive};
+
+use crate::{FiniteLayerIndex, spatial::sampling::ResolvedLayerPosition};
 
 /// A field-sampling request compiled into backend canonical coordinates.
 ///
@@ -60,8 +62,8 @@ pub(crate) enum CanonicalFieldPosition<R> {
         /// Finite layer containing the point.
         index: FiniteLayerIndex,
 
-        /// Canonical offset from the layer's left boundary.
-        offset: R,
+        /// Canonical fraction from the layer's left boundary.
+        position: CanonicalLayerPosition<R>,
     },
 
     /// A point in the semi-infinite medium to the right of the stack.
@@ -69,6 +71,38 @@ pub(crate) enum CanonicalFieldPosition<R> {
         /// Canonical distance from the right stack boundary.
         distance: R,
     },
+}
+
+impl<R> From<ResolvedLayerPosition<R>> for CanonicalLayerPosition<R>
+where
+    R: Float + FromPrimitive,
+{
+    fn from(value: ResolvedLayerPosition<R>) -> Self {
+        match value {
+            ResolvedLayerPosition::FromLeft(distance) => {
+                let (value, unit) = distance.into_parts();
+
+                CanonicalLayerPosition::FromLeft(value * unit.scale_to_centimetres::<R>())
+            }
+            ResolvedLayerPosition::FromRight(distance) => {
+                let (value, unit) = distance.into_parts();
+                CanonicalLayerPosition::FromRight(value * unit.scale_to_centimetres::<R>())
+            }
+            ResolvedLayerPosition::Fraction(fraction) => CanonicalLayerPosition::Fraction(fraction),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum CanonicalLayerPosition<R> {
+    /// Fixed distance from the left layer boundary.
+    FromLeft(R),
+
+    /// Fixed distance from the right layer boundary.
+    FromRight(R),
+
+    /// Fraction of the layer thickness.
+    Fraction(R),
 }
 
 #[cfg(test)]
@@ -83,7 +117,7 @@ mod tests {
             CanonicalFieldPosition::LeftExterior { distance: 1.0 },
             CanonicalFieldPosition::Layer {
                 index: layer,
-                offset: 2.0,
+                position: CanonicalLayerPosition::FromLeft(2.0),
             },
             CanonicalFieldPosition::RightExterior { distance: 3.0 },
         ];

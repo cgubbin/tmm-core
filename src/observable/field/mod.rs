@@ -1,9 +1,13 @@
 mod constitutive;
 mod electromagnetic;
+mod reconstruction;
 
 pub use constitutive::ConstitutiveFields;
 pub use electromagnetic::ElectromagneticFields;
 
+pub use reconstruction::FieldReconstructionError;
+
+pub(crate) use reconstruction::FieldSamplingContext;
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum FieldIndexError {

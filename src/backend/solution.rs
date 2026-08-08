@@ -1,5 +1,5 @@
 use crate::{
-    IncidentSide,
+    IncidentSide, Polarisation,
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
@@ -8,8 +8,14 @@ pub trait ExteriorContextProvider {
 
     fn left_admittance(&self) -> &Self::Algebra;
     fn right_admittance(&self) -> &Self::Algebra;
+
     fn left_kappa(&self) -> &Self::Algebra;
     fn right_kappa(&self) -> &Self::Algebra;
+
+    fn vacuum_angular_wavenumber(&self) -> &Self::Algebra;
+    fn parallel_angular_wavenumber(&self) -> &Self::Algebra;
+
+    fn polarisation(&self) -> Polarisation;
 }
 
 pub trait PlaneWaveEntries {

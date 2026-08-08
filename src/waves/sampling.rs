@@ -4,7 +4,7 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, FiniteLayerIndex, IncidentSide,
+    ComplexScalar, IncidentSide,
     algebra::{Jet, ScalarAlgebra},
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
@@ -158,7 +158,11 @@ where
             .left()
             .propagate(exterior_context.left_kappa(), -distance)),
 
-        CanonicalFieldPosition::Layer { index, offset } => {
+        CanonicalFieldPosition::Layer { index, position } => {
+            let layer_thickness = workspace
+                .layer_thickness(index.0)
+                .ok_or(WaveSamplingError::MissingLayerData { index: index.0 })?;
+
             let layer = layers
                 .get(index.0)
                 .ok_or(WaveSamplingError::LayerOutOfBounds {
@@ -171,11 +175,7 @@ where
                 .ok_or(WaveSamplingError::MissingLayerData { index: index.0 })?
                 .kappa();
 
-            let layer_thickness = workspace
-                .layer_thickness(index.0)
-                .ok_or(WaveSamplingError::MissingLayerData { index: index.0 })?;
-
-            Ok(layer.propagate_to_offset(longitudinal_wavevector, layer_thickness, offset))
+            Ok(layer.propagate_to_position(longitudinal_wavevector, layer_thickness, position))
         }
 
         CanonicalFieldPosition::RightExterior { distance } => Ok(exterior
@@ -191,20 +191,17 @@ mod tests {
     use super::*;
 
     use crate::{
-        Polarisation, RealAxis,
-        algebra::{ArrayJet0, Jet},
+        FiniteLayerIndex, Polarisation, RealAxis,
+        algebra::ArrayJet0,
         backend::{RunMode, Scatter2},
         input::{CanonicalCoordinates, CanonicalStack},
         material::Constant,
-        spatial::{CanonicalFieldPosition, CompiledFieldSampling},
+        spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},
         test_support::{
             C, TOLERANCE,
             assertions::assert_bidirectional_waves_close,
             jet::zero_jet_from_real_value,
-            planar::{
-                boundary_test_empty_stack, boundary_test_single_layer_stack,
-                boundary_test_two_layer_stack,
-            },
+            planar::{boundary_test_empty_stack, boundary_test_single_layer_stack},
         },
     };
 
@@ -239,14 +236,14 @@ mod tests {
 
         let sampling = CompiledFieldSampling::new(vec![CanonicalFieldPosition::Layer {
             index: FiniteLayerIndex(0),
-            offset: 0.1,
+            position: CanonicalLayerPosition::FromLeft(0.1),
         }]);
 
         let error = context
             .propagate_sampling(IncidentSide::Left, &sampling)
             .unwrap_err();
 
-        assert_eq!(error, WaveSamplingError::LayersNotRetained);
+        assert_eq!(error, WaveSamplingError::LayersNotRetained,);
     }
 
     #[test]
@@ -291,11 +288,11 @@ mod tests {
 
         let context = WaveSamplingContext::new(&workspace);
 
-        let offset = 0.1;
+        let position = CanonicalLayerPosition::FromLeft(0.1);
 
         let sampling = CompiledFieldSampling::new(vec![CanonicalFieldPosition::Layer {
             index: FiniteLayerIndex(0),
-            offset,
+            position,
         }]);
 
         let actual = context
@@ -314,9 +311,57 @@ mod tests {
             .layer_thickness(0)
             .expect("single layer should retain thickness");
 
-        let expected = boundaries[0].propagate_to_offset(quantities.kappa(), thickness, offset);
+        let expected = boundaries[0].propagate_to_position(quantities.kappa(), thickness, position);
 
         assert_bidirectional_waves_close(&actual[0], &expected, TOLERANCE);
+    }
+
+    #[test]
+    fn dispatch_preserves_layer_position_semantics() {
+        let workspace =
+            build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
+
+        let context = WaveSamplingContext::new(&workspace);
+
+        let positions = [
+            CanonicalLayerPosition::FromLeft(0.1),
+            CanonicalLayerPosition::FromRight(0.1),
+            CanonicalLayerPosition::Fraction(0.25),
+        ];
+
+        let sampling = CompiledFieldSampling::new(
+            positions
+                .iter()
+                .copied()
+                .map(|position| CanonicalFieldPosition::Layer {
+                    index: FiniteLayerIndex(0),
+                    position,
+                })
+                .collect(),
+        );
+
+        let actual = context
+            .propagate_sampling(IncidentSide::Left, &sampling)
+            .unwrap();
+
+        let boundaries = context.layer_boundary_waves(IncidentSide::Left).unwrap();
+
+        let quantities = workspace
+            .layer_quantities(0)
+            .expect("single layer should retain quantities");
+
+        let thickness = workspace
+            .layer_thickness(0)
+            .expect("single layer should retain thickness");
+
+        assert_eq!(actual.len(), positions.len());
+
+        for (actual, position) in actual.iter().zip(positions) {
+            let expected =
+                boundaries[0].propagate_to_position(quantities.kappa(), thickness, position);
+
+            assert_bidirectional_waves_close(actual, &expected, TOLERANCE);
+        }
     }
 
     #[test]
@@ -330,7 +375,7 @@ mod tests {
             CanonicalFieldPosition::LeftExterior { distance: 0.0 },
             CanonicalFieldPosition::Layer {
                 index: FiniteLayerIndex(0),
-                offset: 0.1,
+                position: CanonicalLayerPosition::FromLeft(0.1),
             },
             CanonicalFieldPosition::RightExterior { distance: 0.0 },
         ]);
@@ -357,6 +402,7 @@ mod tests {
             let exterior = context.exterior_boundary_waves(side);
 
             let solution = workspace.solution();
+
             let amplitudes = solution
                 .entries()
                 .project_amplitudes(solution.context(), side);

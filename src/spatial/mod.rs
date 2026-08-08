@@ -30,6 +30,9 @@ mod sampling;
 
 pub use length::Length;
 
-pub(crate) use compiled::{CanonicalFieldPosition, CompiledFieldSampling};
+pub(crate) use compiled::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling};
 pub(crate) use resolved::ResolvedFieldSampling;
-pub(crate) use sampling::FieldPosition;
+pub(crate) use sampling::{
+    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingError, LayerSampling,
+    ResolvedLayerPosition,
+};

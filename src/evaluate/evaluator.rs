@@ -649,6 +649,7 @@ impl<B> PlaneWaveEvaluator<B> {
             canonical_problem,
             workspace,
             context,
+            stack.clone(),
             polarisation,
         ))
     }
@@ -688,6 +689,7 @@ impl<B> PlaneWaveEvaluator<B> {
             canonical_problem,
             workspace,
             context,
+            stack.clone(),
             polarisation,
         ))
     }
