@@ -170,7 +170,13 @@ where
 
         let residual = slope.multiply(self.denominator()).scale(two);
 
-        PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), residual)
+        let right_outgoing = self.n21().clone();
+
+        PlaneWaveModeCandidate::new(
+            BoundaryState::new(field, secondary),
+            right_outgoing,
+            residual,
+        )
     }
 }
 

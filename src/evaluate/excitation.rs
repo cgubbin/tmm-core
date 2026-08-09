@@ -38,7 +38,7 @@ use crate::{
         LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
     },
     spatial::FieldSampling,
-    waves::ReconstructLayerBoundaryWaves,
+    waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -411,11 +411,15 @@ where
         <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
+        let wave_context = WaveSamplingContext::new(self.state.workspace());
+
+        let boundary_waves = wave_context.driven_boundary_waves(self.incident_side)?;
+
         let context = FieldSamplingContext::new(self.state.workspace());
 
         let sampling = sampling.resolve(self.state.stack())?.compile();
 
-        let reconstructed = context.reconstruct(self.incident_side, &sampling)?;
+        let reconstructed = context.reconstruct_from_boundary_waves(&boundary_waves, &sampling)?;
 
         Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
     }

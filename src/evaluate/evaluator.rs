@@ -486,6 +486,64 @@ impl<B> PlaneWaveEvaluator<B> {
 }
 
 impl<B> PlaneWaveEvaluator<B> {
+    pub fn evaluate_modal_bivariate_first<M, C, D>(
+        &self,
+        input: CoordinateInput<C, D>,
+        stack: &Stack<M, C::RealField>,
+        polarisation: Polarisation,
+        axis0: Parameter,
+        axis1: Parameter,
+    ) -> SolvedModalResult<B, ModalBivariateFirstJet<C, D>>
+    where
+        C: ComplexScalar,
+        C::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        D: Dimension,
+        M: Clone,
+        ModalBivariateFirstJet<C, D>: Jet<Scalar = C, Dimension = D> + CompileJet<M, ComplexPlane>,
+        ComplexPlane: ConstitutiveEvaluator<C, D, M>,
+        B: Backend<ModalBivariateFirstJet<C, D>, ComplexPlane>,
+    {
+        let mapping =
+            DerivativeMapping::new([axis0, axis1]).map_err(SolveRequestError::DerivativeMapping)?;
+
+        self.solve_complex_coordinate_space::<ModalBivariateFirstJet<C, D>, M>(
+            input,
+            stack,
+            polarisation,
+            &mapping,
+        )
+    }
+
+    pub fn retain_modal_bivariate_first<M, C, D>(
+        &self,
+        input: CoordinateInput<C, D>,
+        stack: &Stack<M, C::RealField>,
+        polarisation: Polarisation,
+        axis0: Parameter,
+        axis1: Parameter,
+    ) -> RetainedModalResult<B, ModalBivariateFirstJet<C, D>, M>
+    where
+        C: ComplexScalar,
+        C::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        D: Dimension,
+        M: Clone,
+        ModalBivariateFirstJet<C, D>: Jet<Scalar = C, Dimension = D> + CompileJet<M, ComplexPlane>,
+        ComplexPlane: ConstitutiveEvaluator<C, D, M>,
+        B: Backend<ModalBivariateFirstJet<C, D>, ComplexPlane>,
+    {
+        let mapping =
+            DerivativeMapping::new([axis0, axis1]).map_err(SolveRequestError::DerivativeMapping)?;
+
+        self.retain_complex_coordinate_space::<ModalBivariateFirstJet<C, D>, M>(
+            input,
+            stack,
+            polarisation,
+            &mapping,
+        )
+    }
+}
+
+impl<B> PlaneWaveEvaluator<B> {
     /// Evaluate the modal determinant and its holomorphic derivatives through
     /// second order with respect to `parameter`.
     pub fn evaluate_modal_second<M, C, D>(
@@ -537,6 +595,64 @@ impl<B> PlaneWaveEvaluator<B> {
             DerivativeMapping::new([parameter]).map_err(SolveRequestError::DerivativeMapping)?;
 
         self.retain_complex_coordinate_space::<ModalSecondJet<C, D>, M>(
+            input,
+            stack,
+            polarisation,
+            &mapping,
+        )
+    }
+}
+
+impl<B> PlaneWaveEvaluator<B> {
+    pub fn evaluate_modal_bivariate_second<M, C, D>(
+        &self,
+        input: CoordinateInput<C, D>,
+        stack: &Stack<M, C::RealField>,
+        polarisation: Polarisation,
+        axis0: Parameter,
+        axis1: Parameter,
+    ) -> SolvedModalResult<B, ModalBivariateSecondJet<C, D>>
+    where
+        C: ComplexScalar,
+        C::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        D: Dimension,
+        M: Clone,
+        ModalBivariateSecondJet<C, D>: Jet<Scalar = C, Dimension = D> + CompileJet<M, ComplexPlane>,
+        ComplexPlane: ConstitutiveEvaluator<C, D, M>,
+        B: Backend<ModalBivariateSecondJet<C, D>, ComplexPlane>,
+    {
+        let mapping =
+            DerivativeMapping::new([axis0, axis1]).map_err(SolveRequestError::DerivativeMapping)?;
+
+        self.solve_complex_coordinate_space::<ModalBivariateSecondJet<C, D>, M>(
+            input,
+            stack,
+            polarisation,
+            &mapping,
+        )
+    }
+
+    pub fn retain_modal_bivariate_second<M, C, D>(
+        &self,
+        input: CoordinateInput<C, D>,
+        stack: &Stack<M, C::RealField>,
+        polarisation: Polarisation,
+        axis0: Parameter,
+        axis1: Parameter,
+    ) -> RetainedModalResult<B, ModalBivariateSecondJet<C, D>, M>
+    where
+        C: ComplexScalar,
+        C::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        D: Dimension,
+        M: Clone,
+        ModalBivariateSecondJet<C, D>: Jet<Scalar = C, Dimension = D> + CompileJet<M, ComplexPlane>,
+        ComplexPlane: ConstitutiveEvaluator<C, D, M>,
+        B: Backend<ModalBivariateSecondJet<C, D>, ComplexPlane>,
+    {
+        let mapping =
+            DerivativeMapping::new([axis0, axis1]).map_err(SolveRequestError::DerivativeMapping)?;
+
+        self.retain_complex_coordinate_space::<ModalBivariateSecondJet<C, D>, M>(
             input,
             stack,
             polarisation,
@@ -710,6 +826,10 @@ type ModalValueJet<C, D> = ArrayJet0<C, D, HolomorphicParameter>;
 type ModalFirstJet<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
 type ModalSecondJet<C, D> = ArrayJet2<C, D, HolomorphicParameter>;
+
+type ModalBivariateFirstJet<C, D> = ArrayJetBivariate1<C, D, HolomorphicParameter>;
+
+type ModalBivariateSecondJet<C, D> = ArrayJetBivariate2<C, D, HolomorphicParameter>;
 
 type SolvedRealResult<B, J> = Result<
     PlaneWaveResult<

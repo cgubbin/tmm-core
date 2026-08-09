@@ -46,7 +46,11 @@ use crate::{
     },
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
-        isotropic::IsotropicLayerQuantities, transfer2::error::Transfer2Entry,
+        isotropic::IsotropicLayerQuantities,
+        transfer2::{
+            error::Transfer2Entry,
+            state::{TransferState, right_outgoing_transfer_state},
+        },
     },
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
@@ -489,19 +493,29 @@ where
 
 pub(crate) fn right_gauged_mode_candidate<A>(
     entries: &Transfer2Entries<A>,
-    left_slope: &A,
-    right_slope: &A,
+    left_admittance: &A,
+    right_admittance: &A,
 ) -> PlaneWaveModeCandidate<A>
 where
     A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
+    A::Scalar: ComplexScalar + One,
     A::Dimension: Dimension,
 {
-    let (field, secondary) = right_outgoing_column(entries, right_slope);
+    let one = A::filled_constant_like(entries.m11().value(), A::Scalar::one());
 
-    let residual = left_slope.multiply(&field).subtract(&secondary);
+    let right_state = right_outgoing_transfer_state(&one, right_admittance);
 
-    PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), residual)
+    let left_state = entries.apply_state(&right_state);
+
+    let left_slope = transfer_state_slope(left_admittance);
+
+    let residual = left_slope
+        .multiply(left_state.field())
+        .subtract(left_state.slope());
+
+    let (field, secondary) = left_state.into_parts();
+
+    PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), one, residual)
 }
 
 #[cfg(test)]

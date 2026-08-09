@@ -60,6 +60,22 @@ impl<A> TransferState<A> {
     }
 }
 
+pub(crate) fn right_outgoing_transfer_state<A>(
+    right_outgoing: &A,
+    right_admittance: &A,
+) -> TransferState<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let characteristic_slope = transfer_state_slope(right_admittance);
+
+    let slope = characteristic_slope.multiply(right_outgoing).negate();
+
+    TransferState::new(right_outgoing.clone(), slope)
+}
+
 /// Convert physical characteristic admittance into transfer-state slope.
 ///
 /// The transfer backend uses:

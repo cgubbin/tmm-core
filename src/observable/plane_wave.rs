@@ -369,7 +369,7 @@ mod tests {
 #[cfg(test)]
 mod projection_tests {
     use crate::{
-        backend::scatter2::{Scatter2Entries, Scatter2ExteriorContext},
+        backend::scatter2::{Scatter2Entries, Scatter2ExteriorContext, Scatter2ProjectiveEntries},
         test_support::{
             C, TOLERANCE,
             assertions::{assert_complex_close, assert_real_close},
@@ -400,8 +400,14 @@ mod projection_tests {
         s12: impl Into<C>,
         s21: impl Into<C>,
         s22: impl Into<C>,
-    ) -> Scatter2Entries<Algebra> {
-        Scatter2Entries::from_parts(scalar(s11), scalar(s12), scalar(s21), scalar(s22))
+    ) -> Scatter2ProjectiveEntries<Algebra> {
+        Scatter2ProjectiveEntries::from_parts(
+            scalar(C::new(1.0, 0.0)),
+            scalar(s11),
+            scalar(s12),
+            scalar(s21),
+            scalar(s22),
+        )
     }
 
     fn exterior_context(

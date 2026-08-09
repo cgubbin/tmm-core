@@ -2,7 +2,9 @@ mod boundary;
 mod propagation;
 mod sampling;
 
-pub(crate) use boundary::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
+pub(crate) use boundary::{
+    BidirectionalWaves, BoundaryWaveSolution, ExteriorBoundaryWaves, LayerBoundaryWaves,
+};
 use ndarray::Dimension;
 pub(crate) use propagation::{PropagateLayerWaves, PropagateWaves};
 pub(crate) use sampling::{WaveSamplingContext, WaveSamplingError};

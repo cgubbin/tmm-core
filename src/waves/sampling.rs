@@ -7,11 +7,16 @@ use crate::{
     ComplexScalar, IncidentSide,
     algebra::{Jet, ScalarAlgebra},
     backend::{
-        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
+        ExteriorContextProvider, ModeReconstructionError, PlaneWaveEntries, PlaneWaveModeCandidate,
+        PlaneWaveSolutionSource, ReconstructExteriorModeWaves, ReconstructLayerModeWaves,
+        RetainedIsotropicLayers,
     },
     observable::{Amplitudes, ProjectAmplitudes},
     spatial::{CanonicalFieldPosition, CompiledFieldSampling},
-    waves::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves},
+    waves::{
+        BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves,
+        boundary::BoundaryWaveSolution,
+    },
 };
 
 use super::{
@@ -33,6 +38,9 @@ pub(crate) enum WaveSamplingError {
     #[error("sampling requested but no layer data was retained")]
     LayersNotRetained,
 
+    #[error(transparent)]
+    ModeReconstruction(#[from] ModeReconstructionError),
+
     #[error("retained data are incomplete for finite layer {index}")]
     MissingLayerData { index: usize },
 
@@ -53,10 +61,7 @@ pub(crate) struct WaveSamplingContext<'a, W, A> {
 }
 
 impl<'a, W, A> WaveSamplingContext<'a, W, A> {
-    pub(crate) const fn new(workspace: &'a W) -> Self
-    where
-        W: ReconstructLayerBoundaryWaves<Algebra = A>,
-    {
+    pub(crate) const fn new(workspace: &'a W) -> Self {
         Self {
             workspace,
             algebra: PhantomData,
@@ -68,43 +73,34 @@ impl<'a, W, A> WaveSamplingContext<'a, W, A> {
     }
 }
 
-impl<'a, W, A> WaveSamplingContext<'a, W, A>
-where
-    W: ReconstructExteriorBoundaryWaves<Algebra = A>
-        + ReconstructLayerBoundaryWaves<Algebra = A>
-        + RetainedIsotropicLayers<Algebra = A>
-        + PlaneWaveSolutionSource,
-    W::Entries: ProjectAmplitudes,
-    <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
-    A: ScalarAlgebra + Clone,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    pub(crate) fn exterior_boundary_waves(
+impl<'a, W, A> WaveSamplingContext<'a, W, A> {
+    pub(crate) fn modal_boundary_waves(
         &self,
-        incident_side: IncidentSide,
-    ) -> ExteriorBoundaryWaves<A> {
-        self.workspace
-            .reconstruct_exterior_boundary_waves(incident_side)
-    }
-
-    pub(crate) fn layer_boundary_waves(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<Vec<LayerBoundaryWaves<A>>, WaveSamplingError> {
-        self.workspace
-            .reconstruct_layer_boundary_waves(incident_side)
-            .ok_or(WaveSamplingError::LayersNotRetained)
-    }
-
-    pub(crate) fn propagate_sampling(
-        &self,
-        incident_side: IncidentSide,
-        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
-    ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
+        seed: &PlaneWaveModeCandidate<A>,
+    ) -> Result<BoundaryWaveSolution<A>, WaveSamplingError>
     where
-        <A::Scalar as ComplexField>::RealField: Copy,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
+        W: ReconstructExteriorModeWaves<Algebra = A> + ReconstructLayerModeWaves<Algebra = A>,
+    {
+        let exterior = self.workspace.reconstruct_exterior_mode_waves(seed)?;
+
+        let layers = self.workspace.reconstruct_layer_mode_waves(seed)?;
+
+        Ok(BoundaryWaveSolution::new(exterior, layers))
+    }
+
+    pub(crate) fn driven_boundary_waves(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<BoundaryWaveSolution<A>, WaveSamplingError>
+    where
+        A: Jet,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        W: ReconstructExteriorBoundaryWaves<Algebra = A>
+            + ReconstructLayerBoundaryWaves<Algebra = A>
+            + RetainedIsotropicLayers,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
     {
         let exterior = self
             .workspace
@@ -127,12 +123,56 @@ where
             });
         }
 
+        Ok(BoundaryWaveSolution::new(exterior, layers))
+    }
+
+    pub(crate) fn propagate_sampling(
+        &self,
+        incident_side: IncidentSide,
+        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
+    ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
+    where
+        A: ScalarAlgebra,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        W: ReconstructExteriorBoundaryWaves<Algebra = A>
+            + ReconstructLayerBoundaryWaves<Algebra = A>
+            + RetainedIsotropicLayers<Algebra = A>
+            + PlaneWaveSolutionSource,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
+        <A::Scalar as ComplexField>::RealField: Copy,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
+    {
+        let waves = self.driven_boundary_waves(incident_side)?;
+
+        self.propagate_reconstructed(&waves, sampling)
+    }
+
+    pub(crate) fn propagate_reconstructed(
+        &self,
+        waves: &BoundaryWaveSolution<A>,
+        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
+    ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
+    where
+        A: ScalarAlgebra,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        <A::Scalar as ComplexField>::RealField: Copy,
+        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = A>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
+    {
         sampling
             .positions()
             .iter()
             .copied()
             .map(|position| {
-                propagate_position_from_reconstructed(self.workspace, &exterior, &layers, position)
+                propagate_position_from_reconstructed(
+                    self.workspace,
+                    waves.exterior(),
+                    waves.layers(),
+                    position,
+                )
             })
             .collect()
     }
@@ -263,7 +303,9 @@ mod tests {
 
         assert_eq!(actual.len(), 2);
 
-        let exterior = context.exterior_boundary_waves(IncidentSide::Left);
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
+
+        let exterior = waves.exterior();
 
         let solution = workspace.solution();
         let exterior_context = solution.context();
@@ -301,7 +343,9 @@ mod tests {
 
         assert_eq!(actual.len(), 1);
 
-        let boundaries = context.layer_boundary_waves(IncidentSide::Left).unwrap();
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
+
+        let boundaries = waves.layers();
 
         let quantities = workspace
             .layer_quantities(0)
@@ -344,7 +388,8 @@ mod tests {
             .propagate_sampling(IncidentSide::Left, &sampling)
             .unwrap();
 
-        let boundaries = context.layer_boundary_waves(IncidentSide::Left).unwrap();
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
+        let boundaries = waves.layers();
 
         let quantities = workspace
             .layer_quantities(0)
@@ -399,7 +444,8 @@ mod tests {
         let context = WaveSamplingContext::new(&workspace);
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let exterior = context.exterior_boundary_waves(side);
+            let waves = context.driven_boundary_waves(side).unwrap();
+            let exterior = waves.exterior();
 
             let solution = workspace.solution();
 

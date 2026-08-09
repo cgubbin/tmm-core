@@ -9,8 +9,8 @@ use crate::{
     },
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
-        PlaneWaveModeCandidate, PlaneWaveSolutionSource, ReconstructLayerModeWaves,
-        RetainedIsotropicLayers,
+        PlaneWaveModeCandidate, PlaneWaveSolutionSource, ReconstructExteriorModeWaves,
+        ReconstructLayerModeWaves, RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -27,7 +27,7 @@ use crate::{
         assemble_layer_integration_inputs, project_layer_mode_waves,
     },
     spatial::FieldSampling,
-    waves::ReconstructLayerBoundaryWaves,
+    waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
 };
 
 use thiserror::Error;
@@ -230,39 +230,42 @@ where
             .into_differential_response(&J::Policy::default(), self.state().mapping()))
     }
 
-    // pub fn evaluate_fields(
-    //     self,
-    //     sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
-    // ) -> Result<
-    //     DifferentialResponseFor<
-    //         J,
-    //         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-    //     >,
-    //     FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
-    // >
-    // where
-    //     J: JetStack + ScalarAlgebra,
-    //     J::Scalar: ComplexScalar,
-    //     <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
-    //     J::Stacked: CartesianScalarAlgebra,
-    //     J::Policy: DerivativePartsPolicy<
-    //         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-    //     >,
-    //     ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
-    //         IntoDifferentialResponse<J::Policy, J::Mapping>,
-    //     W: PlaneWaveSolutionSource
-    //         + ReconstructLayerBoundaryWaves<Algebra = J>
-    //         + RetainedIsotropicLayers<Algebra = J>,
-    //     W::Entries: ProjectAmplitudes,
-    //     <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
-    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    // {
-    //     let context = FieldSamplingContext::new(self.state.workspace());
+    pub fn evaluate_fields(
+        self,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
+    ) -> Result<
+        DifferentialResponseFor<
+            J,
+            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        J::Policy: DerivativePartsPolicy<
+            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructExteriorModeWaves<Algebra = J>
+            + ReconstructLayerModeWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let wave_context = WaveSamplingContext::new(self.state.workspace());
 
-    //     let sampling = sampling.resolve(self.state.stack())?.compile();
+        let boundary_waves = wave_context.modal_boundary_waves(self.seed())?;
 
-    //     let reconstructed = context.reconstruct(self.incident_side, &sampling)?;
+        let context = FieldSamplingContext::new(self.state.workspace());
 
-    //     Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
-    // }
+        let sampling = sampling.resolve(self.state.stack())?.compile();
+
+        let reconstructed = context.reconstruct_from_boundary_waves(&boundary_waves, &sampling)?;
+
+        Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
+    }
 }

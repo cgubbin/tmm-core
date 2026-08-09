@@ -11,6 +11,33 @@ use num_traits::{One, Zero};
 
 use crate::{ComplexScalar, IncidentSide, algebra::ScalarAlgebra};
 
+#[derive(Clone, Debug)]
+pub(crate) struct BoundaryWaveSolution<A> {
+    exterior: ExteriorBoundaryWaves<A>,
+    layers: Vec<LayerBoundaryWaves<A>>,
+}
+
+impl<A> BoundaryWaveSolution<A> {
+    pub(crate) fn new(
+        exterior: ExteriorBoundaryWaves<A>,
+        layers: Vec<LayerBoundaryWaves<A>>,
+    ) -> Self {
+        Self { exterior, layers }
+    }
+
+    pub(crate) fn exterior(&self) -> &ExteriorBoundaryWaves<A> {
+        &self.exterior
+    }
+
+    pub(crate) fn layers(&self) -> &[LayerBoundaryWaves<A>] {
+        &self.layers
+    }
+
+    pub(crate) fn into_parts(self) -> (ExteriorBoundaryWaves<A>, Vec<LayerBoundaryWaves<A>>) {
+        (self.exterior, self.layers)
+    }
+}
+
 /// Forward- and backward-propagating wave amplitudes at one longitudinal
 /// position.
 #[derive(Clone, Debug, PartialEq)]

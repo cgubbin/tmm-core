@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-use crate::{observable::BoundaryState, waves::LayerBoundaryWaves};
+use crate::{
+    observable::BoundaryState,
+    waves::{ExteriorBoundaryWaves, LayerBoundaryWaves},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum ModeReconstructionError {
@@ -32,16 +35,25 @@ pub enum ModalGauge {
 #[derive(Clone, Debug)]
 pub(crate) struct PlaneWaveModeCandidate<A> {
     state: BoundaryState<A>,
+    right_outgoing: A,
     residual: A,
 }
 
 impl<A> PlaneWaveModeCandidate<A> {
-    pub(crate) fn new(state: BoundaryState<A>, residual: A) -> Self {
-        Self { state, residual }
+    pub(crate) fn new(state: BoundaryState<A>, right_outgoing: A, residual: A) -> Self {
+        Self {
+            state,
+            right_outgoing,
+            residual,
+        }
     }
 
     pub(crate) fn state(&self) -> &BoundaryState<A> {
         &self.state
+    }
+
+    pub(crate) fn right_outgoing(&self) -> &A {
+        &self.right_outgoing
     }
 
     pub(crate) fn projective_residual(&self) -> &A {
@@ -55,6 +67,25 @@ impl<A> PlaneWaveModeCandidate<A> {
     pub(crate) fn into_projective_residual(self) -> A {
         self.residual
     }
+}
+
+/// Reconstruct exterior directional waves for an outgoing homogeneous mode.
+///
+/// The mode has no incident side. The returned exterior waves must satisfy
+/// outgoing boundary conditions on both sides:
+///
+/// - no right-going incident wave in the left exterior;
+/// - no left-going incident wave in the right exterior.
+///
+/// The reconstructed mode retains the arbitrary complex amplitude carried by
+/// `seed`. Modal normalization is applied later.
+pub(crate) trait ReconstructExteriorModeWaves {
+    type Algebra;
+
+    fn reconstruct_exterior_mode_waves(
+        &self,
+        seed: &PlaneWaveModeCandidate<Self::Algebra>,
+    ) -> Result<ExteriorBoundaryWaves<Self::Algebra>, ModeReconstructionError>;
 }
 
 /// Reconstruct directional waves for an outgoing homogeneous modal solution.

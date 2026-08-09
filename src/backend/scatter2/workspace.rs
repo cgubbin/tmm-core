@@ -6,16 +6,19 @@ use crate::{
     backend::{
         ExteriorContextProvider, IsotropicLayerQuantities, ModalSolutionSource,
         ModeReconstructionError, PlaneWaveModeCandidate, PlaneWaveSolution,
-        PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructLayerModeWaves,
-        RetainedIsotropicLayers, RunMode, SolutionWorkspace,
+        PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructExteriorModeWaves,
+        ReconstructLayerModeWaves, RetainedIsotropicLayers, RunMode, SolutionWorkspace,
         scatter2::{
             Scatter2ExteriorContext, Scatter2ProjectiveEntries, cascade_projection,
             entries::{Scatter2Entries, cascade},
         },
     },
     input::IncidentSide,
-    waves::ReconstructLayerBoundaryWaves,
-    waves::{BidirectionalWaves, LayerBoundaryWaves},
+    observable::BoundaryState,
+    waves::{
+        BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves,
+        ReconstructLayerBoundaryWaves,
+    },
 };
 
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
@@ -510,6 +513,53 @@ where
             .solution()
             .entries()
             .right_gauged_mode_candidate(self.solution().context().left_admittance()))
+    }
+}
+
+pub(crate) fn bidirectional_waves_from_state<A>(
+    state: &BoundaryState<A>,
+    admittance: &A,
+) -> BidirectionalWaves<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let slope = admittance.scale(-A::Scalar::i());
+
+    let difference = state.secondary().divide(&slope);
+
+    let half = A::Scalar::one() / (A::Scalar::one() + A::Scalar::one());
+
+    let forward = state.field().subtract(&difference).scale(half);
+
+    let backward = state.field().add(&difference).scale(half);
+
+    BidirectionalWaves::new(forward, backward)
+}
+
+impl<A> ReconstructExteriorModeWaves for Scatter2Workspace<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_exterior_mode_waves(
+        &self,
+        seed: &PlaneWaveModeCandidate<Self::Algebra>,
+    ) -> Result<crate::waves::ExteriorBoundaryWaves<Self::Algebra>, ModeReconstructionError> {
+        let left = bidirectional_waves_from_state(
+            seed.state(),
+            self.solution().context().left_admittance(),
+        );
+
+        let zero = seed.right_outgoing().zero_like();
+
+        let right = BidirectionalWaves::new(seed.right_outgoing().clone(), zero);
+
+        Ok(ExteriorBoundaryWaves::new(left, right))
     }
 }
 

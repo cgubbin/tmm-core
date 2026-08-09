@@ -370,21 +370,6 @@ where
     }
 }
 
-impl<J> ProjectPlaneWaveModeDeterminant for Scatter2Entries<J>
-where
-    J: ScalarAlgebra,
-    J::Scalar: ComplexScalar + One,
-    J::Dimension: Dimension,
-{
-    type Determinant = PlaneWaveDeterminant<J>;
-
-    fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
-        let candidate = right_gauged_mode_candidate(self, exterior.left_admittance());
-
-        PlaneWaveDeterminant::new(candidate.into_projective_residual())
-    }
-}
-
 pub(crate) fn transfer_state_slope<A>(admittance: &A) -> A
 where
     A: ScalarAlgebra,
@@ -392,30 +377,6 @@ where
     A::Dimension: Dimension,
 {
     admittance.scale(-<A::Scalar as ComplexScalar>::i())
-}
-
-pub(crate) fn right_gauged_mode_candidate<A>(
-    entries: &Scatter2Entries<A>,
-    left_admittance: &A,
-) -> PlaneWaveModeCandidate<A>
-where
-    A: ScalarAlgebra,
-    A::Scalar: ComplexScalar,
-    A::Dimension: Dimension,
-{
-    let left_slope = transfer_state_slope(left_admittance);
-
-    let left_incoming = entries.s21().reciprocal();
-
-    let left_outgoing = entries.s11().divide(entries.s21());
-
-    let field = left_incoming.add(&left_outgoing);
-
-    let secondary = left_outgoing.subtract(&left_incoming).multiply(&left_slope);
-
-    let residual = left_slope.multiply(&field).subtract(&secondary);
-
-    PlaneWaveModeCandidate::new(BoundaryState::new(field, secondary), residual)
 }
 
 #[cfg(test)]

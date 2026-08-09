@@ -8,10 +8,13 @@ use crate::{
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError,
         PlaneWaveModeCandidate, PlaneWaveSolution, PlaneWaveSolutionSource,
-        ReconstructLayerModeWaves, RunMode, SolutionWorkspace, isotropic::IsotropicLayerQuantities,
-        solution::PlaneWaveSolutionView, transfer2::entries::right_gauged_mode_candidate,
+        ReconstructExteriorModeWaves, ReconstructLayerModeWaves, RunMode, SolutionWorkspace,
+        isotropic::IsotropicLayerQuantities,
+        solution::PlaneWaveSolutionView,
+        transfer2::{entries::right_gauged_mode_candidate, state::right_outgoing_transfer_state},
         workspace::RetainedIsotropicLayers,
     },
+    observable::BoundaryState,
     waves::{
         BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves,
         ReconstructLayerBoundaryWaves,
@@ -506,19 +509,61 @@ where
 
     fn modal_boundary_solution(
         &self,
-    ) -> Result<
-        crate::backend::PlaneWaveModeCandidate<Self::Algebra>,
-        crate::backend::ModeReconstructionError,
-    > {
-        let left_slope = transfer_state_slope(self.solution().context().left_admittance());
-
-        let right_slope = transfer_state_slope(self.solution().context().right_admittance());
+    ) -> Result<PlaneWaveModeCandidate<A>, ModeReconstructionError> {
+        let solution = self.solution();
 
         Ok(right_gauged_mode_candidate(
-            self.entries(),
-            &left_slope,
-            &right_slope,
+            solution.entries(),
+            solution.context().left_admittance(),
+            solution.context().right_admittance(),
         ))
+    }
+}
+
+pub(crate) fn _bidirectional_waves_from_state<A>(
+    state: &BoundaryState<A>,
+    admittance: &A,
+) -> BidirectionalWaves<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    let characteristic_slope = admittance.scale(-A::Scalar::i());
+
+    let slope_ratio = state.secondary().divide(&characteristic_slope);
+
+    let half = (A::Scalar::one() + A::Scalar::one()).recip();
+
+    let forward = state.field().subtract(&slope_ratio).scale(half);
+
+    let backward = state.field().add(&slope_ratio).scale(half);
+
+    BidirectionalWaves::new(forward, backward)
+}
+
+impl<A> ReconstructExteriorModeWaves for Transfer2Workspace<A>
+where
+    A: ScalarAlgebra,
+    A::Scalar: ComplexScalar,
+    A::Dimension: Dimension,
+{
+    type Algebra = A;
+
+    fn reconstruct_exterior_mode_waves(
+        &self,
+        seed: &PlaneWaveModeCandidate<Self::Algebra>,
+    ) -> Result<crate::waves::ExteriorBoundaryWaves<Self::Algebra>, ModeReconstructionError> {
+        let left = _bidirectional_waves_from_state(
+            seed.state(),
+            self.solution().context().left_admittance(),
+        );
+
+        let zero = seed.right_outgoing().zero_like();
+
+        let right = BidirectionalWaves::new(seed.right_outgoing().clone(), zero);
+
+        Ok(ExteriorBoundaryWaves::new(left, right))
     }
 }
 
@@ -538,42 +583,12 @@ where
             .retained()
             .ok_or(ModeReconstructionError::ModeDataNotRetained)?;
 
-        let right_slope = transfer_state_slope(self.solution().context().right_admittance());
-
-        /*
-         * Right-gauged outgoing state:
-         *
-         * right outgoing amplitude = 1
-         * right incoming amplitude = 0
-         *
-         * Therefore:
-         *
-         * field     = 1
-         * secondary = right_slope
-         */
-        let one = A::filled_constant_like(right_slope.value(), A::Scalar::one());
-
-        let right_state = TransferState::new(one, right_slope);
-
-        let waves = retained.reconstruct_layer_boundary_waves(right_state);
-
-        debug_assert_eq!(
-            waves.len(),
-            retained.len(),
-            "modal reconstruction must produce one wave record per retained layer",
+        let right_state = right_outgoing_transfer_state(
+            candidate.right_outgoing(),
+            self.solution().context().right_admittance(),
         );
 
-        /*
-         * The candidate contains the left state produced by propagating this
-         * same right-gauged state through the complete transfer matrix.
-         *
-         * It is deliberately not used as the propagation seed: retained
-         * transfer matrices map right states to left states, so propagating
-         * from the stored left state would require inversion.
-         */
-        let _ = candidate;
-
-        Ok(waves)
+        Ok(retained.reconstruct_layer_boundary_waves(right_state))
     }
 }
 
@@ -584,10 +599,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        Constant, Polarisation, RealAxis,
+        Constant, CoordinateInput, PlaneWaveEvaluator, Polarisation, RealAxis,
         algebra::{ArrayJet0, RealParameter},
         backend::{RunMode, Transfer2},
         input::{CanonicalCoordinates, CanonicalStack},
+        observable::BoundaryWaves,
         test_support::{
             C, TOLERANCE,
             assertions::{
@@ -599,6 +615,7 @@ mod tests {
             planar::{
                 boundary_test_empty_stack, boundary_test_jet, boundary_test_single_layer_stack,
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
+                scalar_complex_input, two_layer_stack,
             },
         },
     };
@@ -1078,5 +1095,330 @@ mod tests {
         let fresh_admittance = fresh_quantities.into_admittance().into_inner();
 
         assert_zero_jet_close(&retained_admittance, &fresh_admittance);
+    }
+
+    fn modal_input() -> CoordinateInput<C, Ix0> {
+        scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
+    }
+
+    #[test]
+    fn transfer_total_and_retained_chain_propagate_same_modal_state() {
+        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+
+        let stack = two_layer_stack();
+
+        let polarisation = Polarisation::TransverseElectric;
+
+        let state = evaluator
+            .retain_modal(modal_input(), &stack, polarisation)
+            .unwrap();
+
+        let workspace = state.workspace();
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let right_state = right_outgoing_transfer_state(
+            candidate.right_outgoing(),
+            workspace.solution().context().right_admittance(),
+        );
+
+        /*
+         * Propagate with the accumulated total.
+         */
+        let total_left = workspace.entries().apply_state(&right_state);
+
+        /*
+         * Propagate through the individually retained layers.
+         */
+        let retained_states = workspace
+            .retained()
+            .unwrap()
+            .propagate_right_state(right_state);
+
+        let retained_left = retained_states
+            .first()
+            .expect("two-layer stack should retain layers")
+            .left();
+
+        eprintln!(
+            "total:    field={:?}, slope={:?}",
+            total_left.field().value()[()],
+            total_left.slope().value()[()],
+        );
+
+        eprintln!(
+            "retained: field={:?}, slope={:?}",
+            retained_left.field().value()[()],
+            retained_left.slope().value()[()],
+        );
+
+        assert_complex_close(
+            total_left.field().value()[()],
+            retained_left.field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            total_left.slope().value()[()],
+            retained_left.slope().value()[()],
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn boundary_state_to_waves_inverts_waves_to_state() {
+        let admittance = zero_jet_from_value(C::new(2.3, -0.2));
+
+        let original = BoundaryWaves::new(
+            zero_jet_from_value(C::new(0.7, 0.4)),
+            zero_jet_from_value(C::new(-0.2, 0.6)),
+        );
+
+        let state = original.clone().into_state(&admittance);
+
+        let reconstructed = _bidirectional_waves_from_state(&state, &admittance);
+
+        assert_complex_close(
+            reconstructed.forward().value()[()],
+            original.forward().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            reconstructed.backward().value()[()],
+            original.backward().value()[()],
+            TOLERANCE,
+        );
+
+        let reconstructed_state = BoundaryWaves::from(reconstructed).into_state(&admittance);
+
+        assert_complex_close(
+            reconstructed_state.field().value()[()],
+            state.field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            reconstructed_state.secondary().value()[()],
+            state.secondary().value()[()],
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn transfer_modal_left_exterior_waves_preserve_candidate_state() {
+        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+
+        let stack = two_layer_stack();
+
+        let polarisation = Polarisation::TransverseElectric;
+
+        let state = evaluator
+            .retain_modal(modal_input(), &stack, polarisation)
+            .unwrap();
+
+        let workspace = state.workspace();
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let admittance = workspace.solution().context().left_admittance();
+
+        let waves = _bidirectional_waves_from_state(candidate.state(), admittance);
+
+        let reconstructed = BoundaryWaves::from(waves).into_state(admittance);
+
+        assert_complex_close(
+            reconstructed.field().value()[()],
+            candidate.state().field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            reconstructed.secondary().value()[()],
+            candidate.state().secondary().value()[()],
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn transfer_modal_reconstructed_boundary_waves_match_at_left_interface() {
+        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+
+        let stack = two_layer_stack();
+
+        let polarisation = Polarisation::TransverseElectric;
+
+        let state = evaluator
+            .retain_modal(modal_input(), &stack, polarisation)
+            .unwrap();
+
+        let workspace = state.workspace();
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let exterior = workspace
+            .reconstruct_exterior_mode_waves(&candidate)
+            .unwrap();
+
+        let layers = workspace.reconstruct_layer_mode_waves(&candidate).unwrap();
+
+        let exterior_admittance = workspace.solution().context().left_admittance();
+
+        let layer_admittance = workspace
+            .layer_quantities(0)
+            .unwrap()
+            .admittance()
+            .into_inner();
+
+        let exterior_waves: crate::observable::BoundaryWaves<_> = exterior.left().clone().into();
+
+        let layer_waves: crate::observable::BoundaryWaves<_> = layers[0].left().clone().into();
+
+        let exterior_state = exterior_waves.into_state(exterior_admittance);
+
+        let layer_state = layer_waves.into_state(&layer_admittance);
+
+        eprintln!(
+            "candidate:  field={:?}, secondary={:?}",
+            candidate.state().field().value()[()],
+            candidate.state().secondary().value()[()],
+        );
+
+        eprintln!(
+            "exterior:   field={:?}, secondary={:?}",
+            exterior_state.field().value()[()],
+            exterior_state.secondary().value()[()],
+        );
+
+        eprintln!(
+            "layer:      field={:?}, secondary={:?}",
+            layer_state.field().value()[()],
+            layer_state.secondary().value()[()],
+        );
+
+        assert_complex_close(
+            exterior_state.field().value()[()],
+            layer_state.field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            exterior_state.secondary().value()[()],
+            layer_state.secondary().value()[()],
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn transfer_retained_first_layer_waves_preserve_propagated_left_state() {
+        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+
+        let stack = two_layer_stack();
+
+        let polarisation = Polarisation::TransverseElectric;
+
+        let state = evaluator
+            .retain_modal(modal_input(), &stack, polarisation)
+            .unwrap();
+
+        let workspace = state.workspace();
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let right_state = right_outgoing_transfer_state(
+            candidate.right_outgoing(),
+            workspace.solution().context().right_admittance(),
+        );
+
+        let states = workspace
+            .retained()
+            .unwrap()
+            .propagate_right_state(right_state);
+
+        let expected = states[0].left();
+
+        let waves = workspace.reconstruct_layer_mode_waves(&candidate).unwrap();
+
+        let admittance = workspace
+            .layer_quantities(0)
+            .unwrap()
+            .admittance()
+            .into_inner();
+
+        let waves: crate::observable::BoundaryWaves<_> = waves[0].left().clone().into();
+
+        let reconstructed = waves.into_state(&admittance);
+
+        eprintln!(
+            "transfer:     field={:?}, slope={:?}",
+            expected.field().value()[()],
+            expected.slope().value()[()],
+        );
+
+        eprintln!(
+            "from waves:   field={:?}, secondary={:?}",
+            reconstructed.field().value()[()],
+            reconstructed.secondary().value()[()],
+        );
+
+        assert_complex_close(
+            expected.field().value()[()],
+            reconstructed.field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            expected.slope().value()[()],
+            reconstructed.secondary().value()[()],
+            TOLERANCE,
+        );
+    }
+
+    #[test]
+    fn transfer_modal_candidate_state_matches_its_own_right_gauge() {
+        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+
+        let stack = two_layer_stack();
+
+        let polarisation = Polarisation::TransverseElectric;
+
+        let state = evaluator
+            .retain_modal(modal_input(), &stack, polarisation)
+            .unwrap();
+
+        let workspace = state.workspace();
+
+        let candidate = workspace.modal_boundary_solution().unwrap();
+
+        let right_state = right_outgoing_transfer_state(
+            candidate.right_outgoing(),
+            workspace.solution().context().right_admittance(),
+        );
+
+        let expected_left = workspace.entries().apply_state(&right_state);
+
+        eprintln!(
+            "candidate: field={:?}, secondary={:?}",
+            candidate.state().field().value()[()],
+            candidate.state().secondary().value()[()],
+        );
+
+        eprintln!(
+            "expected:  field={:?}, slope={:?}",
+            expected_left.field().value()[()],
+            expected_left.slope().value()[()],
+        );
+
+        assert_complex_close(
+            candidate.state().field().value()[()],
+            expected_left.field().value()[()],
+            TOLERANCE,
+        );
+
+        assert_complex_close(
+            candidate.state().secondary().value()[()],
+            expected_left.slope().value()[()],
+            TOLERANCE,
+        );
     }
 }

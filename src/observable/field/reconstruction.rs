@@ -10,8 +10,8 @@ use crate::{
     observable::{Amplitudes, BoundaryProjectionError, BoundaryState, ProjectAmplitudes},
     spatial::{CanonicalFieldPosition, CompiledFieldSampling, FieldSamplingError},
     waves::{
-        ReconstructExteriorBoundaryWaves, ReconstructLayerBoundaryWaves, WaveSamplingContext,
-        WaveSamplingError,
+        BoundaryWaveSolution, ReconstructExteriorBoundaryWaves, ReconstructLayerBoundaryWaves,
+        WaveSamplingContext, WaveSamplingError,
     },
 };
 
@@ -43,38 +43,32 @@ pub(crate) struct FieldSamplingContext<'a, W, A> {
 }
 
 impl<'a, W, A> FieldSamplingContext<'a, W, A> {
-    pub(crate) fn new(workspace: &'a W) -> Self
-    where
-        W: ReconstructLayerBoundaryWaves<Algebra = A>,
-    {
+    pub(crate) fn new(workspace: &'a W) -> Self {
         Self {
             waves: WaveSamplingContext::new(workspace),
         }
     }
 
-    pub(crate) fn reconstruct(
+    pub(crate) fn reconstruct_from_boundary_waves(
         &self,
-        incident_side: IncidentSide,
+        boundary_waves: &BoundaryWaveSolution<A>,
         sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
     ) -> Result<
         ElectromagneticFields<<A::Stacked as CartesianScalarAlgebra>::Vector>,
         FieldReconstructionError<<A::Scalar as ComplexField>::RealField>,
     >
     where
-        A: ScalarAlgebra + JetStack + Clone,
+        W: RetainedIsotropicLayers<Algebra = A> + PlaneWaveSolutionSource,
+        A: ScalarAlgebra + Clone + JetStack,
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
         A::Stacked: CartesianScalarAlgebra,
         <A::Scalar as ComplexField>::RealField: Copy,
-        W: ReconstructExteriorBoundaryWaves<Algebra = A>
-            + ReconstructLayerBoundaryWaves<Algebra = A>
-            + RetainedIsotropicLayers<Algebra = A>
-            + PlaneWaveSolutionSource,
-        W::Entries: ProjectAmplitudes,
-        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
     {
-        let sampled_waves = self.waves.propagate_sampling(incident_side, sampling)?;
+        let sampled_waves = self
+            .waves
+            .propagate_reconstructed(boundary_waves, sampling)?;
 
         let solution = self.waves.workspace().solution();
         let exterior = solution.context();
@@ -140,6 +134,33 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
         }
 
         components.stack()
+    }
+
+    pub(crate) fn reconstruct(
+        &self,
+        incident_side: IncidentSide,
+        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
+    ) -> Result<
+        ElectromagneticFields<<A::Stacked as CartesianScalarAlgebra>::Vector>,
+        FieldReconstructionError<<A::Scalar as ComplexField>::RealField>,
+    >
+    where
+        A: ScalarAlgebra + JetStack + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        A::Stacked: CartesianScalarAlgebra,
+        <A::Scalar as ComplexField>::RealField: Copy,
+        W: ReconstructExteriorBoundaryWaves<Algebra = A>
+            + ReconstructLayerBoundaryWaves<Algebra = A>
+            + RetainedIsotropicLayers<Algebra = A>
+            + PlaneWaveSolutionSource,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
+    {
+        let boundary_waves = self.waves.driven_boundary_waves(incident_side)?;
+
+        self.reconstruct_from_boundary_waves(&boundary_waves, sampling)
     }
 }
 

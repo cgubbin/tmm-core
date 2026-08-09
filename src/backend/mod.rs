@@ -16,7 +16,8 @@ mod workspace;
 
 pub(crate) use isotropic::IsotropicLayerQuantities;
 pub(crate) use mode::{
-    ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate, ReconstructLayerModeWaves,
+    ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate,
+    ReconstructExteriorModeWaves, ReconstructLayerModeWaves,
 };
 pub use scatter2::{Scatter2, Scatter2Error};
 pub(crate) use solution::{
