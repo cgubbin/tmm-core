@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::{
+    algebra::ScalarAlgebra,
     observable::BoundaryState,
     waves::{ExteriorBoundaryWaves, LayerBoundaryWaves},
 };
@@ -66,6 +67,17 @@ impl<A> PlaneWaveModeCandidate<A> {
 
     pub(crate) fn into_projective_residual(self) -> A {
         self.residual
+    }
+
+    pub(crate) fn scaled(mut self, factor: &A) -> Self
+    where
+        A: ScalarAlgebra,
+    {
+        self.right_outgoing = self.right_outgoing.multiply(factor);
+        self.residual = self.residual.multiply(factor);
+        self.state = self.state.scaled(factor);
+
+        self
     }
 }
 

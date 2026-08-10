@@ -88,6 +88,7 @@ impl<C> BilinearLayerNormalization<C> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct AggregateBilinearNormalization<C> {
     electric: C,
     magnetic: C,

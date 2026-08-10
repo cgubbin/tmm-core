@@ -47,10 +47,7 @@ use crate::{
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
         isotropic::IsotropicLayerQuantities,
-        transfer2::{
-            error::Transfer2Entry,
-            state::{TransferState, right_outgoing_transfer_state},
-        },
+        transfer2::{error::Transfer2Entry, state::right_outgoing_transfer_state},
     },
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},

@@ -51,20 +51,20 @@ impl<R> ResolvedFieldSampling<R> {
     ///
     /// Region and finite-layer identity are preserved. Only the spatial
     /// distance or offset associated with each position is converted.
-    pub(crate) fn compile(self) -> CompiledFieldSampling<R>
+    pub(crate) fn compile(&self) -> CompiledFieldSampling<R>
     where
         R: Float + FromPrimitive,
     {
         let positions = self
             .positions
-            .into_iter()
+            .iter()
             .map(|position| match position {
                 FieldPosition::LeftExterior { distance } => CanonicalFieldPosition::LeftExterior {
                     distance: distance.into_canonical(),
                 },
                 FieldPosition::Layer { index, position } => CanonicalFieldPosition::Layer {
-                    index,
-                    position: position.into(),
+                    index: *index,
+                    position: position.clone().into(),
                 },
                 FieldPosition::RightExterior { distance } => {
                     CanonicalFieldPosition::RightExterior {

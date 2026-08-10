@@ -123,7 +123,8 @@ fn point_projection_evaluates_te_fields() {
         .excitation(IncidentSide::Left)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     /*
      * Sampling contains:
@@ -165,7 +166,8 @@ fn point_projection_evaluates_tm_fields() {
         .excitation(IncidentSide::Right)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     assert_eq!(response.value().electric().x().shape(), &[8]);
     assert_eq!(response.value().magnetic().y().shape(), &[8]);
@@ -195,7 +197,8 @@ fn both_incident_sides_evaluate_fields() {
         for side in [IncidentSide::Left, IncidentSide::Right] {
             let excitation = point.excitation(side).expect("state should be projectable");
 
-            let response = excitation.evaluate_fields(&sampling()).unwrap();
+            let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+            let response = spatial_response.quantity();
 
             assert_all_finite(response.value());
 
@@ -233,7 +236,8 @@ fn first_field_derivative_survives_point_projection_and_reconstruction() {
         .excitation(IncidentSide::Left)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     assert_eq!(response.derivatives().parameter(), parameter);
 
@@ -268,7 +272,8 @@ fn thickness_field_derivative_survives_point_projection_and_reconstruction() {
         .excitation(IncidentSide::Right)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     assert_eq!(response.derivatives().parameter(), parameter);
 
@@ -297,7 +302,8 @@ fn second_field_derivative_survives_point_projection_and_reconstruction() {
         .excitation(IncidentSide::Left)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     assert_te_structure(response.value(), VALUE_TOLERANCE);
 
@@ -332,7 +338,8 @@ fn bivariate_field_derivatives_survive_point_projection_and_reconstruction() {
         .excitation(IncidentSide::Right)
         .expect("state should be projectable");
 
-    let response = excitation.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
+    let response = spatial_response.quantity();
 
     let gradient = response.derivatives().first();
 
@@ -374,17 +381,19 @@ fn transfer_and_scatter_backends_agree_on_fields() {
             let scatter_point = scatter_state.project_point(&()).unwrap();
             let transfer_point = transfer_state.project_point(&()).unwrap();
 
-            let scatter = scatter_point
+            let scatter_spatial = scatter_point
                 .excitation(side)
                 .expect("scatter state should be projectable")
                 .evaluate_fields(&sampling)
                 .unwrap();
+            let scatter = scatter_spatial.quantity();
 
-            let transfer = transfer_point
+            let transfer_spatial = transfer_point
                 .excitation(side)
                 .expect("transfer state should be projectable")
                 .evaluate_fields(&sampling)
                 .unwrap();
+            let transfer = transfer_spatial.quantity();
 
             assert_fields_close(scatter.value(), transfer.value(), VALUE_TOLERANCE);
         }
@@ -416,7 +425,7 @@ fn transfer_and_scatter_backends_agree_on_first_field_derivative() {
         )
         .unwrap();
 
-    let scatter = scatter_state
+    let scatter_spatial = scatter_state
         .project_point(&())
         .unwrap()
         .excitation(IncidentSide::Left)
@@ -424,13 +433,16 @@ fn transfer_and_scatter_backends_agree_on_first_field_derivative() {
         .evaluate_fields(&sampling)
         .unwrap();
 
-    let transfer = transfer_state
+    let transfer_spatial = transfer_state
         .project_point(&())
         .unwrap()
         .excitation(IncidentSide::Left)
         .expect("transfer state should be projectable")
         .evaluate_fields(&sampling)
         .unwrap();
+
+    let scatter = scatter_spatial.quantity();
+    let transfer = transfer_spatial.quantity();
 
     assert_fields_close(scatter.value(), transfer.value(), VALUE_TOLERANCE);
 
@@ -546,12 +558,13 @@ fn reconstructed_fields_satisfy_tangential_interface_continuity() {
         let point = state.project_point(&()).unwrap();
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = point
+            let spatial_response = point
                 .excitation(side)
                 .expect("state should be projectable")
                 .evaluate_fields(&sampling)
                 .unwrap();
 
+            let response = spatial_response.quantity();
             assert_eq!(response.value().electric().x().shape(), &[6]);
 
             match polarisation {
@@ -596,11 +609,12 @@ fn first_field_derivatives_satisfy_tangential_interface_continuity() {
             let point = state.project_point(&()).unwrap();
 
             for side in [IncidentSide::Left, IncidentSide::Right] {
-                let response = point
+                let spatial_response = point
                     .excitation(side)
                     .expect("state should be projectable")
                     .evaluate_fields(&sampling)
                     .unwrap();
+                let response = spatial_response.quantity();
 
                 match polarisation {
                     Polarisation::TransverseElectric => {
@@ -649,11 +663,12 @@ fn second_field_derivatives_satisfy_tangential_interface_continuity() {
         let point = state.project_point(&()).unwrap();
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = point
+            let spatial_response = point
                 .excitation(side)
                 .expect("state should be projectable")
                 .evaluate_fields(&sampling)
                 .unwrap();
+            let response = spatial_response.quantity();
 
             match polarisation {
                 Polarisation::TransverseElectric => {
@@ -706,11 +721,12 @@ fn transfer_backend_fields_satisfy_tangential_interface_continuity() {
         let point = state.project_point(&()).unwrap();
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let response = point
+            let spatial_response = point
                 .excitation(side)
                 .expect("state should be projectable")
                 .evaluate_fields(&sampling)
                 .unwrap();
+            let response = spatial_response.quantity();
 
             match polarisation {
                 Polarisation::TransverseElectric => {

@@ -26,9 +26,11 @@
 mod compiled;
 mod length;
 mod resolved;
+mod response;
 mod sampling;
 
 pub use length::Length;
+pub use response::SpatialResponse;
 
 pub(crate) use compiled::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling};
 pub(crate) use resolved::ResolvedFieldSampling;

@@ -2,6 +2,7 @@ mod aggregate;
 mod confinement;
 mod dissipation;
 mod energy;
+mod integration;
 mod overlap;
 mod participation;
 mod power;

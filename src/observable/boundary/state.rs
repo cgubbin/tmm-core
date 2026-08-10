@@ -8,6 +8,8 @@
 //! real-frequency power, dissipation, and energy are applied only in later
 //! observable projections.
 
+use crate::algebra::ScalarAlgebra;
+
 /// Canonical isotropic state at one planar boundary.
 ///
 /// The state stores two algebraically paired components:
@@ -56,6 +58,16 @@ impl<A> BoundaryState<A> {
     /// Consume the state and return
     pub fn into_parts(self) -> (A, A) {
         (self.field, self.secondary)
+    }
+
+    pub fn scaled(mut self, factor: &A) -> Self
+    where
+        A: ScalarAlgebra,
+    {
+        self.field = self.field.multiply(factor);
+        self.secondary = self.secondary.multiply(factor);
+
+        self
     }
 
     /// Transform both canonical components

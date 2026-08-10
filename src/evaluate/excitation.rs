@@ -37,7 +37,7 @@ use crate::{
         LayerEnergy, LayerEnergyError, LayerParticipation, LayerParticipationError,
         LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
     },
-    spatial::FieldSampling,
+    spatial::{FieldSampling, SpatialResponse},
     waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
 };
 
@@ -388,10 +388,7 @@ where
         self,
         sampling: &FieldSampling<R>,
     ) -> Result<
-        DifferentialResponseFor<
-            J,
-            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-        >,
+        PlaneWaveFieldResponse<J, R>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -417,11 +414,20 @@ where
 
         let context = FieldSamplingContext::new(self.state.workspace());
 
-        let sampling = sampling.resolve(self.state.stack())?.compile();
+        let resolved_sampling = sampling.resolve(self.state.stack())?;
 
-        let reconstructed = context.reconstruct_from_boundary_waves(&boundary_waves, &sampling)?;
+        let compiled_sampling = resolved_sampling.compile();
 
-        Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
+        let reconstructed =
+            context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)?;
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(
+            differential_response,
+            resolved_sampling,
+        ))
     }
 }
 
@@ -447,3 +453,11 @@ where
         PlaneWaveExcitationPair::new(self, comparison)
     }
 }
+
+pub type PlaneWaveFieldResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<
+        J,
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    >,
+    R,
+>;

@@ -5,16 +5,17 @@ use ndarray::{Dimension, Ix0, NdIndex};
 use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes,
-    Polarisation, RealAxis, Stack,
+    ComplexPlane, ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower,
+    PlaneWaveAmplitudes, Polarisation, RealAxis, Stack,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
-        PlaneWaveSolutionSource, PlaneWaveSolutionView, RetainedIsotropicLayers,
+        PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructLayerModeWaves,
+        RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
-    evaluate::mode::PlaneWaveMode,
+    evaluate::mode::{PlaneWaveMode, QnmCreationError},
     input::{
         CanonicalProblem, CompilationContext, JetMapping, ProjectionConstraint,
         ProjectionConstraintError,
@@ -24,12 +25,13 @@ use crate::{
         lifting::ConstitutiveDerivativeEvaluator,
     },
     observable::{
-        BoundaryProjectionError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
-        Interfaces, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy,
-        LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
-        ProjectPlaneWaveModeDeterminant, assemble_interface_wave_data,
-        assemble_layer_integration_inputs, exterior_boundary_states, exterior_boundary_waves,
-        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
+        AggregateBilinearNormalization, BoundaryProjectionError, InterfaceProjectionError,
+        InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries, LayerBoundaryStates,
+        LayerBoundaryWaves, LayerEnergy, LayerEnergyError, LayerIntegrationInput,
+        LayerProjectionError, Layers, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant,
+        assemble_interface_wave_data, assemble_layer_integration_inputs, exterior_boundary_states,
+        exterior_boundary_waves, project_layer_admittances, project_layer_boundary_states,
+        project_layer_boundary_waves,
     },
     projection::{JetPointProjection, PointProjectionError, ProjectPoint},
     waves::ReconstructLayerBoundaryWaves,
@@ -486,9 +488,25 @@ where
     J::Policy: Default,
     W: PlaneWaveSolutionSource,
 {
-    pub fn mode(&self) -> Result<PlaneWaveMode<'_, J, M, W>, ModeReconstructionError>
+    pub fn mode(&self) -> Result<PlaneWaveMode<'_, J, M, W>, QnmCreationError>
     where
-        W: ModalSolutionSource<Algebra = J>,
+        J: ComplexJet
+            + ScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+        J::Dimension: Dimension,
+        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerModeWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>
+            + ModalSolutionSource<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+        J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
+        AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         PlaneWaveMode::new(self)
     }

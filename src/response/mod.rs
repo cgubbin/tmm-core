@@ -177,10 +177,8 @@ mod interface;
 mod layer;
 mod metadata;
 mod response;
-mod spatial;
 
 pub use metadata::{
-    FieldMetadata, InterfaceLocation, InterfaceMetadata, LayerLocation,
-    LayerMetadata, StackRegion,
+    FieldMetadata, InterfaceLocation, InterfaceMetadata, LayerLocation, LayerMetadata, StackRegion,
 };
 pub use response::Response;

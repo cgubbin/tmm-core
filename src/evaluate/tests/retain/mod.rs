@@ -9,6 +9,7 @@ mod layer_energy;
 mod layer_participation;
 mod layer_power;
 mod layer_wave_data;
+mod modal_norm;
 mod pair;
 mod power_consistency;
 mod projection;

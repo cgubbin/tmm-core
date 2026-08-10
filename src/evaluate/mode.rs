@@ -21,16 +21,24 @@ use crate::{
     input::JetMapping,
     material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
     observable::{
-        AggregateBilinearNormalization, BilinearLayerNormalization, FieldReconstructionError,
-        FieldSamplingContext, LayerAggregateError, LayerBoundaries, LayerBoundaryWaves,
-        LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers,
+        AggregateBilinearNormalization, FieldReconstructionError, FieldSamplingContext,
+        LayerAggregateError, LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers,
         assemble_layer_integration_inputs, project_layer_mode_waves,
     },
-    spatial::FieldSampling,
-    waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
+    spatial::{FieldSampling, SpatialResponse},
+    waves::WaveSamplingContext,
 };
 
 use thiserror::Error;
+
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum QnmCreationError {
+    #[error(transparent)]
+    Normalisation(#[from] QnmNormalisationError),
+
+    #[error(transparent)]
+    Reconstruction(#[from] ModeReconstructionError),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum QnmNormalisationError {
@@ -42,6 +50,9 @@ pub enum QnmNormalisationError {
 
     #[error(transparent)]
     Aggregate(#[from] LayerAggregateError),
+
+    #[error("QNM normalization produced a non-finite scale")]
+    InvalidScale,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
@@ -61,7 +72,8 @@ where
     J::Dimension: Dimension,
 {
     state: &'a PlaneWaveState<J, J::Scalar, M, W>,
-    seed: PlaneWaveModeCandidate<J>,
+    solution: PlaneWaveModeCandidate<J>,
+    raw_normalisation: AggregateBilinearNormalization<J>,
 }
 
 impl<'a, J, M, W> PlaneWaveMode<'a, J, M, W>
@@ -73,21 +85,49 @@ where
     /// Construct an excitation after validating the state's projection constraint.
     pub(crate) fn new(
         state: &'a PlaneWaveState<J, J::Scalar, M, W>,
-    ) -> Result<Self, ModeReconstructionError>
+    ) -> Result<Self, QnmCreationError>
     where
-        W: ModalSolutionSource<Algebra = J>,
+        J: ComplexJet
+            + ScalarAlgebra
+            + ScalarAlgebraExpRelExt
+            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+            + Clone,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+        J::Dimension: Dimension,
+        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerModeWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>
+            + ModalSolutionSource<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
         let seed = state.workspace().modal_boundary_solution()?;
 
-        Ok(Self { state, seed })
+        let raw_normalisation = raw_qnm_normalisation_unchecked(&seed, state)?;
+
+        let scale = normalisation_scale(&raw_normalisation)?;
+
+        let solution = seed.scaled(&scale);
+
+        Ok(Self {
+            state,
+            solution,
+            raw_normalisation,
+        })
     }
 
     pub(crate) fn state(&self) -> &'a PlaneWaveState<J, J::Scalar, M, W> {
         self.state
     }
 
-    pub(crate) fn seed(&self) -> &PlaneWaveModeCandidate<J> {
-        &self.seed
+    pub(crate) fn solution(&self) -> &PlaneWaveModeCandidate<J> {
+        &self.solution
+    }
+
+    pub(crate) fn raw_normalisation(&self) -> &AggregateBilinearNormalization<J> {
+        &self.raw_normalisation
     }
 
     pub(crate) fn into_parts(
@@ -95,8 +135,9 @@ where
     ) -> (
         &'a PlaneWaveState<J, J::Scalar, M, W>,
         PlaneWaveModeCandidate<J>,
+        AggregateBilinearNormalization<J>,
     ) {
-        (self.state, self.seed)
+        (self.state, self.solution, self.raw_normalisation)
     }
 }
 
@@ -116,128 +157,15 @@ where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    J::Policy: Default,
+    J::Policy: Default + DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
+    AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     W: ReconstructLayerModeWaves<Algebra = J>,
 {
-    pub(crate) fn raw_layer_mode_waves_unchecked(
-        &self,
-    ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, ModeReconstructionError> {
-        project_layer_mode_waves(self.state.workspace(), self.seed())
-    }
-
-    pub(crate) fn raw_layer_integration_inputs_unchecked(
-        &self,
-    ) -> Result<Layers<LayerIntegrationInput<J>>, ModeLayerProjectionError>
-    where
-        W: RetainedIsotropicLayers<Algebra = J>,
-        J: Clone,
-    {
-        let boundary_waves = self.raw_layer_mode_waves_unchecked()?;
-
-        Ok(assemble_layer_integration_inputs(
-            self.state.workspace(),
-            boundary_waves,
-        )?)
-    }
-
-    pub(crate) fn raw_qnm_normalisation_unchecked(
-        &self,
-    ) -> Result<Layers<BilinearLayerNormalization<J>>, QnmNormalisationError>
-    where
-        J: ComplexJet
-            + ScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
-            + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
-        J::Dimension: Dimension,
-        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    {
-        let coordinates = self.state().problem().coordinates();
-
-        let sequence = self
-            .raw_layer_integration_inputs_unchecked()?
-            .integrate_bilinear()
-            .into_brillouin_layers(
-                self.state()
-                    .problem()
-                    .stack()
-                    .layers()
-                    .iter()
-                    .map(|layer| layer.material()),
-                coordinates.vacuum_angular_wavenumber(),
-            )?;
-
-        Ok(sequence.into_qnm_normalisation(
-            coordinates.vacuum_angular_wavenumber(),
-            coordinates.parallel_angular_wavenumber(),
-        ))
-    }
-
-    pub fn qnm_normalisation_contributions(
-        &self,
-    ) -> Result<
-        DifferentialResponseFor<J, Layers<BilinearLayerNormalization<J>>>,
-        QnmNormalisationError,
-    >
-    where
-        J: ComplexJet
-            + ScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
-            + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
-        J::Dimension: Dimension,
-        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J::Policy: DerivativePartsPolicy<Layers<BilinearLayerNormalization<J>>>,
-        Layers<BilinearLayerNormalization<J>>: IntoDifferentialResponse<J::Policy, J::Mapping>,
-    {
-        Ok(self
-            .raw_qnm_normalisation_unchecked()?
-            .into_differential_response(&J::Policy::default(), self.state().mapping()))
-    }
-
-    pub fn qnm_normalisation(
-        &self,
-    ) -> Result<DifferentialResponseFor<J, AggregateBilinearNormalization<J>>, QnmNormalisationError>
-    where
-        J: ComplexJet
-            + ScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
-            + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
-        J::Dimension: Dimension,
-        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
-        AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
-    {
-        Ok(self
-            .raw_qnm_normalisation_unchecked()?
-            .aggregate()?
-            .into_differential_response(&J::Policy::default(), self.state().mapping()))
-    }
-
     pub fn evaluate_fields(
-        self,
+        &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        DifferentialResponseFor<
-            J,
-            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-        >,
+        ModeFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -258,14 +186,104 @@ where
     {
         let wave_context = WaveSamplingContext::new(self.state.workspace());
 
-        let boundary_waves = wave_context.modal_boundary_waves(self.seed())?;
+        let boundary_waves = wave_context.modal_boundary_waves(self.solution())?;
 
         let context = FieldSamplingContext::new(self.state.workspace());
 
-        let sampling = sampling.resolve(self.state.stack())?.compile();
+        let resolved_sampling = sampling.resolve(self.state.stack())?;
+        let compiled_sampling = resolved_sampling.compile();
 
-        let reconstructed = context.reconstruct_from_boundary_waves(&boundary_waves, &sampling)?;
+        let reconstructed =
+            context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)?;
 
-        Ok(reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping()))
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(
+            differential_response,
+            resolved_sampling,
+        ))
     }
 }
+
+pub(crate) fn raw_layer_integration_inputs_unchecked<J, W>(
+    seed: &PlaneWaveModeCandidate<J>,
+    workspace: &W,
+) -> Result<Layers<LayerIntegrationInput<J>>, ModeLayerProjectionError>
+where
+    W: ReconstructLayerModeWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
+    J: Clone,
+{
+    let boundary_waves = project_layer_mode_waves(workspace, seed)?;
+
+    Ok(assemble_layer_integration_inputs(
+        workspace,
+        boundary_waves,
+    )?)
+}
+
+pub(crate) fn raw_qnm_normalisation_unchecked<'a, J, M, W>(
+    seed: &PlaneWaveModeCandidate<J>,
+    state: &PlaneWaveState<J, J::Scalar, M, W>,
+) -> Result<AggregateBilinearNormalization<J>, QnmNormalisationError>
+where
+    J: ComplexJet
+        + JetMapping
+        + ScalarAlgebra
+        + ScalarAlgebraExpRelExt
+        + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+        + Clone,
+    J::RealJet: ScalarAlgebra,
+    J::Scalar: ComplexScalar,
+    <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+    J::Dimension: Dimension,
+    ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+    W: PlaneWaveSolutionSource
+        + RetainedIsotropicLayers<Algebra = J>
+        + ReconstructLayerModeWaves<Algebra = J>,
+    <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+{
+    let coordinates = state.problem().coordinates();
+
+    let sequence = raw_layer_integration_inputs_unchecked(seed, state.workspace())?
+        .integrate_bilinear()
+        .into_brillouin_layers(
+            state
+                .problem()
+                .stack()
+                .layers()
+                .iter()
+                .map(|layer| layer.material()),
+            coordinates.vacuum_angular_wavenumber(),
+        )?;
+
+    Ok(sequence
+        .into_qnm_normalisation(
+            coordinates.vacuum_angular_wavenumber(),
+            coordinates.parallel_angular_wavenumber(),
+        )
+        .aggregate()?)
+}
+
+fn normalisation_scale<J>(
+    qnm_norm: &AggregateBilinearNormalization<J>,
+) -> Result<J, QnmNormalisationError>
+where
+    J: ScalarAlgebra,
+{
+    let scale = qnm_norm.total().sqrt().reciprocal();
+
+    if !scale.all_finite() {
+        return Err(QnmNormalisationError::InvalidScale);
+    }
+
+    Ok(scale)
+}
+
+pub type ModeFieldResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<
+        J,
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    >,
+    R,
+>;

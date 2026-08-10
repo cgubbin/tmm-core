@@ -24,10 +24,7 @@ use crate::{
 use super::{
     Transfer2Entries,
     entries::Transfer2ExteriorContext,
-    state::{
-        TransferState, bidirectional_waves_from_state, transfer_state_from_waves,
-        transfer_state_slope,
-    },
+    state::{TransferState, bidirectional_waves_from_state, transfer_state_from_waves},
 };
 
 /// The transfer states at the two boundaries of one finite layer.

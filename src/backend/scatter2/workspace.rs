@@ -581,20 +581,17 @@ where
 
         let source = self.sample_source();
 
-        let left_incoming = self.solution().entries().denominator().clone();
+        let left_waves = bidirectional_waves_from_state(
+            candidate.state(),
+            self.solution().context().left_admittance(),
+        );
 
         let right_incoming = A::filled_constant_like(source, A::Scalar::zero());
 
         let waves =
-            retained.reconstruct_from_incoming_waves(&left_incoming, &right_incoming, source);
+            retained.reconstruct_from_incoming_waves(left_waves.forward(), &right_incoming, source);
 
-        debug_assert_eq!(waves.len(), retained.num_layers(),);
-
-        /*
-         * `candidate` must be the candidate produced from the same projective
-         * solution. Verify its left state in debug builds if convenient.
-         */
-        let _ = candidate;
+        debug_assert_eq!(waves.len(), retained.num_layers());
 
         Ok(waves)
     }

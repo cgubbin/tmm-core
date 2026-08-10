@@ -1,7 +1,7 @@
 use crate::{
     algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
-        ScalarAlgebra,
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
+        HolomorphicParameter, RealParameter, ScalarAlgebra,
     },
     observable::{
         BoundaryState, BoundaryWaves, InterfaceStates, Interfaces, LayerBoundaries,
@@ -151,6 +151,7 @@ pub(crate) fn assert_layer_boundary_waves_close<A>(
 type D = Ix0;
 
 type ZeroJet = ArrayJet0<C, D, RealParameter>;
+type ZeroJetHolo = ArrayJet0<C, D, HolomorphicParameter>;
 
 type FirstJet = ArrayJet1<C, D, RealParameter>;
 
@@ -165,6 +166,10 @@ pub(crate) const FIRST_TOLERANCE: f64 = 1.0e-10;
 pub(crate) const SECOND_TOLERANCE: f64 = 1.0e-9;
 
 pub(crate) fn assert_zero_jet_close(actual: &ZeroJet, expected: &ZeroJet) {
+    assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
+}
+
+pub(crate) fn assert_holo_zero_jet_close(actual: &ZeroJetHolo, expected: &ZeroJetHolo) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 }
 
