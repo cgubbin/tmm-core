@@ -25,7 +25,7 @@ use super::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub(crate) enum WaveSamplingError {
+pub enum WaveSamplingError {
     #[error(
         "sampling requested finite layer {requested}, \
          but propagation data contain {layer_count} layers"

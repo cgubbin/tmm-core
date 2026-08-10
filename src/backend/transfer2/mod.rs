@@ -21,7 +21,8 @@ pub use error::Transfer2Error;
 
 #[cfg(test)]
 pub(crate) use state::{
-    TransferState, bidirectional_waves_from_state, transfer_state_from_waves, transfer_state_slope,
+    TransferState, bidirectional_waves_from_state, right_outgoing_transfer_state,
+    transfer_state_from_waves, transfer_state_slope,
 };
 
 #[cfg(test)]

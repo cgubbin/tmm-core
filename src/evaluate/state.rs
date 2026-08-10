@@ -9,9 +9,8 @@ use crate::{
     PlaneWaveAmplitudes, Polarisation, RealAxis, Stack,
     algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{
-        ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
-        PlaneWaveSolutionSource, PlaneWaveSolutionView, ReconstructLayerModeWaves,
-        RetainedIsotropicLayers,
+        ExteriorContextProvider, ModalSolutionSource, PlaneWaveEntries, PlaneWaveSolutionSource,
+        PlaneWaveSolutionView, ReconstructLayerModeWaves, RetainedIsotropicLayers,
     },
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,

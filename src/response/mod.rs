@@ -176,9 +176,9 @@ mod field;
 mod interface;
 mod layer;
 mod metadata;
-mod response;
+mod response_type;
 
 pub use metadata::{
     FieldMetadata, InterfaceLocation, InterfaceMetadata, LayerLocation, LayerMetadata, StackRegion,
 };
-pub use response::Response;
+pub use response_type::Response;

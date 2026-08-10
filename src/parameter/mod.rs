@@ -30,9 +30,9 @@ impl FiniteLayerIndex {
     }
 }
 
-impl Into<FiniteLayerIndex> for usize {
-    fn into(self) -> FiniteLayerIndex {
-        FiniteLayerIndex(self)
+impl From<usize> for FiniteLayerIndex {
+    fn from(val: usize) -> Self {
+        FiniteLayerIndex(val)
     }
 }
 

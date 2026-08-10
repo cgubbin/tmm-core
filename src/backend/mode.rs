@@ -34,7 +34,7 @@ pub enum ModalGauge {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PlaneWaveModeCandidate<A> {
+pub struct PlaneWaveModeCandidate<A> {
     state: BoundaryState<A>,
     right_outgoing: A,
     residual: A,
@@ -91,7 +91,7 @@ impl<A> PlaneWaveModeCandidate<A> {
 ///
 /// The reconstructed mode retains the arbitrary complex amplitude carried by
 /// `seed`. Modal normalization is applied later.
-pub(crate) trait ReconstructExteriorModeWaves {
+pub trait ReconstructExteriorModeWaves {
     type Algebra;
 
     fn reconstruct_exterior_mode_waves(
@@ -108,7 +108,7 @@ pub(crate) trait ReconstructExteriorModeWaves {
 ///
 /// The reconstructed mode retains an arbitrary complex amplitude. Modal
 /// normalization is applied later.
-pub(crate) trait ReconstructLayerModeWaves {
+pub trait ReconstructLayerModeWaves {
     type Algebra;
 
     fn reconstruct_layer_mode_waves(
@@ -117,7 +117,7 @@ pub(crate) trait ReconstructLayerModeWaves {
     ) -> Result<Vec<LayerBoundaryWaves<Self::Algebra>>, ModeReconstructionError>;
 }
 
-pub(crate) trait ModalSolutionSource {
+pub trait ModalSolutionSource {
     type Algebra;
 
     /// Construct an arbitrary nonzero outgoing homogeneous boundary solution

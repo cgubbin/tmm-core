@@ -347,7 +347,7 @@ mod tests {
 
     use crate::{
         Polarisation,
-        algebra::{ArrayJet0, ArrayJet1, Jet, Jet0, Jet1, RealParameter},
+        algebra::{ArrayJet0, ArrayJet1, Jet0, Jet1, RealParameter},
         observable::BoundaryState,
         test_support::{TOLERANCE, assertions::assert_complex_close},
     };
@@ -742,11 +742,8 @@ mod integration_tests {
 
     use crate::{
         FiniteLayerIndex, IncidentSide, Polarisation, RealAxis,
-        algebra::{ArrayJet0, Jet, RealParameter},
-        backend::{
-            ExteriorContextProvider, PlaneWaveSolutionSource, RetainedIsotropicLayers, RunMode,
-            Scatter2,
-        },
+        algebra::{ArrayJet0, RealParameter},
+        backend::{ExteriorContextProvider, RetainedIsotropicLayers, RunMode, Scatter2},
         input::{CanonicalCoordinates, CanonicalStack},
         material::Constant,
         spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},

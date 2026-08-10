@@ -1,4 +1,4 @@
-use crate::{IncidentSide, backend::IsotropicLayerQuantities, waves::LayerBoundaryWaves};
+use crate::backend::IsotropicLayerQuantities;
 
 use super::{PlaneWaveSolution, PlaneWaveSolutionSource};
 

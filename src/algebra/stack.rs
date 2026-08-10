@@ -301,7 +301,7 @@ mod jet0_tests {
 mod tests {
     use super::*;
 
-    use ndarray::{Ix0, Ix1, arr0, arr1, array};
+    use ndarray::{Ix0, arr0, arr1, array};
 
     type J0<D> = ArrayJet0<f64, D, ()>;
     type J1<D> = ArrayJet1<f64, D, ()>;

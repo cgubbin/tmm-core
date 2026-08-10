@@ -322,9 +322,7 @@ where
 
     let half = A::RealJet::filled_constant_like(vacuum.value(), half_scalar);
 
-    let common = vacuum.multiply(&half).divide(incident_flux_magnitude);
-
-    common
+    vacuum.multiply(&half).divide(incident_flux_magnitude)
 }
 
 impl<A> IntegratedLayerData<A> {

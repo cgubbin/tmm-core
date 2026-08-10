@@ -1,15 +1,12 @@
-use crate::{
-    Stack,
-    backend::{
-        ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
-        scatter2::{
-            RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
-            Scatter2ProjectiveEntries, Scatter2Workspace,
-        },
-        transfer2::{
-            RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries,
-            Transfer2ExteriorContext, Transfer2Workspace,
-        },
+use crate::backend::{
+    ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
+    scatter2::{
+        RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
+        Scatter2ProjectiveEntries, Scatter2Workspace,
+    },
+    transfer2::{
+        RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries, Transfer2ExteriorContext,
+        Transfer2Workspace,
     },
 };
 

@@ -1,10 +1,8 @@
 use ndarray::{ArrayBase, Ix0, Ix1, OwnedRepr};
 use num_complex::Complex64;
-use num_traits::Zero;
 
 use crate::{
     CoordinateInput, ElectromagneticFields, Parameter, PlaneWaveEvaluator, Polarisation,
-    algebra::ScalarAlgebra,
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ReconstructExteriorModeWaves,
         ReconstructLayerModeWaves, RetainedIsotropicLayers, Transfer2, scatter2::Scatter2,
@@ -41,15 +39,6 @@ macro_rules! for_each_modal_backend {
 }
 
 fn modal_input() -> CoordinateInput<C, Ix0> {
-    /*
-     * This need not be an exact root for the field-reconstruction tests.
-     * modal_boundary_solution() produces a globally consistent right-gauged
-     * candidate at the retained complex coordinate; its residual measures the
-     * remaining outgoing-boundary mismatch.
-     *
-     * Replace these values with the complex fixture already used by your
-     * modal reconstruction tests if appropriate.
-     */
     scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
 }
 
@@ -594,8 +583,6 @@ fn modal_last_layer_state_matches_right_exterior_state() {
             Polarisation::TransverseElectric,
         )
         .unwrap();
-
-    let mode = state.mode().unwrap();
 
     let workspace = state.workspace();
 

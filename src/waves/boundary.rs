@@ -12,7 +12,7 @@ use num_traits::{One, Zero};
 use crate::{ComplexScalar, IncidentSide, algebra::ScalarAlgebra};
 
 #[derive(Clone, Debug)]
-pub(crate) struct BoundaryWaveSolution<A> {
+pub struct BoundaryWaveSolution<A> {
     exterior: ExteriorBoundaryWaves<A>,
     layers: Vec<LayerBoundaryWaves<A>>,
 }
@@ -41,7 +41,7 @@ impl<A> BoundaryWaveSolution<A> {
 /// Forward- and backward-propagating wave amplitudes at one longitudinal
 /// position.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct BidirectionalWaves<A> {
+pub struct BidirectionalWaves<A> {
     forward: A,
     backward: A,
 }
@@ -121,7 +121,7 @@ where
 /// Bidirectional wave amplitudes at the left and right exterior boundaries of
 /// a complete stack.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ExteriorBoundaryWaves<A> {
+pub struct ExteriorBoundaryWaves<A> {
     left: BidirectionalWaves<A>,
     right: BidirectionalWaves<A>,
 }

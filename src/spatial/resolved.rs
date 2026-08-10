@@ -64,7 +64,7 @@ impl<R> ResolvedFieldSampling<R> {
                 },
                 FieldPosition::Layer { index, position } => CanonicalFieldPosition::Layer {
                     index: *index,
-                    position: position.clone().into(),
+                    position: (*position).into(),
                 },
                 FieldPosition::RightExterior { distance } => {
                     CanonicalFieldPosition::RightExterior {

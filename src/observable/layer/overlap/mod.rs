@@ -6,10 +6,10 @@ pub use bilinear::{
     AggregateBilinearNormalization, AggregateBilinearOverlap, BilinearLayerNormalization,
 };
 
-pub use hermitian::{AggregateHermitianOverlap, NormalizedHermitianOverlap};
+pub use hermitian::AggregateHermitianOverlap;
 
 pub(crate) use bilinear::{BilinearLayerOverlap, BilinearLayerOverlapInput};
-pub(crate) use error::{OverlapError, PairOperand};
+pub(crate) use error::OverlapError;
 pub(crate) use hermitian::{HermitianLayerOverlap, HermitianLayerOverlapInput};
 
 use crate::{backend::IsotropicLayerQuantities, observable::BoundaryWaves};

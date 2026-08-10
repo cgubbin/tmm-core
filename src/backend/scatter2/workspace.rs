@@ -213,7 +213,7 @@ impl<A> Scatter2Workspace<A> {
     }
 
     pub(crate) fn entries(&self) -> &Scatter2ProjectiveEntries<A> {
-        &self.solution.entries()
+        self.solution.entries()
     }
 
     fn total(&self) -> Scatter2Entries<A>
@@ -641,16 +641,16 @@ mod tests {
     use ndarray::{ArrayBase, Ix0, OwnedRepr, arr0};
 
     use super::{
-        LayerCutIndices, RetainedScatterComponents, Scatter2Workspace, prefix_cascades,
-        suffix_cascades, waves_at_cut,
+        LayerCutIndices, RetainedScatterComponents, Scatter2Workspace,
+        bidirectional_waves_from_state, prefix_cascades, suffix_cascades, waves_at_cut,
     };
 
     use crate::{
         Polarisation, RealAxis,
         algebra::ScalarAlgebra,
         backend::{
-            IsotropicLayerQuantities, ModalSolutionSource, ReconstructLayerModeWaves, RunMode,
-            Scatter2, SolutionWorkspace,
+            ExteriorContextProvider, IsotropicLayerQuantities, ModalSolutionSource,
+            ReconstructLayerModeWaves, RunMode, Scatter2, SolutionWorkspace,
             scatter2::{
                 Scatter2ExteriorContext,
                 entries::{Scatter2Entries, cascade},
@@ -671,8 +671,7 @@ mod tests {
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
             },
         },
-        waves::LayerBoundaryWaves,
-        waves::ReconstructLayerBoundaryWaves,
+        waves::{LayerBoundaryWaves, ReconstructLayerBoundaryWaves},
     };
 
     type Entries0 = Scatter2Entries<J0>;
@@ -1757,40 +1756,26 @@ mod tests {
     }
 
     #[test]
-    fn projective_modal_reconstruction_uses_denominator_as_left_incoming_wave() {
-        let source = arr0(c(0.0));
-
-        let context = make_context(&zero_jet_from_array(source.clone()));
-
-        let mut workspace: Scatter2Workspace<J0> =
-            Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
-
-        workspace.append_layer(
-            first_component(),
-            second_component(),
-            sample_quantities(),
-            sample_thickness(),
-        );
-
-        workspace.append_layer(
-            third_component(),
-            transparent_component(),
-            sample_quantities(),
-            sample_thickness(),
-        );
+    fn projective_modal_candidate_reconstructs_original_projective_solution() {
+        let workspace = build_workspace(boundary_test_two_layer_stack(), RunMode::InternalFields);
 
         let candidate = workspace.modal_boundary_solution().unwrap();
 
         let actual = workspace.reconstruct_layer_mode_waves(&candidate).unwrap();
 
+        let source = workspace.sample_source();
+
+        let left_waves = bidirectional_waves_from_state(
+            candidate.state(),
+            workspace.solution().context().left_admittance(),
+        );
+
+        let zero = J0::filled_constant_like(source, C::new(0.0, 0.0));
+
         let expected = workspace
             .retained()
             .unwrap()
-            .reconstruct_from_incoming_waves(
-                workspace.solution().entries().denominator(),
-                &zero_jet_from_value(c(0.0)),
-                &source,
-            );
+            .reconstruct_from_incoming_waves(left_waves.forward(), &zero, source);
 
         assert_eq!(actual.len(), expected.len());
 

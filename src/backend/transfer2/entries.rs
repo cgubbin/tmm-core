@@ -478,11 +478,11 @@ where
     type Determinant = PlaneWaveDeterminant<J>;
 
     fn project_determinant(&self, exterior: &Self::ExteriorContext) -> Self::Determinant {
-        let left_slope = transfer_state_slope(exterior.left_admittance());
-
-        let right_slope = transfer_state_slope(exterior.right_admittance());
-
-        let candidate = right_gauged_mode_candidate(self, &left_slope, &right_slope);
+        let candidate = right_gauged_mode_candidate(
+            self,
+            exterior.left_admittance(),
+            exterior.right_admittance(),
+        );
 
         PlaneWaveDeterminant::new(candidate.into_projective_residual())
     }

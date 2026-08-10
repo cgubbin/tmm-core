@@ -23,9 +23,9 @@ pub use interface::{
 };
 pub use layer::{
     AggregateBilinearNormalization, AggregateBilinearOverlap, AggregateEnergy,
-    AggregateHermitianOverlap, BilinearLayerNormalization, EnergyConfinement, LayerAggregateError,
-    LayerConfinementError, LayerDissipation, LayerEnergy, LayerEnergyError, LayerParticipation,
-    LayerParticipationError, LayerPower, LayerProjectionError, Layers,
+    AggregateHermitianOverlap, EnergyConfinement, LayerAggregateError, LayerConfinementError,
+    LayerDissipation, LayerEnergy, LayerEnergyError, LayerParticipation, LayerParticipationError,
+    LayerPower, LayerProjectionError, Layers,
 };
 pub use plane_wave::{PlaneWaveAmplitudes, PlaneWavePower};
 

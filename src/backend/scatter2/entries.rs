@@ -22,16 +22,10 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
         RealScalarAlgebra, ScalarAlgebra,
     },
-    backend::{
-        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
-        isotropic::IsotropicLayerQuantities,
-    },
+    backend::{ExteriorContextProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
     input::{CanonicalCoordinates, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
-    observable::{
-        BoundaryState, PlaneWaveDeterminant, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant,
-        ProjectPower,
-    },
+    observable::{ProjectAmplitudes, ProjectPower},
 };
 
 /// Owned sampled scalar array used by the scattering backend.

@@ -369,7 +369,7 @@ mod tests {
 #[cfg(test)]
 mod projection_tests {
     use crate::{
-        backend::scatter2::{Scatter2Entries, Scatter2ExteriorContext, Scatter2ProjectiveEntries},
+        backend::scatter2::{Scatter2ExteriorContext, Scatter2ProjectiveEntries},
         test_support::{
             C, TOLERANCE,
             assertions::{assert_complex_close, assert_real_close},

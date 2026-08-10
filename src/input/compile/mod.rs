@@ -185,6 +185,7 @@ where
     Ok(finish_compilation(metadata, values, mapping, core))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compile_core<M, J, E>(
     metadata: Coordinates,
     spectral_values: &Array<J::Scalar, J::Dimension>,

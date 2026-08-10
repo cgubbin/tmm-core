@@ -123,9 +123,7 @@ mod decomposition_tests {
     use crate::{
         algebra::{Jet0, Jet1, Jet2, JetBivariate1, JetBivariate2, RealParameter},
         derivative_parts::{
-            BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts,
-            DirectionalSecondParts, IntoBivariateFirst, IntoBivariateSecond, IntoFirst, IntoSecond,
-            IntoValue,
+            IntoBivariateFirst, IntoBivariateSecond, IntoFirst, IntoSecond, IntoValue,
         },
         differential::{BivariateGradient, BivariateHessian},
         field::VectorField,

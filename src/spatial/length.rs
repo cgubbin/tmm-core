@@ -86,7 +86,7 @@ impl<F> Length<F> {
         self.unit.scale_to_centimetres::<F>() * self.value
     }
 
-    pub(crate) fn into_canonical(&self) -> F
+    pub(crate) fn into_canonical(self) -> F
     where
         F: Float + FromPrimitive,
     {

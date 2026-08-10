@@ -1,86 +1,82 @@
-// use crate::{
-//     algebra::ScalarAlgebra,
-//     backend::{
-//         Backend, ModalSolutionSource, PlaneWaveSolutionSource, ReconstructLayerModeWaves, Scatter2,
-//         scatter2::{Scatter2ProjectiveEntries, Scatter2Workspace},
-//         transfer2::Transfer2Workspace,
-//     },
-//     test_support::{TOLERANCE, assertions::assert_complex_close, jet::J0},
-// };
+use ndarray::Ix0;
 
-// fn scatter_workspace_fixture() -> Scatter2Workspace<J0> {
-//     let problem = backend_comparison_problem();
+use crate::{
+    CoordinateInput, PlaneWaveEvaluator, Polarisation,
+    algebra::ScalarAlgebra,
+    backend::{
+        ExteriorContextProvider, Scatter2, Transfer2,
+        transfer2::{right_outgoing_transfer_state, transfer_state_slope},
+    },
+    test_support::{
+        C, TOLERANCE,
+        assertions::assert_array_close,
+        jet::J0H,
+        planar::{scalar_complex_input, two_layer_stack},
+    },
+};
 
-//     Scatter2::default().solve(&problem).unwrap()
-// }
+fn modal_input() -> CoordinateInput<C, Ix0> {
+    scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
+}
 
-// fn transfer_workspace_fixture() -> Transfer2Workspace<J0> {
-//     let problem = backend_comparison_problem();
+#[test]
+fn scatter_projective_modal_residual_matches_physical_s21_formula() {
+    let state = PlaneWaveEvaluator::new(Scatter2::new())
+        .evaluate_modal(
+            modal_input(),
+            &two_layer_stack(),
+            Polarisation::TransverseElectric,
+        )
+        .unwrap();
 
-//     Transfer2::default().solve(&problem).unwrap()
-// }
+    let entries = state.solution().entries();
 
-// #[test]
-// fn modal_candidates_are_projectively_equivalent() {
-//     let scatter = scatter_workspace_fixture();
+    let context = state.solution().context();
 
-//     let transfer = transfer_workspace_fixture();
+    let xi_left = transfer_state_slope(context.left_admittance());
 
-//     let scatter_candidate = scatter.modal_boundary_solution().unwrap();
+    let denominator = entries.denominator();
 
-//     let transfer_candidate = transfer.modal_boundary_solution().unwrap();
+    let transmission_numerator = entries.n21();
 
-//     let scale = scatter.solution().entries().n21().value()[()];
+    let expected = xi_left
+        .multiply(denominator)
+        .scale(C::new(2.0, 0.0))
+        .divide(transmission_numerator);
 
-//     assert_complex_close(
-//         scatter_candidate.state().field().value()[()],
-//         scale * transfer_candidate.state().field().value()[()],
-//         TOLERANCE,
-//     );
+    let actual = state.determinant();
 
-//     assert_complex_close(
-//         scatter_candidate.state().secondary().value()[()],
-//         scale * transfer_candidate.state().secondary().value()[()],
-//         TOLERANCE,
-//     );
+    eprintln!("D       = {:?}", denominator.value()[()],);
+    eprintln!("T       = {:?}", transmission_numerator.value()[()],);
+    eprintln!("2xi D/T = {:?}", expected.value()[()],);
+    eprintln!("actual  = {:?}", actual.value().value()[()],);
 
-//     assert_complex_close(
-//         scatter_candidate.projective_residual().value()[()],
-//         scale * transfer_candidate.projective_residual().value()[()],
-//         TOLERANCE,
-//     );
-// }
+    assert_array_close(actual.value().value(), expected.value(), TOLERANCE);
+}
 
-// #[test]
-// fn reconstructed_modal_layer_waves_are_projectively_equivalent() {
-//     let scatter = scatter_workspace_fixture();
+#[test]
+fn transfer_modal_residual_matches_right_outgoing_boundary_mismatch() {
+    let state = PlaneWaveEvaluator::new(Transfer2::new())
+        .evaluate_modal(
+            modal_input(),
+            &two_layer_stack(),
+            Polarisation::TransverseElectric,
+        )
+        .unwrap();
 
-//     let transfer = transfer_workspace_fixture();
+    let solution = state.solution();
 
-//     let scatter_candidate = scatter.modal_boundary_solution().unwrap();
+    let one = J0H::filled_constant_like(solution.entries().m11().value(), C::new(1.0, 0.0));
 
-//     let transfer_candidate = transfer.modal_boundary_solution().unwrap();
+    let right = right_outgoing_transfer_state(&one, solution.context().right_admittance());
 
-//     let scatter_waves = scatter
-//         .reconstruct_layer_mode_waves(&scatter_candidate)
-//         .unwrap();
+    let left = solution.entries().apply_state(&right);
 
-//     let transfer_waves = transfer
-//         .reconstruct_layer_mode_waves(&transfer_candidate)
-//         .unwrap();
+    let xi_left = transfer_state_slope(solution.context().left_admittance());
 
-//     let scale = scatter.solution().entries().n21().value()[()];
+    let expected = xi_left.multiply(left.field()).subtract(left.slope());
 
-//     assert_eq!(scatter_waves.len(), transfer_waves.len(),);
+    let actual = state.determinant();
 
-//     for (scatter, transfer) in scatter_waves.iter().zip(&transfer_waves) {
-//         for (scatter, transfer) in [
-//             (scatter.left().forward(), transfer.left().forward()),
-//             (scatter.left().backward(), transfer.left().backward()),
-//             (scatter.right().forward(), transfer.right().forward()),
-//             (scatter.right().backward(), transfer.right().backward()),
-//         ] {
-//             assert_complex_close(scatter.value()[()], scale * transfer.value()[()], TOLERANCE);
-//         }
-//     }
-// }
+    assert_array_close(actual.value().value(), expected.value(), TOLERANCE);
+}

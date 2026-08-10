@@ -86,7 +86,7 @@ pub enum FieldSamplingError<R> {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) enum ResolvedLayerPosition<R> {
+pub enum ResolvedLayerPosition<R> {
     /// Fixed physical distance from the left boundary.
     FromLeft(Length<R>),
 
@@ -98,7 +98,7 @@ pub(crate) enum ResolvedLayerPosition<R> {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) enum FieldPosition<R> {
+pub enum FieldPosition<R> {
     LeftExterior {
         distance: Length<R>,
     },
@@ -406,12 +406,7 @@ impl<R> FieldSampling<R> {
                 }
 
                 FieldSamplingRegion::LayerCentres => {
-                    for (index, layer) in stack
-                        .layers_left_to_right()
-                        .iter()
-                        .enumerate()
-                        .map(|(index, layer)| (FiniteLayerIndex(index), layer))
-                    {
+                    for index in (0..stack.len()).map(FiniteLayerIndex) {
                         positions.push(FieldPosition::Layer {
                             index,
                             position: ResolvedLayerPosition::Fraction(
@@ -422,12 +417,7 @@ impl<R> FieldSampling<R> {
                 }
 
                 FieldSamplingRegion::LayerInterfaces => {
-                    for (index, layer) in stack
-                        .layers_left_to_right()
-                        .iter()
-                        .enumerate()
-                        .map(|(index, layer)| (FiniteLayerIndex(index), layer))
-                    {
+                    for index in (0..stack.len()).map(FiniteLayerIndex) {
                         positions.push(FieldPosition::Layer {
                             index,
                             position: ResolvedLayerPosition::FromLeft(Length::zero()),

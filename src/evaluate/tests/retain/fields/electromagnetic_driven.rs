@@ -1,21 +1,15 @@
-use ndarray::{ArrayBase, Dimension, Ix1, OwnedRepr};
+use ndarray::{ArrayBase, Ix1, OwnedRepr};
 use num_complex::Complex64;
-use num_traits::Zero;
 
 use crate::{
-    ComplexScalar, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
     algebra::ScalarAlgebra,
     backend::{
-        ExteriorContextProvider, IsotropicLayerQuantities, RetainedIsotropicLayers,
-        scatter2::Scatter2, transfer2::Transfer2,
+        ExteriorContextProvider, RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2,
     },
     field::VectorField,
-    observable::LayerBoundaryWaves,
     parameter::FiniteLayerIndex,
-    spatial::{
-        CanonicalFieldPosition, CanonicalLayerPosition, ExteriorSampling, FieldSampling,
-        LayerSampling, Length,
-    },
+    spatial::{CanonicalLayerPosition, ExteriorSampling, FieldSampling, LayerSampling, Length},
     test_support::{
         assertions::{assert_array_close, assert_bidirectional_waves_close, assert_zero_jet_close},
         finite_difference::{

@@ -222,7 +222,7 @@ where
     )?)
 }
 
-pub(crate) fn raw_qnm_normalisation_unchecked<'a, J, M, W>(
+pub(crate) fn raw_qnm_normalisation_unchecked<J, M, W>(
     seed: &PlaneWaveModeCandidate<J>,
     state: &PlaneWaveState<J, J::Scalar, M, W>,
 ) -> Result<AggregateBilinearNormalization<J>, QnmNormalisationError>

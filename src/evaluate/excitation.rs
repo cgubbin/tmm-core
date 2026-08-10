@@ -6,7 +6,7 @@ use num_traits::{Float, FromPrimitive, One, Zero};
 
 use crate::{
     ComplexScalar, ElectromagneticFields, FiniteLayerIndex, IncidentSide, LayerDissipation,
-    PlaneWaveAmplitudes, RealAxis, VectorField,
+    PlaneWaveAmplitudes, RealAxis,
     algebra::{
         CartesianScalarAlgebra, ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra,
         ScalarAlgebraExpRelExt,

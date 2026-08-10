@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-// #![allow(unused_imports)]
+#![allow(clippy::type_complexity)]
 
 pub(crate) mod algebra;
 pub mod backend;

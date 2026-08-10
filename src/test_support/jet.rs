@@ -1,11 +1,15 @@
 use super::{C, c};
-use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, RealParameter, ScalarAlgebra};
+use crate::algebra::{
+    ArrayJet0, ArrayJet1, ArrayJet2, HolomorphicParameter, RealParameter, ScalarAlgebra,
+};
 
 use ndarray::{Array, ArrayBase, Dimension, Ix0, OwnedRepr, arr0};
 
 pub type P = RealParameter;
+pub type H = HolomorphicParameter;
 
 pub type J0 = ArrayJet0<C, Ix0, P>;
+pub type J0H = ArrayJet0<C, Ix0, H>;
 pub type J1 = ArrayJet1<C, Ix0, P>;
 pub type J2 = ArrayJet2<C, Ix0, P>;
 

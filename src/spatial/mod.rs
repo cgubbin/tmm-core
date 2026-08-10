@@ -34,7 +34,7 @@ pub use response::SpatialResponse;
 
 pub(crate) use compiled::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling};
 pub(crate) use resolved::ResolvedFieldSampling;
-pub(crate) use sampling::{
-    ExteriorSampling, FieldPosition, FieldSampling, FieldSamplingError, LayerSampling,
-    ResolvedLayerPosition,
-};
+pub(crate) use sampling::{FieldPosition, FieldSampling, FieldSamplingError};
+
+#[cfg(test)]
+pub(crate) use sampling::{ExteriorSampling, LayerSampling, ResolvedLayerPosition};

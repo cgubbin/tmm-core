@@ -3,7 +3,6 @@ use ndarray::Array0;
 
 use crate::{
     FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, PlaneWavePower, Polarisation,
-    algebra::ScalarAlgebra,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     projection::PointProjectionError,
     test_support::{
