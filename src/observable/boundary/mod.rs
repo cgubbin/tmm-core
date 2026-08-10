@@ -28,7 +28,7 @@ pub(crate) use project::{
     project_layer_boundary_states, project_layer_boundary_waves, project_layer_mode_waves,
 };
 
-use crate::FiniteLayerIndex;
+use crate::{FiniteLayerIndex, algebra::ScaleBy};
 
 /// A quantity associated with every finite layer, ordered physically from
 /// left to right.
@@ -71,5 +71,20 @@ impl<T> LayerBoundaries<T> {
 
     pub(crate) fn map<U>(self, map: impl FnMut(T) -> U) -> LayerBoundaries<U> {
         LayerBoundaries::new(self.layers.into_iter().map(map).collect())
+    }
+}
+
+impl<S, T> ScaleBy<S> for LayerBoundaries<T>
+where
+    T: ScaleBy<S>,
+{
+    fn scale_by(self, scale: &S) -> Self {
+        Self {
+            layers: self
+                .layers
+                .into_iter()
+                .map(|each| each.scale_by(scale))
+                .collect(),
+        }
     }
 }

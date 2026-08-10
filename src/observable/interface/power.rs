@@ -20,7 +20,7 @@ use crate::{
 use super::{InterfaceWaveData, Interfaces};
 
 use ndarray::Dimension;
-use num_traits::One;
+use num_traits::{FromPrimitive, One};
 
 /// Normalized signed power-flux quantities associated with a pair of
 /// direction-labelled waves.
@@ -141,12 +141,13 @@ impl<R> InterfacePower<R> {
 impl<A> Interfaces<InterfaceWaveData<A>> {
     pub(crate) fn into_power(
         self,
-        incident_flux_magnitude: &A::RealJet,
+        vacuum_angular_wavenumber: &A,
     ) -> Interfaces<InterfacePower<A::RealJet>>
     where
         A: RealScalarAlgebra + Clone,
         A::RealJet: ScalarAlgebra,
-        <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
+        <A::RealJet as Jet>::Scalar:
+            FromPrimitive + Neg<Output = <A::RealJet as Jet>::Scalar> + One,
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
@@ -157,26 +158,25 @@ impl<A> Interfaces<InterfaceWaveData<A>> {
 
             let (right_waves, right_admittance) = right.into_parts();
 
-            let left_power =
-                project_directed_power(left_waves, left_admittance, incident_flux_magnitude);
+            let left_power = directed_power(left_waves, left_admittance, vacuum_angular_wavenumber);
 
             let right_power =
-                project_directed_power(right_waves, right_admittance, incident_flux_magnitude);
+                directed_power(right_waves, right_admittance, vacuum_angular_wavenumber);
 
             InterfacePower::new(left_power, right_power)
         })
     }
 }
 
-pub(crate) fn project_directed_power<A>(
+pub(crate) fn directed_power<A>(
     waves: BoundaryWaves<A>,
     admittance: A,
-    incident_flux_magnitude: &A::RealJet,
+    vacuum_angular_wavenumber: &A,
 ) -> DirectedPower<A::RealJet>
 where
     A: RealScalarAlgebra + Clone,
     A::RealJet: ScalarAlgebra,
-    <A::RealJet as Jet>::Scalar: Neg<Output = <A::RealJet as Jet>::Scalar> + One,
+    <A::RealJet as Jet>::Scalar: One + FromPrimitive + Neg<Output = <A::RealJet as Jet>::Scalar>,
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
@@ -184,24 +184,37 @@ where
 
     let admittance_real = admittance.real();
 
+    let two = <A::RealJet as Jet>::Scalar::from_f64(2.0).expect("two must be representable");
+
+    /*
+     * Convert canonical flux
+     *
+     *     F = Im(field* secondary)
+     *
+     * to physical time-averaged Cartesian Poynting flux
+     *
+     *     Sz = F / (2 k0).
+     */
+    let flux_scale = vacuum_angular_wavenumber.real().scale(two).reciprocal();
+
     let forward_flux = waves
         .forward()
         .magnitude_squared()
         .multiply(&admittance_real)
-        .divide(incident_flux_magnitude);
+        .multiply(&flux_scale);
 
     let backward_flux = waves
         .backward()
         .magnitude_squared()
         .multiply(&admittance_real)
-        .scale(-<A::RealJet as Jet>::Scalar::one())
-        .divide(incident_flux_magnitude);
+        .multiply(&flux_scale)
+        .scale(-<<A::RealJet as Jet>::Scalar as One>::one());
 
     let net_flux = state
         .field()
         .hermitian_product(state.secondary())
         .imaginary()
-        .divide(incident_flux_magnitude);
+        .multiply(&flux_scale);
 
     DirectedPower::new(forward_flux, backward_flux, net_flux)
 }
@@ -211,7 +224,7 @@ mod tests {
     use super::{DirectedPower, InterfacePower};
 
     #[test]
-    fn project_directed_power_stores_all_fluxes() {
+    fn directed_power_stores_all_fluxes() {
         let power = DirectedPower::new(1, 2, 3);
 
         assert_eq!(power.forward_flux(), &1);
@@ -220,14 +233,14 @@ mod tests {
     }
 
     #[test]
-    fn project_directed_power_into_parts_preserves_order() {
+    fn directed_power_into_parts_preserves_order() {
         let power = DirectedPower::new(1, 2, 3);
 
         assert_eq!(power.into_parts(), (1, 2, 3));
     }
 
     #[test]
-    fn project_directed_power_map_transforms_all_fluxes() {
+    fn directed_power_map_transforms_all_fluxes() {
         let power = DirectedPower::new(1, 2, 3);
 
         let mapped = power.map(|value| format!("flux-{value}"));
@@ -337,35 +350,39 @@ mod projection_tests {
     }
 
     #[test]
-    fn pure_forward_wave_has_positive_unit_flux() {
+    fn pure_forward_wave_has_positive_physical_flux() {
         let waves = BoundaryWaves::new(jet(c(1.0, 0.0)), jet(c(0.0, 0.0)));
 
         let admittance = jet(c(2.5, 0.0));
-        let incident_flux = admittance.real();
+        let k0 = jet(c(4.0, 0.0));
 
-        let power = project_directed_power(waves, admittance, &incident_flux);
+        let power = directed_power(waves, admittance, &k0);
 
-        assert_real_close(scalar_real(power.forward_flux()), 1.0);
+        let expected = 2.5 / (2.0 * 4.0);
+
+        assert_real_close(scalar_real(power.forward_flux()), expected);
 
         assert_real_close(scalar_real(power.backward_flux()), 0.0);
 
-        assert_real_close(scalar_real(power.net_flux()), 1.0);
+        assert_real_close(scalar_real(power.net_flux()), expected);
     }
 
     #[test]
-    fn pure_backward_wave_has_negative_unit_flux() {
+    fn pure_backward_wave_has_negative_physical_flux() {
         let waves = BoundaryWaves::new(jet(c(0.0, 0.0)), jet(c(1.0, 0.0)));
 
         let admittance = jet(c(2.5, 0.0));
-        let incident_flux = admittance.real();
+        let k0 = jet(c(4.0, 0.0));
 
-        let power = project_directed_power(waves, admittance, &incident_flux);
+        let power = directed_power(waves, admittance, &k0);
+
+        let expected = -2.5 / (2.0 * 4.0);
 
         assert_real_close(scalar_real(power.forward_flux()), 0.0);
 
-        assert_real_close(scalar_real(power.backward_flux()), -1.0);
+        assert_real_close(scalar_real(power.backward_flux()), expected);
 
-        assert_real_close(scalar_real(power.net_flux()), -1.0);
+        assert_real_close(scalar_real(power.net_flux()), expected);
     }
 
     #[test]
@@ -375,14 +392,26 @@ mod projection_tests {
 
         let waves = BoundaryWaves::new(jet(forward), jet(backward));
 
-        let admittance = jet(c(3.0, 0.0));
-        let incident_flux = admittance.real();
+        let admittance_value = 3.0;
+        let k0_value = 2.0;
 
-        let power = project_directed_power(waves, admittance, &incident_flux);
+        let admittance = jet(c(admittance_value, 0.0));
 
-        assert_real_close(scalar_real(power.forward_flux()), forward.norm_sqr());
+        let k0 = jet(c(k0_value, 0.0));
 
-        assert_real_close(scalar_real(power.backward_flux()), -backward.norm_sqr());
+        let power = directed_power(waves, admittance, &k0);
+
+        let scale = admittance_value / (2.0 * k0_value);
+
+        assert_real_close(
+            scalar_real(power.forward_flux()),
+            scale * forward.norm_sqr(),
+        );
+
+        assert_real_close(
+            scalar_real(power.backward_flux()),
+            -scale * backward.norm_sqr(),
+        );
     }
 
     #[test]
@@ -390,9 +419,10 @@ mod projection_tests {
         let waves = BoundaryWaves::new(jet(c(0.8, 0.2)), jet(c(-0.3, 0.1)));
 
         let admittance = jet(c(2.0, 0.0));
-        let incident_flux = admittance.real();
 
-        let power = project_directed_power(waves, admittance, &incident_flux);
+        let k0 = jet(c(3.0, 0.0));
+
+        let power = directed_power(waves, admittance, &k0);
 
         let directional_sum =
             scalar_real(power.forward_flux()) + scalar_real(power.backward_flux());
@@ -401,41 +431,121 @@ mod projection_tests {
     }
 
     #[test]
-    fn normalization_uses_incident_flux_magnitude() {
+    fn physical_flux_scales_with_inverse_two_k0() {
         let waves = BoundaryWaves::new(jet(c(1.0, 0.0)), jet(c(0.0, 0.0)));
 
-        let local_admittance = jet(c(6.0, 0.0));
+        let admittance = jet(c(6.0, 0.0));
 
-        let incident_flux = Jet0::new(arr0(2.0));
+        let first_k0 = jet(c(2.0, 0.0));
 
-        let power = project_directed_power(waves, local_admittance, &incident_flux);
+        let second_k0 = jet(c(4.0, 0.0));
 
-        assert_real_close(scalar_real(power.forward_flux()), 3.0);
+        let first = directed_power(waves.clone(), admittance.clone(), &first_k0);
 
-        assert_real_close(scalar_real(power.net_flux()), 3.0);
+        let second = directed_power(waves, admittance, &second_k0);
+
+        /*
+         * P = Re(Y) |a|² / (2 k0)
+         *
+         * so doubling k0 halves the physical flux.
+         */
+        assert_real_close(scalar_real(first.forward_flux()), 6.0 / 4.0);
+
+        assert_real_close(scalar_real(second.forward_flux()), 6.0 / 8.0);
+
+        assert_real_close(
+            scalar_real(first.forward_flux()),
+            2.0 * scalar_real(second.forward_flux()),
+        );
+    }
+
+    #[test]
+    fn unit_power_wave_has_unit_physical_flux() {
+        /*
+         * Choose an amplitude satisfying
+         *
+         *     |a|² Re(Y) / (2 k0) = 1.
+         *
+         * For Y = 2 and k0 = 4:
+         *
+         *     |a|² = 4
+         *
+         * so a = 2.
+         */
+        let waves = BoundaryWaves::new(jet(c(2.0, 0.0)), jet(c(0.0, 0.0)));
+
+        let admittance = jet(c(2.0, 0.0));
+
+        let k0 = jet(c(4.0, 0.0));
+
+        let power = directed_power(waves, admittance, &k0);
+
+        assert_real_close(scalar_real(power.forward_flux()), 1.0);
+
+        assert_real_close(scalar_real(power.net_flux()), 1.0);
     }
 
     #[test]
     fn lossy_mixed_wave_net_flux_uses_full_state_expression() {
         let forward = c(0.8, 0.3);
+
         let backward = c(-0.2, 0.5);
+
         let admittance_value = c(2.0, 0.7);
+
+        let k0_value = 3.5;
 
         let waves = BoundaryWaves::new(jet(forward), jet(backward));
 
         let admittance = jet(admittance_value);
 
-        // Use an independent positive normalization.
-        let incident_flux = Jet0::new(arr0(1.5));
+        let k0 = jet(c(k0_value, 0.0));
 
-        let power = project_directed_power(waves, admittance, &incident_flux);
+        let power = directed_power(waves, admittance, &k0);
 
+        /*
+         * Reconstruct the canonical state explicitly.
+         *
+         * secondary = ξ (a- - a+)
+         * ξ = -i Y
+         */
         let xi = -C::i() * admittance_value;
+
         let field = forward + backward;
+
         let secondary = xi * (backward - forward);
 
-        let expected = (field.conj() * secondary).im / 1.5;
+        /*
+         * Physical time-averaged longitudinal flux:
+         *
+         *     Sz = Im(field* secondary) / (2 k0).
+         */
+        let expected = (field.conj() * secondary).im / (2.0 * k0_value);
 
         assert_real_close(scalar_real(power.net_flux()), expected);
+    }
+
+    #[test]
+    fn lossy_medium_directional_and_net_flux_need_not_sum() {
+        /*
+         * In a lossy medium the forward/backward directional terms omit
+         * interference contributions associated with Im(Y), whereas the
+         * net flux is evaluated from the complete boundary state.
+         */
+        let waves = BoundaryWaves::new(jet(c(0.8, 0.3)), jet(c(-0.2, 0.5)));
+
+        let admittance = jet(c(2.0, 0.7));
+
+        let k0 = jet(c(3.5, 0.0));
+
+        let power = directed_power(waves, admittance, &k0);
+
+        let directional_sum =
+            scalar_real(power.forward_flux()) + scalar_real(power.backward_flux());
+
+        assert!(
+            (scalar_real(power.net_flux()) - directional_sum).abs() > TOLERANCE,
+            "lossy mixed waves should retain the full-state interference contribution",
+        );
     }
 }

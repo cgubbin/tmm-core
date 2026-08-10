@@ -1,15 +1,22 @@
 mod constitutive;
+mod dissipation;
 mod electromagnetic;
+mod energy;
 mod material;
 mod reconstruction;
 
 pub use constitutive::ConstitutiveFields;
+pub use dissipation::ElectromagneticDissipation;
 pub use electromagnetic::{ElectromagneticFields, ElectromagneticIntensities};
+pub use energy::ElectromagneticEnergy;
 pub use material::ConstitutiveFieldReconstructionError;
 
 pub use reconstruction::FieldReconstructionError;
 
-pub(crate) use constitutive::IsotropicConstitutiveParameters;
+pub(crate) use constitutive::{
+    IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
+    electromagnetic_dissipation_coefficients,
+};
 pub(crate) use material::{ConstitutiveSamplingContext, ConstitutiveSamplingError};
 pub(crate) use reconstruction::FieldSamplingContext;
 

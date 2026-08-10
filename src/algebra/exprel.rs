@@ -1,7 +1,6 @@
 use nalgebra::ComplexField;
 use num_traits::{FromPrimitive, float::FloatCore};
 
-
 pub(crate) fn exprel<C>(z: C) -> C
 where
     C: ComplexField + Copy,

@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     ComplexScalar, FiniteLayerIndex, Polarisation,
-    algebra::{Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
+    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{PlaneWaveSolutionSource, RetainedIsotropicLayers},
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
@@ -119,8 +119,9 @@ pub enum PlaneWavePairError {
 #[derive(Debug)]
 pub struct PlaneWaveExcitationPair<'a, J, I, ML, MR, WL, WR>
 where
-    J: Jet<Dimension = Ix0> + JetMapping,
+    J: Jet<Dimension = Ix0> + JetMapping + ComplexJet,
     J::Scalar: ComplexField,
+    J::RealJet: std::fmt::Debug,
     I: ComplexField,
 {
     reference: PlaneWaveExcitation<'a, J, I, ML, WL>,
@@ -130,8 +131,9 @@ where
 
 impl<'a, J, I, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, I, ML, MR, WL, WR>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + ComplexJet,
     J::Scalar: ComplexField,
+    J::RealJet: std::fmt::Debug,
     I: ComplexField,
     J::Mapping: PartialEq,
     WL: RetainedIsotropicLayers<Algebra = J>,
@@ -170,8 +172,9 @@ where
 
 impl<'a, J, I, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, I, ML, MR, WL, WR>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone + ComplexJet,
     J::Scalar: ComplexField,
+    J::RealJet: std::fmt::Debug,
     I: ComplexField,
     <J::Scalar as ComplexField>::RealField: ComplexField,
     J::Mapping: PartialEq,
@@ -274,8 +277,9 @@ where
 
 impl<'a, J, R, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, R, ML, MR, WL, WR>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone + ComplexJet,
     J::Scalar: ComplexField<RealField = R>,
+    J::RealJet: std::fmt::Debug,
     R: ComplexField,
     J::Mapping: PartialEq,
     WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
@@ -352,8 +356,9 @@ where
 
 impl<'a, J, ML, MR, WL, WR> PlaneWaveExcitationPair<'a, J, J::Scalar, ML, MR, WL, WR>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + Clone + ComplexJet,
     J::Scalar: ComplexField,
+    J::RealJet: std::fmt::Debug,
     <J::Scalar as ComplexField>::RealField: ComplexField,
     J::Mapping: PartialEq,
     WL: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
@@ -457,7 +462,7 @@ pub(crate) fn validate_scalar_excitation_pair<J, I, ML, MR, WL, WR>(
     comparison: &PlaneWaveExcitation<'_, J, I, MR, WR>,
 ) -> Result<(), PlaneWavePairError>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + ComplexJet,
     J::Scalar: ComplexField,
     I: ComplexField,
     J::Mapping: PartialEq,
@@ -476,7 +481,7 @@ fn validate_polarisation<J, I, ML, MR, WL, WR>(
     comparison: &PlaneWaveExcitation<'_, J, I, MR, WR>,
 ) -> Result<(), PlaneWavePairError>
 where
-    J: Jet<Dimension = Ix0> + JetMapping,
+    J: Jet<Dimension = Ix0> + JetMapping + ComplexJet,
     J::Scalar: ComplexField,
     I: ComplexField,
 {
@@ -499,7 +504,7 @@ fn validate_mapping<J, I, ML, MR, WL, WR>(
     comparison: &PlaneWaveExcitation<'_, J, I, MR, WR>,
 ) -> Result<(), PlaneWavePairError>
 where
-    J: Jet<Dimension = Ix0> + JetMapping,
+    J: Jet<Dimension = Ix0> + JetMapping + ComplexJet,
     J::Scalar: ComplexField,
     I: ComplexField,
     J::Mapping: PartialEq,
@@ -520,7 +525,7 @@ fn validate_layer_geometry<J, I, ML, MR, WL, WR>(
     comparison: &PlaneWaveExcitation<'_, J, I, MR, WR>,
 ) -> Result<(), PlaneWavePairError>
 where
-    J: Jet<Dimension = Ix0> + JetMapping + PartialEq,
+    J: Jet<Dimension = Ix0> + JetMapping + PartialEq + ComplexJet,
     J::Scalar: ComplexField,
     I: ComplexField,
     WL: RetainedIsotropicLayers<Algebra = J>,

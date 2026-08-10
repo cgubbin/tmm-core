@@ -204,7 +204,7 @@ fn field_norm_values_match_electromagnetic_fields() {
 
                 let fields = excitation.evaluate_fields(&sampling).unwrap();
 
-                let norms = excitation.evaluate_field_norms(&sampling).unwrap();
+                let norms = excitation.evaluate_field_intensities(&sampling).unwrap();
 
                 assert_eq!(fields.sampling(), norms.sampling());
 
@@ -329,7 +329,7 @@ fn field_norm_first_derivatives_obey_product_rule() {
 
                     let fields = excitation.evaluate_fields(&sampling).unwrap();
 
-                    let norms = excitation.evaluate_field_norms(&sampling).unwrap();
+                    let norms = excitation.evaluate_field_intensities(&sampling).unwrap();
 
                     assert_eq!(norms.derivatives().parameter(), parameter,);
 
@@ -386,7 +386,7 @@ fn field_norm_second_derivatives_obey_product_rule() {
 
                 let fields = excitation.evaluate_fields(&sampling).unwrap();
 
-                let norms = excitation.evaluate_field_norms(&sampling).unwrap();
+                let norms = excitation.evaluate_field_intensities(&sampling).unwrap();
 
                 let expected_electric = magnitude_squared_second(
                     fields.value().electric(),
@@ -505,7 +505,7 @@ fn transfer_and_scatter_agree_on_field_norms() {
                 .unwrap()
                 .excitation(side)
                 .unwrap()
-                .evaluate_field_norms(&sampling)
+                .evaluate_field_intensities(&sampling)
                 .unwrap();
 
             let transfer = transfer_state
@@ -513,7 +513,7 @@ fn transfer_and_scatter_agree_on_field_norms() {
                 .unwrap()
                 .excitation(side)
                 .unwrap()
-                .evaluate_field_norms(&sampling)
+                .evaluate_field_intensities(&sampling)
                 .unwrap();
 
             for (actual, expected) in [

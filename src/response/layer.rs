@@ -1,5 +1,5 @@
 use crate::{
-    LayerDissipation, LayerPower, Response, StoredEnergy,
+    LayerDissipation, LayerPower, Response,
     differential::DifferentialResponse,
     field::ScalarField,
     input::CoordinatePoint,
@@ -10,9 +10,6 @@ use ndarray::{ArrayView1, Dimension};
 
 pub type LayerPowerResponse<R, ED, D> =
     Response<LayerPower<ScalarField<R, <ED as Dimension>::Larger>>, LayerMetadata<R, ED>, D>;
-
-pub type StoredEnergyResponse<R, ED, D> =
-    Response<StoredEnergy<ScalarField<R, <ED as Dimension>::Larger>>, LayerMetadata<R, ED>, D>;
 
 pub type LayerDissipationResponse<R, ED, D> =
     Response<LayerDissipation<ScalarField<R, <ED as Dimension>::Larger>>, LayerMetadata<R, ED>, D>;

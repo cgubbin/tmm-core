@@ -38,6 +38,8 @@ pub(crate) use project::{
 pub(crate) use state::ExteriorBoundaryStates;
 pub(crate) use wave_data::{ExteriorBoundaryWaves, InterfaceSide, InterfaceWaveData};
 
+use crate::algebra::ScaleBy;
+
 /// Interface-resolved quantities in physical left-to-right order.
 ///
 /// A stack containing `N` finite layers has `N + 1` interfaces. For an empty
@@ -92,5 +94,20 @@ impl<T> Interfaces<T> {
 
     pub(crate) fn map<U>(self, map: impl FnMut(T) -> U) -> Interfaces<U> {
         Interfaces::new(self.values.into_iter().map(map).collect())
+    }
+}
+
+impl<S, T> ScaleBy<S> for Interfaces<T>
+where
+    T: ScaleBy<S>,
+{
+    fn scale_by(self, scale: &S) -> Self {
+        Self {
+            values: self
+                .values
+                .into_iter()
+                .map(|each| each.scale_by(scale))
+                .collect(),
+        }
     }
 }

@@ -1,6 +1,12 @@
-use num_traits::One;
+use num_traits::{Float, One};
 
-use crate::algebra::{CartesianVectorAlgebra, RealCartesianVectorAlgebra};
+use crate::{
+    ElectromagneticDissipation, ElectromagneticEnergy,
+    algebra::{CartesianVectorAlgebra, RealCartesianVectorAlgebra, ScalarAlgebra},
+    observable::field::constitutive::{
+        ElectromagneticDissipationCoefficients, ElectromagneticEnergyCoefficients,
+    },
+};
 
 use super::{ConstitutiveFields, IsotropicConstitutiveParameters};
 
@@ -32,6 +38,47 @@ impl<V> ElectromagneticIntensities<V> {
             electric: f(self.electric),
             magnetic: f(self.magnetic),
         }
+    }
+
+    pub(crate) fn into_energy(
+        self,
+        coefficients: &ElectromagneticEnergyCoefficients<V>,
+    ) -> ElectromagneticEnergy<V>
+    where
+        V: ScalarAlgebra,
+        V::Scalar: Float,
+    {
+        let (electric_norm, magnetic_norm) = self.into_parts();
+
+        let electric = electric_norm
+            .multiply(coefficients.electric())
+            .scale(quarter());
+
+        let magnetic = magnetic_norm
+            .multiply(coefficients.magnetic())
+            .scale(quarter());
+
+        let total = electric.add(&magnetic);
+
+        ElectromagneticEnergy::new(electric, magnetic, total)
+    }
+
+    pub(crate) fn into_dissipation(
+        self,
+        coefficients: &ElectromagneticDissipationCoefficients<V>,
+    ) -> ElectromagneticDissipation<V>
+    where
+        V: ScalarAlgebra,
+    {
+        let (electric_norm, magnetic_norm) = self.into_parts();
+
+        let electric = electric_norm.multiply(coefficients.electric());
+
+        let magnetic = magnetic_norm.multiply(coefficients.magnetic());
+
+        let total = electric.add(&magnetic);
+
+        ElectromagneticDissipation::new(electric, magnetic, total)
     }
 }
 

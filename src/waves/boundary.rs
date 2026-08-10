@@ -9,7 +9,10 @@ use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
-use crate::{ComplexScalar, IncidentSide, algebra::ScalarAlgebra};
+use crate::{
+    ComplexScalar, IncidentSide,
+    algebra::{ScalarAlgebra, ScaleBy},
+};
 
 #[derive(Clone, Debug)]
 pub struct BoundaryWaveSolution<A> {
@@ -38,6 +41,24 @@ impl<A> BoundaryWaveSolution<A> {
     }
 }
 
+impl<A> ScaleBy<A> for BoundaryWaveSolution<A>
+where
+    ExteriorBoundaryWaves<A>: ScaleBy<A>,
+    LayerBoundaryWaves<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (exterior, layers) = self.into_parts();
+
+        Self::new(
+            exterior.scale_by(scale),
+            layers
+                .into_iter()
+                .map(|each| each.scale_by(scale))
+                .collect(),
+        )
+    }
+}
+
 /// Forward- and backward-propagating wave amplitudes at one longitudinal
 /// position.
 #[derive(Clone, Debug, PartialEq)]
@@ -61,6 +82,17 @@ impl<A> BidirectionalWaves<A> {
 
     pub(crate) fn into_parts(self) -> (A, A) {
         (self.forward, self.backward)
+    }
+}
+
+impl<A> ScaleBy<A> for BidirectionalWaves<A>
+where
+    A: ScalarAlgebra,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (forward, backward) = self.into_parts();
+
+        Self::new(forward.multiply(scale), backward.multiply(scale))
     }
 }
 
@@ -104,6 +136,17 @@ impl<A> LayerBoundaryWaves<A> {
     }
 }
 
+impl<A> ScaleBy<A> for LayerBoundaryWaves<A>
+where
+    BidirectionalWaves<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
+    }
+}
+
 impl<C, D> LayerBoundaryWaves<ArrayBase<OwnedRepr<C>, D>>
 where
     C: ComplexField,
@@ -141,6 +184,17 @@ impl<A> ExteriorBoundaryWaves<A> {
 
     pub(crate) fn into_parts(self) -> (BidirectionalWaves<A>, BidirectionalWaves<A>) {
         (self.left, self.right)
+    }
+}
+
+impl<A> ScaleBy<A> for ExteriorBoundaryWaves<A>
+where
+    BidirectionalWaves<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 

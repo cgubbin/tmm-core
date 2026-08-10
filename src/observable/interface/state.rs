@@ -1,6 +1,9 @@
 //! Canonical states immediately on either side of planar interfaces.
 
-use crate::observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates};
+use crate::{
+    algebra::ScaleBy,
+    observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates},
+};
 
 use super::{InterfaceWaveData, Interfaces};
 
@@ -52,6 +55,17 @@ impl<A> InterfaceStates<A> {
             left: self.left.map(&mut map),
             right: self.right.map(map),
         }
+    }
+}
+
+impl<A> ScaleBy<A> for InterfaceStates<A>
+where
+    BoundaryState<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 

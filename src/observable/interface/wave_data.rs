@@ -4,7 +4,7 @@ use ndarray::Dimension;
 
 use crate::{
     ComplexScalar,
-    algebra::ScalarAlgebra,
+    algebra::{ScalarAlgebra, ScaleBy},
     observable::{BoundaryState, BoundaryWaves},
 };
 
@@ -30,6 +30,17 @@ impl<A> ExteriorBoundaryWaves<A> {
 
     pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, BoundaryWaves<A>) {
         (self.left, self.right)
+    }
+}
+
+impl<A> ScaleBy<A> for ExteriorBoundaryWaves<A>
+where
+    BoundaryWaves<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 
@@ -92,6 +103,17 @@ impl<A> InterfaceSide<A> {
     }
 }
 
+impl<A> ScaleBy<A> for InterfaceSide<A>
+where
+    A: ScalarAlgebra,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (waves, admittance) = self.into_parts();
+
+        Self::new(waves.scale_by(scale), admittance)
+    }
+}
+
 /// Directional waves and characteristic admittances immediately on both
 /// sides of one planar interface.
 ///
@@ -118,6 +140,17 @@ impl<A> InterfaceWaveData<A> {
 
     pub(crate) fn into_parts(self) -> (InterfaceSide<A>, InterfaceSide<A>) {
         (self.left, self.right)
+    }
+}
+
+impl<A> ScaleBy<A> for InterfaceWaveData<A>
+where
+    InterfaceSide<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 

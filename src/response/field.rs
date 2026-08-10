@@ -1,7 +1,6 @@
 use crate::{
-    ConstitutiveFields, DissipationDensity, ElectromagneticFields, EnergyDensity, VectorField,
-    differential::DifferentialResponse, field::ScalarField, input::CoordinatePoint,
-    response::StackRegion,
+    ConstitutiveFields, ElectromagneticFields, VectorField, differential::DifferentialResponse,
+    input::CoordinatePoint, response::StackRegion,
 };
 
 use super::{FieldMetadata, Response};
@@ -56,13 +55,4 @@ pub type ConstitutiveFieldResponse<C, ED, D> = Response<
     ConstitutiveFields<VectorField<C, <ED as Dimension>::Larger>>,
     D,
     FieldMetadata<<C as ComplexField>::RealField, ED>,
->;
-
-pub type EnergyDensityResponse<R, ED, D> =
-    Response<EnergyDensity<ScalarField<R, <ED as Dimension>::Larger>>, D, FieldMetadata<R, ED>>;
-
-pub type DissipationDensityResponse<R, ED, D> = Response<
-    DissipationDensity<ScalarField<R, <ED as Dimension>::Larger>>,
-    D,
-    FieldMetadata<R, ED>,
 >;

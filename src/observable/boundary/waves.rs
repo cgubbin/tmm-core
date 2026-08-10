@@ -14,7 +14,10 @@
 
 use ndarray::Dimension;
 
-use crate::{ComplexScalar, algebra::ScalarAlgebra};
+use crate::{
+    ComplexScalar,
+    algebra::{ScalarAlgebra, ScaleBy},
+};
 
 use super::{BoundaryState, LayerBoundaryStates};
 
@@ -102,6 +105,17 @@ impl<A> BoundaryWaves<A> {
     }
 }
 
+impl<A> ScaleBy<A> for BoundaryWaves<A>
+where
+    A: ScalarAlgebra,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (forward, backward) = self.into_parts();
+
+        Self::new(forward.multiply(scale), backward.multiply(scale))
+    }
+}
+
 impl<A> From<crate::waves::BidirectionalWaves<A>> for BoundaryWaves<A> {
     fn from(value: crate::waves::BidirectionalWaves<A>) -> Self {
         let (forward, backward) = value.into_parts();
@@ -159,6 +173,17 @@ impl<A> LayerBoundaryWaves<A> {
         let (left, right) = self.into_parts();
 
         LayerBoundaryStates::new(left.into_state(admittance), right.into_state(admittance))
+    }
+}
+
+impl<A> ScaleBy<A> for LayerBoundaryWaves<A>
+where
+    BoundaryWaves<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 

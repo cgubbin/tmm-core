@@ -23,9 +23,7 @@
 use nalgebra::ComplexField;
 use ndarray::{Array, Array1, Array2, Dimension, IntoDimension, Ix0, Ix1, Ix2, arr0};
 
-use super::{
-    Coordinates, IncidentSide, PlaneWaveInputError, ReferenceRequirement,
-};
+use super::{Coordinates, IncidentSide, PlaneWaveInputError, ReferenceRequirement};
 
 /// A scalar coordinate input.
 pub type CoordinatePoint<S> = CoordinateInput<S, Ix0>;

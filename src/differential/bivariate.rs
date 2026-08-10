@@ -17,7 +17,6 @@
 
 use crate::parameter::Parameter;
 
-
 /// First and second derivatives with respect to two ordered caller-facing
 /// parameters.
 ///

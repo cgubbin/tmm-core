@@ -3,6 +3,8 @@ use ndarray::{ArrayBase, Dimension, Ix0, OwnedRepr};
 use num_traits::{FromPrimitive, float::FloatCore};
 use std::fmt::Debug;
 
+use crate::differential::{BivariateGradient, BivariateHessian};
+
 use super::{
     ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, FirstOrderExpansion,
     RealParameter, SecondOrderExpansion,
@@ -16,6 +18,8 @@ pub trait Jet {
 
 pub trait ComplexJet: Jet {
     type RealJet;
+
+    fn into_complex(real: Self::RealJet) -> Self;
 }
 
 #[doc(hidden)]
@@ -232,8 +236,15 @@ where
 impl<C, D, P> ComplexJet for ArrayJet0<C, D, P>
 where
     C: ComplexField,
+    D: Dimension,
 {
     type RealJet = ArrayJet0<C::RealField, D, P>;
+
+    fn into_complex(real: Self::RealJet) -> Self {
+        let value = real.into_inner();
+
+        ArrayJet0::new(value.mapv(ComplexField::from_real))
+    }
 }
 
 impl<C, D> RealScalarAlgebra for ArrayJet0<C, D, RealParameter>
@@ -350,8 +361,18 @@ where
 impl<C, D, P> ComplexJet for ArrayJet1<C, D, P>
 where
     C: ComplexField,
+    D: Dimension,
 {
     type RealJet = ArrayJet1<C::RealField, D, P>;
+
+    fn into_complex(real: Self::RealJet) -> Self {
+        let (value, first) = real.into_parts();
+
+        ArrayJet1::from_parts(
+            value.mapv(ComplexField::from_real),
+            first.mapv(ComplexField::from_real),
+        )
+    }
 }
 
 impl<C, D> RealScalarAlgebra for ArrayJet1<C, D, RealParameter>
@@ -495,8 +516,19 @@ where
 impl<C, D, P> ComplexJet for ArrayJet2<C, D, P>
 where
     C: ComplexField,
+    D: Dimension,
 {
     type RealJet = ArrayJet2<C::RealField, D, P>;
+
+    fn into_complex(real: Self::RealJet) -> Self {
+        let (value, first, second) = real.into_parts();
+
+        ArrayJet2::from_parts(
+            value.mapv(ComplexField::from_real),
+            first.mapv(ComplexField::from_real),
+            second.mapv(ComplexField::from_real),
+        )
+    }
 }
 
 impl<C, D> RealScalarAlgebra for ArrayJet2<C, D, RealParameter>
@@ -640,8 +672,23 @@ where
 impl<C, D, P> ComplexJet for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField,
+    D: Dimension,
 {
     type RealJet = ArrayJetBivariate1<C::RealField, D, P>;
+
+    fn into_complex(real: Self::RealJet) -> Self {
+        let (value, gradient) = real.into_parts();
+
+        let (axis0, axis1) = gradient.into_parts();
+
+        ArrayJetBivariate1::from_parts(
+            value.mapv(ComplexField::from_real),
+            BivariateGradient::new(
+                axis0.mapv(ComplexField::from_real),
+                axis1.mapv(ComplexField::from_real),
+            ),
+        )
+    }
 }
 
 impl<C, D> RealScalarAlgebra for ArrayJetBivariate1<C, D, RealParameter>
@@ -788,8 +835,29 @@ where
 impl<C, D, P> ComplexJet for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField,
+    D: Dimension,
 {
     type RealJet = ArrayJetBivariate2<C::RealField, D, P>;
+
+    fn into_complex(real: Self::RealJet) -> Self {
+        let (value, gradient, hessian) = real.into_parts();
+
+        let (axis0, axis1) = gradient.into_parts();
+        let (axis0_axis0, axis0_axis1, axis1_axis1) = hessian.into_parts();
+
+        ArrayJetBivariate2::from_parts(
+            value.mapv(ComplexField::from_real),
+            BivariateGradient::new(
+                axis0.mapv(ComplexField::from_real),
+                axis1.mapv(ComplexField::from_real),
+            ),
+            BivariateHessian::new(
+                axis0_axis0.mapv(ComplexField::from_real),
+                axis0_axis1.mapv(ComplexField::from_real),
+                axis1_axis1.mapv(ComplexField::from_real),
+            ),
+        )
+    }
 }
 
 impl<C, D> RealScalarAlgebra for ArrayJetBivariate2<C, D, RealParameter>

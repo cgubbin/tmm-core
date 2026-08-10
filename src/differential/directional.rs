@@ -20,7 +20,6 @@
 
 use crate::parameter::Parameter;
 
-
 /// A first derivative with respect to one caller-facing parameter.
 ///
 /// `first` is the derivative of the associated response value with respect to
@@ -125,8 +124,6 @@ mod tests {
     use crate::differential::DirectionalSecond;
 
     use super::{DirectionalFirst, Parameter};
-
-    
 
     #[test]
     fn directional_first_preserves_parameter_and_derivative() {

@@ -17,6 +17,8 @@
 //! Construction is restricted to the input-compilation layer, so these types
 //! represent already-established canonical invariants.
 
+use crate::FiniteLayerIndex;
+
 /// One finite layer prepared for backend evaluation.
 ///
 /// The layer thickness is expressed in centimetres and uses the same sampled
@@ -107,6 +109,10 @@ impl<M, J> CanonicalStack<M, J> {
     /// Return the finite layers in geometric left-to-right order.
     pub(crate) fn layers(&self) -> &[CanonicalLayer<M, J>] {
         &self.layers_left_to_right
+    }
+
+    pub(crate) fn layer(&self, index: FiniteLayerIndex) -> Option<&CanonicalLayer<M, J>> {
+        self.layers_left_to_right.get(index.0)
     }
 
     /// Return the number of finite layers.

@@ -71,56 +71,6 @@ fn summed_dissipation(layers: &Layers<LayerDissipation<RealArray>>) -> f64 {
 }
 
 #[test]
-fn left_incident_flux_uses_left_exterior_admittance() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
-
-    let stack = asymmetric_absorbing_single_layer_stack(
-        2.25, // left exterior epsilon
-        1.44, // right exterior epsilon
-    );
-
-    let state = evaluator
-        .retain(
-            scalar_real_input(2.5, 0.31),
-            &stack,
-            Polarisation::TransverseElectric,
-        )
-        .unwrap();
-
-    let incident_flux = state.raw_incident_flux_magnitude_unchecked(IncidentSide::Left);
-
-    let expected = state.solution().context().left_admittance().real();
-
-    assert_eq!(incident_flux, expected);
-
-    assert!(
-        (scalar(incident_flux.value()) - 1.0).abs() > 1.0e-3,
-        "fixture must distinguish admittance normalization from unity",
-    );
-}
-
-#[test]
-fn right_incident_flux_uses_right_exterior_admittance() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
-
-    let stack = asymmetric_absorbing_single_layer_stack(2.25, 1.44);
-
-    let state = evaluator
-        .retain(
-            scalar_real_input(2.5, 0.31),
-            &stack,
-            Polarisation::TransverseMagnetic,
-        )
-        .unwrap();
-
-    let incident_flux = state.raw_incident_flux_magnitude_unchecked(IncidentSide::Right);
-
-    let expected = state.solution().context().right_admittance().real();
-
-    assert_eq!(incident_flux, expected);
-}
-
-#[test]
 fn layer_dissipation_returns_one_record_per_finite_layer() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 

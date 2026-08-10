@@ -40,13 +40,13 @@ where
 {
     debug_assert_eq!(
         reference_quantities.polarisation(),
-        comparison_quantities.polarisation()
+        comparison_quantities.polarisation(),
     );
 
     /*
      * Cross-transverse coefficient:
      *
-     * 1 / (k0_reference  k0_comparison)
+     *     1 / (k0_reference k0_comparison)
      */
     let transverse = reference_vacuum_angular_wavenumber
         .multiply(comparison_vacuum_angular_wavenumber)
@@ -55,8 +55,8 @@ where
     /*
      * Cross-longitudinal coefficient:
      *
-     * [beta_reference / (k0_reference factor_reference)]
-     * [beta_comparison / (k0_comparison factor_comparison)]
+     *     [beta_reference / (k0_reference factor_reference)]
+     *     [beta_comparison / (k0_comparison factor_comparison)]
      */
     let reference_longitudinal = reference_parallel_angular_wavenumber
         .divide(&reference_vacuum_angular_wavenumber.multiply(reference_quantities.factor()));
@@ -64,23 +64,52 @@ where
     let comparison_longitudinal = comparison_parallel_angular_wavenumber
         .divide(&comparison_vacuum_angular_wavenumber.multiply(comparison_quantities.factor()));
 
-    // The bilinear product is a pure multiplication.
     let longitudinal = reference_longitudinal.multiply(&comparison_longitudinal);
 
     let field = state.field_field();
-
     let secondary = state.secondary_secondary();
 
+    /*
+     * The transverse reconstructed Cartesian component contains ±i:
+     *
+     *     TE: Hx =  i secondary / k0
+     *     TM: Ex = -i secondary / k0
+     *
+     * In either case the bilinear cross product contributes
+     *
+     *     i*i     = -1
+     *     (-i)(-i) = -1.
+     *
+     * The longitudinal component contains no factor of i, so it retains
+     * the positive sign.
+     */
     let reconstructed_overlap = secondary
         .multiply(&transverse)
+        .negate()
         .add(&field.multiply(&longitudinal));
 
     match reference_quantities.polarisation() {
         Polarisation::TransverseElectric => {
+            /*
+             * Ey Ey is represented directly by field_field.
+             *
+             * H · H =
+             *     Hx Hx + Hz Hz
+             *   = - secondary_secondary / (k0_r k0_c)
+             *     + longitudinal * field_field.
+             */
             IntegratedBilinearFieldOverlap::new(field.clone(), reconstructed_overlap)
         }
 
         Polarisation::TransverseMagnetic => {
+            /*
+             * Hy Hy is represented directly by field_field.
+             *
+             * E · E =
+             *     Ex Ex + Ez Ez
+             *   = - secondary_secondary / (k0_r k0_c)
+             *     + longitudinal * field_field.
+             */
             IntegratedBilinearFieldOverlap::new(reconstructed_overlap, field.clone())
         }
     }

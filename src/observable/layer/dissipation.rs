@@ -1,6 +1,6 @@
 //! Analytically integrated dissipation in homogeneous finite layers.
 
-use num_traits::One;
+use num_traits::{FromPrimitive, One};
 
 use crate::{
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
@@ -75,12 +75,11 @@ impl<A> IntegratedLayerData<A> {
         self,
         vacuum_angular_wavenumber: &A,
         parallel_angular_wavenumber: &A,
-        incident_flux_magnitude: &A::RealJet,
     ) -> LayerDissipation<A::RealJet>
     where
         A: RealScalarAlgebra,
         A::RealJet: ScalarAlgebra,
-        <A::RealJet as Jet>::Scalar: One,
+        <A::RealJet as Jet>::Scalar: FromPrimitive + One,
     {
         let (state, quantities) = self.into_parts();
 
@@ -91,11 +90,8 @@ impl<A> IntegratedLayerData<A> {
             parallel_angular_wavenumber,
         );
 
-        let (electric_coeff, magnetic_coeff) = dissipation_coefficients(
-            vacuum_angular_wavenumber,
-            &quantities,
-            incident_flux_magnitude,
-        );
+        let (electric_coeff, magnetic_coeff) =
+            isotropic_dissipation_coefficients(vacuum_angular_wavenumber, &quantities);
 
         let (electric_norm, magnetic_norm) = field_norms.into_parts();
 
@@ -117,59 +113,34 @@ impl<A> Layers<IntegratedLayerData<A>> {
         self,
         vacuum_angular_wavenumber: &A,
         parallel_angular_wavenumber: &A,
-        incident_flux_magnitude: &A::RealJet,
     ) -> Layers<LayerDissipation<A::RealJet>>
     where
         A: RealScalarAlgebra,
         A::RealJet: ScalarAlgebra,
-        <A::RealJet as Jet>::Scalar: One,
+        <A::RealJet as Jet>::Scalar: FromPrimitive + One,
     {
         self.map(|each| {
-            each.into_dissipation(
-                vacuum_angular_wavenumber,
-                parallel_angular_wavenumber,
-                incident_flux_magnitude,
-            )
+            each.into_dissipation(vacuum_angular_wavenumber, parallel_angular_wavenumber)
         })
     }
 }
 
-/// Construct canonical normalized dissipation coefficients.
-///
-/// With:
-///
-/// ```text
-/// flux = Im(field* secondary),
-/// ```
-///
-/// the normalized integrated loss coefficients are:
-///
-/// ```text
-/// electric = |k0|² Im(epsilon) / incident_flux
-/// magnetic = |k0|² Im(mu)      / incident_flux.
-/// ```
-///
-/// The sign of `Im(epsilon)` and `Im(mu)` follows the crate's harmonic-time
-/// convention. Under the supported convention, passive constitutive loss
-/// gives positive coefficients.
-fn dissipation_coefficients<A>(
+pub(crate) fn isotropic_dissipation_coefficients<A>(
     vacuum_angular_wavenumber: &A,
     quantities: &IsotropicLayerQuantities<A>,
-    incident_flux_magnitude: &A::RealJet,
 ) -> (A::RealJet, A::RealJet)
 where
     A: RealScalarAlgebra,
     A::RealJet: ScalarAlgebra,
+    <A::RealJet as Jet>::Scalar: FromPrimitive,
 {
-    let vacuum_squared = vacuum_angular_wavenumber.magnitude_squared();
+    let half = <A::RealJet as Jet>::Scalar::from_f64(0.5).expect("one half must be representable");
 
-    let electric = vacuum_squared
-        .multiply(&quantities.epsilon().imaginary())
-        .divide(incident_flux_magnitude);
+    let common = vacuum_angular_wavenumber.real().scale(half);
 
-    let magnetic = vacuum_squared
-        .multiply(&quantities.mu().imaginary())
-        .divide(incident_flux_magnitude);
+    let electric = common.multiply(&quantities.epsilon().imaginary());
+
+    let magnetic = common.multiply(&quantities.mu().imaginary());
 
     (electric, magnetic)
 }
@@ -219,10 +190,6 @@ mod tests {
 
     fn jet1(value: C, first: C) -> A1 {
         A1::from_parts(arr0(value), arr0(first))
-    }
-
-    fn real_jet1(value: f64, first: f64) -> R1 {
-        R1::from_parts(arr0(value), arr0(first))
     }
 
     fn scalar1_value(value: &R1) -> f64 {
@@ -294,16 +261,19 @@ mod tests {
         let quantities = quantities(Polarisation::TransverseElectric, c(2.0, 0.4), c(3.0, 0.0));
 
         let (electric, magnetic) =
-            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(5.0));
+            isotropic_dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities);
 
         /*
-         * |k0|² Im(epsilon) / Finc
-         * = 4 * 0.4 / 5
-         * = 0.32
+         * electric =
+         *
+         *     k0 / 2 * Im(epsilon)
+         *
+         * = 2 / 2 * 0.4
+         * = 0.4
          */
         assert_relative_eq!(
             scalar(&electric),
-            0.32,
+            0.4,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -321,7 +291,7 @@ mod tests {
         let quantities = quantities(Polarisation::TransverseMagnetic, c(2.0, 0.0), c(3.0, 0.7));
 
         let (electric, magnetic) =
-            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(5.0));
+            isotropic_dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities);
 
         assert_relative_eq!(
             scalar(&electric),
@@ -331,11 +301,15 @@ mod tests {
         );
 
         /*
-         * 4 * 0.7 / 5 = 0.56
+         * magnetic =
+         *
+         *     2 / 2 * 0.7
+         *
+         * = 0.7
          */
         assert_relative_eq!(
             scalar(&magnetic),
-            0.56,
+            0.7,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -346,7 +320,7 @@ mod tests {
         let quantities = quantities(Polarisation::TransverseElectric, c(2.0, -0.4), c(3.0, 0.0));
 
         let (electric, magnetic) =
-            dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(4.0));
+            isotropic_dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities);
 
         assert_relative_eq!(
             scalar(&electric),
@@ -364,23 +338,23 @@ mod tests {
     }
 
     #[test]
-    fn incident_flux_normalizes_both_coefficients() {
+    fn dissipation_coefficients_scale_linearly_with_k0() {
         let quantities = quantities(Polarisation::TransverseElectric, c(2.0, 0.5), c(3.0, 0.25));
 
-        let first = dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(2.0));
+        let first = isotropic_dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities);
 
-        let second = dissipation_coefficients(&jet(c(2.0, 0.0)), &quantities, &real_jet(4.0));
+        let second = isotropic_dissipation_coefficients(&jet(c(4.0, 0.0)), &quantities);
 
         assert_relative_eq!(
             scalar(&second.0),
-            scalar(&first.0) / 2.0,
+            2.0 * scalar(&first.0),
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
             scalar(&second.1),
-            scalar(&first.1) / 2.0,
+            2.0 * scalar(&first.1),
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -396,8 +370,7 @@ mod tests {
             7.0,
         );
 
-        let dissipation =
-            layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+        let dissipation = layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert_relative_eq!(
             scalar(dissipation.total()),
@@ -417,8 +390,7 @@ mod tests {
             7.0,
         );
 
-        let dissipation =
-            layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+        let dissipation = layer.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert_relative_eq!(
             scalar(dissipation.electric()),
@@ -461,12 +433,12 @@ mod tests {
             ),
         ]);
 
-        let projected =
-            layers.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(5.0));
+        let projected = layers.into_dissipation(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert_eq!(projected.len(), 2);
 
         let first = projected.first().unwrap();
+
         let second = projected.last().unwrap();
 
         assert!(
@@ -486,29 +458,45 @@ mod tests {
 
         let vacuum = jet1(c(2.0, 0.0), c(0.5, 0.0));
 
-        let incident_flux = real_jet1(5.0, 0.7);
-
-        let (electric, magnetic) = dissipation_coefficients(&vacuum, &quantities, &incident_flux);
+        let (electric, magnetic) = isotropic_dissipation_coefficients(&vacuum, &quantities);
 
         /*
-         * electric = k0² eps_i / F
+         * C_e =
+         *
+         *     k0 eps_i / 2
          *
          * value:
-         *   4 * 0.4 / 5 = 0.32
+         *
+         *     2 * 0.4 / 2 = 0.4
          *
          * derivative:
-         *   [(2 k0 k0' eps_i + k0² eps_i') F
-         *      - k0² eps_i F'] / F²
+         *
+         *     (k0' eps_i + k0 eps_i') / 2
+         *
+         *     = (0.5*0.4 + 2*0.3) / 2
+         *     = 0.4
          */
-        let expected_electric_first =
-            ((2.0 * 2.0 * 0.5 * 0.4 + 4.0 * 0.3) * 5.0 - 4.0 * 0.4 * 0.7) / 25.0;
+        let expected_electric_first = (0.5 * 0.4 + 2.0 * 0.3) / 2.0;
 
-        let expected_magnetic_first =
-            ((2.0 * 2.0 * 0.5 * 0.2 + 4.0 * 0.5) * 5.0 - 4.0 * 0.2 * 0.7) / 25.0;
+        /*
+         * C_m =
+         *
+         *     k0 mu_i / 2
+         *
+         * value:
+         *
+         *     2 * 0.2 / 2 = 0.2
+         *
+         * derivative:
+         *
+         *     (0.5*0.2 + 2*0.5) / 2
+         *     = 0.55
+         */
+        let expected_magnetic_first = (0.5 * 0.2 + 2.0 * 0.5) / 2.0;
 
         assert_relative_eq!(
             scalar1_value(&electric),
-            0.32,
+            0.4,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -522,7 +510,7 @@ mod tests {
 
         assert_relative_eq!(
             scalar1_value(&magnetic),
-            0.16,
+            0.2,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );

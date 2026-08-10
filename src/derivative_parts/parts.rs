@@ -11,7 +11,6 @@
 //! Parts are assembled into public differential responses in a later stage,
 //! where the derivative axes are associated with their physical parameters.
 
-
 /// A value with all derivative storage removed.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]

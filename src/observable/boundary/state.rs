@@ -8,7 +8,7 @@
 //! real-frequency power, dissipation, and energy are applied only in later
 //! observable projections.
 
-use crate::algebra::ScalarAlgebra;
+use crate::algebra::{ScalarAlgebra, ScaleBy};
 
 /// Canonical isotropic state at one planar boundary.
 ///
@@ -79,6 +79,17 @@ impl<A> BoundaryState<A> {
     }
 }
 
+impl<A> ScaleBy<A> for BoundaryState<A>
+where
+    A: ScalarAlgebra,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (field, secondary) = self.into_parts();
+
+        Self::new(field.multiply(scale), secondary.multiply(scale))
+    }
+}
+
 /// Canonical isotropic states at both boundaries of one finite layer.
 ///
 /// Both states are reconstructed from directional waves expressed in the same
@@ -115,6 +126,17 @@ impl<A> LayerBoundaryStates<A> {
             left: self.left.map(&mut map),
             right: self.right.map(map),
         }
+    }
+}
+
+impl<A> ScaleBy<A> for LayerBoundaryStates<A>
+where
+    BoundaryState<A>: ScaleBy<A>,
+{
+    fn scale_by(self, scale: &A) -> Self {
+        let (left, right) = self.into_parts();
+
+        Self::new(left.scale_by(scale), right.scale_by(scale))
     }
 }
 

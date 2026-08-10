@@ -293,23 +293,7 @@ impl<A> Layers<IntegratedBilinearLayerData<A>> {
     }
 }
 
-/// Common normalization for energy per unit incident power flux.
-///
-/// With canonical flux:
-///
-/// ```text
-/// F = Im(field* secondary),
-/// ```
-///
-/// the time-averaged energy normalization is:
-///
-/// ```text
-/// k0 / (2 F_incident).
-/// ```
-pub(crate) fn canonical_energy_normalization<A>(
-    vacuum_angular_wavenumber: &A,
-    incident_flux_magnitude: &A::RealJet,
-) -> A::RealJet
+pub(crate) fn energy_density_prefactor<A>(vacuum_angular_wavenumber: &A) -> A::RealJet
 where
     A: RealScalarAlgebra,
     A::RealJet: ScalarAlgebra,
@@ -317,12 +301,10 @@ where
 {
     let vacuum = vacuum_angular_wavenumber.real();
 
-    let half_scalar =
-        <A::RealJet as Jet>::Scalar::from_f64(0.5).expect("one half must be representable");
+    let quarter =
+        <A::RealJet as Jet>::Scalar::from_f64(0.25).expect("one quarter must be representable");
 
-    let half = A::RealJet::filled_constant_like(vacuum.value(), half_scalar);
-
-    vacuum.multiply(&half).divide(incident_flux_magnitude)
+    A::RealJet::filled_constant_like(vacuum.value(), quarter)
 }
 
 impl<A> IntegratedLayerData<A> {
@@ -365,15 +347,13 @@ impl<A> Layers<IntegratedLayerData<A>> {
         self,
         vacuum_angular_wavenumber: &A,
         parallel_angular_wavenumber: &A,
-        incident_flux_magnitude: &A::RealJet,
     ) -> Layers<LayerEnergy<A::RealJet>>
     where
         A: RealScalarAlgebra,
         A::RealJet: ScalarAlgebra,
         <A::RealJet as Jet>::Scalar: FromPrimitive + One,
     {
-        let normalization =
-            canonical_energy_normalization(vacuum_angular_wavenumber, incident_flux_magnitude);
+        let normalization = energy_density_prefactor(vacuum_angular_wavenumber);
 
         self.map(|layer| {
             layer.into_nondispersive_energy(
@@ -538,15 +518,13 @@ impl<A> Layers<BrillouinLayerInput<A>> {
         self,
         vacuum_angular_wavenumber: &A,
         parallel_angular_wavenumber: &A,
-        incident_flux_magnitude: &A::RealJet,
     ) -> Layers<LayerEnergy<A::RealJet>>
     where
         A: RealScalarAlgebra,
         A::RealJet: ScalarAlgebra,
         <A::RealJet as Jet>::Scalar: FromPrimitive + One,
     {
-        let normalization =
-            canonical_energy_normalization(vacuum_angular_wavenumber, incident_flux_magnitude);
+        let normalization = energy_density_prefactor(vacuum_angular_wavenumber);
 
         self.map(|each| {
             each.into_brillouin_energy(
@@ -594,11 +572,9 @@ mod tests {
     type C = Complex64;
 
     type A0 = ArrayJet0<C, Ix0, RealParameter>;
-
     type R0 = <A0 as ComplexJet>::RealJet;
 
     type A1 = ArrayJet1<C, Ix0, RealParameter>;
-
     type R1 = <A1 as ComplexJet>::RealJet;
 
     const TOLERANCE: f64 = 1.0e-12;
@@ -652,11 +628,6 @@ mod tests {
     }
 
     fn quantities(polarisation: Polarisation, epsilon: C, mu: C) -> IsotropicLayerQuantities<A0> {
-        /*
-         * Constructor order:
-         *
-         * kappa, epsilon, mu, polarisation
-         */
         IsotropicLayerQuantities::test_fixture(
             jet(c(3.0, 0.0)),
             jet(epsilon),
@@ -734,45 +705,33 @@ mod tests {
     }
 
     #[test]
-    fn canonical_normalization_is_k0_over_twice_incident_flux() {
-        let normalization = canonical_energy_normalization(&jet(c(4.0, 0.0)), &real_jet(5.0));
+    fn energy_density_prefactor_is_one_quarter() {
+        let prefactor = energy_density_prefactor(&jet(c(4.0, 0.0)));
 
         assert_relative_eq!(
-            scalar(&normalization),
-            0.4,
+            scalar(&prefactor),
+            0.25,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
     }
 
     #[test]
-    fn canonical_normalization_propagates_first_derivatives() {
-        /*
-         * N = k0 / (2F)
-         *
-         * k0 = 4 + 3p
-         * F  = 5 + 7p
-         *
-         * N' = k0'/(2F) - k0 F'/(2F²)
-         *    = 3/10 - 28/50
-         *    = -0.26
-         */
+    fn energy_density_prefactor_has_zero_outer_derivative() {
         let vacuum = jet1(c(4.0, 0.0), c(3.0, 0.0));
 
-        let incident_flux = real_jet1(5.0, 7.0);
-
-        let normalization = canonical_energy_normalization(&vacuum, &incident_flux);
+        let prefactor = energy_density_prefactor(&vacuum);
 
         assert_relative_eq!(
-            scalar1_value(&normalization),
-            0.4,
+            scalar1_value(&prefactor),
+            0.25,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
-            scalar1_first(&normalization),
-            -0.26,
+            scalar1_first(&prefactor),
+            0.0,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -826,16 +785,18 @@ mod tests {
             7.0,
         );
 
+        let prefactor = real_jet(0.25);
+
         let energy =
-            layer.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+            layer.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &prefactor);
 
         let electric_norm = 5.0;
 
         let magnetic_norm = 7.0 / 4.0 + 5.0 * (0.6 * 0.6 / (4.0 * (3.0 * 3.0 + 200.0 * 200.0)));
 
-        let expected_electric = electric_norm * 2.0;
+        let expected_electric = 0.25 * electric_norm * 2.0;
 
-        let expected_magnetic = magnetic_norm * 3.0;
+        let expected_magnetic = 0.25 * magnetic_norm * 3.0;
 
         assert_relative_eq!(
             scalar(energy.electric()),
@@ -861,6 +822,8 @@ mod tests {
 
     #[test]
     fn nondispersive_energy_coefficients_use_only_real_constitutive_parts() {
+        let prefactor = real_jet(0.25);
+
         let first = integrated_layer(
             Polarisation::TransverseElectric,
             c(2.0, 100.0),
@@ -868,7 +831,7 @@ mod tests {
             5.0,
             7.0,
         )
-        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.0, 0.0)), &real_jet(1.0));
+        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.0, 0.0)), &prefactor);
 
         let second = integrated_layer(
             Polarisation::TransverseElectric,
@@ -877,7 +840,7 @@ mod tests {
             5.0,
             7.0,
         )
-        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.0, 0.0)), &real_jet(1.0));
+        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.0, 0.0)), &prefactor);
 
         assert_eq!(first, second);
     }
@@ -901,18 +864,13 @@ mod tests {
             ),
         ]);
 
-        /*
-         * k0 = 2, incident flux = 1:
-         *
-         * normalization = 2 / 2 = 1.
-         */
-        let energy =
-            layers.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        let energy = layers.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert_eq!(energy.len(), 2);
 
         assert!(
-            scalar(energy.first().unwrap().electric()) < scalar(energy.last().unwrap().electric()),
+            scalar(energy.first().unwrap().electric(),)
+                < scalar(energy.last().unwrap().electric(),),
             "larger epsilon must remain associated with the second layer",
         );
     }
@@ -921,8 +879,7 @@ mod tests {
     fn empty_nondispersive_sequence_remains_empty() {
         let layers: Layers<IntegratedLayerData<A0>> = Layers::new(Vec::new());
 
-        let energy =
-            layers.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        let energy = layers.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert!(energy.is_empty());
     }
@@ -973,30 +930,34 @@ mod tests {
 
         let derivatives = derivatives(c(5.0, 101.0), c(7.0, -201.0));
 
+        let prefactor = real_jet(0.25);
+
         let (electric, magnetic) = brillouin_energy_coefficients(
             &jet(c(11.0, 0.0)),
             &quantities,
             &derivatives,
-            &real_jet(13.0),
+            &prefactor,
         );
 
         /*
          * electric:
-         *   Re[2 + 11*5] * 13 = 741
+         *   1/4 Re[2 + 11*5]
+         * = 57 / 4
          *
          * magnetic:
-         *   Re[3 + 11*7] * 13 = 1040
+         *   1/4 Re[3 + 11*7]
+         * = 80 / 4
          */
         assert_relative_eq!(
             scalar(&electric),
-            741.0,
+            57.0 / 4.0,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
             scalar(&magnetic),
-            1040.0,
+            20.0,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -1008,23 +969,25 @@ mod tests {
 
         let derivatives = derivatives(c(11.0, 13.0), c(17.0, 19.0));
 
+        let prefactor = real_jet(0.25);
+
         let (electric, magnetic) = brillouin_energy_coefficients(
             &jet(c(23.0, 0.0)),
             &quantities,
             &derivatives,
-            &real_jet(1.0),
+            &prefactor,
         );
 
         assert_relative_eq!(
             scalar(&electric),
-            2.0 + 23.0 * 11.0,
+            0.25 * (2.0 + 23.0 * 11.0),
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
             scalar(&magnetic),
-            5.0 + 23.0 * 17.0,
+            0.25 * (5.0 + 23.0 * 17.0),
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -1040,23 +1003,25 @@ mod tests {
 
         let derivatives = derivatives(c(0.0, 0.0), c(0.0, 0.0));
 
+        let prefactor = real_jet(0.25);
+
         let (electric, magnetic) = brillouin_energy_coefficients(
             &jet(c(11.0, 0.0)),
             &quantities,
             &derivatives,
-            &real_jet(5.0),
+            &prefactor,
         );
 
         assert_relative_eq!(
             scalar(&electric),
-            10.0,
+            0.5,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
             scalar(&magnetic),
-            15.0,
+            0.75,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
@@ -1074,8 +1039,9 @@ mod tests {
             7.0,
         );
 
-        let energy =
-            input.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        let prefactor = real_jet(0.25);
+
+        let energy = input.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &prefactor);
 
         assert_relative_eq!(
             scalar(energy.total()),
@@ -1087,6 +1053,8 @@ mod tests {
 
     #[test]
     fn zero_intrinsic_derivatives_match_nondispersive_energy() {
+        let prefactor = real_jet(0.25);
+
         let nondispersive = integrated_layer(
             Polarisation::TransverseMagnetic,
             c(2.0, 0.0),
@@ -1094,7 +1062,7 @@ mod tests {
             5.0,
             7.0,
         )
-        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        .into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &prefactor);
 
         let brillouin = brillouin_layer(
             Polarisation::TransverseMagnetic,
@@ -1105,9 +1073,9 @@ mod tests {
             5.0,
             7.0,
         )
-        .into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        .into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &prefactor);
 
-        assert_eq!(brillouin, nondispersive);
+        assert_eq!(brillouin, nondispersive,);
     }
 
     #[test]
@@ -1133,18 +1101,13 @@ mod tests {
             ),
         ]);
 
-        /*
-         * k0 = 2, incident flux = 1:
-         *
-         * normalization = 1.
-         */
-        let energy =
-            layers.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        let energy = layers.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert_eq!(energy.len(), 2);
 
         assert!(
-            scalar(energy.first().unwrap().electric()) < scalar(energy.last().unwrap().electric()),
+            scalar(energy.first().unwrap().electric(),)
+                < scalar(energy.last().unwrap().electric(),),
             "larger epsilon derivative must remain in the second layer",
         );
     }
@@ -1153,8 +1116,7 @@ mod tests {
     fn empty_brillouin_sequence_remains_empty() {
         let layers: Layers<BrillouinLayerInput<A0>> = Layers::new(Vec::new());
 
-        let energy =
-            layers.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)), &real_jet(1.0));
+        let energy = layers.into_brillouin_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
         assert!(energy.is_empty());
     }
@@ -1165,18 +1127,17 @@ mod tests {
          * k0 = 2 + 0.5p
          *
          * epsilon = 3 + 0.7p
-         * epsilon' = 5 + 1.1p
+         * epsilon_k = 5 + 1.1p
          *
-         * W = epsilon + k0 epsilon'
+         * W = epsilon + k0 epsilon_k
          *
-         * W(0)  = 3 + 2*5 = 13
-         * W'(0) = 0.7 + 0.5*5 + 2*1.1 = 5.4
+         * W(0)  = 13
+         * W'(0) = 5.4
          *
-         * The supplied normalization is constant and equal to 2.
+         * coefficient = W / 4
          *
-         * coefficient:
-         *   value = 26
-         *   first = 10.8
+         * value = 3.25
+         * first = 1.35
          */
         let quantities = IsotropicLayerQuantities::test_fixture(
             constant_jet1(c(3.0, 0.0)),
@@ -1190,23 +1151,25 @@ mod tests {
             constant_jet1(c(0.0, 0.0)),
         );
 
+        let prefactor = real_jet1(0.25, 0.0);
+
         let (electric, _magnetic) = brillouin_energy_coefficients(
             &jet1(c(2.0, 0.0), c(0.5, 0.0)),
             &quantities,
             &derivatives,
-            &real_jet1(2.0, 0.0),
+            &prefactor,
         );
 
         assert_relative_eq!(
             scalar1_value(&electric),
-            26.0,
+            3.25,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );
 
         assert_relative_eq!(
             scalar1_first(&electric),
-            10.8,
+            1.35,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,
         );

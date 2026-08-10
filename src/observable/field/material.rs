@@ -3,11 +3,17 @@ use std::marker::PhantomData;
 use ndarray::Dimension;
 
 use crate::{
-    algebra::JetStack,
+    ComplexScalar,
+    algebra::{Jet, JetStack},
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
     },
-    observable::{FieldReconstructionError, IsotropicConstitutiveParameters},
+    input::CanonicalStack,
+    material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
+    observable::{
+        FieldReconstructionError, IsotropicConstitutiveParameters,
+        IsotropicConstitutiveSpectralData, field::constitutive::IsotropicConstitutiveSpectralFirst,
+    },
     spatial::{FieldPosition, FieldSamplingError, ResolvedFieldSampling},
 };
 
@@ -110,6 +116,107 @@ where
         }
 
         sampled.stack()
+    }
+
+    pub(crate) fn sample_spectral_first<R, M, E>(
+        &self,
+        sampling: &ResolvedFieldSampling<R>,
+        stack: &CanonicalStack<M, A>,
+    ) -> Result<IsotropicConstitutiveSpectralData<A::Stacked>, ConstitutiveSamplingError>
+    where
+        M: 'a,
+        A: Jet + ConstitutiveSpectralFirstLift<E, M> + Clone,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        E: ConstitutiveDerivativeEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        let solution = self.workspace.solution();
+        let exterior = solution.context();
+
+        let mut sampled = ConstitutiveSequences::with_capacity(sampling.len());
+        let mut sampled_derivatives = ConstitutiveSequences::with_capacity(sampling.len());
+
+        for position in sampling.positions() {
+            match position {
+                FieldPosition::LeftExterior { .. } => {
+                    sampled.push(exterior.left_epsilon(), exterior.left_mu());
+
+                    let epsilon_spectral_first = A::relative_permittivity_spectral_first(
+                        stack.left_exterior(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    let mu_spectral_first = A::relative_permeability_spectral_first(
+                        stack.left_exterior(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    sampled_derivatives.push(&epsilon_spectral_first, &mu_spectral_first);
+                }
+
+                FieldPosition::Layer { index, .. } => {
+                    let quantities = self
+                        .workspace
+                        .layer_quantities(index.0)
+                        .ok_or(ConstitutiveSamplingError::MissingLayerData { index: index.0 })?;
+
+                    sampled.push(quantities.epsilon(), quantities.mu());
+
+                    let layer = stack
+                        .layer(*index)
+                        .ok_or(ConstitutiveSamplingError::MissingLayerData { index: index.0 })?;
+
+                    let epsilon_spectral_first = A::relative_permittivity_spectral_first(
+                        layer.material(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    let mu_spectral_first = A::relative_permeability_spectral_first(
+                        layer.material(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    sampled_derivatives.push(&epsilon_spectral_first, &mu_spectral_first);
+                }
+
+                FieldPosition::RightExterior { .. } => {
+                    sampled.push(exterior.right_epsilon(), exterior.right_mu());
+
+                    let epsilon_spectral_first = A::relative_permittivity_spectral_first(
+                        stack.right_exterior(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    let mu_spectral_first = A::relative_permeability_spectral_first(
+                        stack.right_exterior(),
+                        exterior.vacuum_angular_wavenumber(),
+                    );
+
+                    sampled_derivatives.push(&epsilon_spectral_first, &mu_spectral_first);
+                }
+            }
+        }
+
+        let parameters = sampled.stack()?;
+
+        let spectral_first = sampled_derivatives.stack()?;
+
+        let (epsilon_spectral_first, mu_spectral_first) = spectral_first.into_parts();
+
+        let spectral_first =
+            IsotropicConstitutiveSpectralFirst::new(epsilon_spectral_first, mu_spectral_first);
+
+        let k0 = A::stack(
+            std::iter::repeat_n(exterior.vacuum_angular_wavenumber().clone(), sampling.len())
+                .collect(),
+        )?
+        .ok_or(ConstitutiveSamplingError::EmptySampling)?;
+
+        Ok(IsotropicConstitutiveSpectralData::new(
+            parameters,
+            spectral_first,
+            k0,
+        ))
     }
 }
 
@@ -595,6 +702,529 @@ mod tests {
 
         for (&actual, &expected) in scatter.mu().first().iter().zip(transfer.mu().first()) {
             assert_complex_close(actual, expected, FIRST_DERIVATIVE_TOLERANCE);
+        }
+    }
+}
+
+#[cfg(test)]
+mod spectral_first_tests {
+    use num_complex::Complex64;
+
+    use crate::{
+        FiniteLayerIndex, Parameter, PlaneWaveEvaluator, Polarisation, RealAxis,
+        algebra::Jet,
+        backend::{
+            PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers, scatter2::Scatter2,
+            transfer2::Transfer2,
+        },
+        material::ConstitutiveSpectralFirstLift,
+        spatial::{FieldPosition, Length, ResolvedFieldSampling, ResolvedLayerPosition},
+        test_support::{
+            assertions::assert_complex_close,
+            finite_difference::{
+                FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
+            },
+            jet::{J0, J1, J2},
+            planar::{scalar_real_input, two_layer_stack},
+        },
+    };
+
+    use super::ConstitutiveSamplingContext;
+
+    type C = Complex64;
+
+    fn mixed_sampling() -> ResolvedFieldSampling<f64> {
+        ResolvedFieldSampling::new(vec![
+            FieldPosition::RightExterior {
+                distance: Length::zero(),
+            },
+            FieldPosition::Layer {
+                index: FiniteLayerIndex(0),
+                position: ResolvedLayerPosition::Fraction(0.25),
+            },
+            FieldPosition::LeftExterior {
+                distance: Length::zero(),
+            },
+            FieldPosition::Layer {
+                index: FiniteLayerIndex(1),
+                position: ResolvedLayerPosition::Fraction(0.75),
+            },
+            FieldPosition::Layer {
+                index: FiniteLayerIndex(0),
+                position: ResolvedLayerPosition::Fraction(0.75),
+            },
+        ])
+    }
+
+    macro_rules! for_each_backend {
+        ($evaluator:ident, $body:block) => {{
+            {
+                let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+                $body
+            }
+
+            {
+                let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+                $body
+            }
+        }};
+    }
+
+    fn assert_complex_slice_close(
+        actual: impl IntoIterator<Item = C>,
+        expected: impl IntoIterator<Item = C>,
+        tolerance: f64,
+    ) {
+        let actual = actual.into_iter().collect::<Vec<_>>();
+        let expected = expected.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(actual.len(), expected.len());
+
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert_complex_close(actual, expected, tolerance);
+        }
+    }
+
+    #[test]
+    fn spectral_first_sampling_preserves_region_order_and_duplicates() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        for_each_backend!(evaluator, {
+            let state = evaluator
+                .retain(
+                    scalar_real_input(2.5, 0.31),
+                    &stack,
+                    Polarisation::TransverseElectric,
+                )
+                .unwrap();
+
+            let point = state.project_point(&()).unwrap();
+
+            let workspace = point.workspace();
+            let canonical_stack = point.problem().stack();
+
+            let k0 = point.problem().coordinates().vacuum_angular_wavenumber();
+
+            let sampled = ConstitutiveSamplingContext::new(workspace)
+                .sample_spectral_first::<_, _, RealAxis>(&sampling, canonical_stack)
+                .unwrap();
+
+            let layer_0 = canonical_stack.layer(FiniteLayerIndex(0)).unwrap();
+
+            let layer_1 = canonical_stack.layer(FiniteLayerIndex(1)).unwrap();
+
+            /*
+             * Requested order:
+             *
+             * right exterior
+             * layer 0
+             * left exterior
+             * layer 1
+             * layer 0
+             */
+            let expected_epsilon_first = [
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permittivity_spectral_first(
+                    canonical_stack.right_exterior(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permittivity_spectral_first(
+                    layer_0.material(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permittivity_spectral_first(
+                    canonical_stack.left_exterior(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permittivity_spectral_first(
+                    layer_1.material(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permittivity_spectral_first(
+                    layer_0.material(),
+                    k0,
+                ),
+            ];
+
+            let expected_mu_first = [
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permeability_spectral_first(
+                    canonical_stack.right_exterior(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permeability_spectral_first(
+                    layer_0.material(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permeability_spectral_first(
+                    canonical_stack.left_exterior(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permeability_spectral_first(
+                    layer_1.material(),
+                    k0,
+                ),
+                <_ as ConstitutiveSpectralFirstLift<
+                    RealAxis,
+                    _,
+                >>::relative_permeability_spectral_first(
+                    layer_0.material(),
+                    k0,
+                ),
+            ];
+
+            assert_eq!(
+                sampled.epsilon_spectral_first().value().shape(),
+                &[sampling.len()],
+            );
+
+            assert_eq!(
+                sampled.mu_spectral_first().value().shape(),
+                &[sampling.len()],
+            );
+
+            assert_complex_slice_close(
+                sampled.epsilon_spectral_first().value().iter().copied(),
+                expected_epsilon_first.iter().map(|value| value.value()[()]),
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                sampled.mu_spectral_first().value().iter().copied(),
+                expected_mu_first.iter().map(|value| value.value()[()]),
+                VALUE_TOLERANCE,
+            );
+        });
+    }
+
+    #[test]
+    fn spectral_first_sampling_contains_same_constitutive_parameters_as_basic_sampling() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        for_each_backend!(evaluator, {
+            let state = evaluator
+                .retain(
+                    scalar_real_input(2.5, 0.31),
+                    &stack,
+                    Polarisation::TransverseMagnetic,
+                )
+                .unwrap();
+
+            let point = state.project_point(&()).unwrap();
+
+            let context = ConstitutiveSamplingContext::new(point.workspace());
+
+            let basic = context.sample(&sampling).unwrap();
+
+            let spectral = context
+                .sample_spectral_first::<_, _, RealAxis>(&sampling, point.problem().stack())
+                .unwrap();
+
+            assert_complex_slice_close(
+                spectral.parameters().epsilon().value().iter().copied(),
+                basic.epsilon().value().iter().copied(),
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                spectral.parameters().mu().value().iter().copied(),
+                basic.mu().value().iter().copied(),
+                VALUE_TOLERANCE,
+            );
+        });
+    }
+
+    #[test]
+    fn constant_materials_have_zero_spectral_first_constitutive_data() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        for_each_backend!(evaluator, {
+            let state = evaluator
+                .retain(
+                    scalar_real_input(2.5, 0.31),
+                    &stack,
+                    Polarisation::TransverseElectric,
+                )
+                .unwrap();
+
+            let point = state.project_point(&()).unwrap();
+
+            let sampled = ConstitutiveSamplingContext::new(point.workspace())
+                .sample_spectral_first::<_, _, RealAxis>(&sampling, point.problem().stack())
+                .unwrap();
+
+            for &value in sampled.epsilon_spectral_first().value() {
+                assert_complex_close(value, C::new(0.0, 0.0), VALUE_TOLERANCE);
+            }
+
+            for &value in sampled.mu_spectral_first().value() {
+                assert_complex_close(value, C::new(0.0, 0.0), VALUE_TOLERANCE);
+            }
+        });
+    }
+
+    #[test]
+    fn spectral_first_data_preserve_thickness_outer_jet() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+
+        for_each_backend!(evaluator, {
+            let state = evaluator
+                .retain_first(
+                    scalar_real_input(2.5, 0.31),
+                    &stack,
+                    Polarisation::TransverseElectric,
+                    parameter,
+                )
+                .unwrap();
+
+            let point = state.project_point(&()).unwrap();
+
+            let canonical_stack = point.problem().stack();
+
+            let k0 = point.problem().coordinates().vacuum_angular_wavenumber();
+
+            let sampled = ConstitutiveSamplingContext::new(point.workspace())
+                .sample_spectral_first::<_, _, RealAxis>(&sampling, canonical_stack)
+                .unwrap();
+
+            let layer_0 = canonical_stack.layer(FiniteLayerIndex(0)).unwrap();
+
+            let layer_1 = canonical_stack.layer(FiniteLayerIndex(1)).unwrap();
+
+            let expected_epsilon = [
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.right_exterior(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.left_exterior(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_1.material(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
+            ];
+
+            let expected_mu = [
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.right_exterior(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.left_exterior(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_1.material(), k0),
+                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
+            ];
+
+            /*
+             * Value is ∂k0 ε.
+             *
+             * `.first()` is the caller's outer derivative:
+             *
+             *     ∂d (∂k0 ε).
+             */
+            assert_complex_slice_close(
+                sampled.epsilon_spectral_first().value().iter().copied(),
+                expected_epsilon.iter().map(|value| value.value()[()]),
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                sampled.epsilon_spectral_first().first().iter().copied(),
+                expected_epsilon.iter().map(|value| value.first()[()]),
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                sampled.mu_spectral_first().value().iter().copied(),
+                expected_mu.iter().map(|value| value.value()[()]),
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                sampled.mu_spectral_first().first().iter().copied(),
+                expected_mu.iter().map(|value| value.first()[()]),
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+        });
+    }
+
+    #[test]
+    fn spectral_first_data_preserve_second_order_outer_jet() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        for_each_backend!(evaluator, {
+            let state = evaluator
+                .retain_second(
+                    scalar_real_input(2.5, 0.31),
+                    &stack,
+                    Polarisation::TransverseMagnetic,
+                    Parameter::Spectral,
+                )
+                .unwrap();
+
+            let point = state.project_point(&()).unwrap();
+
+            let canonical_stack = point.problem().stack();
+
+            let k0 = point.problem().coordinates().vacuum_angular_wavenumber();
+
+            let sampled = ConstitutiveSamplingContext::new(point.workspace())
+                .sample_spectral_first::<_, _, RealAxis>(&sampling, canonical_stack)
+                .unwrap();
+
+            /*
+             * Pick one finite-layer position and compare the complete
+             * outer jet with a direct spectral-first lift.
+             *
+             * mixed_sampling()[1] is layer 0.
+             */
+            let expected_epsilon = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(
+                canonical_stack
+                    .layer(FiniteLayerIndex(0))
+                    .unwrap()
+                    .material(),
+                k0,
+            );
+
+            let expected_mu = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(
+                canonical_stack
+                    .layer(FiniteLayerIndex(0))
+                    .unwrap()
+                    .material(),
+                k0,
+            );
+
+            assert_complex_close(
+                sampled.epsilon_spectral_first().value()[1],
+                expected_epsilon.value()[()],
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_close(
+                sampled.epsilon_spectral_first().first()[1],
+                expected_epsilon.first()[()],
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_complex_close(
+                sampled.epsilon_spectral_first().second()[1],
+                expected_epsilon.second()[()],
+                SECOND_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_complex_close(
+                sampled.mu_spectral_first().value()[1],
+                expected_mu.value()[()],
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_close(
+                sampled.mu_spectral_first().first()[1],
+                expected_mu.first()[()],
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_complex_close(
+                sampled.mu_spectral_first().second()[1],
+                expected_mu.second()[()],
+                SECOND_DERIVATIVE_TOLERANCE,
+            );
+        });
+    }
+
+    #[test]
+    fn transfer_and_scatter_agree_on_spectral_first_constitutive_sampling() {
+        let stack = two_layer_stack();
+        let sampling = mixed_sampling();
+
+        let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+            .retain_second(
+                scalar_real_input(2.5, 0.31),
+                &stack,
+                Polarisation::TransverseElectric,
+                Parameter::Spectral,
+            )
+            .unwrap();
+
+        let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+            .retain_second(
+                scalar_real_input(2.5, 0.31),
+                &stack,
+                Polarisation::TransverseElectric,
+                Parameter::Spectral,
+            )
+            .unwrap();
+
+        let scatter = scatter.project_point(&()).unwrap();
+        let transfer = transfer.project_point(&()).unwrap();
+
+        let scatter_data = ConstitutiveSamplingContext::new(scatter.workspace())
+            .sample_spectral_first::<_, _, RealAxis>(&sampling, scatter.problem().stack())
+            .unwrap();
+
+        let transfer_data = ConstitutiveSamplingContext::new(transfer.workspace())
+            .sample_spectral_first::<_, _, RealAxis>(&sampling, transfer.problem().stack())
+            .unwrap();
+
+        for (actual, expected) in [
+            (
+                scatter_data.parameters().epsilon(),
+                transfer_data.parameters().epsilon(),
+            ),
+            (
+                scatter_data.parameters().mu(),
+                transfer_data.parameters().mu(),
+            ),
+            (
+                scatter_data.epsilon_spectral_first(),
+                transfer_data.epsilon_spectral_first(),
+            ),
+            (
+                scatter_data.mu_spectral_first(),
+                transfer_data.mu_spectral_first(),
+            ),
+        ] {
+            assert_complex_slice_close(
+                actual.value().iter().copied(),
+                expected.value().iter().copied(),
+                VALUE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                actual.first().iter().copied(),
+                expected.first().iter().copied(),
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_complex_slice_close(
+                actual.second().iter().copied(),
+                expected.second().iter().copied(),
+                SECOND_DERIVATIVE_TOLERANCE,
+            );
         }
     }
 }

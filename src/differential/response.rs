@@ -25,7 +25,6 @@ use crate::{
     parameter::Parameter,
 };
 
-
 /// A value paired with caller-facing differential information.
 ///
 /// `V` is the value representation and `D` determines the available derivative
@@ -145,8 +144,6 @@ pub struct NoDerivatives;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    
 
     #[test]
     fn response_preserves_value_and_derivatives() {

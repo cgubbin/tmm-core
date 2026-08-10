@@ -4,7 +4,7 @@ use num_traits::{One, Zero};
 
 use crate::{
     ComplexScalar, PlaneWaveAmplitudes, RealAxis,
-    algebra::ScalarAlgebra,
+    algebra::{ComplexJet, ScalarAlgebra, ScaleBy},
     backend::{
         ExteriorContextProvider, IsotropicLayerQuantities, Scatter2, Transfer2,
         transfer2::{
@@ -1103,7 +1103,7 @@ macro_rules! boundary_observable_suite {
             use super::*;
 
             #[test]
-            fn value_boundary_waves_match_raw_waves() {
+            fn value_boundary_waves_match_normalised_raw_waves() {
                 let evaluator = PlaneWaveEvaluator::new($backend);
 
                 let stack = two_layer_stack();
@@ -1123,20 +1123,25 @@ macro_rules! boundary_observable_suite {
 
                     let excitation = state.excitation(side).expect("state should be projectable");
 
+                    let scale =
+                        <_ as ComplexJet>::into_complex(excitation.amplitude_scale().clone());
+
+                    let expected = raw.scale_by(&scale);
+
                     let response = excitation
                         .boundary_waves()
                         .expect("boundary-wave response should assemble");
 
                     assert_layer_waves_collection_close(
                         response.value(),
-                        &raw.into_value().into_inner(),
+                        &expected.into_value().into_inner(),
                         VALUE_TOLERANCE,
                     );
                 }
             }
 
             #[test]
-            fn value_boundary_states_match_raw_states() {
+            fn value_boundary_states_match_normalised_raw_states() {
                 let evaluator = PlaneWaveEvaluator::new($backend);
 
                 let stack = two_layer_stack();
@@ -1156,13 +1161,18 @@ macro_rules! boundary_observable_suite {
 
                     let excitation = state.excitation(side).expect("state should be projectable");
 
+                    let scale =
+                        <_ as ComplexJet>::into_complex(excitation.amplitude_scale().clone());
+
+                    let expected = raw.scale_by(&scale);
+
                     let response = excitation
                         .boundary_states()
                         .expect("boundary-state response should assemble");
 
                     assert_layer_states_collection_close(
                         response.value(),
-                        &raw.into_value().into_inner(),
+                        &expected.into_value().into_inner(),
                         VALUE_TOLERANCE,
                     );
                 }

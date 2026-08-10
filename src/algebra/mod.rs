@@ -6,6 +6,7 @@ mod jet_one;
 mod jet_two;
 mod jet_zero;
 mod scalar;
+mod scale;
 mod stack;
 
 pub(crate) use exprel::{exprel, exprel_first, exprel_second};
@@ -22,6 +23,7 @@ pub(crate) use stack::JetStack;
 pub(crate) use cartesian::{
     CartesianScalarAlgebra, CartesianVectorAlgebra, RealCartesianVectorAlgebra,
 };
+pub(crate) use scale::ScaleBy;
 
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};

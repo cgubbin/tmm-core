@@ -28,12 +28,12 @@ use crate::{
     observable::{
         AggregateBilinearNormalization, BoundaryProjectionError, ConstitutiveSamplingContext,
         ConstitutiveSamplingError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
-        Interfaces, IsotropicConstitutiveParameters, LayerBoundaries, LayerBoundaryStates,
-        LayerBoundaryWaves, LayerEnergy, LayerEnergyError, LayerIntegrationInput,
-        LayerProjectionError, Layers, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant,
-        assemble_interface_wave_data, assemble_layer_integration_inputs, exterior_boundary_states,
-        exterior_boundary_waves, project_layer_admittances, project_layer_boundary_states,
-        project_layer_boundary_waves,
+        Interfaces, IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
+        LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy, LayerEnergyError,
+        LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
+        ProjectPlaneWaveModeDeterminant, assemble_interface_wave_data,
+        assemble_layer_integration_inputs, exterior_boundary_states, exterior_boundary_waves,
+        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
     },
     projection::{JetPointProjection, PointProjectionError, ProjectPoint},
     spatial::ResolvedFieldSampling,
@@ -101,7 +101,16 @@ where
     pub fn excitation(
         &self,
         incident_side: IncidentSide,
-    ) -> Result<PlaneWaveExcitation<'_, J, I, M, W>, ProjectionConstraintError> {
+    ) -> Result<PlaneWaveExcitation<'_, J, I, M, W>, ProjectionConstraintError>
+    where
+        J: ComplexJet + ScalarAlgebra + RealScalarAlgebra,
+        J::RealJet: ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::RealJet as Jet>::Scalar: FromPrimitive,
+        W: PlaneWaveSolutionSource,
+        W::Entries: PlaneWaveEntries,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
         if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
             if side != incident_side {
                 return Err(ProjectionConstraintError {
@@ -313,188 +322,23 @@ where
 
         context.sample(sampling)
     }
-}
 
-impl<J, M, W> PlaneWaveState<J, <J::Scalar as ComplexField>::RealField, M, W>
-where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
-    J::Policy: Default,
-    <J::Scalar as ComplexField>::RealField: ComplexField,
-    W: PlaneWaveSolutionSource,
-{
-    pub(crate) fn raw_interface_power_unchecked(
+    pub(super) fn raw_constitutive_spectral_first_parameters<E>(
         &self,
-        incident_side: IncidentSide,
-    ) -> Result<Interfaces<InterfacePower<J::RealJet>>, InterfaceProjectionError>
+        sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,
+    ) -> Result<IsotropicConstitutiveSpectralData<J::Stacked>, ConstitutiveSamplingError>
     where
-        W: PlaneWaveSolutionSource
-            + ReconstructLayerBoundaryWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>,
-        W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
+        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J: RealScalarAlgebra + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar + One + Zero,
+        J: JetStack + Clone,
         J::Dimension: Dimension,
-        <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
-    {
-        let interface_data = self.raw_interface_wave_data_unchecked(incident_side)?;
-
-        let solution = self.solution();
-        let exterior = solution.context();
-
-        let incident_admittance = match incident_side {
-            IncidentSide::Left => exterior.left_admittance(),
-
-            IncidentSide::Right => exterior.right_admittance(),
-        };
-
-        let incident_flux_magnitude = RealScalarAlgebra::real(incident_admittance);
-
-        Ok(interface_data.into_power(&incident_flux_magnitude))
-    }
-
-    pub(crate) fn raw_layer_power_unchecked(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<Layers<LayerPower<J::RealJet>>, InterfaceProjectionError>
-    where
-        W: PlaneWaveSolutionSource
-            + ReconstructLayerBoundaryWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>,
-        W::Entries: ProjectAmplitudes<Amplitudes = PlaneWaveAmplitudes<J>>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J: RealScalarAlgebra + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar + One + Zero,
-        J::Dimension: Dimension,
-        <J::RealJet as Jet>::Scalar: One + Neg<Output = <J::RealJet as Jet>::Scalar>,
-    {
-        Ok(self
-            .raw_interface_power_unchecked(incident_side)?
-            .into_layer_power())
-    }
-
-    pub(crate) fn raw_incident_flux_magnitude_unchecked(
-        &self,
-        incident_side: IncidentSide,
-    ) -> J::RealJet
-    where
-        J: ComplexJet + RealScalarAlgebra,
-        J::RealJet: ScalarAlgebra,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    {
-        let context = self.solution().context();
-
-        let admittance = match incident_side {
-            IncidentSide::Left => context.left_admittance(),
-            IncidentSide::Right => context.right_admittance(),
-        };
-
-        admittance.real()
-    }
-
-    pub(crate) fn raw_layer_dissipation_unchecked(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<Layers<LayerDissipation<J::RealJet>>, LayerProjectionError>
-    where
-        J: RealScalarAlgebra + ScalarAlgebraExpRelExt + Clone,
-        J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: One,
-        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    {
-        let layers = self
-            .raw_layer_integration_inputs_unchecked(incident_side)?
-            .integrate();
-
-        let coordinates = self.problem().coordinates();
-
-        let incident_flux = self.raw_incident_flux_magnitude_unchecked(incident_side);
-
-        Ok(layers.into_dissipation(
-            coordinates.vacuum_angular_wavenumber(),
-            coordinates.parallel_angular_wavenumber(),
-            &incident_flux,
-        ))
-    }
-
-    pub(crate) fn raw_nondispersive_layer_energy_unchecked(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<Layers<LayerEnergy<J::RealJet>>, LayerEnergyError>
-    where
-        J: ComplexJet
-            + RealScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveLift<RealAxis, M>
-            + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: One + FromPrimitive,
-        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        RealAxis: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    {
-        let integrated = self
-            .raw_layer_integration_inputs_unchecked(incident_side)?
-            .integrate();
-
-        let problem = self.problem();
-        let coordinates = problem.coordinates();
-
-        let incident_flux = self.raw_incident_flux_magnitude_unchecked(incident_side);
-
-        Ok(integrated.into_nondispersive_energy(
-            coordinates.vacuum_angular_wavenumber(),
-            coordinates.parallel_angular_wavenumber(),
-            &incident_flux,
-        ))
-    }
-
-    pub(crate) fn raw_dispersive_layer_energy_unchecked<E>(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<Layers<LayerEnergy<J::RealJet>>, LayerEnergyError>
-    where
-        J: ComplexJet
-            + RealScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<E, M>
-            + Clone,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
-        J::Dimension: Dimension,
         E: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+        J: ConstitutiveSpectralFirstLift<E, M>,
     {
-        let coordinates = self.problem().coordinates();
+        let context = ConstitutiveSamplingContext::new(self.workspace());
 
-        let incident_flux = self.raw_incident_flux_magnitude_unchecked(incident_side);
-
-        let sequence = self
-            .raw_layer_integration_inputs_unchecked(incident_side)?
-            .integrate()
-            .into_brillouin_layers(
-                self.problem()
-                    .stack()
-                    .layers()
-                    .iter()
-                    .map(|layer| layer.material()),
-                coordinates.vacuum_angular_wavenumber(),
-            )?;
-
-        Ok(sequence.into_brillouin_energy(
-            coordinates.vacuum_angular_wavenumber(),
-            coordinates.parallel_angular_wavenumber(),
-            &incident_flux,
-        ))
+        context.sample_spectral_first(sampling, self.problem.stack())
     }
 }
 

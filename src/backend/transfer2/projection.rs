@@ -1,10 +1,6 @@
 use ndarray::Dimension;
 
-use crate::{
-    ComplexScalar,
-    algebra::ScalarAlgebra,
-    backend::transfer2::Transfer2Entries,
-};
+use crate::{ComplexScalar, algebra::ScalarAlgebra, backend::transfer2::Transfer2Entries};
 
 /// Propagate the unit right-going basis state from the right exterior to the
 /// left exterior.

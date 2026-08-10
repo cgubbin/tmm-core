@@ -1837,7 +1837,7 @@ mod derivative_tests {
 
 #[cfg(test)]
 mod bilinear_tests {
-    
+
     use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
 

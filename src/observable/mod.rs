@@ -1,23 +1,18 @@
-mod absorption;
 mod boundary;
-mod components;
 mod determinant;
-mod energy;
 mod field;
 mod interface;
 mod layer;
 mod plane_wave;
 
-pub use absorption::DissipationDensity;
 pub use boundary::{
     BoundaryProjectionError, BoundaryState, BoundaryWaves, LayerBoundaries, LayerBoundaryStates,
     LayerBoundaryWaves,
 };
 pub use determinant::PlaneWaveDeterminant;
-pub use energy::{EnergyDensity, StoredEnergy};
 pub use field::{
-    ConstitutiveFields, ElectromagneticFields, ElectromagneticIntensities, FieldIndexError,
-    FieldReconstructionError,
+    ConstitutiveFields, ElectromagneticDissipation, ElectromagneticEnergy, ElectromagneticFields,
+    ElectromagneticIntensities, FieldIndexError, FieldReconstructionError,
 };
 pub use interface::{
     DirectedPower, InterfacePower, InterfaceProjectionError, InterfaceStates, Interfaces,
@@ -36,7 +31,8 @@ pub(crate) use boundary::{
 pub(crate) use determinant::ProjectPlaneWaveModeDeterminant;
 pub(crate) use field::{
     ConstitutiveFieldReconstructionError, ConstitutiveSamplingContext, ConstitutiveSamplingError,
-    FieldSamplingContext, IsotropicConstitutiveParameters,
+    FieldSamplingContext, IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
+    electromagnetic_dissipation_coefficients,
 };
 pub(crate) use interface::{
     InterfaceWaveData, assemble_interface_wave_data, exterior_boundary_states,

@@ -1,4 +1,3 @@
-
 use crate::{
     InterfacePower,
     algebra::ScalarAlgebra,
