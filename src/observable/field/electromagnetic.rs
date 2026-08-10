@@ -2,6 +2,37 @@ use num_traits::One;
 
 use crate::algebra::RealCartesianVectorAlgebra;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ElectromagneticIntensities<V> {
+    electric: V,
+    magnetic: V,
+}
+
+impl<V> ElectromagneticIntensities<V> {
+    pub(crate) fn new(electric: V, magnetic: V) -> Self {
+        Self { electric, magnetic }
+    }
+
+    pub fn electric(&self) -> &V {
+        &self.electric
+    }
+
+    pub fn magnetic(&self) -> &V {
+        &self.magnetic
+    }
+
+    pub fn into_parts(self) -> (V, V) {
+        (self.electric, self.magnetic)
+    }
+
+    pub fn map_vectors<U>(self, f: impl Fn(V) -> U) -> ElectromagneticIntensities<U> {
+        ElectromagneticIntensities {
+            electric: f(self.electric),
+            magnetic: f(self.magnetic),
+        }
+    }
+}
+
 /// Pointwise Cartesian electric and magnetic phasor fields.
 ///
 /// The field uses the electromagnetic normalization chosen by the producing
@@ -47,6 +78,16 @@ impl<V> ElectromagneticFields<V> {
 }
 
 impl<V> ElectromagneticFields<V> {
+    pub fn into_magnitude_squared(self) -> ElectromagneticIntensities<V::RealScalarField>
+    where
+        V: RealCartesianVectorAlgebra,
+    {
+        ElectromagneticIntensities {
+            electric: self.electric.magnitude_squared(),
+            magnetic: self.magnetic.magnitude_squared(),
+        }
+    }
+
     /// Return the pointwise squared electric-field magnitude.
     pub fn electric_magnitude_squared(&self) -> V::RealScalarField
     where

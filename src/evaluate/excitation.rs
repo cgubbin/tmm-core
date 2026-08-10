@@ -5,11 +5,11 @@ use ndarray::{Dimension, Ix0};
 use num_traits::{Float, FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexScalar, ElectromagneticFields, FiniteLayerIndex, IncidentSide, LayerDissipation,
-    PlaneWaveAmplitudes, RealAxis,
+    ComplexScalar, ElectromagneticIntensities, ElectromagneticFields, FiniteLayerIndex,
+    IncidentSide, LayerDissipation, PlaneWaveAmplitudes, RealAxis,
     algebra::{
-        CartesianScalarAlgebra, ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra,
-        ScalarAlgebraExpRelExt,
+        CartesianScalarAlgebra, ComplexJet, Jet, JetStack, RealCartesianVectorAlgebra,
+        RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
     },
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
@@ -37,7 +37,7 @@ use crate::{
         LayerEnergy, LayerEnergyError, LayerParticipation, LayerParticipationError,
         LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
     },
-    spatial::{FieldSampling, SpatialResponse},
+    spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse},
     waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
 };
 
@@ -384,8 +384,38 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    fn raw_electromagnetic_fields(
+        &self,
+        sampling: &ResolvedFieldSampling<R>,
+    ) -> Result<
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let wave_context = WaveSamplingContext::new(self.state.workspace());
+
+        let boundary_waves = wave_context.driven_boundary_waves(self.incident_side)?;
+
+        let context = FieldSamplingContext::new(self.state.workspace());
+
+        let compiled_sampling = sampling.compile();
+
+        context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)
+    }
+
     pub fn evaluate_fields(
-        self,
+        &self,
         sampling: &FieldSampling<R>,
     ) -> Result<
         PlaneWaveFieldResponse<J, R>,
@@ -408,26 +438,125 @@ where
         <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
-        let wave_context = WaveSamplingContext::new(self.state.workspace());
-
-        let boundary_waves = wave_context.driven_boundary_waves(self.incident_side)?;
-
-        let context = FieldSamplingContext::new(self.state.workspace());
-
-        let resolved_sampling = sampling.resolve(self.state.stack())?;
-
-        let compiled_sampling = resolved_sampling.compile();
-
-        let reconstructed =
-            context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)?;
+        let sampling = sampling.resolve(self.state.stack())?;
+        let reconstructed = self.raw_electromagnetic_fields(&sampling)?;
 
         let differential_response =
             reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
 
-        Ok(SpatialResponse::new(
-            differential_response,
-            resolved_sampling,
-        ))
+        Ok(SpatialResponse::new(differential_response, sampling))
+    }
+
+    pub fn evaluate_field_norms(
+        &self,
+        sampling: &FieldSampling<R>,
+    ) -> Result<
+        PlaneWaveIntensityResponse<J, R>,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra,
+        J::Policy: DerivativePartsPolicy<
+                ElectromagneticIntensities<
+                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+                >
+        >,
+        ElectromagneticIntensities<
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+        >:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let sampling = sampling.resolve(self.state.stack())?;
+        let reconstructed = self
+            .raw_electromagnetic_fields(&sampling)?
+            .into_magnitude_squared();
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(differential_response, sampling))
+    }
+
+    pub fn evaluate_complex_poynting_vector(
+        &self,
+        sampling: &FieldSampling<R>,
+    ) -> Result<
+        PlaneWaveComplexPoyntingVectorResponse<J, R>,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra,
+        J::Policy:
+            DerivativePartsPolicy<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        <<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let sampling = sampling.resolve(self.state.stack())?;
+        let reconstructed = self
+            .raw_electromagnetic_fields(&sampling)?
+            .complex_poynting_vector();
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(differential_response, sampling))
+    }
+
+    pub fn evaluate_time_averaged_poynting_vector(
+        &self,
+        sampling: &FieldSampling<R>,
+    ) -> Result<
+        PlaneWaveTimeAveragedPoyntingVectorResponse<J, R>,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra,
+        J::Policy:
+            DerivativePartsPolicy<
+                <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealVector
+        >,
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealVector:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let sampling = sampling.resolve(self.state.stack())?;
+        let reconstructed = self
+            .raw_electromagnetic_fields(&sampling)?
+            .time_averaged_poynting_vector();
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(differential_response, sampling))
     }
 }
 
@@ -458,6 +587,28 @@ pub type PlaneWaveFieldResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    >,
+    R,
+>;
+
+pub type PlaneWaveIntensityResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<
+        J,
+        ElectromagneticIntensities<
+            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField
+        >,
+    >,
+    R,
+>;
+
+pub type PlaneWaveComplexPoyntingVectorResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<J, <<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    R,
+>;
+
+pub type PlaneWaveTimeAveragedPoyntingVectorResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<J, 
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealVector
     >,
     R,
 >;

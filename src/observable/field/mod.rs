@@ -3,7 +3,7 @@ mod electromagnetic;
 mod reconstruction;
 
 pub use constitutive::ConstitutiveFields;
-pub use electromagnetic::ElectromagneticFields;
+pub use electromagnetic::{ElectromagneticFields, ElectromagneticIntensities};
 
 pub use reconstruction::FieldReconstructionError;
 

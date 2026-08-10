@@ -16,7 +16,8 @@ pub use boundary::{
 pub use determinant::PlaneWaveDeterminant;
 pub use energy::{EnergyDensity, StoredEnergy};
 pub use field::{
-    ConstitutiveFields, ElectromagneticFields, FieldIndexError, FieldReconstructionError,
+    ConstitutiveFields, ElectromagneticFields, ElectromagneticIntensities, FieldIndexError,
+    FieldReconstructionError,
 };
 pub use interface::{
     DirectedPower, InterfacePower, InterfaceProjectionError, InterfaceStates, Interfaces,
