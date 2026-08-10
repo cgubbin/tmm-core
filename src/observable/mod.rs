@@ -34,7 +34,10 @@ pub(crate) use boundary::{
     project_layer_boundary_states, project_layer_boundary_waves, project_layer_mode_waves,
 };
 pub(crate) use determinant::ProjectPlaneWaveModeDeterminant;
-pub(crate) use field::FieldSamplingContext;
+pub(crate) use field::{
+    ConstitutiveFieldReconstructionError, ConstitutiveSamplingContext, ConstitutiveSamplingError,
+    FieldSamplingContext, IsotropicConstitutiveParameters,
+};
 pub(crate) use interface::{
     InterfaceWaveData, assemble_interface_wave_data, exterior_boundary_states,
     exterior_boundary_waves, project_layer_admittances,

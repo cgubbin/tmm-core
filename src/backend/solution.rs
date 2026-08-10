@@ -12,6 +12,12 @@ pub trait ExteriorContextProvider {
     fn left_kappa(&self) -> &Self::Algebra;
     fn right_kappa(&self) -> &Self::Algebra;
 
+    fn left_epsilon(&self) -> &Self::Algebra;
+    fn right_epsilon(&self) -> &Self::Algebra;
+
+    fn left_mu(&self) -> &Self::Algebra;
+    fn right_mu(&self) -> &Self::Algebra;
+
     fn vacuum_angular_wavenumber(&self) -> &Self::Algebra;
     fn parallel_angular_wavenumber(&self) -> &Self::Algebra;
 

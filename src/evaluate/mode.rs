@@ -3,7 +3,7 @@ use ndarray::Dimension;
 use num_traits::{Float, FromPrimitive, One};
 
 use crate::{
-    ComplexPlane, ComplexScalar, ElectromagneticFields,
+    ComplexPlane, ComplexScalar, ConstitutiveFields, ElectromagneticFields,
     algebra::{
         CartesianScalarAlgebra, ComplexJet, Jet, JetStack, ScalarAlgebra, ScalarAlgebraExpRelExt,
     },
@@ -21,11 +21,12 @@ use crate::{
     input::JetMapping,
     material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
     observable::{
-        AggregateBilinearNormalization, FieldReconstructionError, FieldSamplingContext,
-        LayerAggregateError, LayerEnergyError, LayerIntegrationInput, LayerProjectionError, Layers,
-        assemble_layer_integration_inputs, project_layer_mode_waves,
+        AggregateBilinearNormalization, ConstitutiveFieldReconstructionError,
+        FieldReconstructionError, FieldSamplingContext, LayerAggregateError, LayerEnergyError,
+        LayerIntegrationInput, LayerProjectionError, Layers, assemble_layer_integration_inputs,
+        project_layer_mode_waves,
     },
-    spatial::{FieldSampling, SpatialResponse},
+    spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse},
     waves::WaveSamplingContext,
 };
 
@@ -161,6 +162,34 @@ where
     AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     W: ReconstructLayerModeWaves<Algebra = J>,
 {
+    fn raw_electromagnetic_fields(
+        &self,
+        sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,
+    ) -> Result<
+        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        W: PlaneWaveSolutionSource
+            + RetainedIsotropicLayers<Algebra = J>
+            + ReconstructExteriorModeWaves<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let wave_context = WaveSamplingContext::new(self.state.workspace());
+
+        let boundary_waves = wave_context.modal_boundary_waves(self.solution())?;
+
+        let context = FieldSamplingContext::new(self.state.workspace());
+
+        let compiled_sampling = sampling.compile();
+
+        context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)
+    }
+
     pub fn evaluate_fields(
         &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
@@ -173,36 +202,60 @@ where
         J::Scalar: ComplexScalar,
         <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
         J::Stacked: CartesianScalarAlgebra,
+        W: PlaneWaveSolutionSource
+            + ReconstructExteriorModeWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
         J::Policy: DerivativePartsPolicy<
             ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
         >,
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
             IntoDifferentialResponse<J::Policy, J::Mapping>,
-        W: PlaneWaveSolutionSource
-            + ReconstructExteriorModeWaves<Algebra = J>
-            + ReconstructLayerModeWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
-        let wave_context = WaveSamplingContext::new(self.state.workspace());
+        let sampling = sampling.resolve(self.state.stack())?;
 
-        let boundary_waves = wave_context.modal_boundary_waves(self.solution())?;
-
-        let context = FieldSamplingContext::new(self.state.workspace());
-
-        let resolved_sampling = sampling.resolve(self.state.stack())?;
-        let compiled_sampling = resolved_sampling.compile();
-
-        let reconstructed =
-            context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)?;
+        let reconstructed = self.raw_electromagnetic_fields(&sampling)?;
 
         let differential_response =
             reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
 
-        Ok(SpatialResponse::new(
-            differential_response,
-            resolved_sampling,
-        ))
+        Ok(SpatialResponse::new(differential_response, sampling))
+    }
+
+    pub fn evaluate_constitutive_fields(
+        &self,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
+    ) -> Result<
+        ModeConstitutiveFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
+        ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        W: PlaneWaveSolutionSource
+            + ReconstructExteriorModeWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+        J::Policy: DerivativePartsPolicy<
+            ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+    {
+        let sampling = sampling.resolve(self.state.stack())?;
+
+        let electromagnetic_fields = self.raw_electromagnetic_fields(&sampling)?;
+
+        let constitutive = self.state.raw_constitutive_parameters(&sampling)?;
+
+        let reconstructed = electromagnetic_fields.into_constitutive_fields(&constitutive);
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(differential_response, sampling))
     }
 }
 
@@ -284,6 +337,14 @@ pub type ModeFieldResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    >,
+    R,
+>;
+
+pub type ModeConstitutiveFieldResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<
+        J,
+        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     >,
     R,
 >;

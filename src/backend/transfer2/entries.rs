@@ -259,6 +259,10 @@ pub struct Transfer2ExteriorContext<A> {
     right_admittance: A,
     left_kappa: A,
     right_kappa: A,
+    left_epsilon: A,
+    right_epsilon: A,
+    left_mu: A,
+    right_mu: A,
     vacuum_angular_wavenumber: A,
     parallel_angular_wavenumber: A,
     polarisation: Polarisation,
@@ -283,6 +287,22 @@ impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
         &self.right_kappa
     }
 
+    fn left_epsilon(&self) -> &Self::Algebra {
+        &self.left_epsilon
+    }
+
+    fn right_epsilon(&self) -> &Self::Algebra {
+        &self.left_epsilon
+    }
+
+    fn left_mu(&self) -> &Self::Algebra {
+        &self.left_mu
+    }
+
+    fn right_mu(&self) -> &Self::Algebra {
+        &self.right_mu
+    }
+
     fn vacuum_angular_wavenumber(&self) -> &Self::Algebra {
         &self.vacuum_angular_wavenumber
     }
@@ -302,6 +322,10 @@ impl<J> Transfer2ExteriorContext<J> {
         right_admittance: J,
         left_kappa: J,
         right_kappa: J,
+        left_epsilon: J,
+        right_epsilon: J,
+        left_mu: J,
+        right_mu: J,
         vacuum_angular_wavenumber: J,
         parallel_angular_wavenumber: J,
         polarisation: Polarisation,
@@ -311,6 +335,10 @@ impl<J> Transfer2ExteriorContext<J> {
             right_admittance,
             left_kappa,
             right_kappa,
+            left_epsilon,
+            right_epsilon,
+            left_mu,
+            right_mu,
             vacuum_angular_wavenumber,
             parallel_angular_wavenumber,
             polarisation,
@@ -338,6 +366,10 @@ impl<J> Transfer2ExteriorContext<J> {
         Self {
             left_kappa: left_quantities.kappa().clone(),
             right_kappa: right_quantities.kappa().clone(),
+            left_mu: left_quantities.mu().clone(),
+            right_mu: right_quantities.mu().clone(),
+            left_epsilon: left_quantities.epsilon().clone(),
+            right_epsilon: right_quantities.epsilon().clone(),
             left_admittance: left_quantities.into_admittance().into_inner(),
             right_admittance: right_quantities.into_admittance().into_inner(),
             vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),

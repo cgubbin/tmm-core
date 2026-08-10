@@ -1,4 +1,11 @@
-use crate::spatial::ResolvedFieldSampling;
+use crate::{
+    Parameter,
+    differential::{
+        BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
+        DirectionalFirst, DirectionalSecond,
+    },
+    spatial::ResolvedFieldSampling,
+};
 
 /// A quantity sampled at resolved positions throughout a planar stack.
 ///
@@ -36,6 +43,81 @@ impl<Q, R> SpatialResponse<Q, R> {
             quantity: f(self.quantity),
             sampling: self.sampling,
         }
+    }
+}
+
+impl<V, D, R> SpatialResponse<DifferentialResponse<V, D>, R> {
+    /// Return the response value.
+    pub fn value(&self) -> &V {
+        self.quantity.value()
+    }
+
+    /// Return the derivative representation.
+    pub fn derivatives(&self) -> &D {
+        self.quantity.derivatives()
+    }
+}
+
+impl<V, X, R> SpatialResponse<DifferentialResponse<V, DirectionalFirst<X>>, R> {
+    /// Return the differentiated parameter.
+    pub fn parameter(&self) -> Parameter {
+        self.quantity.parameter()
+    }
+
+    /// Return the first derivative.
+    pub fn first(&self) -> &X {
+        self.quantity.first()
+    }
+}
+
+impl<V, X, R> SpatialResponse<DifferentialResponse<V, DirectionalSecond<X>>, R> {
+    /// Return the differentiated parameter.
+    pub fn parameter(&self) -> Parameter {
+        self.quantity.parameter()
+    }
+
+    /// Return the first derivative.
+    pub fn first(&self) -> &X {
+        self.quantity.first()
+    }
+
+    /// Return the repeated second derivative.
+    pub fn second(&self) -> &X {
+        self.quantity.second()
+    }
+}
+
+impl<V, X, R> SpatialResponse<DifferentialResponse<V, BivariateFirst<X>>, R> {
+    /// Return the ordered derivative parameters.
+    pub fn parameters(&self) -> [Parameter; 2] {
+        self.quantity.parameters()
+    }
+
+    /// Return the derivative along axis zero.
+    pub fn axis0(&self) -> &X {
+        self.quantity.axis0()
+    }
+
+    /// Return the derivative along axis one.
+    pub fn axis1(&self) -> &X {
+        self.quantity.axis1()
+    }
+}
+
+impl<V, X, R> SpatialResponse<DifferentialResponse<V, BivariateSecond<X>>, R> {
+    /// Return the ordered derivative parameters.
+    pub fn parameters(&self) -> [Parameter; 2] {
+        self.quantity.parameters()
+    }
+
+    /// Return the gradient.
+    pub fn gradient(&self) -> &BivariateGradient<X> {
+        self.quantity.gradient()
+    }
+
+    /// Return the symmetric Hessian.
+    pub fn hessian(&self) -> &BivariateHessian<X> {
+        self.quantity.hessian()
     }
 }
 

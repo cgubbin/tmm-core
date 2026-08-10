@@ -1,5 +1,3 @@
-
-
 /// Pointwise Cartesian electric displacement and magnetic induction phasor fields.
 ///
 /// The field uses the electromagnetic normalization chosen by the producing
@@ -35,6 +33,37 @@ impl<V> ConstitutiveFields<V> {
         ConstitutiveFields {
             electric_displacement: f(self.electric_displacement),
             magnetic_induction: f(self.magnetic_induction),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IsotropicConstitutiveParameters<A> {
+    epsilon: A,
+    mu: A,
+}
+
+impl<A> IsotropicConstitutiveParameters<A> {
+    pub(crate) const fn new(epsilon: A, mu: A) -> Self {
+        Self { epsilon, mu }
+    }
+
+    pub fn epsilon(&self) -> &A {
+        &self.epsilon
+    }
+
+    pub fn mu(&self) -> &A {
+        &self.mu
+    }
+
+    pub fn into_parts(self) -> (A, A) {
+        (self.epsilon, self.mu)
+    }
+
+    pub fn map<B>(self, mut f: impl FnMut(A) -> B) -> IsotropicConstitutiveParameters<B> {
+        IsotropicConstitutiveParameters {
+            epsilon: f(self.epsilon),
+            mu: f(self.mu),
         }
     }
 }

@@ -1,12 +1,16 @@
 mod constitutive;
 mod electromagnetic;
+mod material;
 mod reconstruction;
 
 pub use constitutive::ConstitutiveFields;
 pub use electromagnetic::{ElectromagneticFields, ElectromagneticIntensities};
+pub use material::ConstitutiveFieldReconstructionError;
 
 pub use reconstruction::FieldReconstructionError;
 
+pub(crate) use constitutive::IsotropicConstitutiveParameters;
+pub(crate) use material::{ConstitutiveSamplingContext, ConstitutiveSamplingError};
 pub(crate) use reconstruction::FieldSamplingContext;
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

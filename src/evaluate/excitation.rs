@@ -5,18 +5,12 @@ use ndarray::{Dimension, Ix0};
 use num_traits::{Float, FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexScalar, ElectromagneticIntensities, ElectromagneticFields, FiniteLayerIndex,
-    IncidentSide, LayerDissipation, PlaneWaveAmplitudes, RealAxis,
-    algebra::{
+    ComplexScalar, ConstitutiveFields, ElectromagneticFields, ElectromagneticIntensities, FiniteLayerIndex, IncidentSide, LayerDissipation, PlaneWaveAmplitudes, RealAxis, algebra::{
         CartesianScalarAlgebra, ComplexJet, Jet, JetStack, RealCartesianVectorAlgebra,
         RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
-    },
-    backend::{
+    }, backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
-    },
-    derivative_parts::DerivativePartsPolicy,
-    differential::IntoDifferentialResponse,
-    evaluate::{
+    }, derivative_parts::DerivativePartsPolicy, differential::IntoDifferentialResponse, evaluate::{
         PlaneWaveState,
         pair::{PlaneWaveExcitationPair, PlaneWavePairError},
         query::{
@@ -24,21 +18,17 @@ use crate::{
             RawPower,
         },
         state::{RawInterfacePower, RawLayerPower},
-    },
-    input::JetMapping,
-    material::{
+    }, input::JetMapping, material::{
         ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift,
         lifting::ConstitutiveDerivativeEvaluator,
-    },
-    observable::{
+    }, observable::{
         Amplitudes, BoundaryProjectionError, EnergyConfinement, FieldReconstructionError,
         FieldSamplingContext, InterfaceProjectionError, InterfaceStates, Interfaces,
         LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerConfinementError,
         LayerEnergy, LayerEnergyError, LayerParticipation, LayerParticipationError,
         LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower,
-    },
-    spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse},
-    waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext},
+        ConstitutiveFieldReconstructionError
+    }, spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse}, waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext}
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -558,6 +548,44 @@ where
 
         Ok(SpatialResponse::new(differential_response, sampling))
     }
+
+
+    pub fn evaluate_constitutive_fields(
+        &self,
+        sampling: &FieldSampling<R>,
+    ) -> Result<
+        ConstitutiveFieldResponse<J, R>,
+        ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
+    >
+    where
+        J: JetStack + ScalarAlgebra,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        J::Stacked: CartesianScalarAlgebra,
+        J::Policy: DerivativePartsPolicy<
+            ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+        >,
+        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
+            IntoDifferentialResponse<J::Policy, J::Mapping>,
+        W: PlaneWaveSolutionSource
+            + ReconstructLayerBoundaryWaves<Algebra = J>
+            + RetainedIsotropicLayers<Algebra = J>,
+        W::Entries: ProjectAmplitudes,
+        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+    {
+        let sampling = sampling.resolve(self.state.stack())?;
+        let electromagnetic_fields = self.raw_electromagnetic_fields(&sampling)?;
+
+        let constitutive = self.state.raw_constitutive_parameters(&sampling)?;
+
+        let reconstructed = electromagnetic_fields.into_constitutive_fields(&constitutive);
+
+        let differential_response =
+            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
+
+        Ok(SpatialResponse::new(differential_response, sampling))
+    }
 }
 
 impl<'a, J, I, M, W> PlaneWaveExcitation<'a, J, I, M, W>
@@ -587,6 +615,15 @@ pub type PlaneWaveFieldResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
+    >,
+    R,
+>;
+
+
+pub type ConstitutiveFieldResponse<J, R> = SpatialResponse<
+    DifferentialResponseFor<
+        J,
+        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     >,
     R,
 >;

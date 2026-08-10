@@ -19,7 +19,9 @@ pub(crate) use scalar::{
 };
 pub(crate) use stack::JetStack;
 
-pub(crate) use cartesian::{CartesianScalarAlgebra, RealCartesianVectorAlgebra};
+pub(crate) use cartesian::{
+    CartesianScalarAlgebra, CartesianVectorAlgebra, RealCartesianVectorAlgebra,
+};
 
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};

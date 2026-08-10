@@ -7,7 +7,9 @@ use num_traits::{FromPrimitive, One, Zero};
 use crate::{
     ComplexPlane, ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower,
     PlaneWaveAmplitudes, Polarisation, RealAxis, Stack,
-    algebra::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
+    algebra::{
+        ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
+    },
     backend::{
         ExteriorContextProvider, ModalSolutionSource, PlaneWaveEntries, PlaneWaveSolutionSource,
         PlaneWaveSolutionView, ReconstructLayerModeWaves, RetainedIsotropicLayers,
@@ -24,8 +26,9 @@ use crate::{
         lifting::ConstitutiveDerivativeEvaluator,
     },
     observable::{
-        AggregateBilinearNormalization, BoundaryProjectionError, InterfaceProjectionError,
-        InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries, LayerBoundaryStates,
+        AggregateBilinearNormalization, BoundaryProjectionError, ConstitutiveSamplingContext,
+        ConstitutiveSamplingError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
+        Interfaces, IsotropicConstitutiveParameters, LayerBoundaries, LayerBoundaryStates,
         LayerBoundaryWaves, LayerEnergy, LayerEnergyError, LayerIntegrationInput,
         LayerProjectionError, Layers, ProjectAmplitudes, ProjectPlaneWaveModeDeterminant,
         assemble_interface_wave_data, assemble_layer_integration_inputs, exterior_boundary_states,
@@ -33,6 +36,7 @@ use crate::{
         project_layer_boundary_waves,
     },
     projection::{JetPointProjection, PointProjectionError, ProjectPoint},
+    spatial::ResolvedFieldSampling,
     waves::ReconstructLayerBoundaryWaves,
 };
 
@@ -293,6 +297,21 @@ where
         let boundary_waves = self.raw_layer_boundary_waves_unchecked(incident_side)?;
 
         assemble_layer_integration_inputs(&self.workspace, boundary_waves)
+    }
+
+    pub(super) fn raw_constitutive_parameters(
+        &self,
+        sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,
+    ) -> Result<IsotropicConstitutiveParameters<J::Stacked>, ConstitutiveSamplingError>
+    where
+        W: PlaneWaveSolutionSource + RetainedIsotropicLayers<Algebra = J>,
+        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+        J: JetStack + Clone,
+        J::Dimension: Dimension,
+    {
+        let context = ConstitutiveSamplingContext::new(self.workspace());
+
+        context.sample(sampling)
     }
 }
 

@@ -1,6 +1,8 @@
 use num_traits::One;
 
-use crate::algebra::RealCartesianVectorAlgebra;
+use crate::algebra::{CartesianVectorAlgebra, RealCartesianVectorAlgebra};
+
+use super::{ConstitutiveFields, IsotropicConstitutiveParameters};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElectromagneticIntensities<V> {
@@ -67,6 +69,21 @@ impl<V> ElectromagneticFields<V> {
 
     pub fn into_parts(self) -> (V, V) {
         (self.electric, self.magnetic)
+    }
+
+    pub(crate) fn into_constitutive_fields(
+        self,
+        constitutive: &IsotropicConstitutiveParameters<V::ScalarField>,
+    ) -> ConstitutiveFields<V>
+    where
+        V: CartesianVectorAlgebra,
+    {
+        let (electric, magnetic) = self.into_parts();
+
+        ConstitutiveFields::new(
+            electric.multiply_by_scalar(constitutive.epsilon()),
+            magnetic.multiply_by_scalar(constitutive.mu()),
+        )
     }
 
     pub fn map_vectors<U>(self, f: impl Fn(V) -> U) -> ElectromagneticFields<U> {
