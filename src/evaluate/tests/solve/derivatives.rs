@@ -14,7 +14,7 @@ fn evaluator() -> PlaneWaveEvaluator<Scatter2> {
 }
 
 fn thickness_parameter() -> Parameter {
-    Parameter::LayerThickness(FiniteLayerIndex(0))
+    Parameter::LayerThickness(FiniteLayerIndex::new(0))
 }
 
 #[test]

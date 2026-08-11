@@ -51,9 +51,9 @@ fn assert_layer_dissipation_matches_power(
     assert_eq!(dissipation.len(), power.len());
 
     for index in 0..dissipation.len() {
-        let dissipation = dissipation.get(FiniteLayerIndex(index)).unwrap();
+        let dissipation = dissipation.get(FiniteLayerIndex::new(index)).unwrap();
 
-        let power = power.get(FiniteLayerIndex(index)).unwrap();
+        let power = power.get(FiniteLayerIndex::new(index)).unwrap();
 
         assert_real_close(dissipation.total(), power.absorbed(), tolerance);
 
@@ -211,7 +211,7 @@ fn electric_loss_is_attributed_to_electric_dissipation() {
 
             let response = excitation.layer_dissipation().unwrap();
 
-            let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
+            let layer = response.value().get(FiniteLayerIndex::new(0)).unwrap();
 
             assert_real_zero(layer.magnetic(), VALUE_TOLERANCE);
 
@@ -248,7 +248,7 @@ fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
 
             let response = excitation.layer_dissipation().unwrap();
 
-            let layer = response.value().get(FiniteLayerIndex(0)).unwrap();
+            let layer = response.value().get(FiniteLayerIndex::new(0)).unwrap();
 
             assert_real_zero(layer.electric(), VALUE_TOLERANCE);
 
@@ -298,7 +298,7 @@ fn first_layer_dissipation_derivative_matches_layer_power_derivative() {
 fn thickness_dissipation_derivative_matches_flux_loss_derivative() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_first(
@@ -367,7 +367,7 @@ fn bivariate_layer_dissipation_matches_flux_loss_on_all_branches() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_bivariate_second(

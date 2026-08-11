@@ -216,7 +216,7 @@ fn projection_preserves_mapping_and_constraint() {
             sampled_real_input(&[2.1, 2.3], &[0.21, 0.27]),
             &differentiable_lossless_two_layer_stack(),
             Polarisation::TransverseElectric,
-            Parameter::LayerThickness(FiniteLayerIndex(0)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(0)),
         )
         .unwrap();
 

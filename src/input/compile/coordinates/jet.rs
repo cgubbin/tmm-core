@@ -37,8 +37,12 @@ use crate::algebra::{
 /// Methods consume `self` because canonicalisation forms a sequence of
 /// transformations and does not need to retain intermediate jets.
 ///
-/// The scalar type `C` is the complex coefficient type used by the backend,
-/// while `D` is the sampled ndarray dimension carried by each jet coefficient.
+/// [`Jet::Scalar`] is the complex coefficient type used by the backend, while
+/// [`Jet::Dimension`] is the sampled ndarray dimension carried by each jet
+/// coefficient.
+///
+/// This trait is public only because it participates in bounds on public
+/// evaluator implementations. It is not a downstream extension point.
 #[doc(hidden)]
 pub trait CanonicalCoordinateJet: Sized + Clone + Jet
 where

@@ -101,10 +101,9 @@ where
                 }
 
                 FieldPosition::Layer { index, .. } => {
-                    let quantities = self
-                        .workspace
-                        .layer_quantities(index.0)
-                        .ok_or(ConstitutiveSamplingError::MissingLayerData { index: index.0 })?;
+                    let quantities = self.workspace.layer_quantities(index.get()).ok_or(
+                        ConstitutiveSamplingError::MissingLayerData { index: index.get() },
+                    )?;
 
                     sampled.push(quantities.epsilon(), quantities.mu());
                 }
@@ -155,16 +154,18 @@ where
                 }
 
                 FieldPosition::Layer { index, .. } => {
-                    let quantities = self
-                        .workspace
-                        .layer_quantities(index.0)
-                        .ok_or(ConstitutiveSamplingError::MissingLayerData { index: index.0 })?;
+                    let quantities = self.workspace.layer_quantities(index.get()).ok_or(
+                        ConstitutiveSamplingError::MissingLayerData { index: index.get() },
+                    )?;
 
                     sampled.push(quantities.epsilon(), quantities.mu());
 
-                    let layer = stack
-                        .layer(*index)
-                        .ok_or(ConstitutiveSamplingError::MissingLayerData { index: index.0 })?;
+                    let layer =
+                        stack
+                            .layer(*index)
+                            .ok_or(ConstitutiveSamplingError::MissingLayerData {
+                                index: index.get(),
+                            })?;
 
                     let epsilon_spectral_first = A::relative_permittivity_spectral_first(
                         layer.material(),
@@ -289,18 +290,18 @@ mod tests {
                 distance: Length::zero(),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.25),
             },
             FieldPosition::LeftExterior {
                 distance: Length::zero(),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(1),
+                index: FiniteLayerIndex::new(1),
                 position: ResolvedLayerPosition::Fraction(0.75),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.75),
             },
         ])
@@ -309,23 +310,23 @@ mod tests {
     fn repeated_layer_sampling() -> ResolvedFieldSampling<f64> {
         ResolvedFieldSampling::new(vec![
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.0),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.25),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.5),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.75),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(1.0),
             },
         ])
@@ -561,7 +562,7 @@ mod tests {
         let stack = two_layer_stack();
         let sampling = mixed_sampling();
 
-        let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+        let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
         for_each_backend!(evaluator, {
             let state = evaluator
@@ -739,18 +740,18 @@ mod spectral_first_tests {
                 distance: Length::zero(),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.25),
             },
             FieldPosition::LeftExterior {
                 distance: Length::zero(),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(1),
+                index: FiniteLayerIndex::new(1),
                 position: ResolvedLayerPosition::Fraction(0.75),
             },
             FieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: ResolvedLayerPosition::Fraction(0.75),
             },
         ])
@@ -810,9 +811,9 @@ mod spectral_first_tests {
                 .sample_spectral_first::<_, _, RealAxis>(&sampling, canonical_stack)
                 .unwrap();
 
-            let layer_0 = canonical_stack.layer(FiniteLayerIndex(0)).unwrap();
+            let layer_0 = canonical_stack.layer(FiniteLayerIndex::new(0)).unwrap();
 
-            let layer_1 = canonical_stack.layer(FiniteLayerIndex(1)).unwrap();
+            let layer_1 = canonical_stack.layer(FiniteLayerIndex::new(1)).unwrap();
 
             /*
              * Requested order:
@@ -996,7 +997,7 @@ mod spectral_first_tests {
         let stack = two_layer_stack();
         let sampling = mixed_sampling();
 
-        let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+        let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
         for_each_backend!(evaluator, {
             let state = evaluator
@@ -1018,9 +1019,9 @@ mod spectral_first_tests {
                 .sample_spectral_first::<_, _, RealAxis>(&sampling, canonical_stack)
                 .unwrap();
 
-            let layer_0 = canonical_stack.layer(FiniteLayerIndex(0)).unwrap();
+            let layer_0 = canonical_stack.layer(FiniteLayerIndex::new(0)).unwrap();
 
-            let layer_1 = canonical_stack.layer(FiniteLayerIndex(1)).unwrap();
+            let layer_1 = canonical_stack.layer(FiniteLayerIndex::new(1)).unwrap();
 
             let expected_epsilon = [
                 <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.right_exterior(), k0),
@@ -1104,7 +1105,7 @@ mod spectral_first_tests {
              */
             let expected_epsilon = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(
                 canonical_stack
-                    .layer(FiniteLayerIndex(0))
+                    .layer(FiniteLayerIndex::new(0))
                     .unwrap()
                     .material(),
                 k0,
@@ -1112,7 +1113,7 @@ mod spectral_first_tests {
 
             let expected_mu = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(
                 canonical_stack
-                    .layer(FiniteLayerIndex(0))
+                    .layer(FiniteLayerIndex::new(0))
                     .unwrap()
                     .material(),
                 k0,

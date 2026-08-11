@@ -340,7 +340,7 @@ fn first_modal_field_derivative_survives_reconstruction() {
 fn thickness_modal_field_derivative_survives_reconstruction() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_modal_first(
@@ -398,7 +398,7 @@ fn bivariate_modal_field_derivatives_survive_reconstruction() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_modal_bivariate_second(
@@ -481,8 +481,8 @@ fn first_modal_field_derivatives_satisfy_tangential_interface_continuity() {
 
     for parameter in [
         Parameter::Spectral,
-        Parameter::LayerThickness(FiniteLayerIndex(0)),
-        Parameter::LayerThickness(FiniteLayerIndex(1)),
+        Parameter::LayerThickness(FiniteLayerIndex::new(0)),
+        Parameter::LayerThickness(FiniteLayerIndex::new(1)),
     ] {
         for polarisation in [
             Polarisation::TransverseElectric,

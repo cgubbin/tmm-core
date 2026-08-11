@@ -249,7 +249,7 @@ fn first_field_derivative_survives_point_projection_and_reconstruction() {
 fn thickness_field_derivative_survives_point_projection_and_reconstruction() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_first(
@@ -314,7 +314,7 @@ fn bivariate_field_derivatives_survive_point_projection_and_reconstruction() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_bivariate_second(
@@ -583,8 +583,8 @@ fn first_field_derivatives_satisfy_tangential_interface_continuity() {
 
     for parameter in [
         Parameter::Spectral,
-        Parameter::LayerThickness(FiniteLayerIndex(0)),
-        Parameter::LayerThickness(FiniteLayerIndex(1)),
+        Parameter::LayerThickness(FiniteLayerIndex::new(0)),
+        Parameter::LayerThickness(FiniteLayerIndex::new(1)),
     ] {
         eprintln!("testing continuity for {parameter:?}");
         for polarisation in [

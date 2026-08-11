@@ -53,14 +53,14 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
     let confinement = state
         .excitation(IncidentSide::Right)
         .expect("state should be projectable")
-        .layer_confinement_by_nondispersive(|index| index == FiniteLayerIndex(1))
+        .layer_confinement_by_nondispersive(|index| index == FiniteLayerIndex::new(1))
         .unwrap();
 
     assert_relative_eq!(
         confinement.value().electric()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .electric()[()],
         epsilon = VALUE_TOLERANCE,
@@ -71,7 +71,7 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
         confinement.value().magnetic()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .magnetic()[()],
         epsilon = VALUE_TOLERANCE,
@@ -82,7 +82,7 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
         confinement.value().total()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .total()[()],
         epsilon = VALUE_TOLERANCE,
@@ -187,14 +187,14 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
     let confinement = state
         .excitation(IncidentSide::Right)
         .expect("state should be projectable")
-        .layer_confinement_by_dispersive(|index| index == FiniteLayerIndex(1))
+        .layer_confinement_by_dispersive(|index| index == FiniteLayerIndex::new(1))
         .unwrap();
 
     assert_relative_eq!(
         confinement.value().electric()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .electric()[()],
         epsilon = VALUE_TOLERANCE,
@@ -205,7 +205,7 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
         confinement.value().magnetic()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .magnetic()[()],
         epsilon = VALUE_TOLERANCE,
@@ -216,7 +216,7 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
         confinement.value().total()[()],
         participation
             .value()
-            .get(FiniteLayerIndex(1))
+            .get(FiniteLayerIndex::new(1))
             .unwrap()
             .total()[()],
         epsilon = VALUE_TOLERANCE,

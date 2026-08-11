@@ -3,6 +3,7 @@ use super::{
     derivative_mapping::{DerivativeMapping, DerivativeMappingError},
 };
 
+/// Parameter mapping for a value-only response.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ValueMapping;
 
@@ -21,6 +22,10 @@ impl ValueMapping {
     }
 }
 
+/// Parameter mapping for a one-direction derivative response.
+///
+/// `parameter()` identifies the caller-facing parameter represented by the
+/// derivative direction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DirectionalMapping {
     parameter: Parameter,
@@ -42,11 +47,14 @@ impl DirectionalMapping {
         Ok(Self { parameter })
     }
 
-    pub fn parameter(&self) -> Parameter {
+    pub(crate) fn parameter(&self) -> Parameter {
         self.parameter
     }
 }
 
+/// Parameter mapping for a two-direction derivative response.
+///
+/// The returned parameter order matches the first and second jet directions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BivariateMapping {
     first: Parameter,
@@ -69,7 +77,7 @@ impl BivariateMapping {
         Ok(Self { first, second })
     }
 
-    pub fn parameters(&self) -> (Parameter, Parameter) {
+    pub(crate) fn parameters(&self) -> (Parameter, Parameter) {
         (self.first, self.second)
     }
 }

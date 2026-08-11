@@ -1080,7 +1080,7 @@ fn scatter_te_sampled_qnm_normalisation_matches_analytic_layers() {
         let sampled_total = sampled_electric - sampled_magnetic;
 
         let analytic = analytic_layers
-            .get(FiniteLayerIndex(layer_index))
+            .get(FiniteLayerIndex::new(layer_index))
             .expect("analytic layer should exist");
 
         let analytic_electric = analytic.electric().value()[()];
@@ -1205,7 +1205,7 @@ fn scatter_tm_sampled_qnm_normalisation_matches_analytic_layers() {
         let sampled_total = sampled_electric - sampled_magnetic;
 
         let analytic = analytic_layers
-            .get(FiniteLayerIndex(layer_index))
+            .get(FiniteLayerIndex::new(layer_index))
             .expect("analytic layer should exist");
 
         let analytic_electric = analytic.electric().value()[()];

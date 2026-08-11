@@ -108,7 +108,7 @@ fn solve_and_retain_first_derivatives_are_identical() {
 
     let stack = single_layer_stack(1.7, FILM_THICKNESS_CM);
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(0));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
     let solved = evaluator
         .evaluate_first(
@@ -203,7 +203,7 @@ fn solve_and_retain_bivariate_results_are_identical() {
 
     let stack = single_layer_stack(1.7, FILM_THICKNESS_CM);
 
-    let thickness = Parameter::LayerThickness(FiniteLayerIndex(0));
+    let thickness = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
     let solved = evaluator
         .evaluate_bivariate_second(

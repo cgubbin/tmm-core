@@ -1,5 +1,5 @@
 [package]
-name = "tmm-core"
+name = "lamina-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
@@ -7,7 +7,7 @@ description = "Rust project template with library and binary"
 license = "MIT"
 
 [lib]
-name = "tmm_core"
+name = "lamina_core"
 path = "src/lib.rs"
 
 
@@ -19,7 +19,7 @@ ndarray = "0.17.2"
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 thiserror = "2.0.18"
-tmm-units = {path = "../tmm-units"}
+lamina-units = {path = "../lamina-units"}
 
 [dev-dependencies]
 approx = { version = "0.5.1", features = ["num-complex"] }

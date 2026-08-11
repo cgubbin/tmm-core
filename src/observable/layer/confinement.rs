@@ -69,7 +69,7 @@ where
         let aggregate = self.aggregate()?;
 
         let mut selected = self.iter().enumerate().filter_map(|(index, layer)| {
-            let index = FiniteLayerIndex(index);
+            let index = FiniteLayerIndex::new(index);
 
             include(index, layer).then_some(layer)
         });
@@ -178,10 +178,10 @@ mod tests {
         let participation = layers.participation().unwrap();
 
         let confinement = layers
-            .confinement_by(|index, _| index == FiniteLayerIndex(1))
+            .confinement_by(|index, _| index == FiniteLayerIndex::new(1))
             .unwrap();
 
-        let expected = participation.get(FiniteLayerIndex(1)).unwrap();
+        let expected = participation.get(FiniteLayerIndex::new(1)).unwrap();
 
         assert_eq!(confinement.electric(), expected.electric(),);
 
@@ -197,17 +197,37 @@ mod tests {
         let participation = layers.participation().unwrap();
 
         let confinement = layers
-            .confinement_by(|index, _| index == FiniteLayerIndex(0) || index == FiniteLayerIndex(2))
+            .confinement_by(|index, _| {
+                index == FiniteLayerIndex::new(0) || index == FiniteLayerIndex::new(2)
+            })
             .unwrap();
 
-        let expected_electric = scalar(participation.get(FiniteLayerIndex(0)).unwrap().electric())
-            + scalar(participation.get(FiniteLayerIndex(2)).unwrap().electric());
+        let expected_electric = scalar(
+            participation
+                .get(FiniteLayerIndex::new(0))
+                .unwrap()
+                .electric(),
+        ) + scalar(
+            participation
+                .get(FiniteLayerIndex::new(2))
+                .unwrap()
+                .electric(),
+        );
 
-        let expected_magnetic = scalar(participation.get(FiniteLayerIndex(0)).unwrap().magnetic())
-            + scalar(participation.get(FiniteLayerIndex(2)).unwrap().magnetic());
+        let expected_magnetic = scalar(
+            participation
+                .get(FiniteLayerIndex::new(0))
+                .unwrap()
+                .magnetic(),
+        ) + scalar(
+            participation
+                .get(FiniteLayerIndex::new(2))
+                .unwrap()
+                .magnetic(),
+        );
 
-        let expected_total = scalar(participation.get(FiniteLayerIndex(0)).unwrap().total())
-            + scalar(participation.get(FiniteLayerIndex(2)).unwrap().total());
+        let expected_total = scalar(participation.get(FiniteLayerIndex::new(0)).unwrap().total())
+            + scalar(participation.get(FiniteLayerIndex::new(2)).unwrap().total());
 
         assert_relative_eq!(
             scalar(confinement.electric()),
@@ -240,16 +260,16 @@ mod tests {
         let _ = layers
             .confinement_by(|index, _| {
                 visited.push(index);
-                index == FiniteLayerIndex(1)
+                index == FiniteLayerIndex::new(1)
             })
             .unwrap();
 
         assert_eq!(
             visited,
             vec![
-                FiniteLayerIndex(0),
-                FiniteLayerIndex(1),
-                FiniteLayerIndex(2),
+                FiniteLayerIndex::new(0),
+                FiniteLayerIndex::new(1),
+                FiniteLayerIndex::new(2),
             ],
         );
     }
@@ -303,7 +323,7 @@ mod tests {
         ]);
 
         let confinement = layers
-            .confinement_by(|index, _| index == FiniteLayerIndex(0))
+            .confinement_by(|index, _| index == FiniteLayerIndex::new(0))
             .unwrap();
 
         assert_relative_eq!(
@@ -325,9 +345,9 @@ mod tests {
     fn complementary_regions_have_confinements_summing_to_one() {
         let layers = Layers::new(vec![energy(2.0, 3.0), energy(5.0, 7.0), energy(11.0, 13.0)]);
 
-        let left = layers.confinement_by(|index, _| index.0 < 2).unwrap();
+        let left = layers.confinement_by(|index, _| index.get() < 2).unwrap();
 
-        let right = layers.confinement_by(|index, _| index.0 >= 2).unwrap();
+        let right = layers.confinement_by(|index, _| index.get() >= 2).unwrap();
 
         assert_relative_eq!(
             scalar(left.electric()) + scalar(right.electric()),

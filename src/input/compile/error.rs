@@ -1,6 +1,7 @@
 use nalgebra::ComplexField;
 use thiserror::Error;
 
+use crate::FiniteLayerIndex;
 use crate::input::compile::{CoordinateCompileError, StackCompileError};
 use crate::parameter::DerivativeMappingError;
 
@@ -16,17 +17,18 @@ pub enum CompilePlaneWaveError<C: ComplexField> {
     Stack(#[from] StackCompileError<C::RealField>),
 }
 
+#[doc(hidden)]
 #[derive(Debug, Error)]
 pub enum MappingError {
     #[error(transparent)]
     Mapping(#[from] DerivativeMappingError),
 
     #[error(
-        "layer thickness variable refers to layer {layer}, \
+        "layer thickness variable refers to layer {layer:?}, \
          but the stack contains only {finite_layer_count} layer(s)"
     )]
     LayerOutOfBounds {
-        layer: usize,
+        layer: FiniteLayerIndex,
         finite_layer_count: usize,
     },
 }

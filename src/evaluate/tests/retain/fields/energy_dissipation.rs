@@ -378,7 +378,7 @@ fn thickness_derivatives_survive_energy_and_dissipation_evaluation() {
     let stack = absorbing_two_layer_stack();
     let sampling = sampling();
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     for polarisation in [
         Polarisation::TransverseElectric,
@@ -775,7 +775,7 @@ fn integrated_dissipation_density_matches_layer_flux_loss() {
 
                     let layer = layer_power
                         .value()
-                        .get(FiniteLayerIndex(layer_index))
+                        .get(FiniteLayerIndex::new(layer_index))
                         .expect("layer power should contain every finite layer");
 
                     let expected = layer.absorbed()[()];
@@ -868,7 +868,7 @@ fn integrated_energy_density_matches_layer_energy() {
 
                     let expected = layer_energy
                         .value()
-                        .get(FiniteLayerIndex(layer_index))
+                        .get(FiniteLayerIndex::new(layer_index))
                         .expect("layer energy should contain every finite layer");
 
                     assert_relative_eq!(

@@ -57,7 +57,7 @@ impl<T> LayerBoundaries<T> {
 
     /// Return the record for `index`.
     pub fn get(&self, index: FiniteLayerIndex) -> Option<&T> {
-        self.layers.get(index.0)
+        self.layers.get(index.get())
     }
 
     /// Iterate in physical left-to-right finite-layer order.

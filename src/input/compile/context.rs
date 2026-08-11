@@ -218,7 +218,7 @@ where
 
 //     use super::*;
 //     use crate::input::{InPlaneCoordinate, Parameter, SpectralCoordinate};
-//     use tmm_units::InverseLengthUnit;
+//     use lamina_units::InverseLengthUnit;
 
 //     #[test]
 //     fn stack_context_preserves_layer_order() {

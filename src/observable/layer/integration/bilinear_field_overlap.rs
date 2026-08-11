@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn normal_incidence_removes_longitudinal_contribution() {
+    fn normal_incidence_leaves_negative_transverse_bilinear_contribution() {
         let field_field = Complex64::new(2.0, 1.0);
         let secondary_secondary = Complex64::new(3.0, -1.0);
 
@@ -257,7 +257,18 @@ mod tests {
             &jet(Complex64::new(0.0, 0.0)),
         );
 
-        let expected_magnetic = secondary_secondary / Complex64::new(6.0, 0.0);
+        /*
+         * At normal incidence the longitudinal contribution vanishes.
+         *
+         * For TE,
+         *
+         *     Hx = i secondary / k0
+         *
+         * so the unconjugated bilinear product contributes
+         *
+         *     i * i = -1.
+         */
+        let expected_magnetic = -secondary_secondary / Complex64::new(6.0, 0.0);
 
         assert_complex_close(scalar(projected.magnetic()), expected_magnetic);
     }
@@ -296,11 +307,22 @@ mod tests {
             &jet(right_beta),
         );
 
+        /*
+         * TE magnetic overlap:
+         *
+         *     Hx_r Hx_c
+         *       = - secondary_r secondary_c / (k0_r k0_c)
+         *
+         *     Hz_r Hz_c
+         *       = field_r field_c
+         *         [beta_r / (k0_r mu_r)]
+         *         [beta_c / (k0_c mu_c)]
+         */
         let transverse = Complex64::new(1.0, 0.0) / (left_k0 * right_k0);
 
         let longitudinal = left_beta / (left_k0 * left_mu) * right_beta / (right_k0 * right_mu);
 
-        let expected = secondary_secondary * transverse + field_field * longitudinal;
+        let expected = -secondary_secondary * transverse + field_field * longitudinal;
 
         assert_complex_close(scalar(projected.magnetic()), expected);
     }
@@ -339,12 +361,23 @@ mod tests {
             &jet(right_beta),
         );
 
+        /*
+         * TM electric overlap:
+         *
+         *     Ex_r Ex_c
+         *       = - secondary_r secondary_c / (k0_r k0_c)
+         *
+         *     Ez_r Ez_c
+         *       = field_r field_c
+         *         [beta_r / (k0_r epsilon_r)]
+         *         [beta_c / (k0_c epsilon_c)]
+         */
         let transverse = Complex64::new(1.0, 0.0) / (left_k0 * right_k0);
 
         let longitudinal =
             left_beta / (left_k0 * left_epsilon) * right_beta / (right_k0 * right_epsilon);
 
-        let expected = secondary_secondary * transverse + field_field * longitudinal;
+        let expected = -secondary_secondary * transverse + field_field * longitudinal;
 
         assert_complex_close(scalar(projected.electric()), expected);
     }

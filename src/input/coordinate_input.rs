@@ -9,7 +9,7 @@
 //! later when projecting amplitudes and powers.
 //!
 //! Some coordinate representations are intrinsically defined. Examples include
-//! parallel wavenumber, propagation constant, and effective index. These use
+//! parallel wavenumber, and effective index. These use
 //! [`CoordinateInput::intrinsic`].
 //!
 //! Incident angle is defined relative to one exterior medium and therefore
@@ -380,9 +380,9 @@ where
 mod tests {
     use super::*;
 
+    use lamina_units::{AngleUnit, InverseLengthUnit};
     use ndarray::{IxDyn, arr1, arr2};
     use num_complex::Complex64;
-    use tmm_units::{AngleUnit, InverseLengthUnit};
 
     use crate::input::{InPlaneCoordinate, SpectralCoordinate};
 
@@ -659,5 +659,20 @@ mod tests {
         assert_eq!(returned_spectral, spectral);
         assert_eq!(returned_in_plane, in_plane);
         assert_eq!(returned_reference, CoordinateReference::Intrinsic,);
+    }
+
+    #[test]
+    fn grid_preserves_complete_sampled_shape() {
+        let spectral = arr2(&[[1_000.0, 1_100.0], [1_200.0, 1_300.0]]);
+
+        let in_plane = arr2(&[[1.0, 1.1], [1.2, 1.3]]);
+
+        let input =
+            CoordinateInput::grid(intrinsic_coordinates(), spectral.clone(), in_plane.clone())
+                .unwrap();
+
+        assert_eq!(input.spectral(), &spectral);
+        assert_eq!(input.in_plane(), &in_plane);
+        assert_eq!(input.raw_dim(), Ix2(2, 2));
     }
 }

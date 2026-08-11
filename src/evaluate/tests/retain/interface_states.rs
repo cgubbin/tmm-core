@@ -129,7 +129,7 @@ macro_rules! interface_continuity_suite {
 
                 let stack = two_layer_stack();
 
-                let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
                 let state = evaluator
                     .retain_first(
@@ -198,7 +198,7 @@ macro_rules! interface_continuity_suite {
 
                 let axis0 = Parameter::Spectral;
 
-                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
                 let state = evaluator
                     .retain_bivariate_second(

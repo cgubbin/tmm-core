@@ -6,6 +6,9 @@
 //! This module validates caller-facing spectral values before converting them
 //! into that canonical representation.
 //!
+//! Complex spectral coordinates are restricted to the half-plane with
+//! strictly positive real component.
+//!
 //! Validation checks only properties of the supplied values themselves (for
 //! example finiteness and positivity). Unit conversions and coordinate
 //! transformations are performed separately so that validation remains
@@ -23,6 +26,7 @@
 //! - frequency → vacuum angular wavenumber;
 //! - angular frequency → vacuum angular wavenumber;
 //! - vacuum wavelength → vacuum angular wavenumber.
+//!
 
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Data, Dimension};
@@ -61,7 +65,8 @@ pub enum SpectralInputError<R> {
 
 /// Validate a caller-facing spectral coordinate.
 ///
-/// Every supplied value must be finite and strictly positive.
+/// Every supplied value must be finite. Real inputs must be strictly positive;
+/// for complex inputs, the real component must be strictly positive.
 ///
 /// No unit conversion or canonicalisation is performed.
 ///
@@ -101,24 +106,23 @@ where
 /// propagated automatically.
 ///
 /// The transformations are:
-///
 /// ```text
-/// β₀            → β₀
+/// k₀           → k₀
 ///
-/// k₀            → 2π k₀
+/// ν̃           → 2π ν̃
 ///
-/// ν             → 2πν / c
+/// f            → 2π f / c
 ///
-/// ω             → ω / c
+/// ω            → ω / c
 ///
-/// λ             → 2π / λ
+/// λ            → 2π / λ
 /// ```
 ///
-/// where
+/// where:
 ///
-/// - `β₀` is the vacuum angular wavenumber;
-/// - `k₀` is the vacuum wavenumber;
-/// - `ν` is frequency;
+/// - `k₀` is the vacuum angular wavenumber;
+/// - `ν̃` is the spectroscopic vacuum wavenumber;
+/// - `f` is ordinary frequency;
 /// - `ω` is angular frequency;
 /// - `λ` is vacuum wavelength;
 /// - `c` is the speed of light in vacuum.
@@ -171,10 +175,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use lamina_units::{AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
     use nalgebra::Complex;
     use ndarray::{Ix0, arr1, array};
     use num_complex::Complex64;
-    use tmm_units::{AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
 
     use super::*;
     use crate::algebra::Jet;

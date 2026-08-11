@@ -21,7 +21,6 @@
 //! The canonical solve representation is layered as follows:
 //!
 //! - [`CanonicalCoordinates`] stores canonical spectral and in-plane values;
-//! - [`CanonicalSolverInput`] adds polarisation for an oriented solve;
 //! - [`CanonicalStack`] stores the oriented exterior media and finite layers;
 //! - [`CanonicalBackendInput`] combines solver input and stack;
 
@@ -53,12 +52,12 @@ impl<M, J> CanonicalBackendInput<M, J> {
         }
     }
 
-    /// Return the canonical solver input.
+    /// Return the canonical problem.
     pub(crate) fn problem(&self) -> &CanonicalProblem<M, J> {
         &self.problem
     }
 
-    /// Return the canonical oriented stack.
+    /// Return the polarisation.
     pub(crate) fn polarisation(&self) -> Polarisation {
         self.polarisation
     }
@@ -69,6 +68,7 @@ impl<M, J> CanonicalBackendInput<M, J> {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanonicalProblem<M, J> {
     coordinates: CanonicalCoordinates<J>,
@@ -81,7 +81,7 @@ impl<M, J> CanonicalProblem<M, J> {
         Self { coordinates, stack }
     }
 
-    /// Return the canonical solver input.
+    /// Return the canonical coordinates.
     pub(crate) fn coordinates(&self) -> &CanonicalCoordinates<J> {
         &self.coordinates
     }

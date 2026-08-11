@@ -104,7 +104,7 @@ fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
     assert_eq!(layers.value().len() + 1, interfaces.value().len(),);
 
     for index in 0..layers.value().len() {
-        let layer = layers.value().get(FiniteLayerIndex(index)).unwrap();
+        let layer = layers.value().get(FiniteLayerIndex::new(index)).unwrap();
 
         let left_interface = interfaces.value().get(index).unwrap();
 
@@ -188,8 +188,8 @@ fn absorption_is_attributed_to_the_absorbing_layer() {
 
     assert_eq!(response.value().len(), 2);
 
-    let lossless = response.value().get(FiniteLayerIndex(0)).unwrap();
-    let absorbing = response.value().get(FiniteLayerIndex(1)).unwrap();
+    let lossless = response.value().get(FiniteLayerIndex::new(0)).unwrap();
+    let absorbing = response.value().get(FiniteLayerIndex::new(1)).unwrap();
 
     assert_relative_eq!(
         scalar(lossless.absorbed()),
@@ -284,7 +284,7 @@ fn summed_layer_absorption_derivative_matches_external_absorptance_derivative() 
 fn thickness_derivative_of_resolved_absorption_sums_to_external_derivative() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_first(
@@ -377,7 +377,7 @@ fn bivariate_layer_absorption_derivatives_sum_to_external_derivatives() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_bivariate_second(

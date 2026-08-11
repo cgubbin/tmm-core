@@ -96,11 +96,10 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
                 }
 
                 CanonicalFieldPosition::Layer { index, .. } => {
-                    let quantities = self
-                        .waves
-                        .workspace()
-                        .layer_quantities(index.0)
-                        .ok_or(FieldReconstructionError::MissingLayerData { index: index.0 })?;
+                    let quantities =
+                        self.waves.workspace().layer_quantities(index.get()).ok_or(
+                            FieldReconstructionError::MissingLayerData { index: index.get() },
+                        )?;
 
                     let admittance = quantities.admittance().into_inner();
 
@@ -791,12 +790,12 @@ mod integration_tests {
         let positions = vec![
             CanonicalFieldPosition::LeftExterior { distance: 0.15 },
             CanonicalFieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: CanonicalLayerPosition::FromLeft(0.10),
             },
             CanonicalFieldPosition::RightExterior { distance: 0.20 },
             CanonicalFieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: CanonicalLayerPosition::FromLeft(0.10),
             },
         ];
@@ -867,7 +866,7 @@ mod integration_tests {
                 }
 
                 CanonicalFieldPosition::Layer { index, .. } => {
-                    let quantities = workspace.layer_quantities(index.0).expect(
+                    let quantities = workspace.layer_quantities(index.get()).expect(
                         "sampled layer should have \
                              retained quantities",
                     );

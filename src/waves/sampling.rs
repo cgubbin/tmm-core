@@ -200,19 +200,19 @@ where
 
         CanonicalFieldPosition::Layer { index, position } => {
             let layer_thickness = workspace
-                .layer_thickness(index.0)
-                .ok_or(WaveSamplingError::MissingLayerData { index: index.0 })?;
+                .layer_thickness(index.get())
+                .ok_or(WaveSamplingError::MissingLayerData { index: index.get() })?;
 
             let layer = layers
-                .get(index.0)
+                .get(index.get())
                 .ok_or(WaveSamplingError::LayerOutOfBounds {
-                    requested: index.0,
+                    requested: index.get(),
                     layer_count: layers.len(),
                 })?;
 
             let longitudinal_wavevector = workspace
-                .layer_quantities(index.0)
-                .ok_or(WaveSamplingError::MissingLayerData { index: index.0 })?
+                .layer_quantities(index.get())
+                .ok_or(WaveSamplingError::MissingLayerData { index: index.get() })?
                 .kappa();
 
             Ok(layer.propagate_to_position(longitudinal_wavevector, layer_thickness, position))
@@ -275,7 +275,7 @@ mod tests {
         let context = WaveSamplingContext::new(&workspace);
 
         let sampling = CompiledFieldSampling::new(vec![CanonicalFieldPosition::Layer {
-            index: FiniteLayerIndex(0),
+            index: FiniteLayerIndex::new(0),
             position: CanonicalLayerPosition::FromLeft(0.1),
         }]);
 
@@ -333,7 +333,7 @@ mod tests {
         let position = CanonicalLayerPosition::FromLeft(0.1);
 
         let sampling = CompiledFieldSampling::new(vec![CanonicalFieldPosition::Layer {
-            index: FiniteLayerIndex(0),
+            index: FiniteLayerIndex::new(0),
             position,
         }]);
 
@@ -378,7 +378,7 @@ mod tests {
                 .iter()
                 .copied()
                 .map(|position| CanonicalFieldPosition::Layer {
-                    index: FiniteLayerIndex(0),
+                    index: FiniteLayerIndex::new(0),
                     position,
                 })
                 .collect(),
@@ -419,7 +419,7 @@ mod tests {
         let sampling = CompiledFieldSampling::new(vec![
             CanonicalFieldPosition::LeftExterior { distance: 0.0 },
             CanonicalFieldPosition::Layer {
-                index: FiniteLayerIndex(0),
+                index: FiniteLayerIndex::new(0),
                 position: CanonicalLayerPosition::FromLeft(0.1),
             },
             CanonicalFieldPosition::RightExterior { distance: 0.0 },

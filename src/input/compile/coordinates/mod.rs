@@ -3,25 +3,21 @@
 //! This module converts caller-supplied spectral and in-plane coordinates into
 //! the canonical coordinate representation consumed by the numerical backend.
 //!
-//! Coordinate compilation proceeds in four stages:
+//! Coordinate compilation proceeds in three stages:
 //!
 //! 1. validate the caller-facing values;
-//! 2. convert the real-valued samples into the backend complex scalar type;
-//! 3. seed any assigned independent coordinate variables into the selected jet
+//! 2. seed any assigned independent coordinate variables into the selected jet
 //!    representation;
-//! 4. canonicalise the seeded values into vacuum and parallel angular
+//! 3. canonicalise the seeded values into vacuum and parallel angular
 //!    wavenumbers in inverse centimetres.
 //!
 //! Seeding is deliberately performed before canonicalisation. Derivatives are
 //! therefore taken with respect to the caller-facing coordinates, while the
-//! jet algebra propagates the required Jacobian through unit conversions and
+//! jet algebra propagates the required chain rule through unit conversions and
 //! nonlinear coordinate transformations.
 //!
-//! The resulting canonical coordinates are accompanied by a
-//! [`CoordinateContext`], which retains the caller-facing coordinate metadata
-//! required to interpret results and convert derivatives back into the input
-//! parameterisation.
-
+//! Caller-facing coordinate metadata is retained separately by the outer
+//! compilation layer when constructing the final [`CompilationContext`].
 mod error;
 mod in_plane;
 mod jet;
@@ -44,7 +40,7 @@ use crate::{
     input::{
         CanonicalCoordinates, CompileJet, CoordinateReference, Coordinates, InPlaneCoordinate,
         SpectralCoordinate,
-        compile::{ProjectionConstraint, context::CoordinateContext, seed::SeedJet},
+        compile::{ProjectionConstraint, seed::SeedJet},
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     parameter::{DerivativeMapping, Parameter},
@@ -69,48 +65,6 @@ pub enum CoordinateVariable {
 
     /// The caller-facing in-plane coordinate.
     InPlane,
-}
-
-/// Canonical plane-wave coordinates together with their caller-facing context.
-///
-/// `canonical` contains the jet-valued vacuum and parallel angular
-/// wavenumbers used by the backend. `context` retains the original coordinate
-/// parameterisation and sampled values needed by higher-level APIs to describe
-/// results and transform derivatives.
-#[derive(Clone, Debug)]
-pub(crate) struct CompiledCoordinates<J, R, D>
-where
-    D: Dimension,
-{
-    compiled: CompiledCoordinateProblem<J>,
-    context: CoordinateContext<R, D>,
-}
-
-impl<J, R, D: Dimension> CompiledCoordinates<J, R, D> {
-    /// Construct compiled coordinates from their canonical representation and
-    /// caller-facing context.
-    pub(crate) fn new(
-        compiled: CompiledCoordinateProblem<J>,
-        context: CoordinateContext<R, D>,
-    ) -> Self {
-        Self { compiled, context }
-    }
-
-    /// Return the caller-facing coordinate context.
-    pub(crate) fn context(&self) -> &CoordinateContext<R, D> {
-        &self.context
-    }
-
-    /// Return the compiled jet-valued coordinate problem
-    pub(crate) fn compiled(&self) -> &CompiledCoordinateProblem<J> {
-        &self.compiled
-    }
-
-    /// Decompose the compiled coordinates into their canonical representation
-    /// and caller-facing context.
-    pub(crate) fn into_parts(self) -> (CompiledCoordinateProblem<J>, CoordinateContext<R, D>) {
-        (self.compiled, self.context)
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -140,12 +94,12 @@ where
     J::Dimension: Dimension,
     E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
-    let assignment = CoordinateAssignment::new(mapping);
+    let coordinate_mapping = CoordinateMapping::new(mapping);
 
     let spectral = compile_spectral(
         spectral_values,
         metadata.spectral(),
-        assignment.spectral_slot(),
+        coordinate_mapping.spectral_slot(),
     )?;
 
     let (incident_index, projection_constraint) = match (metadata.in_plane(), reference) {
@@ -170,7 +124,7 @@ where
         metadata.in_plane(),
         spectral.vacuum_angular_wavenumber(),
         incident_index.as_ref(),
-        assignment.in_plane_slot(),
+        coordinate_mapping.in_plane_slot(),
     )?;
 
     let canonical = CanonicalCoordinates::new(spectral.into_inner(), parallel_angular_wavenumber);
@@ -243,8 +197,6 @@ where
 {
     validate_spectral(values)?;
 
-    // let sampled = super::complexify(values);
-
     let seeded =
         seed_coordinate(values.clone(), slot).map_err(|source| CoordinateCompileError::Seed {
             variable: CoordinateVariable::Spectral,
@@ -311,16 +263,16 @@ where
     )?)
 }
 
-/// Coordinate-specific view over a parameter assignment.
+/// Coordinate-specific view over a derivative mapping.
 ///
-/// This translates canonical coordinate variables into their assigned jet
-/// slots without exposing coordinate compilation to layer parameters.
+/// This exposes only the spectral and in-plane slots relevant to coordinate
+/// compilation.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct CoordinateAssignment<'a> {
+pub(crate) struct CoordinateMapping<'a> {
     mapping: &'a DerivativeMapping,
 }
 
-impl<'a> CoordinateAssignment<'a> {
+impl<'a> CoordinateMapping<'a> {
     pub(crate) const fn new(mapping: &'a DerivativeMapping) -> Self {
         Self { mapping }
     }
@@ -346,9 +298,9 @@ impl<'a> CoordinateAssignment<'a> {
 mod tests {
     use std::f64::consts::PI;
 
+    use lamina_units::{AngleUnit, InverseLengthUnit, LengthUnit};
     use ndarray::{Array, Ix0, arr0};
     use num_complex::Complex64;
-    use tmm_units::{AngleUnit, InverseLengthUnit, LengthUnit};
 
     use super::*;
 
@@ -641,9 +593,9 @@ mod full_coordinate_compilation_tests {
         stack::{Layer, Thickness},
     };
 
+    use lamina_units::{AngleUnit, InverseLengthUnit};
     use ndarray::{Array, Ix1, array};
     use num_complex::Complex64;
-    use tmm_units::{AngleUnit, InverseLengthUnit};
 
     type C = Complex64;
     type D = Ix1;
@@ -901,13 +853,6 @@ mod full_coordinate_compilation_tests {
         let expected_left = spectral[0] * C::new(1.5, 0.0) * angle[0].sin();
 
         let expected_right = spectral[0] * C::new(2.0, 0.0) * angle[0].sin();
-
-        dbg!(
-            &expected_left,
-            &expected_right,
-            &left_coordinates,
-            &right_coordinates
-        );
 
         assert_complex_eq(
             left_coordinates.parallel_angular_wavenumber().value()[0],

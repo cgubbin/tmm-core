@@ -169,7 +169,7 @@ mod tests {
     }
 
     fn thickness(layer: usize) -> Parameter {
-        Parameter::LayerThickness(FiniteLayerIndex(layer))
+        Parameter::LayerThickness(FiniteLayerIndex::new(layer))
     }
 
     fn value_mapping() -> ValueMapping {

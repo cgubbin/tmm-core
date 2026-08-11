@@ -10,7 +10,9 @@
 //!
 //! Inputs are expressed in caller-selected units and coordinate systems.
 //! Before evaluation, they are validated and compiled into the canonical
-//! coordinates used by the numerical backends.
+//! representation used internally by the numerical backends. Coordinate
+//! transforms are performed through the selected jet algebra so that
+//! derivatives remain with respect to the caller-supplied coordinates.
 //!
 //! The public types in this module describe a problem; they do not perform
 //! coordinate conversion or numerical evaluation themselves.
@@ -30,10 +32,12 @@ pub(crate) use compile::{
     ProjectionConstraint, ProjectionConstraintError, compile_complex, compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
-pub(crate) use coordinate_input::{CoordinateReference, CoordinateValues};
+pub(crate) use coordinate_input::CoordinateValues;
 
 pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
-pub use coordinate_input::{CoordinateInput, CoordinatePoint};
+pub use coordinate_input::{
+    CoordinateGrid, CoordinateInput, CoordinatePoint, CoordinateReference, CoordinateSamples,
+};
 pub use error::PlaneWaveInputError;
 
 /// Polarisation supported by isotropic planar backends.
@@ -57,6 +61,11 @@ pub enum Polarisation {
 }
 
 /// Side from which a plane wave is incident on a planar stack.
+///
+/// Finite layers are ordered from left to right. [`Left`](Self::Left)
+/// therefore propagates initially in the positive stack direction, while
+/// [`Right`](Self::Right) propagates initially in the negative stack
+/// direction.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IncidentSide {
     /// Incidence from the first exterior medium towards the final exterior

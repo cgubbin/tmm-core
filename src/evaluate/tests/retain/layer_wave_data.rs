@@ -57,8 +57,8 @@ fn layer_wave_data_uses_each_layers_left_boundary_waves() {
     assert_eq!(layers.len(), boundaries.len());
 
     for index in 0..layers.len() {
-        let layer = layers.get(FiniteLayerIndex(index)).unwrap();
-        let boundary = boundaries.get(crate::FiniteLayerIndex(index)).unwrap();
+        let layer = layers.get(FiniteLayerIndex::new(index)).unwrap();
+        let boundary = boundaries.get(crate::FiniteLayerIndex::new(index)).unwrap();
 
         assert_eq!(
             layer.waves(),
@@ -95,7 +95,7 @@ fn layer_wave_data_preserves_quantities_in_physical_order() {
     assert_eq!(layers.len(), 2);
 
     for index in 0..layers.len() {
-        let layer = layers.get(FiniteLayerIndex(index)).unwrap();
+        let layer = layers.get(FiniteLayerIndex::new(index)).unwrap();
 
         let expected = workspace
             .layer_quantities(index)
@@ -133,7 +133,10 @@ fn layer_wave_data_preserves_thicknesses_in_physical_order() {
             .expect("retained thickness should exist");
 
         assert_eq!(
-            layers.get(FiniteLayerIndex(index)).unwrap().thickness(),
+            layers
+                .get(FiniteLayerIndex::new(index))
+                .unwrap()
+                .thickness(),
             expected,
             "thickness should remain aligned at layer {index}",
         );
@@ -163,8 +166,8 @@ fn incident_side_changes_waves_but_not_layer_metadata() {
     assert_eq!(left.len(), right.len());
 
     for index in 0..left.len() {
-        let left_layer = left.get(FiniteLayerIndex(index)).unwrap();
-        let right_layer = right.get(FiniteLayerIndex(index)).unwrap();
+        let left_layer = left.get(FiniteLayerIndex::new(index)).unwrap();
+        let right_layer = right.get(FiniteLayerIndex::new(index)).unwrap();
 
         assert_eq!(left_layer.quantities(), right_layer.quantities(),);
 

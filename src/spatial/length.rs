@@ -1,6 +1,6 @@
+use lamina_units::{LengthUnit, UnitLabel};
 use num_traits::{Float, FromPrimitive, Zero};
 use std::fmt;
-use tmm_units::{LengthUnit, UnitLabel};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Length<F> {

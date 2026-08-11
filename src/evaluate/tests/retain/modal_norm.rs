@@ -43,8 +43,8 @@ fn first_order_modes_have_constant_unit_qnm_normalisation() {
     ] {
         for parameter in [
             Parameter::Spectral,
-            Parameter::LayerThickness(FiniteLayerIndex(0)),
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(0)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         ] {
             for_each_modal_backend!(evaluator, {
                 let state = evaluator
@@ -103,8 +103,8 @@ fn second_order_modes_have_constant_unit_qnm_normalisation() {
     ] {
         for parameter in [
             Parameter::Spectral,
-            Parameter::LayerThickness(FiniteLayerIndex(0)),
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(0)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         ] {
             for_each_modal_backend!(evaluator, {
                 let state = evaluator
@@ -230,7 +230,7 @@ fn bivariate_modes_have_constant_unit_qnm_normalisation() {
                     &two_layer_stack(),
                     polarisation,
                     Parameter::Spectral,
-                    Parameter::LayerThickness(FiniteLayerIndex(1)),
+                    Parameter::LayerThickness(FiniteLayerIndex::new(1)),
                 )
                 .unwrap();
 

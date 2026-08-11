@@ -168,7 +168,7 @@ fn excitation_constitutive_first_derivatives_obey_product_rule() {
 
     for parameter in [
         Parameter::Spectral,
-        Parameter::LayerThickness(FiniteLayerIndex(1)),
+        Parameter::LayerThickness(FiniteLayerIndex::new(1)),
     ] {
         for polarisation in [
             Polarisation::TransverseElectric,

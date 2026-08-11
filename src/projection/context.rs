@@ -116,8 +116,8 @@ mod tests {
     fn coordinate_context_preserves_coordinate_metadata() {
         let context = CoordinateContext::new(
             Coordinates::new(
-                SpectralCoordinate::Frequency(tmm_units::FrequencyUnit::Hertz),
-                InPlaneCoordinate::ParallelWavenumber(tmm_units::InverseLengthUnit::PerMetre),
+                SpectralCoordinate::Frequency(lamina_units::FrequencyUnit::Hertz),
+                InPlaneCoordinate::ParallelWavenumber(lamina_units::InverseLengthUnit::PerMetre),
             ),
             values(),
         );
@@ -134,8 +134,10 @@ mod tests {
         let context = CompilationContext::new(
             CoordinateContext::new(
                 Coordinates::new(
-                    SpectralCoordinate::Frequency(tmm_units::FrequencyUnit::Hertz),
-                    InPlaneCoordinate::ParallelWavenumber(tmm_units::InverseLengthUnit::PerMetre),
+                    SpectralCoordinate::Frequency(lamina_units::FrequencyUnit::Hertz),
+                    InPlaneCoordinate::ParallelWavenumber(
+                        lamina_units::InverseLengthUnit::PerMetre,
+                    ),
                 ),
                 values(),
             ),

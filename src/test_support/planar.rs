@@ -1,8 +1,8 @@
 //! Shared planar-system fixtures for evaluator tests.
 
+use lamina_units::InverseLengthUnit;
 use ndarray::{Ix0, arr0};
 use num_complex::Complex64;
-use tmm_units::InverseLengthUnit;
 
 use crate::{
     Constant, CoordinateInput, Coordinates, InPlaneCoordinate, Polarisation, SpectralCoordinate,

@@ -37,16 +37,16 @@ where
     }
 
     /// Canonical input passed to the numerical backend.
-    pub fn canonical(&self) -> &CanonicalBackendInput<M, J> {
+    pub(crate) fn canonical(&self) -> &CanonicalBackendInput<M, J> {
         &self.canonical
     }
 
     /// Caller-facing information used to interpret results.
-    pub fn compilation_context(&self) -> &CompilationContext<C, D, J::Mapping> {
+    pub(crate) fn compilation_context(&self) -> &CompilationContext<C, D, J::Mapping> {
         &self.context
     }
 
-    pub fn into_parts(
+    pub(crate) fn into_parts(
         self,
     ) -> (
         CanonicalBackendInput<M, J>,

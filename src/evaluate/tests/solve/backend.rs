@@ -333,7 +333,7 @@ macro_rules! backend_equivalence_suite {
 
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let parameter = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_first(
@@ -382,7 +382,7 @@ macro_rules! backend_equivalence_suite {
 
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let parameter = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_first(
@@ -476,7 +476,7 @@ macro_rules! backend_equivalence_suite {
 
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let parameter = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_second(
@@ -578,7 +578,7 @@ macro_rules! backend_equivalence_suite {
 
                 let axis0 = Parameter::Spectral;
 
-                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_bivariate_first(
@@ -637,7 +637,7 @@ macro_rules! backend_equivalence_suite {
 
                 let axis0 = Parameter::Spectral;
 
-                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_bivariate_second(
@@ -714,7 +714,7 @@ macro_rules! backend_equivalence_suite {
 
                 let axis0 = Parameter::Spectral;
 
-                let axis1 = Parameter::LayerThickness(FiniteLayerIndex(0));
+                let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(0));
 
                 let left_response = left
                     .evaluate_bivariate_second(

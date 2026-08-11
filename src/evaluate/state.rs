@@ -148,7 +148,7 @@ where
     }
 
     /// Return the compiled canonical plane-wave problem.
-    pub fn problem(&self) -> &CanonicalProblem<M, J> {
+    pub(crate) fn problem(&self) -> &CanonicalProblem<M, J> {
         &self.problem
     }
 
@@ -178,7 +178,7 @@ where
     }
 
     /// Consume the state and return its components.
-    pub fn into_parts(
+    pub(crate) fn into_parts(
         self,
     ) -> (
         CanonicalProblem<M, J>,

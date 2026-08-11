@@ -6,7 +6,6 @@ pub mod backend;
 pub(crate) mod derivative_parts;
 mod differential;
 mod domain;
-mod error;
 mod evaluate;
 pub mod field;
 mod input;
@@ -25,9 +24,9 @@ mod waves;
 mod test_support;
 
 pub use domain::{ComplexPlane, RealAxis};
-pub use error::TmmError;
 pub use input::{
-    CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
+    CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples, Coordinates,
+    InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
 };
 
 pub use evaluate::PlaneWaveEvaluator;

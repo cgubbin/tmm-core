@@ -228,7 +228,7 @@ where
         let mut inputs = Vec::with_capacity(reference_count);
 
         for (index, (reference_boundaries, comparison_boundaries)) in paired_waves.enumerate() {
-            let layer_index = FiniteLayerIndex(index);
+            let layer_index = FiniteLayerIndex::new(index);
 
             let reference_quantities = reference_state
                 .workspace()
@@ -555,7 +555,7 @@ where
     }
 
     for index in 0..reference_count {
-        let layer_index = FiniteLayerIndex(index);
+        let layer_index = FiniteLayerIndex::new(index);
 
         let reference_thickness = reference_workspace.layer_thickness(index).ok_or(
             PlaneWavePairError::MissingLayerData {

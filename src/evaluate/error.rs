@@ -1,12 +1,12 @@
 use thiserror::Error;
 
-use crate::parameter::{DerivativeMappingError, ThicknessSeedError};
+use crate::parameter::{DerivativeMappingError, ParameterValidationError};
 
 /// An invalid high-level evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum SolveRequestError {
     #[error(transparent)]
-    ThicknessSeed(#[from] ThicknessSeedError),
+    PararmeterValidation(#[from] ParameterValidationError),
 
     #[error(transparent)]
     DerivativeMapping(#[from] DerivativeMappingError),

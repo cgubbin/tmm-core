@@ -12,7 +12,7 @@ use std::ops::{Index, IndexMut};
 ///
 /// ```
 /// use ndarray::array;
-/// use tmm_core::field::ScalarField;
+/// use lamina_core::field::ScalarField;
 ///
 /// let field = ScalarField::new(array![1.0, 2.0, 3.0]);
 ///

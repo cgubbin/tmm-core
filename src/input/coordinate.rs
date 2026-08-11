@@ -1,9 +1,13 @@
-use tmm_units::{AngleUnit, AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
+use lamina_units::{AngleUnit, AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
 
 /// Spectral coordinate used to parameterise a plane-wave input.
 ///
-/// Values supplied for this coordinate are converted internally to the
-/// canonical spectral coordinate used by the selected backend.
+/// Values are supplied in the selected representation and units and are
+/// converted internally to Lamina's canonical spectral coordinate.
+///
+/// When derivatives are requested with respect to [`Parameter::Spectral`],
+/// they are derivatives with respect to this caller-facing coordinate, not
+/// the internal canonical coordinate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SpectralCoordinate {
     /// Vacuum angular wavenumber
@@ -30,9 +34,10 @@ pub enum SpectralCoordinate {
 
 /// In-plane coordinate used to parameterise a plane-wave input.
 ///
-/// Effective index and incidence angle are coupled to the spectral coordinate.
-/// Incidence angle also requires the refractive index of the incident exterior
-/// medium.
+/// Values are converted internally to the conserved parallel angular
+/// wavenumber. When derivatives are requested with respect to
+/// [`Parameter::InPlane`], they are derivatives with respect to this
+/// caller-facing coordinate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InPlaneCoordinate {
     /// Parallel angular wavenumber `k∥`.
@@ -43,10 +48,10 @@ pub enum InPlaneCoordinate {
 
     /// Effective index
     ///
-    /// `n_eff = k∥ / k₀`.
+    /// `n_eff = k∥ / k₀`, where `k₀` is the vacuum angular wavenumber.
     EffectiveIndex,
 
-    /// Angle of incidence in the incident exterior medium.
+    /// Angle of incidence in the referenced exterior medium.
     IncidentAngle(AngleUnit),
 }
 
@@ -71,6 +76,7 @@ pub struct Coordinates {
     in_plane: InPlaneCoordinate,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReferenceRequirement {
     Intrinsic,
     IncidentSide,
@@ -82,10 +88,12 @@ impl Coordinates {
         Self { spectral, in_plane }
     }
 
+    /// Return the caller-facing in-plane coordinate.
     pub const fn in_plane(&self) -> InPlaneCoordinate {
         self.in_plane
     }
 
+    /// Return the caller-facing spectral coordinate.
     pub const fn spectral(&self) -> SpectralCoordinate {
         self.spectral
     }
@@ -107,7 +115,7 @@ mod tests {
 
         let coordinates = Coordinates::new(spectral, in_plane);
 
-        assert_eq!(coordinates.spectral, spectral);
-        assert_eq!(coordinates.in_plane, in_plane);
+        assert_eq!(coordinates.spectral(), spectral);
+        assert_eq!(coordinates.in_plane(), in_plane);
     }
 }

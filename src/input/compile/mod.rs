@@ -14,7 +14,6 @@
 //! canonical vacuum angular wavenumber may be required when evaluating
 //! dispersive material properties.
 
-// mod assignment;
 pub(crate) mod context;
 mod coordinates;
 mod error;
@@ -54,6 +53,11 @@ use ndarray::{Array, Dimension};
 use num_traits::{Float, FloatConst, FromPrimitive};
 use std::fmt::Debug;
 
+/// Aggregate capability required to compile a caller-facing problem into
+/// a canonical jet-valued problem.
+///
+/// This is public only because it appears in bounds on public evaluator
+/// implementations. It is not intended as a user-facing extension point.
 #[doc(hidden)]
 pub trait CompileJet<M, E>:
     SeedJet
@@ -288,9 +292,7 @@ impl DerivativeMapping {
             .slots()
             .iter()
             .filter_map(|parameter| match parameter {
-                Parameter::LayerThickness(FiniteLayerIndex(layer))
-                    if *layer >= finite_layer_count =>
-                {
+                Parameter::LayerThickness(layer) if layer.get() >= finite_layer_count => {
                     Some(*layer)
                 }
 
@@ -312,9 +314,9 @@ impl DerivativeMapping {
 mod tests {
     use super::*;
 
+    use lamina_units::{AngleUnit, FrequencyUnit, InverseLengthUnit};
     use ndarray::{Array, Dimension, Ix1, array};
     use num_complex::Complex64;
-    use tmm_units::{AngleUnit, FrequencyUnit, InverseLengthUnit};
 
     use crate::{
         Constant,
@@ -435,7 +437,10 @@ mod tests {
     }
 
     fn out_of_range_layer_mapping(layer_count: usize) -> DerivativeMapping {
-        DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex(layer_count))]).unwrap()
+        DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex::new(
+            layer_count,
+        ))])
+        .unwrap()
     }
 
     fn validation() -> ValidationConfig<R> {

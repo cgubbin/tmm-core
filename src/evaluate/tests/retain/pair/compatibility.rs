@@ -155,7 +155,7 @@ fn pairing_rejects_different_thickness_parameter_indices() {
             scalar_real_input(2.5, 0.31),
             &stack,
             Polarisation::TransverseElectric,
-            Parameter::LayerThickness(FiniteLayerIndex(0)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(0)),
         )
         .unwrap();
 
@@ -164,7 +164,7 @@ fn pairing_rejects_different_thickness_parameter_indices() {
             scalar_real_input(2.5, 0.31),
             &stack,
             Polarisation::TransverseElectric,
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         )
         .unwrap();
 
@@ -255,7 +255,7 @@ fn pairing_rejects_different_layer_thickness_values() {
     assert_eq!(
         error,
         PlaneWavePairError::LayerThicknessMismatch {
-            index: FiniteLayerIndex(0),
+            index: FiniteLayerIndex::new(0),
         },
     );
 }

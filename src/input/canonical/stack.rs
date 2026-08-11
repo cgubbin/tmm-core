@@ -112,7 +112,7 @@ impl<M, J> CanonicalStack<M, J> {
     }
 
     pub(crate) fn layer(&self, index: FiniteLayerIndex) -> Option<&CanonicalLayer<M, J>> {
-        self.layers_left_to_right.get(index.0)
+        self.layers_left_to_right.get(index.get())
     }
 
     /// Return the number of finite layers.
@@ -180,5 +180,24 @@ mod tests {
         assert_eq!(stack.right_exterior(), &"right");
         assert!(stack.layers().is_empty());
         assert_eq!(stack.layer_count(), 0);
+    }
+
+    #[test]
+    fn layer_access_uses_finite_layer_index() {
+        let stack = CanonicalStack::new(
+            "left",
+            "right",
+            vec![
+                CanonicalLayer::new("first", 1.0),
+                CanonicalLayer::new("second", 2.0),
+            ],
+        );
+
+        assert_eq!(
+            stack.layer(FiniteLayerIndex::new(1)).unwrap().material(),
+            &"second",
+        );
+
+        assert!(stack.layer(FiniteLayerIndex::new(2)).is_none());
     }
 }

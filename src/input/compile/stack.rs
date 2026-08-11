@@ -69,10 +69,6 @@ pub enum StackCompileError<R> {
     },
 }
 
-pub(crate) trait ThicknessSlotMap {
-    fn slot_for_layer(&self, layer: usize) -> Option<usize>;
-}
-
 pub(crate) fn compile_stack<M, J>(
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     sampled_shape: J::Dimension,
@@ -89,7 +85,7 @@ where
     J::Dimension: Dimension + Clone,
     M: Clone,
 {
-    let assignment = ThicknessAssignment::new(mapping);
+    let thickness_mapping = ThicknessMapping::new(mapping);
 
     stack.validate(validation)?;
 
@@ -104,10 +100,15 @@ where
 
         let (value, unit) = thickness.into_parts();
 
+        /*
+         * Seed before canonical unit conversion so derivative components remain
+         * with respect to the caller-facing thickness value.
+         */
+
         let sampled_thickness: Array<J::Scalar, J::Dimension> =
             super::complexify(&Array::from_elem(sampled_shape.clone(), value));
 
-        let thickness_jet = if let Some(slot) = assignment.slot_for_layer(layer_index) {
+        let thickness_jet = if let Some(slot) = thickness_mapping.slot_for_layer(layer_index) {
             J::variable(sampled_thickness, slot).map_err(|source| StackCompileError::Seed {
                 layer: layer_index,
                 source,
@@ -135,21 +136,25 @@ where
 
 /// Layer-thickness-specific view over a parameter assignment.
 #[derive(Clone, Copy, Debug)]
-pub struct ThicknessAssignment<'a> {
+struct ThicknessMapping<'a> {
     mapping: &'a DerivativeMapping,
 }
 
-impl<'a> ThicknessAssignment<'a> {
-    pub(crate) const fn new(mapping: &'a DerivativeMapping) -> Self {
+impl<'a> ThicknessMapping<'a> {
+    const fn new(mapping: &'a DerivativeMapping) -> Self {
         Self { mapping }
     }
 
     fn slot_for_layer(&self, layer: usize) -> Option<usize> {
         self.mapping
-            .slot_for(Parameter::LayerThickness(FiniteLayerIndex(layer)))
+            .slot_for(Parameter::LayerThickness(FiniteLayerIndex::new(layer)))
     }
 }
 
+/// Compilation capability for scaling a jet by a real unit-conversion factor.
+///
+/// This trait is public only because it participates in bounds on public
+/// compilation/evaluator implementations.
 #[doc(hidden)]
 pub trait StackThicknessJet: SeedJet
 where
@@ -220,6 +225,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        algebra::RealParameter,
         input::compile::seed::UnsupportedDerivativeSlot,
         stack::{Layer, Thickness},
     };
@@ -276,10 +282,6 @@ mod tests {
     where
         D: Dimension,
     {
-        // Use the exact required methods from your ScalarAlgebra trait.
-        //
-        // The relevant implementation should multiply `self.value` by
-        // `factor` while preserving `self.slot`.
         fn scale_real(&self, factor: f64) -> Self {
             Self {
                 value: self.value.mapv(|value| value * Complex64::new(factor, 0.0)),
@@ -308,13 +310,13 @@ mod tests {
     }
 
     fn thickness_derivative(layer: usize) -> DerivativeMapping {
-        DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex(layer))]).unwrap()
+        DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex::new(layer))]).unwrap()
     }
 
     fn mixed_mapping() -> DerivativeMapping {
         DerivativeMapping::new([
             Parameter::Spectral,
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         ])
         .unwrap()
     }
@@ -329,15 +331,15 @@ mod tests {
     }
 
     #[test]
-    fn thickness_assignment_finds_matching_layer_slot() {
+    fn thickness_mapping_finds_matching_layer_slot() {
         let mapping = DerivativeMapping::new([
             Parameter::Spectral,
-            Parameter::LayerThickness(FiniteLayerIndex(4)),
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(4)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         ])
         .unwrap();
 
-        let assignment = ThicknessAssignment::new(&mapping);
+        let assignment = ThicknessMapping::new(&mapping);
 
         assert_eq!(assignment.slot_for_layer(4), Some(1));
         assert_eq!(assignment.slot_for_layer(1), Some(2));
@@ -556,7 +558,7 @@ mod tests {
         let mapping = DerivativeMapping::new([
             Parameter::Spectral,
             Parameter::InPlane,
-            Parameter::LayerThickness(FiniteLayerIndex(1)),
+            Parameter::LayerThickness(FiniteLayerIndex::new(1)),
         ])
         .unwrap();
 
@@ -597,5 +599,27 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(error, StackCompileError::Validation(_)));
+    }
+
+    #[test]
+    fn thickness_derivative_is_with_respect_to_caller_units() {
+        type J = ArrayJet1<Complex64, Ix0, RealParameter>;
+
+        let stack = Stack::new(
+            "left",
+            vec![Layer::new("film", Thickness::nanometres(500.0))],
+            "right",
+        );
+
+        let mapping =
+            DerivativeMapping::new([Parameter::LayerThickness(FiniteLayerIndex::new(0))]).unwrap();
+
+        let compiled = compile_stack::<_, J>(&stack, Ix0(), &validation(), &mapping).unwrap();
+
+        let thickness = compiled.canonical().layers()[0].thickness_cm();
+
+        assert_complex_close(thickness.value()[()], Complex64::new(5.0e-5, 0.0), 1.0e-15);
+
+        assert_complex_close(thickness.first()[()], Complex64::new(1.0e-7, 0.0), 1.0e-15);
     }
 }

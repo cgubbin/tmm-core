@@ -264,7 +264,7 @@ fn first_interface_power_derivative_is_continuous() {
 fn thickness_interface_power_derivative_is_continuous() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_first(
@@ -319,7 +319,7 @@ fn bivariate_interface_power_derivatives_are_continuous() {
     let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex(1));
+    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
     let state = evaluator
         .retain_bivariate_second(

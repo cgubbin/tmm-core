@@ -75,9 +75,9 @@ where
         if let InPlaneCoordinate::IncidentAngle(unit) = coordinate {
             let radians = value * C::from_real(unit.scale_to_radians::<C::RealField>());
 
-            let half_pi = C::from_real(<C::RealField as FloatConst>::PI()) / (C::one() + C::one());
+            let half_pi = <C::RealField as FloatConst>::PI() / C::RealField::from_f64(2.0).unwrap();
 
-            if radians.real() < -half_pi.real() || radians.real() > half_pi.real() {
+            if radians.real() < -half_pi || radians.real() > half_pi {
                 return Err(InPlaneInputError::AngleOutsidePrincipalInterval { index, radians });
             }
         }
@@ -175,9 +175,9 @@ where
 mod tests {
     use std::f64::consts::{FRAC_PI_2, PI};
 
+    use lamina_units::{AngleUnit, InverseLengthUnit};
     use ndarray::{Ix0, arr1, array};
     use num_complex::Complex64;
-    use tmm_units::{AngleUnit, InverseLengthUnit};
 
     use super::*;
 

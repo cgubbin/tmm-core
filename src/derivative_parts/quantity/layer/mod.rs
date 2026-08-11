@@ -207,15 +207,24 @@ mod tests {
             assert_eq!(branch.len(), 2);
         }
 
-        assert_eq!(value.get(FiniteLayerIndex(0)).unwrap().left_flux(), &1.0,);
+        assert_eq!(
+            value.get(FiniteLayerIndex::new(0)).unwrap().left_flux(),
+            &1.0,
+        );
 
         assert_eq!(
-            axis0_axis1.get(FiniteLayerIndex(0)).unwrap().absorbed(),
+            axis0_axis1
+                .get(FiniteLayerIndex::new(0))
+                .unwrap()
+                .absorbed(),
             &25.0,
         );
 
         assert_eq!(
-            axis1_axis1.get(FiniteLayerIndex(1)).unwrap().right_flux(),
+            axis1_axis1
+                .get(FiniteLayerIndex::new(1))
+                .unwrap()
+                .right_flux(),
             &116.0,
         );
     }

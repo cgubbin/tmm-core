@@ -306,7 +306,7 @@ mod tests {
         );
 
         assert_relative_eq!(
-            scalar(participation.get(FiniteLayerIndex(1)).unwrap().total(),),
+            scalar(participation.get(FiniteLayerIndex::new(1)).unwrap().total(),),
             0.3,
             epsilon = TOLERANCE,
             max_relative = TOLERANCE,

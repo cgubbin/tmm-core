@@ -74,7 +74,7 @@ impl<T> Layers<T> {
 
     /// Return the record associated with `index`.
     pub fn get(&self, index: FiniteLayerIndex) -> Option<&T> {
-        self.values.get(index.0)
+        self.values.get(index.get())
     }
 
     /// Return the leftmost finite-layer record.
@@ -96,7 +96,7 @@ impl<T> Layers<T> {
         self.values
             .iter()
             .enumerate()
-            .map(|(index, value)| (FiniteLayerIndex(index), value))
+            .map(|(index, value)| (FiniteLayerIndex::new(index), value))
     }
 
     pub(crate) fn into_inner(self) -> Vec<T> {

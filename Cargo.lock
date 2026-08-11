@@ -40,6 +40,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "lamina-core"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "either",
+ "itertools",
+ "lamina-units",
+ "nalgebra",
+ "ndarray",
+ "num-complex",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
+name = "lamina-units"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -246,29 +269,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
-]
-
-[[package]]
-name = "tmm-core"
-version = "0.1.0"
-dependencies = [
- "approx",
- "either",
- "itertools",
- "nalgebra",
- "ndarray",
- "num-complex",
- "num-traits",
- "thiserror",
- "tmm-units",
-]
-
-[[package]]
-name = "tmm-units"
-version = "0.1.0"
-dependencies = [
- "num-traits",
- "thiserror",
 ]
 
 [[package]]
