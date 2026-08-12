@@ -9,7 +9,7 @@
 //! interpretation, observable projection, labels, and reporting.
 
 use nalgebra::ComplexField;
-use ndarray::{Array, Dimension};
+use ndarray::Dimension;
 
 use crate::{
     IncidentSide,
@@ -17,14 +17,26 @@ use crate::{
     stack::Thickness,
 };
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 #[error(
     "an excitation from side {requested:?} cannot be built from a state \
-    constained to {constraint:?}"
+    constrained to {constraint:?}"
 )]
 pub struct ProjectionConstraintError {
     pub(crate) constraint: IncidentSide,
     pub(crate) requested: IncidentSide,
+}
+
+impl ProjectionConstraintError {
+    /// Return the incidence side imposed by the retained state.
+    pub const fn constraint(&self) -> IncidentSide {
+        self.constraint
+    }
+
+    /// Return the incidence side requested by the caller.
+    pub const fn requested(&self) -> IncidentSide {
+        self.requested
+    }
 }
 
 /// Caller-facing information associated with a compiled backend problem.
@@ -32,7 +44,7 @@ pub struct ProjectionConstraintError {
 /// This context records:
 ///
 /// - the original coordinate kinds, values, and units;
-/// - the requested incidence side and polarisation;
+/// - any constraint on the incidence side used for observable projection;
 /// - finite-layer thicknesses in their caller-facing units;
 /// - the mapping from derivative slots to physical parameters.
 ///
@@ -104,10 +116,33 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Copy)]
+/// Constraint on the incidence side available during observable projection.
+///
+/// Some retained states can be projected for incidence from either exterior
+/// medium, while others were constructed for one fixed incidence side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ProjectionConstraint {
+    /// Observable projection may use either incidence side.
     Free,
+
+    /// Observable projection is restricted to the specified incidence side.
     Fixed(IncidentSide),
+}
+
+impl ProjectionConstraint {
+    /// Check whether projection from `requested` is permitted.
+    pub(crate) fn validate(self, requested: IncidentSide) -> Result<(), ProjectionConstraintError> {
+        match self {
+            Self::Free => Ok(()),
+
+            Self::Fixed(constraint) if constraint == requested => Ok(()),
+
+            Self::Fixed(constraint) => Err(ProjectionConstraintError {
+                constraint,
+                requested,
+            }),
+        }
+    }
 }
 
 /// Caller-facing geometric description of the compiled finite layers.
@@ -155,14 +190,12 @@ impl<R> StackContext<R> {
     }
 }
 
-/// Original plane-wave description retained after canonicalisation.
+/// Original plane-wave coordinates retained after canonicalisation.
 ///
 /// Coordinate values remain in the exact representation and units supplied by
-/// the caller. The incidence side is retained for observable projection; it
-/// does not alter the fixed left-to-right backend traversal of the stack.
-///
-/// Polarisation is retained for result interpretation and reporting even
-/// though it is also present in the canonical backend input.
+/// the caller. This permits derivative interpretation, labelling, and
+/// reporting in the caller-facing coordinate system after the backend has
+/// operated on canonical coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct CoordinateContext<R, D>
 where
@@ -184,134 +217,172 @@ where
         }
     }
 
-    /// Return the coordinate parameterisations supplied by the caller.
+    /// Return the coordinate values supplied by the caller.
     pub(crate) fn values(&self) -> &CoordinateValues<R, D> {
         &self.values
     }
 
-    /// Return the coordinate parameterisations supplied by the caller.
+    /// Return the coordinate systems supplied by the caller.
     pub(crate) fn coordinates(&self) -> Coordinates {
         self.coordinates
     }
 
-    /// Return the supplied spectral-coordinate values.
-    pub(crate) fn spectral_values(&self) -> &Array<R, D> {
-        self.values.spectral()
-    }
-
-    /// Return the supplied in-plane-coordinate values.
-    pub(crate) fn in_plane_values(&self) -> &Array<R, D> {
-        self.values.in_plane()
-    }
-
     /// Consume the context and return its caller-facing components.
-    pub(crate) fn into_parts(self) -> (Coordinates, Array<R, D>, Array<R, D>) {
-        let (spectral_values, in_plane_values) = self.values.into_parts();
-
-        (self.coordinates, spectral_values, in_plane_values)
+    pub(crate) fn into_parts(self) -> (Coordinates, CoordinateValues<R, D>) {
+        (self.coordinates, self.values)
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use ndarray::arr1;
+#[cfg(test)]
+mod tests {
+    use lamina_units::{InverseLengthUnit, SpectralCoordinate};
+    use ndarray::{Ix1, arr1};
 
-//     use super::*;
-//     use crate::input::{InPlaneCoordinate, Parameter, SpectralCoordinate};
-//     use lamina_units::InverseLengthUnit;
+    use super::*;
+    use crate::{
+        input::InPlaneCoordinate,
+        parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},
+    };
 
-//     #[test]
-//     fn stack_context_preserves_layer_order() {
-//         let thicknesses = vec![
-//             Thickness::nanometres(10.0),
-//             Thickness::micrometres(2.0),
-//             Thickness::centimetres(0.1),
-//         ];
+    #[test]
+    fn free_projection_constraint_accepts_either_side() {
+        let constraint = ProjectionConstraint::Free;
 
-//         let context = StackContext::new(thicknesses.clone());
+        assert_eq!(constraint.validate(IncidentSide::Left), Ok(()),);
 
-//         assert_eq!(context.layer_thicknesses(), thicknesses.as_slice(),);
-//         assert_eq!(context.layer_count(), 3);
-//         assert!(!context.is_empty());
+        assert_eq!(constraint.validate(IncidentSide::Right), Ok(()),);
+    }
 
-//         assert_eq!(context.layer_thickness(0), Some(&thicknesses[0]),);
-//         assert_eq!(context.layer_thickness(2), Some(&thicknesses[2]),);
-//         assert_eq!(context.layer_thickness(3), None);
+    #[test]
+    fn fixed_projection_constraint_accepts_matching_side() {
+        let constraint = ProjectionConstraint::Fixed(IncidentSide::Left);
 
-//         assert_eq!(context.into_layer_thicknesses(), thicknesses,);
-//     }
+        assert_eq!(constraint.validate(IncidentSide::Left), Ok(()),);
+    }
 
-//     #[test]
-//     fn empty_stack_context_is_empty() {
-//         let context = StackContext::<f64>::new(Vec::new());
+    #[test]
+    fn fixed_projection_constraint_rejects_opposite_side() {
+        let constraint = ProjectionConstraint::Fixed(IncidentSide::Left);
 
-//         assert!(context.is_empty());
-//         assert_eq!(context.layer_count(), 0);
-//         assert_eq!(context.layer_thickness(0), None);
-//     }
+        let error = constraint
+            .validate(IncidentSide::Right)
+            .expect_err("opposite incidence side should be rejected");
 
-//     #[test]
-//     fn coordinate_context_preserves_caller_representation() {
-//         let spectral = arr1(&[1000.0, 1100.0]);
-//         let in_plane = arr1(&[0.1, 0.2]);
+        assert_eq!(error.constraint(), IncidentSide::Left,);
 
-//         let coordinates = Coordinates::new(
-//             SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
-//             InPlaneCoordinate::EffectiveIndex,
-//         );
+        assert_eq!(error.requested(), IncidentSide::Right,);
+    }
 
-//         let values = CoordinateValues::new(spectral.clone(), in_plane.clone());
+    #[test]
+    fn stack_context_preserves_layer_order_and_lookup() {
+        let thicknesses = vec![
+            Thickness::nanometres(10.0),
+            Thickness::micrometres(2.0),
+            Thickness::centimetres(0.1),
+        ];
 
-//         let context = CoordinateContext::new(coordinates, values, Polarisation::TransverseMagnetic);
+        let context = StackContext::new(thicknesses.clone());
 
-//         assert_eq!(context.coordinates(), coordinates);
-//         assert_eq!(context.spectral_values(), &spectral);
-//         assert_eq!(context.in_plane_values(), &in_plane);
-//         assert_eq!(context.polarisation(), Polarisation::TransverseMagnetic,);
+        assert_eq!(context.layer_thicknesses(), thicknesses.as_slice(),);
 
-//         let (returned_coordinates, returned_spectral, returned_in_plane, returned_polarisation) =
-//             context.into_parts();
+        assert_eq!(context.layer_count(), 3);
+        assert!(!context.is_empty());
 
-//         assert_eq!(returned_coordinates, coordinates);
-//         assert_eq!(returned_spectral, spectral);
-//         assert_eq!(returned_in_plane, in_plane);
-//         assert_eq!(returned_polarisation, Polarisation::TransverseMagnetic,);
-//     }
+        assert_eq!(context.layer_thickness(0), Some(&thicknesses[0]),);
 
-//     #[test]
-//     fn compilation_context_preserves_all_components() {
-//         let coordinate_context = CoordinateContext::new(
-//             Coordinates::new(
-//                 SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
-//                 InPlaneCoordinate::ParallelWavenumber(InverseLengthUnit::PerMetre),
-//             ),
-//             CoordinateValues::new(arr1(&[1000.0]), arr1(&[100.0])),
-//             Polarisation::TransverseElectric,
-//         );
+        assert_eq!(context.layer_thickness(2), Some(&thicknesses[2]),);
 
-//         let stack_context = StackContext::new(vec![Thickness::nanometres(100.0)]);
+        assert_eq!(context.layer_thickness(3), None,);
 
-//         let assignment =
-//             ParameterAssignment::new([Parameter::Spectral, Parameter::LayerThickness { layer: 0 }])
-//                 .unwrap();
+        assert_eq!(context.into_layer_thicknesses(), thicknesses,);
+    }
 
-//         let constraint = ProjectionConstraint::Free;
+    #[test]
+    fn empty_stack_context_is_empty() {
+        let context = StackContext::<f64>::new(Vec::new());
 
-//         let context = CompilationContext::new(
-//             coordinate_context.clone(),
-//             stack_context.clone(),
-//             assignment.clone(),
-//             constraint,
-//         );
+        assert!(context.is_empty());
+        assert_eq!(context.layer_count(), 0);
+        assert_eq!(context.layer_thickness(0), None);
+        assert!(context.layer_thicknesses().is_empty());
+    }
 
-//         assert_eq!(context.coordinates(), &coordinate_context,);
-//         assert_eq!(context.stack(), &stack_context);
-//         assert_eq!(context.assignment(), &assignment);
-//         assert_eq!(context.constraint(), constraint);
+    #[test]
+    fn coordinate_context_preserves_caller_coordinates_and_values() {
+        let spectral = arr1(&[1000.0, 1100.0]);
 
-//         assert_eq!(
-//             context.into_parts(),
-//             (coordinate_context, stack_context, assignment, constraint),
-//         );
-//     }
-// }
+        let in_plane = arr1(&[0.1, 0.2]);
+
+        let coordinates = Coordinates::new(
+            SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
+            InPlaneCoordinate::EffectiveIndex,
+        );
+
+        let values = CoordinateValues::new(spectral.clone(), in_plane.clone());
+
+        let context = CoordinateContext::new(coordinates, values);
+
+        assert_eq!(context.coordinates(), coordinates,);
+
+        assert_eq!(context.values().spectral(), &spectral,);
+
+        assert_eq!(context.values().in_plane(), &in_plane,);
+
+        let (returned_coordinates, returned_values) = context.into_parts();
+
+        assert_eq!(returned_coordinates, coordinates,);
+
+        let (returned_spectral, returned_in_plane) = returned_values.into_parts();
+
+        assert_eq!(returned_spectral, spectral,);
+
+        assert_eq!(returned_in_plane, in_plane,);
+    }
+
+    #[test]
+    fn compilation_context_preserves_components() {
+        type D = Ix1;
+
+        let spectral = arr1(&[1000.0]);
+
+        let in_plane = arr1(&[100.0]);
+
+        let coordinate_context = CoordinateContext::<f64, D>::new(
+            Coordinates::new(
+                SpectralCoordinate::VacuumWavenumber(InverseLengthUnit::PerCentimetre),
+                InPlaneCoordinate::ParallelWavenumber(InverseLengthUnit::PerMetre),
+            ),
+            CoordinateValues::new(spectral, in_plane),
+        );
+
+        let stack_context = StackContext::new(vec![Thickness::nanometres(100.0)]);
+
+        let mapping = DerivativeMapping::new([
+            Parameter::Spectral,
+            Parameter::LayerThickness(FiniteLayerIndex::new(0)),
+        ])
+        .unwrap();
+
+        let constraint = ProjectionConstraint::Fixed(IncidentSide::Right);
+
+        let context = CompilationContext::new(
+            coordinate_context.clone(),
+            stack_context.clone(),
+            mapping.clone(),
+            constraint,
+        );
+
+        assert_eq!(context.coordinates(), &coordinate_context,);
+
+        assert_eq!(context.stack(), &stack_context,);
+
+        assert_eq!(context.mapping(), &mapping,);
+
+        assert_eq!(context.projection_constraint(), constraint,);
+
+        assert_eq!(
+            context.into_parts(),
+            (coordinate_context, stack_context, mapping, constraint,),
+        );
+    }
+}
