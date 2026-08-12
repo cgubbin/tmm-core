@@ -53,12 +53,10 @@
 //! occupy the same global coordinate but retain distinct material context,
 //! which is required for discontinuous field components.
 
-use lamina_units::LengthUnit;
+use lamina_units::{Length, LengthUnit};
 use num_traits::{Float, FromPrimitive, Zero};
 
 use crate::{FiniteLayerIndex, Stack, Thickness, spatial::ResolvedFieldSampling};
-
-use super::Length;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum FieldSamplingError<R> {
@@ -646,7 +644,7 @@ where
 {
     if !offset.value().is_finite()
         || offset.value() < R::zero()
-        || offset.as_cm() > thickness.as_cm()
+        || offset.as_centimetres() > thickness.as_centimetres()
     {
         return Err(FieldSamplingError::InvalidLayerOffset {
             layer,
@@ -707,7 +705,7 @@ mod tests {
     }
 
     fn assert_same_length(actual: Length<R>, expected: Length<R>) {
-        let error = (actual.as_cm() - expected.as_cm()).abs();
+        let error = (actual.as_centimetres() - expected.as_centimetres()).abs();
 
         assert!(error <= 1.0e-14, "expected {expected:?}, got {actual:?}",);
     }

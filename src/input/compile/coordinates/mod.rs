@@ -26,6 +26,7 @@ mod spectral;
 
 pub(crate) use error::CoordinateCompileError;
 pub(crate) use jet::CanonicalCoordinateJet;
+use lamina_units::SpectralCoordinate;
 use seed::seed_coordinate;
 
 #[cfg(test)]
@@ -39,7 +40,6 @@ use crate::{
     ComplexScalar, Stack,
     input::{
         CanonicalCoordinates, CompileJet, CoordinateReference, Coordinates, InPlaneCoordinate,
-        SpectralCoordinate,
         compile::{ProjectionConstraint, seed::SeedJet},
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},

@@ -1,52 +1,23 @@
-//! Validation and canonicalisation of caller-facing spectral coordinates.
+//! Validation and jet-aware compilation of caller-facing spectral coordinates.
 //!
-//! The numerical backend represents every spectral coordinate as a vacuum
-//! angular wavenumber expressed in inverse centimetres.
+//! The numerical backend represents every spectral coordinate as vacuum
+//! angular wavenumber in inverse centimetres.
 //!
-//! This module validates caller-facing spectral values before converting them
-//! into that canonical representation.
+//! The intrinsic physical transformation from each supported spectral
+//! representation is defined by `lamina-units`. This module validates the
+//! supplied samples, seeds any requested derivative direction, and applies
+//! that shared transformation through Lamina's jet algebra.
 //!
-//! Complex spectral coordinates are restricted to the half-plane with
-//! strictly positive real component.
-//!
-//! Validation checks only properties of the supplied values themselves (for
-//! example finiteness and positivity). Unit conversions and coordinate
-//! transformations are performed separately so that validation remains
-//! independent of canonicalisation.
-//!
-//! Canonicalisation operates on seeded jet values rather than raw scalars.
-//! Consequently, derivatives are taken with respect to the caller-facing
-//! spectral coordinate while the jet algebra automatically propagates the
-//! required chain rule.
-//!
-//! The supported transformations are:
-//!
-//! - vacuum angular wavenumber → identity (with unit conversion);
-//! - vacuum wavenumber → vacuum angular wavenumber;
-//! - frequency → vacuum angular wavenumber;
-//! - angular frequency → vacuum angular wavenumber;
-//! - vacuum wavelength → vacuum angular wavenumber.
-//!
+//! Seeding occurs before transformation, so derivatives remain with respect
+//! to the caller-facing spectral coordinate.
 
+use lamina_units::{SpectralCoordinate, SpectralTransform};
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Data, Dimension};
 use num_traits::{Float, FloatConst, FromPrimitive};
 use thiserror::Error;
 
-use crate::input::SpectralCoordinate;
-
 use super::CanonicalCoordinateJet;
-
-/// Exact speed of light expressed in centimetres per second.
-///
-/// This constant converts frequency- and angular-frequency-based
-/// parameterisations into the canonical vacuum angular wavenumber.
-fn speed_of_light_cm_per_second<R>() -> R
-where
-    R: Float,
-{
-    R::from(29_979_245_800.0).expect("speed of light must be representable")
-}
 
 #[derive(Clone, Debug, PartialEq, Error)]
 pub enum SpectralInputError<R> {
@@ -95,37 +66,12 @@ where
     Ok(())
 }
 
-/// Convert a seeded caller-facing spectral coordinate into the canonical
-/// vacuum angular wavenumber.
+/// Convert a seeded caller-facing spectral coordinate into vacuum angular
+/// wavenumber in inverse centimetres.
 ///
-/// The returned quantity is always expressed as a vacuum angular wavenumber in
-/// inverse centimetres, regardless of the caller-facing parameterisation.
-///
-/// Coordinate transformations are applied through the supplied jet algebra so
-/// that derivatives with respect to the original caller-facing coordinate are
-/// propagated automatically.
-///
-/// The transformations are:
-/// ```text
-/// k₀           → k₀
-///
-/// ν̃           → 2π ν̃
-///
-/// f            → 2π f / c
-///
-/// ω            → ω / c
-///
-/// λ            → 2π / λ
-/// ```
-///
-/// where:
-///
-/// - `k₀` is the vacuum angular wavenumber;
-/// - `ν̃` is the spectroscopic vacuum wavenumber;
-/// - `f` is ordinary frequency;
-/// - `ω` is angular frequency;
-/// - `λ` is vacuum wavelength;
-/// - `c` is the speed of light in vacuum.
+/// The physical transformation is defined by `lamina-units`. This function
+/// applies that transformation through Lamina's jet algebra so derivatives
+/// remain with respect to the caller-facing coordinate.
 pub(crate) fn canonicalise_spectral<J>(value: J, coordinate: SpectralCoordinate) -> J
 where
     J: CanonicalCoordinateJet,
@@ -133,43 +79,18 @@ where
     <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Copy,
     J::Dimension: Dimension,
 {
-    let two_pi = <<J::Scalar as ComplexField>::RealField as FloatConst>::PI()
-        + <<J::Scalar as ComplexField>::RealField as FloatConst>::PI();
+    type Real<J> = <<J as crate::algebra::Jet>::Scalar as ComplexField>::RealField;
 
-    match coordinate {
-        SpectralCoordinate::VacuumAngularWavenumber(unit) => {
-            value.scale_real(unit.scale_to_inverse_centimetres())
-        }
+    match coordinate.transform::<Real<J>>() {
+        SpectralTransform::Linear { scale } => value.scale_real(scale),
 
-        SpectralCoordinate::VacuumWavenumber(unit) => value.scale_real(
-            unit.scale_to_inverse_centimetres::<<J::Scalar as ComplexField>::RealField>() * two_pi,
-        ),
-
-        SpectralCoordinate::Frequency(unit) => {
-            let frequency_scale = unit.scale_to_hertz();
-
-            let factor = two_pi * frequency_scale / speed_of_light_cm_per_second();
-
-            value.scale_real(factor)
-        }
-
-        SpectralCoordinate::AngularFrequency(unit) => {
-            let angular_frequency_scale: <J::Scalar as ComplexField>::RealField =
-                unit.scale_to_radians_per_second();
-
-            let factor = angular_frequency_scale / speed_of_light_cm_per_second();
-
-            value.scale_real(factor)
-        }
-
-        SpectralCoordinate::VacuumWavelength(unit) => {
-            let length_scale = unit.scale_to_centimetres();
-
-            value
-                .scale_real(length_scale)
-                .reciprocal()
-                .scale_real(two_pi)
-        }
+        SpectralTransform::Reciprocal {
+            input_scale,
+            numerator,
+        } => value
+            .scale_real(input_scale)
+            .reciprocal()
+            .scale_real(numerator),
     }
 }
 
@@ -495,6 +416,13 @@ mod tests {
     mod canonicalisation {
         use super::*;
 
+        fn speed_of_light_cm_per_second<F>() -> F
+        where
+            F: FromPrimitive,
+        {
+            F::from_f64(lamina_units::SPEED_OF_LIGHT_CM_PER_SECOND).unwrap()
+        }
+
         #[test]
         fn vacuum_angular_wavenumber_in_inverse_centimetres_is_unchanged() {
             let result = canonicalise(
@@ -672,6 +600,13 @@ mod tests {
 
     mod consistency {
         use super::*;
+
+        fn speed_of_light_cm_per_second<F>() -> F
+        where
+            F: FromPrimitive,
+        {
+            F::from_f64(lamina_units::SPEED_OF_LIGHT_CM_PER_SECOND).unwrap()
+        }
 
         #[test]
         fn every_parameterisation_of_same_wave_agrees() {
@@ -883,6 +818,13 @@ mod tests {
 
     mod derivatives {
         use super::*;
+
+        fn speed_of_light_cm_per_second<F>() -> F
+        where
+            F: FromPrimitive,
+        {
+            F::from_f64(lamina_units::SPEED_OF_LIGHT_CM_PER_SECOND).unwrap()
+        }
 
         #[test]
         fn vacuum_angular_wavenumber_preserves_derivative() {

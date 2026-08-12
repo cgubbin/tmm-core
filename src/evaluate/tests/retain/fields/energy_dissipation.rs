@@ -768,8 +768,7 @@ fn integrated_dissipation_density_matches_layer_flux_loss() {
                         .get(layer_index)
                         .expect("layer should exist")
                         .thickness()
-                        .into_inner()
-                        .into_canonical();
+                        .as_centimetres();
 
                     let integrated = integrate_uniform_density(layer_density, thickness);
 
@@ -839,8 +838,7 @@ fn integrated_energy_density_matches_layer_energy() {
                         .get(layer_index)
                         .expect("layer should exist")
                         .thickness()
-                        .into_inner()
-                        .into_canonical();
+                        .as_centimetres();
 
                     let electric_integrated = integrate_uniform_density(
                         &electric_density

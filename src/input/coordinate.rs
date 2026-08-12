@@ -1,36 +1,6 @@
-use lamina_units::{AngleUnit, AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
+use lamina_units::{AngleUnit, InverseLengthUnit};
 
-/// Spectral coordinate used to parameterise a plane-wave input.
-///
-/// Values are supplied in the selected representation and units and are
-/// converted internally to Lamina's canonical spectral coordinate.
-///
-/// When derivatives are requested with respect to [`Parameter::Spectral`],
-/// they are derivatives with respect to this caller-facing coordinate, not
-/// the internal canonical coordinate.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum SpectralCoordinate {
-    /// Vacuum angular wavenumber
-    ///
-    /// `k₀ = 2π / λ`.
-    VacuumAngularWavenumber(InverseLengthUnit),
-
-    /// Spectroscopic vacuum wavenumber
-    ///
-    /// `ν̃ = 1 / λ`.
-    VacuumWavenumber(InverseLengthUnit),
-
-    /// Ordinary frequency `f`.
-    Frequency(FrequencyUnit),
-
-    /// Angular frequency
-    ///
-    /// `ω = 2πf`.
-    AngularFrequency(AngularFrequencyUnit),
-
-    /// Vacuum wavelength `λ`.
-    VacuumWavelength(LengthUnit),
-}
+pub use lamina_units::SpectralCoordinate;
 
 /// In-plane coordinate used to parameterise a plane-wave input.
 ///
@@ -106,6 +76,8 @@ impl Coordinates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use lamina_units::LengthUnit;
 
     #[test]
     fn coordinates_preserve_coordinate_choices() {

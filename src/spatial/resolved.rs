@@ -60,7 +60,7 @@ impl<R> ResolvedFieldSampling<R> {
             .iter()
             .map(|position| match position {
                 FieldPosition::LeftExterior { distance } => CanonicalFieldPosition::LeftExterior {
-                    distance: distance.into_canonical(),
+                    distance: distance.as_centimetres(),
                 },
                 FieldPosition::Layer { index, position } => CanonicalFieldPosition::Layer {
                     index: *index,
@@ -68,7 +68,7 @@ impl<R> ResolvedFieldSampling<R> {
                 },
                 FieldPosition::RightExterior { distance } => {
                     CanonicalFieldPosition::RightExterior {
-                        distance: distance.into_canonical(),
+                        distance: distance.as_centimetres(),
                     }
                 }
             })
@@ -84,8 +84,10 @@ mod tests {
 
     use crate::{
         FiniteLayerIndex,
-        spatial::{CanonicalLayerPosition, Length, ResolvedLayerPosition},
+        spatial::{CanonicalLayerPosition, ResolvedLayerPosition},
     };
+
+    use lamina_units::Length;
 
     #[test]
     fn exposes_positions() {

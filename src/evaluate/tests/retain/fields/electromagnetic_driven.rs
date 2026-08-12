@@ -1,3 +1,4 @@
+use lamina_units::Length;
 use ndarray::{ArrayBase, Ix1, OwnedRepr};
 use num_complex::Complex64;
 
@@ -9,7 +10,7 @@ use crate::{
     },
     field::VectorField,
     parameter::FiniteLayerIndex,
-    spatial::{CanonicalLayerPosition, ExteriorSampling, FieldSampling, LayerSampling, Length},
+    spatial::{CanonicalLayerPosition, ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
         assertions::{assert_array_close, assert_bidirectional_waves_close, assert_zero_jet_close},
         finite_difference::{

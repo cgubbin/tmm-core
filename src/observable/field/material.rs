@@ -257,6 +257,7 @@ impl<A> ConstitutiveSequences<A> {
 
 #[cfg(test)]
 mod tests {
+    use lamina_units::Length;
     use ndarray::Ix1;
     use num_complex::Complex64;
 
@@ -266,7 +267,7 @@ mod tests {
             ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
             RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2,
         },
-        spatial::{FieldPosition, Length, ResolvedFieldSampling, ResolvedLayerPosition},
+        spatial::{FieldPosition, ResolvedFieldSampling, ResolvedLayerPosition},
         test_support::{
             assertions::assert_complex_close,
             finite_difference::{FIRST_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE},
@@ -709,6 +710,7 @@ mod tests {
 
 #[cfg(test)]
 mod spectral_first_tests {
+    use lamina_units::Length;
     use num_complex::Complex64;
 
     use crate::{
@@ -719,7 +721,7 @@ mod spectral_first_tests {
             transfer2::Transfer2,
         },
         material::ConstitutiveSpectralFirstLift,
-        spatial::{FieldPosition, Length, ResolvedFieldSampling, ResolvedLayerPosition},
+        spatial::{FieldPosition, ResolvedFieldSampling, ResolvedLayerPosition},
         test_support::{
             assertions::assert_complex_close,
             finite_difference::{

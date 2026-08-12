@@ -1,3 +1,4 @@
+use lamina_units::Length;
 use nalgebra::ComplexField;
 use ndarray::{Array, Array1, Dimension, Ix1};
 use num_complex::Complex64;
@@ -8,7 +9,7 @@ use crate::{
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     field::VectorField,
     parameter::FiniteLayerIndex,
-    spatial::{ExteriorSampling, FieldSampling, LayerSampling, Length},
+    spatial::{ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
         assertions::{assert_array_close, assert_complex_close},
         finite_difference::{

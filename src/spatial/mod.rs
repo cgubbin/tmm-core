@@ -6,12 +6,6 @@
 //! converting resolved positions into the canonical spatial coordinate used by
 //! the numerical backends.
 //!
-//! Caller-facing distances are represented by [`Length`]. A sampling request
-//! may contain positions in either exterior region or inside finite layers.
-//! During resolution, each position is assigned an unambiguous physical region
-//! and finite-layer identity where applicable. Compilation then converts its
-//! distance or layer offset into backend canonical units.
-//!
 //! Spatially sampled response arrays use their final ndarray axis for position.
 //! Every preceding axis describes an excitation coordinate, such as vacuum
 //! wavenumber or in-plane wavenumber. Profile extraction selects one index on
@@ -24,12 +18,10 @@
 //! whose Cartesian components are discontinuous across material boundaries.
 
 mod compiled;
-mod length;
 mod resolved;
 mod response;
 mod sampling;
 
-pub use length::Length;
 pub use response::SpatialResponse;
 
 pub(crate) use compiled::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling};

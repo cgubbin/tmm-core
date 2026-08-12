@@ -189,8 +189,7 @@ fn scatter_te_sampled_qnm_fields_integrate_to_unit_normalisation() {
             .get(layer_index)
             .expect("finite layer should exist")
             .thickness()
-            .into_inner()
-            .into_canonical();
+            .as_centimetres();
 
         let electric_layer = integrate_uniform_complex(
             &electric_density
@@ -356,8 +355,7 @@ fn scatter_tm_sampled_qnm_fields_integrate_to_unit_normalisation() {
             .get(layer_index)
             .expect("finite layer should exist")
             .thickness()
-            .into_inner()
-            .into_canonical();
+            .as_centimetres();
 
         let electric_layer = integrate_uniform_complex(
             &electric_density
@@ -523,8 +521,7 @@ fn transfer_te_sampled_qnm_fields_integrate_to_unit_normalisation() {
             .get(layer_index)
             .expect("finite layer should exist")
             .thickness()
-            .into_inner()
-            .into_canonical();
+            .as_centimetres();
 
         let electric_layer = integrate_uniform_complex(
             &electric_density
@@ -690,8 +687,7 @@ fn transfer_tm_sampled_qnm_fields_integrate_to_unit_normalisation() {
             .get(layer_index)
             .expect("finite layer should exist")
             .thickness()
-            .into_inner()
-            .into_canonical();
+            .as_centimetres();
 
         let electric_layer = integrate_uniform_complex(
             &electric_density
@@ -818,7 +814,7 @@ fn scatter_te_sampled_qnm_components_match_analytic_normalisation_components() {
     let thicknesses: Vec<f64> = stack
         .layers_left_to_right()
         .iter()
-        .map(|layer| layer.thickness().into_inner().into_canonical())
+        .map(|layer| layer.thickness().as_centimetres())
         .collect();
 
     let mut sampled_electric = C::new(0.0, 0.0);
@@ -933,7 +929,7 @@ fn scatter_tm_sampled_qnm_components_match_analytic_normalisation_components() {
     let thicknesses: Vec<f64> = stack
         .layers_left_to_right()
         .iter()
-        .map(|layer| layer.thickness().into_inner().into_canonical())
+        .map(|layer| layer.thickness().as_centimetres())
         .collect();
 
     let mut sampled_electric = C::new(0.0, 0.0);
@@ -1061,7 +1057,7 @@ fn scatter_te_sampled_qnm_normalisation_matches_analytic_layers() {
     let thicknesses: Vec<f64> = stack
         .layers_left_to_right()
         .iter()
-        .map(|layer| layer.thickness().into_inner().into_canonical())
+        .map(|layer| layer.thickness().as_centimetres())
         .collect();
 
     assert_eq!(analytic_layers.len(), thicknesses.len(),);
@@ -1186,7 +1182,7 @@ fn scatter_tm_sampled_qnm_normalisation_matches_analytic_layers() {
     let thicknesses: Vec<f64> = stack
         .layers_left_to_right()
         .iter()
-        .map(|layer| layer.thickness().into_inner().into_canonical())
+        .map(|layer| layer.thickness().as_centimetres())
         .collect();
 
     assert_eq!(analytic_layers.len(), thicknesses.len(),);
@@ -1293,7 +1289,7 @@ fn scatter_te_sampled_qnm_normalisation_converges_with_sampling_density() {
         let thicknesses: Vec<f64> = stack
             .layers_left_to_right()
             .iter()
-            .map(|layer| layer.thickness().into_inner().into_canonical())
+            .map(|layer| layer.thickness().as_centimetres())
             .collect();
 
         let mut total = C::new(0.0, 0.0);

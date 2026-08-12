@@ -1,3 +1,4 @@
+use lamina_units::Length;
 use ndarray::{Array1, Ix0, Ix1};
 use num_complex::Complex64;
 
@@ -10,7 +11,7 @@ use crate::{
     field::VectorField,
     observable::ConstitutiveSamplingContext,
     parameter::FiniteLayerIndex,
-    spatial::{ExteriorSampling, FieldSampling, LayerSampling, Length},
+    spatial::{ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
         assertions::assert_complex_close,
         finite_difference::{

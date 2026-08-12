@@ -1,8 +1,6 @@
-use lamina_units::LengthUnit;
+use lamina_units::{Length, LengthUnit};
 use num_traits::{Float, FromPrimitive, Zero};
 use std::fmt;
-
-use crate::spatial::Length;
 
 /// A length which is guaranteed to be greater than or equal to zero
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,11 +49,11 @@ impl<F> Thickness<F> {
         self.0
     }
 
-    pub(crate) fn as_cm(&self) -> F
+    pub(crate) fn as_centimetres(&self) -> F
     where
         F: Float + FromPrimitive,
     {
-        self.0.as_cm()
+        self.0.as_centimetres()
     }
 }
 
