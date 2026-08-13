@@ -7,6 +7,7 @@ use crate::{
 
 use ndarray::Dimension;
 
+mod exterior;
 mod isotropic;
 mod mode;
 pub(crate) mod scatter2;
@@ -14,6 +15,8 @@ mod solution;
 pub(crate) mod transfer2;
 mod workspace;
 
+pub use exterior::ExteriorWavevectors;
+pub(crate) use exterior::evaluate_exterior_wavevectors;
 pub(crate) use isotropic::IsotropicLayerQuantities;
 pub(crate) use mode::{
     ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate,
@@ -53,6 +56,7 @@ where
     fn solve<M>(
         &self,
         problem: &CanonicalProblem<M, J>,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
     where
@@ -62,6 +66,7 @@ where
     fn retain<M>(
         &self,
         problem: &CanonicalProblem<M, J>,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<Self::Workspace, Self::Error>
     where

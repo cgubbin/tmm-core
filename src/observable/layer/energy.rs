@@ -6,7 +6,7 @@ use crate::{
     ComplexScalar,
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::IsotropicLayerQuantities,
-    material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
+    material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
         LayerAggregateError,
         layer::{

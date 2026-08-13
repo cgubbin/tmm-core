@@ -108,8 +108,8 @@
 //! | Material representation | `Material` | `DifferentiableMaterial` | `MeromorphicMaterial` | `DifferentiableMeromorphicMaterial` |
 //! |---|:---:|:---:|:---:|:---:|
 //! | Constant material | yes | yes | yes | yes |
-//! | Drude or Lorentz model | automatic | automatic | yes | yes |
-//! | Sellmeier fit | automatic | automatic | possibly | possibly |
+//! | Drude or Lorentz model | yes | yes | yes | yes |
+//! | Sellmeier fit | yes | yes | possibly | possibly |
 //! | Cubic-spline optical data | yes | possibly | no | no |
 //! | Piecewise-linear table | yes | possibly | no | no |
 //! | Numerically differentiated table | yes | yes | no | no |
@@ -137,13 +137,12 @@
 //! used accidentally as though it were a valid analytic continuation in a
 //! complex mode calculation.
 
-pub mod erased;
-pub mod evaluate;
-pub mod handle;
-pub mod lifting;
-pub mod model;
-pub mod sample;
-// pub mod tensor;
+mod erased;
+mod evaluate;
+mod handle;
+mod lifting;
+mod model;
+mod sample;
 
 pub use evaluate::{
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
@@ -153,12 +152,14 @@ pub use handle::{
     AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
     MeromorphicMaterialHandle,
 };
-pub(crate) use lifting::{ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift};
+pub(crate) use lifting::{
+    ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
+    ConstitutiveSpectralFirstLift,
+};
 pub use model::Constant;
 pub use sample::Scalar;
 
-pub use sample::{Sampled, TensorSampled};
-// use tensor::{DiagonalTensorMaterial, TensorMaterial};
+pub use sample::Sampled;
 
 use num_traits::{One, Zero};
 
@@ -167,8 +168,14 @@ use crate::ComplexScalar;
 /// Highest derivative order requested.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DerivativeOrder {
+    /// First Derivative
     First,
+    /// Second Derivative
     Second,
+    /// Third Derivative
+    ///
+    /// Required internally when a first constitutive derivative is itself lifted into a
+    /// second-order jet, for example in derivative calculations of Brillouin energy
     Third,
 }
 
@@ -214,7 +221,9 @@ pub trait Material {
     type Real: One + Zero;
 
     /// Return the relative permittivity.
-    fn relative_permittivity<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
+    fn relative_permittivity<I, C>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>;
@@ -222,12 +231,14 @@ pub trait Material {
     /// Return the relative permeability.
     ///
     /// The default implementation represents a non-magnetic material.
-    fn relative_permeability<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
+    fn relative_permeability<I, C>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>,
     {
-        vacuum_wavenumber.map(|_| C::from_real(Self::Real::one()))
+        vacuum_angular_wavenumber.map(|_| C::from_real(Self::Real::one()))
     }
 }
 
@@ -260,9 +271,11 @@ pub trait Material {
 /// evaluated on the real axis.
 pub trait DifferentiableMaterial: Material {
     /// Return a derivative of the relative permittivity.
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
     fn relative_permittivity_derivative<I, C>(
         &self,
-        vacuum_wavenumber: I,
+        vacuum_angular_wavenumber: I,
         order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
@@ -272,16 +285,18 @@ pub trait DifferentiableMaterial: Material {
     /// Return a derivative of the relative permeability.
     ///
     /// The default implementation represents a non-magnetic material.
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
     fn relative_permeability_derivative<I, C>(
         &self,
-        vacuum_wavenumber: I,
+        vacuum_angular_wavenumber: I,
         _order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C::RealField>,
     {
-        vacuum_wavenumber.map(|_| C::from_real(Self::Real::zero()))
+        vacuum_angular_wavenumber.map(|_| C::from_real(Self::Real::zero()))
     }
 }
 
@@ -299,8 +314,8 @@ pub trait DifferentiableMaterial: Material {
 /// - argument-principle methods,
 /// - complex-frequency root searches.
 ///
-/// Implementations must define a single-valued meromorphic continuation
-/// consistent with the underlying physical dispersion model.
+/// Implementations must define a meromorphic continuation consistent with the
+/// same physical dispersion model used on the real axis.
 ///
 /// Typical implementations include
 ///
@@ -315,13 +330,17 @@ pub trait DifferentiableMaterial: Material {
 /// spectral axis.
 pub trait MeromorphicMaterial: Material {
     /// Return the complex relative permittivity.
-    fn relative_permittivity_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
+    fn relative_permittivity_complex<I, C>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>;
 
     /// Return the complex relative permeability.
-    fn relative_permeability_complex<I, C>(&self, vacuum_wavenumber: I) -> I::Mapped<C>
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
+    fn relative_permeability_complex<I, C>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>;
@@ -347,9 +366,11 @@ pub trait MeromorphicMaterial: Material {
 /// real axis and may therefore implement [`DifferentiableMaterial`] directly.
 pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + DifferentiableMaterial {
     /// Return a complex derivative of the relative permittivity.
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
     fn relative_permittivity_complex_derivative<I, C>(
         &self,
-        vacuum_wavenumber: I,
+        vacuum_angular_wavenumber: I,
         order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
@@ -357,15 +378,17 @@ pub trait DifferentiableMeromorphicMaterial: MeromorphicMaterial + Differentiabl
         I: Sampled<Elem = C>;
 
     /// Return a complex derivative of the relative permeability.
+    ///
+    /// `vacuum_angular_wavenumber` is `k₀` expressed in `cm⁻¹`.
     fn relative_permeability_complex_derivative<I, C>(
         &self,
-        vacuum_wavenumber: I,
+        vacuum_angular_wavenumber: I,
         _order: DerivativeOrder,
     ) -> I::Mapped<C>
     where
         C: ComplexScalar<RealField = Self::Real>,
         I: Sampled<Elem = C>,
     {
-        vacuum_wavenumber.map(|_| C::from_real(Self::Real::zero()))
+        vacuum_angular_wavenumber.map(|_| C::from_real(Self::Real::zero()))
     }
 }

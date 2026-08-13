@@ -22,7 +22,10 @@ use crate::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
         RealScalarAlgebra, ScalarAlgebra,
     },
-    backend::{ExteriorContextProvider, PlaneWaveEntries, isotropic::IsotropicLayerQuantities},
+    backend::{
+        ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries,
+        isotropic::IsotropicLayerQuantities,
+    },
     input::{CanonicalCoordinates, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{ProjectAmplitudes, ProjectPower},
@@ -251,6 +254,7 @@ impl<J> Scatter2ExteriorContext<J> {
         coordinates: &CanonicalCoordinates<J>,
         left_exterior: &M,
         right_exterior: &M,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Self
     where
@@ -265,15 +269,19 @@ impl<J> Scatter2ExteriorContext<J> {
         let right_quantities =
             IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
 
+        let (left_kappa, right_kappa) = exterior.clone().into_parts();
+        let left_admittance = left_kappa.divide(left_quantities.factor());
+        let right_admittance = right_kappa.divide(right_quantities.factor());
+
         Self {
-            left_kappa: left_quantities.kappa().clone(),
-            right_kappa: right_quantities.kappa().clone(),
+            left_kappa,
+            right_kappa,
             left_mu: left_quantities.mu().clone(),
             right_mu: right_quantities.mu().clone(),
             left_epsilon: left_quantities.epsilon().clone(),
             right_epsilon: right_quantities.epsilon().clone(),
-            left_admittance: left_quantities.into_admittance().into_inner(),
-            right_admittance: right_quantities.into_admittance().into_inner(),
+            left_admittance,
+            right_admittance,
             vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),
             parallel_angular_wavenumber: coordinates.parallel_angular_wavenumber().clone(),
             polarisation,

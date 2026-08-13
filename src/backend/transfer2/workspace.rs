@@ -598,7 +598,7 @@ mod tests {
     use crate::{
         Constant, CoordinateInput, PlaneWaveEvaluator, Polarisation, RealAxis,
         algebra::{ArrayJet0, RealParameter},
-        backend::{RunMode, Transfer2},
+        backend::{ExteriorWavevectors, RunMode, Transfer2},
         input::{CanonicalCoordinates, CanonicalStack},
         observable::BoundaryWaves,
         test_support::{
@@ -641,11 +641,34 @@ mod tests {
     }
 
     fn context() -> Transfer2ExteriorContext<A> {
+        let left_exterior = constant(1.0, 1.0);
+        let right_exterior = constant(1.0, 1.0);
+        let coordinates = coordinates();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                &left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                &right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         Transfer2ExteriorContext::new::<crate::domain::RealAxis, _>(
-            &coordinates(),
-            &constant(1.0, 1.0),
-            &constant(1.0, 1.0),
-            Polarisation::TransverseElectric,
+            &coordinates,
+            &left_exterior,
+            &right_exterior,
+            &exterior,
+            polarisation,
         )
     }
 
@@ -778,13 +801,30 @@ mod tests {
         stack: CanonicalStack<Constant<f64>, J0>,
         mode: RunMode,
     ) -> Transfer2Workspace<J0> {
-        Transfer2::new()
-            .accumulate::<J0, RealAxis, _>(
-                &test_coordinates(),
-                &stack,
-                Polarisation::TransverseElectric,
-                mode,
+        let coordinates = test_coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
             )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
+        Transfer2::new()
+            .accumulate::<J0, RealAxis, _>(&coordinates, &stack, polarisation, &exterior, mode)
             .expect("scatter workspace accumulation should succeed")
     }
 

@@ -19,7 +19,7 @@ use crate::{
         query::{DifferentialResponseFor, PlaneWaveQuery},
     },
     input::JetMapping,
-    material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
+    material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
         AggregateBilinearNormalization, ConstitutiveFieldReconstructionError,
         FieldReconstructionError, FieldSamplingContext, LayerAggregateError, LayerEnergyError,

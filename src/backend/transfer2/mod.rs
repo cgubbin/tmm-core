@@ -36,7 +36,7 @@ use ndarray::Dimension;
 use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
-    backend::{Backend, PlaneWaveSolution, RunMode, SolutionWorkspace},
+    backend::{Backend, ExteriorWavevectors, PlaneWaveSolution, RunMode, SolutionWorkspace},
     input::CanonicalProblem,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -111,6 +111,7 @@ where
     fn solve<M>(
         &self,
         problem: &CanonicalProblem<M, J>,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
     where
@@ -121,6 +122,7 @@ where
             problem.coordinates(),
             problem.stack(),
             polarisation,
+            exterior,
             RunMode::ResponseOnly,
         )?;
 
@@ -130,6 +132,7 @@ where
     fn retain<M>(
         &self,
         problem: &CanonicalProblem<M, J>,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<Self::Workspace, Self::Error>
     where
@@ -140,6 +143,7 @@ where
             problem.coordinates(),
             problem.stack(),
             polarisation,
+            exterior,
             RunMode::InternalFields,
         )?;
 

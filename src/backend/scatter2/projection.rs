@@ -291,7 +291,9 @@ mod tests {
     use crate::{
         Polarisation, RealAxis,
         algebra::ScalarAlgebra,
-        backend::scatter2::Scatter2ExteriorContext,
+        backend::{
+            ExteriorWavevectors, IsotropicLayerQuantities, scatter2::Scatter2ExteriorContext,
+        },
         input::CanonicalCoordinates,
         material::Constant,
         observable::BoundaryState,
@@ -332,6 +334,22 @@ mod tests {
             &coordinates,
             &Constant::vacuum(),
             &Constant::vacuum(),
+            &ExteriorWavevectors::new(
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &Constant::vacuum(),
+                    &coordinates,
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &Constant::vacuum(),
+                    &coordinates,
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+            ),
             Polarisation::TransverseElectric,
         )
     }

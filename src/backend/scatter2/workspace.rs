@@ -649,8 +649,8 @@ mod tests {
         Polarisation, RealAxis,
         algebra::ScalarAlgebra,
         backend::{
-            ExteriorContextProvider, IsotropicLayerQuantities, ModalSolutionSource,
-            ReconstructLayerModeWaves, RunMode, Scatter2, SolutionWorkspace,
+            ExteriorContextProvider, ExteriorWavevectors, IsotropicLayerQuantities,
+            ModalSolutionSource, ReconstructLayerModeWaves, RunMode, Scatter2, SolutionWorkspace,
             scatter2::{
                 Scatter2ExteriorContext,
                 entries::{Scatter2Entries, cascade},
@@ -718,6 +718,22 @@ mod tests {
             &coordinates,
             &left_exterior,
             &right_exterior,
+            &ExteriorWavevectors::new(
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &left_exterior,
+                    &coordinates,
+                    polarisation,
+                )
+                .kappa()
+                .clone(),
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &right_exterior,
+                    &coordinates,
+                    polarisation,
+                )
+                .kappa()
+                .clone(),
+            ),
             polarisation,
         )
     }
@@ -1245,6 +1261,22 @@ mod tests {
                 &test_coordinates(),
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &test_coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &test_coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 mode,
             )
             .expect("scatter workspace accumulation should succeed")
@@ -1349,6 +1381,22 @@ mod tests {
             &test_coordinates(),
             &Constant::vacuum(),
             &Constant::vacuum(),
+            &ExteriorWavevectors::new(
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &Constant::vacuum(),
+                    &test_coordinates(),
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    &Constant::vacuum(),
+                    &test_coordinates(),
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+            ),
             Polarisation::TransverseElectric,
         )
     }

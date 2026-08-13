@@ -233,7 +233,7 @@ mod tests {
     use crate::{
         FiniteLayerIndex, Polarisation, RealAxis,
         algebra::ArrayJet0,
-        backend::{RunMode, Scatter2},
+        backend::{ExteriorWavevectors, IsotropicLayerQuantities, RunMode, Scatter2},
         input::{CanonicalCoordinates, CanonicalStack},
         material::Constant,
         spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},
@@ -258,11 +258,34 @@ mod tests {
         stack: CanonicalStack<Constant<f64>, A>,
         mode: RunMode,
     ) -> crate::backend::scatter2::Scatter2Workspace<A> {
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         Scatter2::new()
             .accumulate::<A, RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &exterior,
                 mode,
             )
             .expect("scatter workspace accumulation should succeed")

@@ -17,7 +17,7 @@ use crate::{
     IncidentSide, MeromorphicMaterial,
     material::{
         AnalyticalMaterialHandle, DifferentiableMaterialHandle, Material, MaterialHandle,
-        MeromorphicMaterialHandle, sample::Sampled,
+        MeromorphicMaterialHandle, Sampled,
     },
 };
 

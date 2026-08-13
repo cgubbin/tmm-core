@@ -22,8 +22,8 @@ use crate::{
         ProjectionConstraintError,
     },
     material::{
-        ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift,
-        lifting::ConstitutiveDerivativeEvaluator,
+        ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
+        ConstitutiveSpectralFirstLift,
     },
     observable::{
         AggregateBilinearNormalization, BoundaryProjectionError, ConstitutiveSamplingContext,

@@ -23,10 +23,12 @@ mod waves;
 #[cfg(test)]
 mod test_support;
 
+pub use backend::ExteriorWavevectors;
+
 pub use domain::{ComplexPlane, RealAxis};
 pub use input::{
-    CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples, Coordinates,
-    InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
+    CanonicalCoordinates, CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples,
+    Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
 };
 
 pub use evaluate::PlaneWaveEvaluator;
@@ -37,6 +39,7 @@ pub use material::{
 };
 
 pub use field::VectorField;
+
 pub use observable::{
     ConstitutiveFields, DirectedPower, ElectromagneticDissipation, ElectromagneticEnergy,
     ElectromagneticFields, ElectromagneticIntensities, FieldIndexError, InterfacePower,

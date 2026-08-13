@@ -20,7 +20,7 @@ use crate::{
         state::{RawInterfacePower, RawLayerPower},
     }, input::JetMapping, material::{
         ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift,
-        lifting::ConstitutiveDerivativeEvaluator,
+        ConstitutiveDerivativeEvaluator,
     }, observable::{
         Amplitudes, BoundaryProjectionError, ConstitutiveFieldReconstructionError, ConstitutiveSamplingError, ElectromagneticEnergy, EnergyConfinement, FieldReconstructionError, FieldSamplingContext, InterfaceProjectionError, InterfaceStates, InterfaceWaveData, Interfaces, LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerConfinementError, LayerEnergy, LayerEnergyError, LayerIntegrationInput, LayerParticipation, LayerParticipationError, LayerProjectionError, Layers, ProjectAmplitudes, ProjectPower, assemble_layer_integration_inputs, electromagnetic_dissipation_coefficients
     }, spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse}, waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext}

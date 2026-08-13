@@ -240,20 +240,21 @@ mod spectral_first_lift_tests {
     impl Material for PolynomialMaterial {
         type Real = f64;
 
-        fn relative_permittivity<I, X>(&self, vacuum_wavenumber: I) -> I::Mapped<X>
+        fn relative_permittivity<I, X>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<X>
         where
             I: Sampled<Elem = Self::Real>,
             X: ComplexScalar<RealField = f64>,
         {
-            vacuum_wavenumber.map(|k| X::from_real(2.0 + 3.0 * k + 5.0 * k * k + 7.0 * k * k * k))
+            vacuum_angular_wavenumber
+                .map(|k| X::from_real(2.0 + 3.0 * k + 5.0 * k * k + 7.0 * k * k * k))
         }
 
-        fn relative_permeability<I, X>(&self, vacuum_wavenumber: I) -> I::Mapped<X>
+        fn relative_permeability<I, X>(&self, vacuum_angular_wavenumber: I) -> I::Mapped<X>
         where
             I: Sampled<Elem = Self::Real>,
             X: ComplexScalar<RealField = f64>,
         {
-            vacuum_wavenumber
+            vacuum_angular_wavenumber
                 .map(|k| X::from_real(11.0 + 13.0 * k + 17.0 * k * k + 19.0 * k * k * k))
         }
     }
@@ -261,7 +262,7 @@ mod spectral_first_lift_tests {
     impl DifferentiableMaterial for PolynomialMaterial {
         fn relative_permittivity_derivative<I, X>(
             &self,
-            vacuum_wavenumber: I,
+            vacuum_angular_wavenumber: I,
             order: DerivativeOrder,
         ) -> I::Mapped<X>
         where
@@ -270,18 +271,20 @@ mod spectral_first_lift_tests {
         {
             match order {
                 DerivativeOrder::First => {
-                    vacuum_wavenumber.map(|k| X::from_real(3.0 + 10.0 * k + 21.0 * k * k))
+                    vacuum_angular_wavenumber.map(|k| X::from_real(3.0 + 10.0 * k + 21.0 * k * k))
                 }
 
-                DerivativeOrder::Second => vacuum_wavenumber.map(|k| X::from_real(10.0 + 42.0 * k)),
+                DerivativeOrder::Second => {
+                    vacuum_angular_wavenumber.map(|k| X::from_real(10.0 + 42.0 * k))
+                }
 
-                DerivativeOrder::Third => vacuum_wavenumber.map(|_| X::from_real(42.0)),
+                DerivativeOrder::Third => vacuum_angular_wavenumber.map(|_| X::from_real(42.0)),
             }
         }
 
         fn relative_permeability_derivative<I, X>(
             &self,
-            vacuum_wavenumber: I,
+            vacuum_angular_wavenumber: I,
             order: DerivativeOrder,
         ) -> I::Mapped<X>
         where
@@ -290,14 +293,14 @@ mod spectral_first_lift_tests {
         {
             match order {
                 DerivativeOrder::First => {
-                    vacuum_wavenumber.map(|k| X::from_real(13.0 + 34.0 * k + 57.0 * k * k))
+                    vacuum_angular_wavenumber.map(|k| X::from_real(13.0 + 34.0 * k + 57.0 * k * k))
                 }
 
                 DerivativeOrder::Second => {
-                    vacuum_wavenumber.map(|k| X::from_real(34.0 + 114.0 * k))
+                    vacuum_angular_wavenumber.map(|k| X::from_real(34.0 + 114.0 * k))
                 }
 
-                DerivativeOrder::Third => vacuum_wavenumber.map(|_| X::from_real(114.0)),
+                DerivativeOrder::Third => vacuum_angular_wavenumber.map(|_| X::from_real(114.0)),
             }
         }
     }

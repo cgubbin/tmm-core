@@ -27,7 +27,7 @@
 mod coordinate;
 mod stack;
 
-pub(crate) use coordinate::CanonicalCoordinates;
+pub use coordinate::CanonicalCoordinates;
 
 pub(crate) use stack::{CanonicalLayer, CanonicalStack};
 

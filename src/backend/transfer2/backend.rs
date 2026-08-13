@@ -30,7 +30,7 @@ use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
     backend::{
-        RunMode,
+        ExteriorWavevectors, RunMode,
         isotropic::IsotropicLayerQuantities,
         transfer2::{
             Transfer2Entries, Transfer2Error, TransferStabilityCheck,
@@ -49,6 +49,7 @@ impl Transfer2 {
         coordinates: &CanonicalCoordinates<J>,
         stack: &CanonicalStack<M, J>,
         polarisation: Polarisation,
+        exterior: &ExteriorWavevectors<J>,
         request: RunMode,
     ) -> Result<Transfer2Workspace<J>, Transfer2Error>
     where
@@ -62,6 +63,7 @@ impl Transfer2 {
             coordinates,
             stack.left_exterior(),
             stack.right_exterior(),
+            exterior,
             polarisation,
         );
 
@@ -142,6 +144,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        RealAxis,
         algebra::{ArrayJet0, RealParameter},
         backend::RunMode,
         input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
@@ -168,6 +171,22 @@ mod tests {
                 &coordinates(),
                 &empty_stack(),
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        empty_stack().left_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        empty_stack().right_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -190,6 +209,22 @@ mod tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -216,6 +251,22 @@ mod tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -248,6 +299,22 @@ mod tests {
                 &coordinates(),
                 &two_layer_stack(),
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        two_layer_stack().left_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        two_layer_stack().right_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -262,6 +329,22 @@ mod tests {
                 &coordinates(),
                 &two_layer_stack(),
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        two_layer_stack().left_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        two_layer_stack().right_exterior(),
+                        &coordinates(),
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::InternalFields,
             )
             .unwrap();
@@ -276,20 +359,43 @@ mod tests {
         let backend = Transfer2::new();
         let stack = single_layer_stack();
 
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                Polarisation::TransverseMagnetic,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                Polarisation::TransverseMagnetic,
+            )
+            .kappa()
+            .clone(),
+        );
+
         let te = backend
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .unwrap();
 
         let tm = backend
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
                 Polarisation::TransverseMagnetic,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -301,20 +407,45 @@ mod tests {
     fn solve_and_retain_have_identical_external_solution() {
         let backend = Transfer2::new();
 
+        let stack = two_layer_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         let response = backend
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
-                &two_layer_stack(),
-                Polarisation::TransverseElectric,
+                &coordinates,
+                &stack,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .unwrap();
 
         let retained = backend
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
-                &two_layer_stack(),
-                Polarisation::TransverseElectric,
+                &coordinates,
+                &stack,
+                polarisation,
+                &exterior,
                 RunMode::InternalFields,
             )
             .unwrap();
@@ -332,26 +463,60 @@ mod tests {
             vec![CanonicalLayer::new(material, zero_jet_from_value(c(0.1)))],
         );
 
+        let polarisation = Polarisation::TransverseElectric;
+
+        let first_coordinates =
+            CanonicalCoordinates::new(zero_jet_from_value(c(2.0)), zero_jet_from_value(c(0.1)));
+
         let first = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &CanonicalCoordinates::new(
-                    zero_jet_from_value(c(2.0)),
-                    zero_jet_from_value(c(0.1)),
-                ),
+                &first_coordinates,
                 &stack,
-                Polarisation::TransverseElectric,
+                polarisation,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &first_coordinates,
+                        polarisation,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &first_coordinates,
+                        polarisation,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
 
+        let second_coordinates =
+            CanonicalCoordinates::new(zero_jet_from_value(c(3.0)), zero_jet_from_value(c(0.1)));
+
         let second = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &CanonicalCoordinates::new(
-                    zero_jet_from_value(c(3.0)),
-                    zero_jet_from_value(c(0.1)),
-                ),
+                &second_coordinates,
                 &stack,
-                Polarisation::TransverseElectric,
+                polarisation,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &second_coordinates,
+                        polarisation,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &second_coordinates,
+                        polarisation,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -366,7 +531,7 @@ mod stability_tests {
 
     use super::*;
     use crate::{
-        Constant,
+        Constant, RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::transfer2::error::Transfer2Entry,
         input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
@@ -413,6 +578,29 @@ mod stability_tests {
 
     #[test]
     fn stable_stack_passes_all_check_policies() {
+        let stack = stable_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         for policy in [
             TransferStabilityCheck::Final,
             TransferStabilityCheck::PerLayer,
@@ -420,9 +608,10 @@ mod stability_tests {
         ] {
             let result = Transfer2::with_stability_check(policy)
                 .accumulate::<_, crate::domain::RealAxis, _>(
-                    &coordinates(),
-                    &stable_stack(),
-                    Polarisation::TransverseElectric,
+                    &coordinates,
+                    &stack,
+                    polarisation,
+                    &exterior,
                     RunMode::ResponseOnly,
                 );
 
@@ -436,11 +625,35 @@ mod stability_tests {
 
     #[test]
     fn per_layer_check_reports_non_finite_layer_matrix() {
+        let stack = directly_overflowing_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         let error = Transfer2::with_stability_check(TransferStabilityCheck::PerLayer)
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
-                &directly_overflowing_stack(),
-                Polarisation::TransverseElectric,
+                &coordinates,
+                &stack,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .expect_err("overflowing layer should be rejected");
@@ -453,11 +666,35 @@ mod stability_tests {
 
     #[test]
     fn final_check_reports_non_finite_final_matrix() {
+        let stack = directly_overflowing_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         let error = Transfer2::with_stability_check(TransferStabilityCheck::Final)
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
-                &directly_overflowing_stack(),
-                Polarisation::TransverseElectric,
+                &coordinates,
+                &stack,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .expect_err("non-finite final matrix should be rejected");
@@ -467,11 +704,35 @@ mod stability_tests {
 
     #[test]
     fn disabled_check_returns_non_finite_workspace() {
+        let stack = directly_overflowing_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         let workspace = Transfer2::with_stability_check(TransferStabilityCheck::Disabled)
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
-                &directly_overflowing_stack(),
-                Polarisation::TransverseElectric,
+                &coordinates,
+                &stack,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .expect("disabled checks should not reject the matrix");
@@ -482,21 +743,44 @@ mod stability_tests {
     #[test]
     fn final_and_per_layer_checks_return_different_diagnostics() {
         let stack = directly_overflowing_stack();
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
 
         let per_layer = Transfer2::with_stability_check(TransferStabilityCheck::PerLayer)
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
-                Polarisation::TransverseElectric,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .unwrap_err();
 
         let final_check = Transfer2::with_stability_check(TransferStabilityCheck::Final)
             .accumulate::<_, crate::domain::RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
-                Polarisation::TransverseElectric,
+                polarisation,
+                &exterior,
                 RunMode::ResponseOnly,
             )
             .unwrap_err();

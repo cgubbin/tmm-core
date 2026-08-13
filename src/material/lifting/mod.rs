@@ -7,8 +7,7 @@
 //! μ = μ(s)
 //! ```
 //!
-//! where `s` is the spectral variable used internally by the backend
-//! (currently `k₀²`).
+//! where `s` is the canonical vacuum angular momentum `k₀`
 //!
 //! Rather than constructing derivative-aware quantities directly, material
 //! models return the Taylor coefficients of the constitutive function.
@@ -49,7 +48,7 @@ use crate::{
 /// - [`ComplexPlane`] delegates to the corresponding meromorphic handles.
 ///
 /// It operates only on ordinary sampled values. Algebraic lifting into jets is
-/// handled separately by `EvaluateConstitutive`.
+/// handled separately by `ConstitutiveLift`.
 #[doc(hidden)]
 pub trait ConstitutiveEvaluator<C, D, M>
 where
@@ -57,10 +56,10 @@ where
     D: Dimension,
 {
     /// Evaluate relative permittivity.
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D>;
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D>;
 
     /// Evaluate relative permeability.
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D>;
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D>;
 }
 
 impl<C, D, M> ConstitutiveEvaluator<C, D, M> for RealAxis
@@ -70,14 +69,14 @@ where
     M: EvaluateMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D> {
-        let spectral = vacuum_wavenumber.mapv(|value| value.real());
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D> {
+        let spectral = vacuum_angular_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permittivity(spectral)
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D> {
-        let spectral = vacuum_wavenumber.mapv(|value| value.real());
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D> {
+        let spectral = vacuum_angular_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permeability(spectral)
     }
@@ -90,15 +89,16 @@ where
     M: EvaluateMeromorphicMaterial<C, Real = C::RealField>,
     C::RealField: Copy,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D> {
-        material.evaluate_relative_permittivity_complex(vacuum_wavenumber.clone())
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D> {
+        material.evaluate_relative_permittivity_complex(vacuum_angular_wavenumber.clone())
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Array<C, D>) -> Array<C, D> {
-        material.evaluate_relative_permeability_complex(vacuum_wavenumber.clone())
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Array<C, D>) -> Array<C, D> {
+        material.evaluate_relative_permeability_complex(vacuum_angular_wavenumber.clone())
     }
 }
 
+#[doc(hidden)]
 pub trait ConstitutiveDerivativeEvaluator<C, D, M>: ConstitutiveEvaluator<C, D, M>
 where
     C: ComplexScalar,
@@ -107,14 +107,14 @@ where
     /// Evaluate relative permittivity.
     fn relative_permittivity_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D>;
 
     /// Evaluate relative permeability.
     fn relative_permeability_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D>;
 }
@@ -128,30 +128,30 @@ where
 {
     fn relative_permittivity_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
         debug_assert!(
-            vacuum_wavenumber
+            vacuum_angular_wavenumber
                 .iter()
                 .all(|value| value.imaginary() == C::zero().real())
         );
-        let spectral = vacuum_wavenumber.mapv(|value| value.real());
+        let spectral = vacuum_angular_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permittivity_derivative(spectral, order)
     }
 
     fn relative_permeability_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
         debug_assert!(
-            vacuum_wavenumber
+            vacuum_angular_wavenumber
                 .iter()
                 .all(|value| value.imaginary() == C::zero().real())
         );
-        let spectral = vacuum_wavenumber.mapv(|value| value.real());
+        let spectral = vacuum_angular_wavenumber.mapv(|value| value.real());
 
         material.evaluate_relative_permeability_derivative(spectral, order)
     }
@@ -166,18 +166,24 @@ where
 {
     fn relative_permittivity_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
-        material.evaluate_relative_permittivity_complex_derivative(vacuum_wavenumber.clone(), order)
+        material.evaluate_relative_permittivity_complex_derivative(
+            vacuum_angular_wavenumber.clone(),
+            order,
+        )
     }
 
     fn relative_permeability_derivative(
         material: &M,
-        vacuum_wavenumber: &Array<C, D>,
+        vacuum_angular_wavenumber: &Array<C, D>,
         order: DerivativeOrder,
     ) -> Array<C, D> {
-        material.evaluate_relative_permeability_complex_derivative(vacuum_wavenumber.clone(), order)
+        material.evaluate_relative_permeability_complex_derivative(
+            vacuum_angular_wavenumber.clone(),
+            order,
+        )
     }
 }
 
@@ -188,13 +194,16 @@ where
     Self::Dimension: Dimension,
     E: ConstitutiveEvaluator<Self::Scalar, Self::Dimension, M>,
 {
-    fn refractive_index(material: &M, vacuum_wavenumber: &Self) -> Self {
-        ScalarAlgebra::sqrt(&Self::relative_permittivity(material, vacuum_wavenumber))
+    fn refractive_index(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        ScalarAlgebra::sqrt(&Self::relative_permittivity(
+            material,
+            vacuum_angular_wavenumber,
+        ))
     }
 
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self;
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self;
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self;
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self;
 }
 
 impl<C, D, E, M, P> ConstitutiveLift<E, M> for ArrayJet0<C, D, P>
@@ -204,12 +213,18 @@ where
     E: ConstitutiveEvaluator<C, D, M>,
     P: Clone + Debug,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
-        Self::new(E::relative_permittivity(material, vacuum_wavenumber))
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        Self::new(E::relative_permittivity(
+            material,
+            vacuum_angular_wavenumber,
+        ))
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
-        Self::new(E::relative_permeability(material, vacuum_wavenumber))
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        Self::new(E::relative_permeability(
+            material,
+            vacuum_angular_wavenumber,
+        ))
     }
 }
 
@@ -220,26 +235,32 @@ where
     E: ConstitutiveDerivativeEvaluator<C, D, M>,
     P: Clone + Debug,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permittivity(material, vacuum_wavenumber.value());
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permittivity(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
 
-        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+        Self::compose_sampled_function(
+            vacuum_angular_wavenumber,
+            FirstOrderExpansion::new(value, first),
+        )
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permeability(material, vacuum_wavenumber.value());
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permeability(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
 
-        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+        Self::compose_sampled_function(
+            vacuum_angular_wavenumber,
+            FirstOrderExpansion::new(value, first),
+        )
     }
 }
 
@@ -250,40 +271,40 @@ where
     E: ConstitutiveDerivativeEvaluator<C, D, M>,
     P: Clone + Debug,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permittivity(material, vacuum_wavenumber.value());
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permittivity(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
         let second = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::Second,
         );
 
         Self::compose_sampled_function(
-            vacuum_wavenumber,
+            vacuum_angular_wavenumber,
             SecondOrderExpansion::new(value, first, second),
         )
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permeability(material, vacuum_wavenumber.value());
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permeability(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
         let second = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::Second,
         );
 
         Self::compose_sampled_function(
-            vacuum_wavenumber,
+            vacuum_angular_wavenumber,
             SecondOrderExpansion::new(value, first, second),
         )
     }
@@ -296,25 +317,31 @@ where
     E: ConstitutiveDerivativeEvaluator<C, D, M>,
     P: Clone + Debug,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permittivity(material, vacuum_wavenumber.value());
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permittivity(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
-        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+        Self::compose_sampled_function(
+            vacuum_angular_wavenumber,
+            FirstOrderExpansion::new(value, first),
+        )
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permeability(material, vacuum_wavenumber.value());
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permeability(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
 
-        Self::compose_sampled_function(vacuum_wavenumber, FirstOrderExpansion::new(value, first))
+        Self::compose_sampled_function(
+            vacuum_angular_wavenumber,
+            FirstOrderExpansion::new(value, first),
+        )
     }
 }
 
@@ -325,40 +352,40 @@ where
     E: ConstitutiveDerivativeEvaluator<C, D, M>,
     P: Clone + Debug,
 {
-    fn relative_permittivity(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permittivity(material, vacuum_wavenumber.value());
+    fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permittivity(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
         let second = E::relative_permittivity_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::Second,
         );
 
         Self::compose_sampled_function(
-            vacuum_wavenumber,
+            vacuum_angular_wavenumber,
             SecondOrderExpansion::new(value, first, second),
         )
     }
 
-    fn relative_permeability(material: &M, vacuum_wavenumber: &Self) -> Self {
-        let value = E::relative_permeability(material, vacuum_wavenumber.value());
+    fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
+        let value = E::relative_permeability(material, vacuum_angular_wavenumber.value());
         let first = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::First,
         );
         let second = E::relative_permeability_derivative(
             material,
-            vacuum_wavenumber.value(),
+            vacuum_angular_wavenumber.value(),
             DerivativeOrder::Second,
         );
 
         Self::compose_sampled_function(
-            vacuum_wavenumber,
+            vacuum_angular_wavenumber,
             SecondOrderExpansion::new(value, first, second),
         )
     }

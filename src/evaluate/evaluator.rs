@@ -1,16 +1,19 @@
 use num_complex::Complex;
 
 use crate::{
-    ComplexPlane, Polarisation, ValidationConfig,
+    CanonicalCoordinates, ComplexPlane, ExteriorWavevectors, Polarisation, ValidationConfig,
     algebra::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
-        HolomorphicParameter, Jet, RealParameter,
+        HolomorphicParameter, Jet, RealParameter, ScalarAlgebra,
     },
-    backend::{Backend, PlaneWaveSolution},
+    backend::{Backend, PlaneWaveSolution, evaluate_exterior_wavevectors},
     domain::RealAxis,
     evaluate::PlaneWaveResult,
-    input::{CompileJet, CompilePlaneWaveError, CoordinateInput, compile_complex, compile_real},
-    material::ConstitutiveEvaluator,
+    input::{
+        CanonicalProblem, CanonicalStack, CompileJet, CompilePlaneWaveError, CoordinateInput,
+        JetMapping, compile_complex, compile_real,
+    },
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
     parameter::{DerivativeMapping, Parameter},
     scalar::ComplexScalar,
     stack::Stack,
@@ -662,6 +665,41 @@ impl<B> PlaneWaveEvaluator<B> {
 }
 
 impl<B> PlaneWaveEvaluator<B> {
+    pub fn evaluate_canonical_modal<J, M>(
+        &self,
+        coordinates: CanonicalCoordinates<J>,
+        exterior: ExteriorWavevectors<J>,
+        stack: &CanonicalStack<M, J>,
+        polarisation: Polarisation,
+    ) -> Result<
+        PlaneWaveResult<J, <J::Scalar as ComplexField>::RealField, PlaneWaveSolution<B::Entries>>,
+        PlaneWaveEvaluationError<
+            CompilePlaneWaveError<J::Scalar>,
+            <B as Backend<J, ComplexPlane>>::Error,
+        >,
+    >
+    where
+        J: ScalarAlgebra + JetMapping,
+        J::Scalar: ComplexScalar,
+        <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
+        J::Dimension: Dimension,
+        ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        M: Clone,
+        B: Backend<J, ComplexPlane>,
+    {
+        let problem = CanonicalProblem::new(coordinates, stack.clone());
+
+        let solution = self
+            .backend
+            .solve(&problem, &exterior, polarisation)
+            .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
+
+        todo!()
+        // Ok(PlaneWaveResult::new(solution, context))
+    }
+}
+
+impl<B> PlaneWaveEvaluator<B> {
     fn solve_real_coordinate_space<J, M>(
         &self,
         input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
@@ -689,8 +727,7 @@ impl<B> PlaneWaveEvaluator<B> {
                 .map_err(PlaneWaveEvaluationError::compile)?;
 
         let solution = self
-            .backend
-            .solve(&canonical_problem, polarisation)
+            .solve_compiled::<J, RealAxis, M>(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
         Ok(PlaneWaveResult::new(solution, context))
@@ -723,8 +760,7 @@ impl<B> PlaneWaveEvaluator<B> {
                 .map_err(PlaneWaveEvaluationError::compile)?;
 
         let solution = self
-            .backend
-            .solve(&canonical_problem, polarisation)
+            .solve_compiled::<J, ComplexPlane, M>(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
         Ok(PlaneWaveResult::new(solution, context))
@@ -757,8 +793,7 @@ impl<B> PlaneWaveEvaluator<B> {
                 .map_err(PlaneWaveEvaluationError::compile)?;
 
         let workspace = self
-            .backend
-            .retain(&canonical_problem, polarisation)
+            .retain_compiled::<J, RealAxis, M>(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
         Ok(PlaneWaveState::new(
@@ -797,8 +832,7 @@ impl<B> PlaneWaveEvaluator<B> {
                 .map_err(PlaneWaveEvaluationError::compile)?;
 
         let workspace = self
-            .backend
-            .retain(&canonical_problem, polarisation)
+            .retain_compiled::<J, ComplexPlane, M>(&canonical_problem, polarisation)
             .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
 
         Ok(PlaneWaveState::new(
@@ -808,6 +842,50 @@ impl<B> PlaneWaveEvaluator<B> {
             stack.clone(),
             polarisation,
         ))
+    }
+
+    fn solve_compiled<J, Domain, M>(
+        &self,
+        problem: &CanonicalProblem<M, J>,
+        polarisation: Polarisation,
+    ) -> Result<PlaneWaveSolution<B::Entries>, <B as Backend<J, Domain>>::Error>
+    where
+        J: ScalarAlgebra + ConstitutiveLift<Domain, M> + Clone,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        B: Backend<J, Domain>,
+    {
+        let exterior = evaluate_exterior_wavevectors::<Domain, M, J>(
+            problem.coordinates(),
+            problem.stack().left_exterior(),
+            problem.stack().right_exterior(),
+            polarisation,
+        );
+
+        self.backend.solve(problem, &exterior, polarisation)
+    }
+
+    fn retain_compiled<J, Domain, M>(
+        &self,
+        problem: &CanonicalProblem<M, J>,
+        polarisation: Polarisation,
+    ) -> Result<B::Workspace, <B as Backend<J, Domain>>::Error>
+    where
+        J: ScalarAlgebra + ConstitutiveLift<Domain, M> + Clone,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        B: Backend<J, Domain>,
+    {
+        let exterior = evaluate_exterior_wavevectors::<Domain, M, J>(
+            problem.coordinates(),
+            problem.stack().left_exterior(),
+            problem.stack().right_exterior(),
+            polarisation,
+        );
+
+        self.backend.retain(problem, &exterior, polarisation)
     }
 }
 

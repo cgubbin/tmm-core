@@ -742,7 +742,10 @@ mod integration_tests {
     use crate::{
         FiniteLayerIndex, IncidentSide, Polarisation, RealAxis,
         algebra::{ArrayJet0, RealParameter},
-        backend::{ExteriorContextProvider, RetainedIsotropicLayers, RunMode, Scatter2},
+        backend::{
+            ExteriorContextProvider, ExteriorWavevectors, IsotropicLayerQuantities,
+            RetainedIsotropicLayers, RunMode, Scatter2,
+        },
         input::{CanonicalCoordinates, CanonicalStack},
         material::Constant,
         spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},
@@ -767,11 +770,33 @@ mod integration_tests {
     fn build_workspace(
         stack: CanonicalStack<Constant<f64>, A>,
     ) -> crate::backend::scatter2::Scatter2Workspace<A> {
+        let coordinates = coordinates();
+        let left_exterior = stack.left_exterior();
+        let right_exterior = stack.right_exterior();
+        let polarisation = Polarisation::TransverseElectric;
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
         Scatter2::new()
             .accumulate::<A, RealAxis, _>(
-                &coordinates(),
+                &coordinates,
                 &stack,
-                Polarisation::TransverseElectric,
+                polarisation,
+                &exterior,
                 RunMode::InternalFields,
             )
             .expect("scatter workspace accumulation should succeed")

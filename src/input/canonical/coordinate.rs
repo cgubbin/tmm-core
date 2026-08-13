@@ -1,5 +1,3 @@
-use crate::input::Polarisation;
-
 /// Canonical coordinates used by planar numerical backends.
 ///
 /// Both values:
@@ -15,14 +13,14 @@ use crate::input::Polarisation;
 /// Shape, finiteness, units, and coordinate conversion have already been
 /// validated by the compilation layer.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct CanonicalCoordinates<J> {
+pub struct CanonicalCoordinates<J> {
     vacuum_angular_wavenumber: J,
     parallel_angular_wavenumber: J,
 }
 
 impl<J> CanonicalCoordinates<J> {
     /// Construct canonical plane-wave coordinates.
-    pub(crate) const fn new(vacuum_angular_wavenumber: J, parallel_angular_wavenumber: J) -> Self {
+    pub const fn new(vacuum_angular_wavenumber: J, parallel_angular_wavenumber: J) -> Self {
         Self {
             vacuum_angular_wavenumber,
             parallel_angular_wavenumber,

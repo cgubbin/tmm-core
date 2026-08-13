@@ -9,7 +9,7 @@ use crate::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
     },
     input::CanonicalStack,
-    material::{ConstitutiveSpectralFirstLift, lifting::ConstitutiveDerivativeEvaluator},
+    material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
         FieldReconstructionError, IsotropicConstitutiveParameters,
         IsotropicConstitutiveSpectralData, field::constitutive::IsotropicConstitutiveSpectralFirst,

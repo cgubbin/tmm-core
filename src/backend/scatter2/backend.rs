@@ -1,7 +1,10 @@
 use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
-    backend::{RunMode, isotropic::IsotropicLayerQuantities, scatter2::Scatter2ExteriorContext},
+    backend::{
+        ExteriorWavevectors, RunMode, isotropic::IsotropicLayerQuantities,
+        scatter2::Scatter2ExteriorContext,
+    },
     input::{CanonicalCoordinates, CanonicalStack},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -57,6 +60,7 @@ impl Scatter2 {
         coordinates: &CanonicalCoordinates<J>,
         stack: &CanonicalStack<M, J>,
         polarisation: Polarisation,
+        exterior: &ExteriorWavevectors<J>,
         request: RunMode,
     ) -> Result<Scatter2Workspace<J>, Scatter2Error>
     where
@@ -70,6 +74,7 @@ impl Scatter2 {
             coordinates,
             stack.left_exterior(),
             stack.right_exterior(),
+            exterior,
             polarisation,
         );
 
@@ -1010,7 +1015,7 @@ mod propagation_tests {
 mod accumulate_tests {
     use crate::{
         Polarisation, RealAxis,
-        backend::{RunMode, scatter2::Scatter2},
+        backend::{ExteriorWavevectors, IsotropicLayerQuantities, RunMode, scatter2::Scatter2},
         test_support::{
             coordinates::test_coordinates,
             stack::{empty_stack, single_layer_stack, stack_with_layers, two_layer_stack},
@@ -1029,6 +1034,22 @@ mod accumulate_tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::ResponseOnly,
             )
             .unwrap();
@@ -1050,6 +1071,22 @@ mod accumulate_tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::InternalFields,
             )
             .unwrap();
@@ -1074,6 +1111,22 @@ mod accumulate_tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::InternalFields,
             )
             .unwrap();
@@ -1107,6 +1160,22 @@ mod accumulate_tests {
                 &coordinates,
                 &stack,
                 Polarisation::TransverseElectric,
+                &ExteriorWavevectors::new(
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.left_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                        stack.right_exterior(),
+                        &coordinates,
+                        Polarisation::TransverseElectric,
+                    )
+                    .kappa()
+                    .clone(),
+                ),
                 RunMode::InternalFields,
             )
             .unwrap();
@@ -1140,6 +1209,22 @@ mod accumulate_tests {
                     &coordinates,
                     &stack,
                     Polarisation::TransverseElectric,
+                    &ExteriorWavevectors::new(
+                        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                            stack.left_exterior(),
+                            &coordinates,
+                            Polarisation::TransverseElectric,
+                        )
+                        .kappa()
+                        .clone(),
+                        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                            stack.right_exterior(),
+                            &coordinates,
+                            Polarisation::TransverseElectric,
+                        )
+                        .kappa()
+                        .clone(),
+                    ),
                     RunMode::InternalFields,
                 )
                 .unwrap();

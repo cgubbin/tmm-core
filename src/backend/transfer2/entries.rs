@@ -45,7 +45,7 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra,
     },
     backend::{
-        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveModeCandidate,
+        ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries, PlaneWaveModeCandidate,
         isotropic::IsotropicLayerQuantities,
         transfer2::{error::Transfer2Entry, state::right_outgoing_transfer_state},
     },
@@ -349,6 +349,7 @@ impl<J> Transfer2ExteriorContext<J> {
         coordinates: &CanonicalCoordinates<J>,
         left_exterior: &M,
         right_exterior: &M,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Self
     where
@@ -363,15 +364,19 @@ impl<J> Transfer2ExteriorContext<J> {
         let right_quantities =
             IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
 
+        let (left_kappa, right_kappa) = exterior.clone().into_parts();
+        let left_admittance = left_kappa.divide(left_quantities.factor());
+        let right_admittance = right_kappa.divide(right_quantities.factor());
+
         Self {
-            left_kappa: left_quantities.kappa().clone(),
-            right_kappa: right_quantities.kappa().clone(),
+            left_kappa,
+            right_kappa,
             left_mu: left_quantities.mu().clone(),
             right_mu: right_quantities.mu().clone(),
             left_epsilon: left_quantities.epsilon().clone(),
             right_epsilon: right_quantities.epsilon().clone(),
-            left_admittance: left_quantities.into_admittance().into_inner(),
-            right_admittance: right_quantities.into_admittance().into_inner(),
+            left_admittance,
+            right_admittance,
             vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),
             parallel_angular_wavenumber: coordinates.parallel_angular_wavenumber().clone(),
             polarisation,
@@ -779,6 +784,7 @@ mod projection_tests {
     use super::*;
 
     use crate::{
+        RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::transfer2::projection::outgoing_residual,
         input::{CanonicalCoordinates, IncidentSide},
@@ -823,10 +829,32 @@ mod projection_tests {
         right_epsilon: f64,
         polarisation: Polarisation,
     ) -> Transfer2ExteriorContext<J> {
+        let left_exterior = constant(left_epsilon, 1.0);
+        let right_exterior = constant(right_epsilon, 1.0);
+        let coordinates = coordinates();
+
+        let exterior = ExteriorWavevectors::new(
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                &left_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                &right_exterior,
+                &coordinates,
+                polarisation,
+            )
+            .kappa()
+            .clone(),
+        );
+
         Transfer2ExteriorContext::new::<crate::domain::RealAxis, _>(
-            &coordinates(),
-            &constant(left_epsilon, 1.0),
-            &constant(right_epsilon, 1.0),
+            &coordinates,
+            &left_exterior,
+            &right_exterior,
+            &exterior,
             polarisation,
         )
     }
