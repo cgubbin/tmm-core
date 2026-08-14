@@ -1,7 +1,26 @@
+//! Numerical backend interfaces and implementations.
+//!
+//! Backends consume canonical coordinates and canonical stacks and propagate
+//! the selected jet algebra through transfer- or scattering-matrix
+//! calculations.
+//!
+//!
+//!
+//! This module contains:
+//!
+//! - backend-independent solution and workspace contracts;
+//! - exterior-wavevector and isotropic-layer quantities;
+//! - isotropic 2×2 transfer- and scattering-matrix backends;
+//! - mode-reconstruction support shared by those backends.
+//!
+//! Callers normally select a concrete backend such as [`Scatter2`] or
+//! [`Transfer2`] through the evaluator API rather than invoking backend
+//! methods directly.
+
 use crate::{
-    ComplexScalar, Polarisation,
+    CanonicalCoordinates, ComplexScalar, Polarisation,
     algebra::Jet,
-    input::CanonicalProblem,
+    input::CanonicalStack,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
@@ -42,6 +61,24 @@ impl RunMode {
     }
 }
 
+/// Numerical backend for a canonical plane-wave problem.
+///
+/// `J` determines the value/derivative algebra propagated through the solve,
+/// while `Domain` determines how constitutive material data are evaluated
+/// (for example on the real spectral axis or in the complex plane).
+///
+/// Backends receive the canonical problem as two borrowed components:
+///
+/// - canonical spectral and in-plane coordinates, which may vary between
+///   solves;
+/// - a canonical stack, which may be compiled once and reused.
+///
+/// Exterior longitudinal wavevectors are supplied separately so callers such
+/// as mode solvers may control their complex-plane branch choices.
+///
+/// This trait is public because it appears in bounds on public evaluator
+/// implementations. Backend implementations are supplied by `lamina-core`;
+/// downstream implementation is not currently a supported extension point.
 #[doc(hidden)]
 pub trait Backend<J, Domain>
 where
@@ -49,13 +86,22 @@ where
     J::Scalar: ComplexScalar,
     J::Dimension: Dimension,
 {
+    /// Backend-specific entries stored in a completed plane-wave solution.
     type Entries: PlaneWaveEntries;
-    type Workspace: SolutionWorkspace<Entries = Self::Entries>;
-    type Error: std::fmt::Debug;
 
+    /// Retained backend state used for field and mode reconstruction.
+    type Workspace: SolutionWorkspace<Entries = Self::Entries>;
+
+    /// Backend failure type.
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Solve the problem and return only the completed response state.
+    ///
+    /// No intermediate layer state is retained.
     fn solve<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
@@ -63,9 +109,12 @@ where
         Domain: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
         J: ConstitutiveLift<Domain, M>;
 
+    /// Solve the problem while retaining intermediate state required for
+    /// subsequent field or mode reconstruction.
     fn retain<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<Self::Workspace, Self::Error>

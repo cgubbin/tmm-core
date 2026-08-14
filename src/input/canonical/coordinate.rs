@@ -28,12 +28,12 @@ impl<J> CanonicalCoordinates<J> {
     }
 
     /// Return the vacuum angular wavenumber `k₀`.
-    pub(crate) fn vacuum_angular_wavenumber(&self) -> &J {
+    pub fn vacuum_angular_wavenumber(&self) -> &J {
         &self.vacuum_angular_wavenumber
     }
 
     /// Return the conserved parallel angular wavenumber `k∥`.
-    pub(crate) fn parallel_angular_wavenumber(&self) -> &J {
+    pub fn parallel_angular_wavenumber(&self) -> &J {
         &self.parallel_angular_wavenumber
     }
 

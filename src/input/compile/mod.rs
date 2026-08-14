@@ -19,34 +19,35 @@ mod coordinates;
 mod error;
 mod layout;
 mod problem;
-mod seed;
 mod stack;
+mod validation;
 
 pub use context::ProjectionConstraintError;
 pub(crate) use context::{
     CompilationContext, CoordinateContext, ProjectionConstraint, StackContext,
 };
 pub use error::CompilePlaneWaveError;
+pub(crate) use error::MappingError;
 pub(crate) use layout::JetMapping;
-pub(crate) use seed::SeedJet;
+pub(crate) use stack::{StackCompileError, StackThicknessJet, compile_canonical_constant_stack};
+pub(crate) use validation::ValidationConfig;
 
 use coordinates::CoordinateCompileError;
-use stack::{StackCompileError, compile_stack};
+use stack::compile_stack;
+use validation::ValidationError;
 
 use crate::{
-    ComplexPlane, ComplexScalar, Stack, ValidationConfig,
+    ComplexPlane, ComplexScalar, SeedJet, Stack,
     algebra::ScalarAlgebra,
     domain::RealAxis,
     input::{
         CoordinateReference, Coordinates, InPlaneCoordinate,
         canonical::CanonicalProblem,
-        compile::{
-            coordinates::CanonicalCoordinateJet, error::MappingError, stack::StackThicknessJet,
-        },
+        compile::coordinates::CanonicalCoordinateJet,
         coordinate_input::{CoordinateInput, CoordinateValues},
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
-    parameter::{DerivativeMapping, DerivativeMappingError, FiniteLayerIndex, Parameter},
+    parameter::{DerivativeMapping, DerivativeMappingError, Parameter},
 };
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
@@ -314,7 +315,7 @@ impl DerivativeMapping {
 mod tests {
     use super::*;
 
-    use lamina_units::{AngleUnit, FrequencyUnit, InverseLengthUnit};
+    use lamina_units::{AngleUnit, FrequencyUnit, InverseLengthUnit, Length};
     use ndarray::{Array, Dimension, Ix1, array};
     use num_complex::Complex64;
 
@@ -326,7 +327,7 @@ mod tests {
             compile::coordinates::SpectralInputError,
         },
         parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},
-        stack::{Layer, Stack, Thickness, ValidationConfig},
+        stack::{Layer, Stack},
     };
 
     type C = Complex64;
@@ -451,8 +452,8 @@ mod tests {
         Stack::new(
             Constant::dielectric(1.0),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(1.0),
         )
@@ -463,7 +464,7 @@ mod tests {
             Constant::dielectric(1.0),
             vec![Layer::new(
                 Constant::dielectric(2.0),
-                Thickness::micrometres(-2.0),
+                Length::micrometres(-2.0),
             )],
             Constant::dielectric(1.0),
         )
@@ -475,8 +476,8 @@ mod tests {
         Stack::new(
             Constant::dielectric(epsilon),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(epsilon),
         )

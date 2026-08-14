@@ -1,6 +1,6 @@
 //! Shared planar-system fixtures for evaluator tests.
 
-use lamina_units::InverseLengthUnit;
+use lamina_units::{InverseLengthUnit, Length};
 use ndarray::{Ix0, arr0};
 use num_complex::Complex64;
 
@@ -9,7 +9,7 @@ use crate::{
     Stack,
     algebra::{ArrayJet0, Jet0, RealParameter},
     input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
-    stack::{Layer, Thickness},
+    stack::Layer,
 };
 
 pub type C = Complex64;
@@ -52,7 +52,7 @@ pub fn single_layer_stack(film_index: R, thickness_cm: R) -> Stack<Constant<R>, 
         vacuum(),
         vec![Layer::new(
             dielectric(film_index),
-            Thickness::centimetres(thickness_cm),
+            Length::centimetres(thickness_cm),
         )],
         vacuum(),
     )
@@ -63,8 +63,8 @@ pub fn two_layer_stack() -> Stack<Constant<R>, R> {
     Stack::new(
         vacuum(),
         vec![
-            Layer::new(dielectric(1.5), Thickness::centimetres(0.10)),
-            Layer::new(dielectric(2.0), Thickness::centimetres(0.20)),
+            Layer::new(dielectric(1.5), Length::centimetres(0.10)),
+            Layer::new(dielectric(2.0), Length::centimetres(0.20)),
         ],
         dielectric(1.25),
     )

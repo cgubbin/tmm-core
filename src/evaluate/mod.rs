@@ -10,6 +10,7 @@
 mod error;
 mod evaluator;
 mod excitation;
+mod modal;
 mod mode;
 mod pair;
 mod query;

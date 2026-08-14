@@ -44,14 +44,20 @@ pub trait IntoSecond: IntoFirst {
     fn into_second(self) -> DirectionalSecondParts<Self::Value>;
 }
 
-/// Extract a value and first derivatives over two coordinates.
+/// Extract a value and first derivatives over two abstract coordinates.
+///
+/// This operation preserves both algebraic axes; it does not attach physical
+/// parameter meanings to them.
 #[doc(hidden)]
 pub trait IntoBivariateFirst: IntoValue {
     /// Consume the input and return its bivariate first-order parts.
     fn into_bivariate_first(self) -> BivariateFirstParts<Self::Value>;
 }
 
-/// Extract a value, gradient, and Hessian over two coordinates.
+/// Extract a value, first and second, derivatives over two abstract coordinates.
+///
+/// This operation preserves both algebraic axes; it does not attach physical
+/// parameter meanings to them.
 #[doc(hidden)]
 pub trait IntoBivariateSecond: IntoBivariateFirst {
     /// Consume the input and return its bivariate second-order parts.

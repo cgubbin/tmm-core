@@ -120,7 +120,7 @@ impl<V> ElectromagneticFields<V> {
 
     pub(crate) fn into_constitutive_fields(
         self,
-        constitutive: &IsotropicConstitutiveParameters<V::ScalarField>,
+        constitutive: &IsotropicConstitutiveParameters<V::ScalarAlgebra>,
     ) -> ConstitutiveFields<V>
     where
         V: CartesianVectorAlgebra,
@@ -142,7 +142,7 @@ impl<V> ElectromagneticFields<V> {
 }
 
 impl<V> ElectromagneticFields<V> {
-    pub fn into_magnitude_squared(self) -> ElectromagneticIntensities<V::RealScalarField>
+    pub fn into_magnitude_squared(self) -> ElectromagneticIntensities<V::RealScalarAlgebra>
     where
         V: RealCartesianVectorAlgebra,
     {
@@ -153,7 +153,7 @@ impl<V> ElectromagneticFields<V> {
     }
 
     /// Return the pointwise squared electric-field magnitude.
-    pub fn electric_magnitude_squared(&self) -> V::RealScalarField
+    pub fn electric_magnitude_squared(&self) -> V::RealScalarAlgebra
     where
         V: RealCartesianVectorAlgebra,
     {
@@ -161,7 +161,7 @@ impl<V> ElectromagneticFields<V> {
     }
 
     /// Return the pointwise squared magnetic-field magnitude.
-    pub fn magnetic_magnitude_squared(&self) -> V::RealScalarField
+    pub fn magnetic_magnitude_squared(&self) -> V::RealScalarAlgebra
     where
         V: RealCartesianVectorAlgebra,
     {

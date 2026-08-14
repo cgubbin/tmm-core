@@ -56,7 +56,7 @@
 use lamina_units::{Length, LengthUnit};
 use num_traits::{Float, FromPrimitive, Zero};
 
-use crate::{FiniteLayerIndex, Stack, Thickness, spatial::ResolvedFieldSampling};
+use crate::{FiniteLayerIndex, Stack, spatial::ResolvedFieldSampling};
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum FieldSamplingError<R> {
@@ -76,7 +76,7 @@ pub enum FieldSamplingError<R> {
     InvalidLayerOffset {
         layer: FiniteLayerIndex,
         offset: Length<R>,
-        thickness: Thickness<R>,
+        thickness: Length<R>,
     },
 
     #[error("field distance must be finite and non-negative, got {distance:?}")]
@@ -515,7 +515,7 @@ where
 
 fn expand_layer<R>(
     index: FiniteLayerIndex,
-    thickness: Thickness<R>,
+    thickness: Length<R>,
     sampling: &LayerSampling<R>,
     positions: &mut Vec<FieldPosition<R>>,
 ) -> Result<(), FieldSamplingError<R>>
@@ -637,7 +637,7 @@ where
 pub(crate) fn validate_layer_offset<R>(
     layer: FiniteLayerIndex,
     offset: Length<R>,
-    thickness: Thickness<R>,
+    thickness: Length<R>,
 ) -> Result<(), FieldSamplingError<R>>
 where
     R: Copy + Float + FromPrimitive,
@@ -678,19 +678,19 @@ mod tests {
     type R = f64;
 
     fn nm(value: R) -> Length<R> {
-        Thickness::nanometres(value).into_inner()
+        Length::nanometres(value)
     }
 
     fn um(value: R) -> Length<R> {
-        Thickness::micrometres(value).into_inner()
+        Length::micrometres(value)
     }
 
-    fn thickness_nm(value: R) -> Thickness<R> {
-        Thickness::nanometres(value)
+    fn thickness_nm(value: R) -> Length<R> {
+        Length::nanometres(value)
     }
 
-    fn thickness_um(value: R) -> Thickness<R> {
-        Thickness::micrometres(value)
+    fn thickness_um(value: R) -> Length<R> {
+        Length::micrometres(value)
     }
 
     fn stack() -> Stack<Constant<R>, R> {

@@ -5,13 +5,10 @@ mod projection;
 mod workspace;
 
 use crate::{
-    ComplexScalar, Polarisation,
+    CanonicalCoordinates, ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
-    backend::{
-        Backend, ExteriorWavevectors, IsotropicLayerQuantities, PlaneWaveSolution, RunMode,
-        SolutionWorkspace, evaluate_exterior_wavevectors,
-    },
-    input::CanonicalProblem,
+    backend::{Backend, ExteriorWavevectors, PlaneWaveSolution, RunMode, SolutionWorkspace},
+    input::CanonicalStack,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 pub(crate) use entries::{Scatter2Entries, Scatter2ExteriorContext};
@@ -47,7 +44,8 @@ where
 
     fn solve<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
@@ -56,8 +54,8 @@ where
         J: ConstitutiveLift<Domain, M>,
     {
         let workspace = self.accumulate::<J, Domain, M>(
-            problem.coordinates(),
-            problem.stack(),
+            coordinates,
+            stack,
             polarisation,
             exterior,
             RunMode::ResponseOnly,
@@ -68,7 +66,8 @@ where
 
     fn retain<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<Self::Workspace, Self::Error>
@@ -77,8 +76,8 @@ where
         J: ConstitutiveLift<Domain, M>,
     {
         let workspace = self.accumulate::<J, Domain, M>(
-            problem.coordinates(),
-            problem.stack(),
+            coordinates,
+            stack,
             polarisation,
             exterior,
             RunMode::InternalFields,

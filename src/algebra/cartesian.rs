@@ -1,3 +1,14 @@
+//! Cartesian vector operations for scalar jet algebras.
+//!
+//! This module connects scalar differential jets to [`VectorField`] payloads.
+//! Scalar jets may be assembled componentwise into Cartesian vector jets, and
+//! vector jets expose cross products, scalar multiplication, and related
+//! operations while preserving their derivative structure.
+//!
+//! Operations involving complex conjugation are separated into
+//! [`RealCartesianVectorAlgebra`] and are available only for jets
+//! differentiated with respect to real parameters.
+
 use crate::algebra::{
     ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet0, Jet1, Jet2,
     JetBivariate1, JetBivariate2, RealParameter, ScalarAlgebra,
@@ -9,21 +20,32 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 use std::fmt::Debug;
 
+/// Scalar algebra that can be assembled into a Cartesian vector jet.
 pub trait CartesianScalarAlgebra: ScalarAlgebra {
-    type Vector: CartesianVectorAlgebra<Coefficient = Self::Scalar, ScalarField = Self>;
+    /// Cartesian vector representation corresponding to this scalar jet.
+    type Vector: CartesianVectorAlgebra<Coefficient = Self::Scalar, ScalarAlgebra = Self>;
 
+    /// Assemble three scalar jets as the Cartesian components of one vector jet.
     fn cartesian_vector(x: Self, y: Self, z: Self) -> Self::Vector;
 }
 
+/// Cartesian vector operations compatible with both real and holomorphic
+/// derivative policies.
 pub trait CartesianVectorAlgebra: Clone + Sized {
+    /// Scalar coefficient type.
     type Coefficient;
-    type ScalarField;
 
+    /// Scalar jet representation associated with this vector jet.
+    type ScalarAlgebra;
+
+    /// Compute the Cartesian cross product.
     fn cross(&self, rhs: &Self) -> Self;
 
+    /// Scale every vector component by a constant coefficient.
     fn scale_by_constant(&self, factor: Self::Coefficient) -> Self;
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self;
+    /// Multiply pointwise by a scalar jet.
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self;
 }
 
 /// Cartesian vector operations involving complex conjugation.
@@ -32,20 +54,23 @@ pub trait CartesianVectorAlgebra: Clone + Sized {
 /// parameters are real. These operations are not holomorphic and must not be
 /// applied to complex-variable derivative jets.
 pub trait RealCartesianVectorAlgebra: CartesianVectorAlgebra {
+    /// Corresponding real-valued vector jet.
     type RealVector;
-    type RealScalarField;
+
+    /// Corresponding real-valued scalar jet.
+    type RealScalarAlgebra;
 
     fn conjugated(&self) -> Self;
 
     fn real(&self) -> Self::RealVector;
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField;
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra;
 
-    fn magnitude_squared(&self) -> Self::RealScalarField {
+    fn magnitude_squared(&self) -> Self::RealScalarAlgebra {
         Self::scalar_real(self.hermitian_dot(self))
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField;
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra;
 }
 
 impl<T, D, P> CartesianScalarAlgebra for ArrayJet0<T, D, P>
@@ -170,7 +195,7 @@ where
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJet0<T, D, P>;
+    type ScalarAlgebra = ArrayJet0<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
         Jet0::cross(self, rhs)
@@ -180,7 +205,7 @@ where
         Jet0::scale_by(self, factor)
     }
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self {
         Jet0::multiply_by_scalar(self, factor)
     }
 }
@@ -191,7 +216,7 @@ where
     D: Dimension,
 {
     type RealVector = Jet0<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJet0<T::RealField, D, RealParameter>;
+    type RealScalarAlgebra = ArrayJet0<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
         Jet0::conjugated(self)
@@ -201,11 +226,11 @@ where
         Jet0::real(self)
     }
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra {
         Jet0::hermitian_dot_product(self, rhs)
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra {
         Jet0::real(&value)
     }
 }
@@ -217,7 +242,7 @@ where
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJet1<T, D, P>;
+    type ScalarAlgebra = ArrayJet1<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
         Jet1::cross(self, rhs)
@@ -227,7 +252,7 @@ where
         Jet1::scale_by(self, factor)
     }
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self {
         Jet1::multiply_by_scalar(self, factor)
     }
 }
@@ -238,7 +263,7 @@ where
     D: Dimension,
 {
     type RealVector = Jet1<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJet1<T::RealField, D, RealParameter>;
+    type RealScalarAlgebra = ArrayJet1<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
         Jet1::conjugated(self)
@@ -248,11 +273,11 @@ where
         Jet1::real(self)
     }
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra {
         Jet1::hermitian_dot_product(self, rhs)
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra {
         Jet1::real(&value)
     }
 }
@@ -264,7 +289,7 @@ where
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJet2<T, D, P>;
+    type ScalarAlgebra = ArrayJet2<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
         Jet2::cross(self, rhs)
@@ -274,7 +299,7 @@ where
         Jet2::scale_by(self, factor)
     }
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self {
         Jet2::multiply_by_scalar(self, factor)
     }
 }
@@ -285,7 +310,7 @@ where
     D: Dimension,
 {
     type RealVector = Jet2<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJet2<T::RealField, D, RealParameter>;
+    type RealScalarAlgebra = ArrayJet2<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
         Jet2::conjugated(self)
@@ -295,11 +320,11 @@ where
         Jet2::real(self)
     }
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra {
         Jet2::hermitian_dot_product(self, rhs)
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra {
         Jet2::real(&value)
     }
 }
@@ -311,7 +336,7 @@ where
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJetBivariate1<T, D, P>;
+    type ScalarAlgebra = ArrayJetBivariate1<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
         JetBivariate1::cross(self, rhs)
@@ -321,7 +346,7 @@ where
         JetBivariate1::scale_by(self, factor)
     }
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self {
         JetBivariate1::multiply_by_scalar(self, factor)
     }
 }
@@ -332,7 +357,7 @@ where
     D: Dimension,
 {
     type RealVector = JetBivariate1<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJetBivariate1<T::RealField, D, RealParameter>;
+    type RealScalarAlgebra = ArrayJetBivariate1<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
         JetBivariate1::conjugated(self)
@@ -342,11 +367,11 @@ where
         JetBivariate1::real(self)
     }
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra {
         JetBivariate1::hermitian_dot_product(self, rhs)
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra {
         JetBivariate1::real(&value)
     }
 }
@@ -358,7 +383,7 @@ where
     P: Clone + Debug,
 {
     type Coefficient = T;
-    type ScalarField = ArrayJetBivariate2<T, D, P>;
+    type ScalarAlgebra = ArrayJetBivariate2<T, D, P>;
 
     fn cross(&self, rhs: &Self) -> Self {
         JetBivariate2::cross(self, rhs)
@@ -368,7 +393,7 @@ where
         JetBivariate2::scale_by(self, factor)
     }
 
-    fn multiply_by_scalar(&self, factor: &Self::ScalarField) -> Self {
+    fn multiply_by_scalar(&self, factor: &Self::ScalarAlgebra) -> Self {
         JetBivariate2::multiply_by_scalar(self, factor)
     }
 }
@@ -379,7 +404,7 @@ where
     D: Dimension,
 {
     type RealVector = JetBivariate2<VectorField<T::RealField, D>, RealParameter>;
-    type RealScalarField = ArrayJetBivariate2<T::RealField, D, RealParameter>;
+    type RealScalarAlgebra = ArrayJetBivariate2<T::RealField, D, RealParameter>;
 
     fn conjugated(&self) -> Self {
         JetBivariate2::conjugated(self)
@@ -389,11 +414,11 @@ where
         JetBivariate2::real(self)
     }
 
-    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarField {
+    fn hermitian_dot(&self, rhs: &Self) -> Self::ScalarAlgebra {
         JetBivariate2::hermitian_dot_product(self, rhs)
     }
 
-    fn scalar_real(value: Self::ScalarField) -> Self::RealScalarField {
+    fn scalar_real(value: Self::ScalarAlgebra) -> Self::RealScalarAlgebra {
         JetBivariate2::real(&value)
     }
 }

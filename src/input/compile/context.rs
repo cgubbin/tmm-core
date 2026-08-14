@@ -8,13 +8,13 @@
 //! The context types in this module retain that information for derivative
 //! interpretation, observable projection, labels, and reporting.
 
+use lamina_units::Length;
 use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
     IncidentSide,
     input::{Coordinates, coordinate_input::CoordinateValues},
-    stack::Thickness,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
@@ -155,22 +155,22 @@ impl ProjectionConstraint {
 /// stack.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StackContext<R> {
-    layer_thicknesses: Vec<Thickness<R>>,
+    layer_thicknesses: Vec<Length<R>>,
 }
 
 impl<R> StackContext<R> {
     /// Construct context from finite-layer thicknesses in left-to-right order.
-    pub(crate) fn new(layer_thicknesses: Vec<Thickness<R>>) -> Self {
+    pub(crate) fn new(layer_thicknesses: Vec<Length<R>>) -> Self {
         Self { layer_thicknesses }
     }
 
     /// Return all finite-layer thicknesses in left-to-right order.
-    pub(crate) fn layer_thicknesses(&self) -> &[Thickness<R>] {
+    pub(crate) fn layer_thicknesses(&self) -> &[Length<R>] {
         &self.layer_thicknesses
     }
 
     /// Return the thickness of finite layer `index`.
-    pub(crate) fn layer_thickness(&self, index: usize) -> Option<&Thickness<R>> {
+    pub(crate) fn layer_thickness(&self, index: usize) -> Option<&Length<R>> {
         self.layer_thicknesses.get(index)
     }
 
@@ -185,7 +185,7 @@ impl<R> StackContext<R> {
     }
 
     /// Consume the context and return the finite-layer thicknesses.
-    pub(crate) fn into_layer_thicknesses(self) -> Vec<Thickness<R>> {
+    pub(crate) fn into_layer_thicknesses(self) -> Vec<Length<R>> {
         self.layer_thicknesses
     }
 }
@@ -235,7 +235,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use lamina_units::{InverseLengthUnit, SpectralCoordinate};
+    use lamina_units::{InverseLengthUnit, Length, SpectralCoordinate};
     use ndarray::{Ix1, arr1};
 
     use super::*;
@@ -276,9 +276,9 @@ mod tests {
     #[test]
     fn stack_context_preserves_layer_order_and_lookup() {
         let thicknesses = vec![
-            Thickness::nanometres(10.0),
-            Thickness::micrometres(2.0),
-            Thickness::centimetres(0.1),
+            Length::nanometres(10.0),
+            Length::micrometres(2.0),
+            Length::centimetres(0.1),
         ];
 
         let context = StackContext::new(thicknesses.clone());
@@ -355,7 +355,7 @@ mod tests {
             CoordinateValues::new(spectral, in_plane),
         );
 
-        let stack_context = StackContext::new(vec![Thickness::nanometres(100.0)]);
+        let stack_context = StackContext::new(vec![Length::nanometres(100.0)]);
 
         let mapping = DerivativeMapping::new([
             Parameter::Spectral,

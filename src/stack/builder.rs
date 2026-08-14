@@ -4,51 +4,41 @@ use crate::{
         AnalyticalMaterialHandle, DifferentiableMaterialHandle, Material, MaterialHandle,
         MeromorphicMaterialHandle,
     },
-    stack::ValidationConfig,
 };
 
-use super::{Layer, Stack, Thickness};
+use super::{Layer, Stack};
 
+use lamina_units::Length;
 use num_traits::Float;
 
 pub struct StackBuilder<M, F> {
     left_exterior: M,
     right_exterior: M,
     layers_left_to_right: Vec<Layer<M, F>>,
-    validation: ValidationConfig<F>,
 }
 
-impl<M, F: Float> StackBuilder<M, F> {
+impl<M, F> StackBuilder<M, F> {
     pub fn new(left_exterior: M, right_exterior: M) -> Self {
         Self {
             left_exterior,
             right_exterior,
             layers_left_to_right: Vec::new(),
-            validation: ValidationConfig::default(),
         }
     }
 
-    pub fn layer(mut self, material: M, thickness: Thickness<F>) -> Self {
+    pub fn layer(mut self, material: M, thickness: Length<F>) -> Self {
         self.layers_left_to_right
             .push(Layer::new(material, thickness));
         self
     }
 
-    pub fn push_layer(&mut self, material: M, thickness: Thickness<F>) {
+    pub fn push_layer(&mut self, material: M, thickness: Length<F>) {
         self.layers_left_to_right
             .push(Layer::new(material, thickness));
-    }
-
-    pub fn validation(mut self, validation: ValidationConfig<F>) -> Self {
-        self.validation = validation;
-        self
     }
 }
 
-impl<M, F> StackBuilder<M, F>
-where
-    F: Float + std::fmt::Debug + std::fmt::Display,
-{
+impl<M, F> StackBuilder<M, F> {
     pub fn finalise(self) -> Stack<M, F> {
         Stack {
             left_exterior: self.left_exterior,
@@ -74,14 +64,14 @@ where
         )
     }
 
-    pub fn material_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
+    pub fn material_layer<M>(self, material: M, thickness: Length<C::RealField>) -> Self
     where
         M: Material<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(MaterialHandle::new(material), thickness)
     }
 
-    pub fn push_material_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
+    pub fn push_material_layer<M>(&mut self, material: M, thickness: Length<C::RealField>)
     where
         M: Material<Real = C::RealField> + Send + Sync + 'static,
     {
@@ -105,14 +95,14 @@ where
         )
     }
 
-    pub fn analytical_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
+    pub fn analytical_layer<M>(self, material: M, thickness: Length<C::RealField>) -> Self
     where
         M: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
         self.layer(AnalyticalMaterialHandle::new(material), thickness)
     }
 
-    pub fn push_analytical_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
+    pub fn push_analytical_layer<M>(&mut self, material: M, thickness: Length<C::RealField>)
     where
         M: DifferentiableMeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
@@ -138,7 +128,7 @@ where
     }
 
     /// Add a finite layer whose material supports real-axis derivatives.
-    pub fn differentiable_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
+    pub fn differentiable_layer<M>(self, material: M, thickness: Length<C::RealField>) -> Self
     where
         M: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
@@ -146,7 +136,7 @@ where
     }
 
     /// Add a finite differentiable layer in place.
-    pub fn push_differentiable_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
+    pub fn push_differentiable_layer<M>(&mut self, material: M, thickness: Length<C::RealField>)
     where
         M: DifferentiableMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
@@ -174,7 +164,7 @@ where
 
     /// Add a finite layer whose constitutive response supports
     /// complex-frequency continuation.
-    pub fn meromorphic_layer<M>(self, material: M, thickness: Thickness<C::RealField>) -> Self
+    pub fn meromorphic_layer<M>(self, material: M, thickness: Length<C::RealField>) -> Self
     where
         M: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {
@@ -182,7 +172,7 @@ where
     }
 
     /// Add a finite meromorphic layer in place.
-    pub fn push_meromorphic_layer<M>(&mut self, material: M, thickness: Thickness<C::RealField>)
+    pub fn push_meromorphic_layer<M>(&mut self, material: M, thickness: Length<C::RealField>)
     where
         M: MeromorphicMaterial<Real = C::RealField> + Send + Sync + 'static,
     {

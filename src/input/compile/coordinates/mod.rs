@@ -38,9 +38,10 @@ use num_traits::{Float, FloatConst, FromPrimitive};
 
 use crate::{
     ComplexScalar, Stack,
+    algebra::SeedJet,
     input::{
         CanonicalCoordinates, CompileJet, CoordinateReference, Coordinates, InPlaneCoordinate,
-        compile::{ProjectionConstraint, seed::SeedJet},
+        compile::ProjectionConstraint,
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     parameter::{DerivativeMapping, Parameter},
@@ -302,11 +303,12 @@ mod tests {
     use ndarray::{Array, Ix0, arr0};
     use num_complex::Complex64;
 
+    use crate::algebra::UnsupportedDerivativeSlot;
+
     use super::*;
 
     use super::in_plane::{InPlaneCanonicalisationError, InPlaneInputError};
     use super::spectral::SpectralInputError;
-    use crate::input::compile::seed::UnsupportedDerivativeSlot;
 
     fn c(real: f64) -> Complex64 {
         Complex64::new(real, 0.0)
@@ -590,10 +592,10 @@ mod full_coordinate_compilation_tests {
     use crate::{
         ComplexPlane, Constant, IncidentSide, RealAxis,
         input::compile::{DerivativeMapping, ProjectionConstraint},
-        stack::{Layer, Thickness},
+        stack::Layer,
     };
 
-    use lamina_units::{AngleUnit, InverseLengthUnit};
+    use lamina_units::{AngleUnit, InverseLengthUnit, Length};
     use ndarray::{Array, Ix1, array};
     use num_complex::Complex64;
 
@@ -648,8 +650,8 @@ mod full_coordinate_compilation_tests {
         Stack::new(
             Constant::dielectric(1.0),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(1.0),
         )
@@ -659,8 +661,8 @@ mod full_coordinate_compilation_tests {
         Stack::new(
             Constant::dielectric(index * index),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(index * index),
         )
@@ -670,8 +672,8 @@ mod full_coordinate_compilation_tests {
         Stack::new(
             Constant::dielectric(left * left),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(right * right),
         )
@@ -681,8 +683,8 @@ mod full_coordinate_compilation_tests {
         Stack::new(
             Constant::dielectric(1.0),
             vec![
-                Layer::new(Constant::dielectric(4.0), Thickness::nanometres(500.0)),
-                Layer::new(Constant::dielectric(2.0), Thickness::micrometres(2.0)),
+                Layer::new(Constant::dielectric(4.0), Length::nanometres(500.0)),
+                Layer::new(Constant::dielectric(2.0), Length::micrometres(2.0)),
             ],
             Constant::dielectric(6.0),
         )

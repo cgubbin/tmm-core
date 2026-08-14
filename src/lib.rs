@@ -23,15 +23,19 @@ mod waves;
 #[cfg(test)]
 mod test_support;
 
+pub use algebra::{ScalarAlgebra, SeedJet};
+
 pub use backend::ExteriorWavevectors;
 
 pub use domain::{ComplexPlane, RealAxis};
+
 pub use input::{
     CanonicalCoordinates, CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples,
     Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
 };
 
 pub use evaluate::PlaneWaveEvaluator;
+
 pub use material::{
     Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
     EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
@@ -51,5 +55,5 @@ pub use scalar::ComplexScalar;
 
 pub use stack::{
     AnalyticalMaterialStack, DifferentiableMaterialStack, Layer, MaterialStack,
-    MeromorphicMaterialStack, Stack, Thickness, ValidationConfig,
+    MeromorphicMaterialStack, Stack,
 };

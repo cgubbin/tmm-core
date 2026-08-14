@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
 use crate::{
-    CanonicalCoordinates, ComplexPlane, ExteriorWavevectors, Polarisation, ValidationConfig,
+    CanonicalCoordinates, ComplexPlane, ExteriorWavevectors, Polarisation,
     algebra::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
         HolomorphicParameter, Jet, RealParameter, ScalarAlgebra,
@@ -11,7 +11,7 @@ use crate::{
     evaluate::PlaneWaveResult,
     input::{
         CanonicalProblem, CanonicalStack, CompileJet, CompilePlaneWaveError, CoordinateInput,
-        JetMapping, compile_complex, compile_real,
+        ValidationConfig, compile_complex, compile_real,
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     parameter::{DerivativeMapping, Parameter},
@@ -665,41 +665,6 @@ impl<B> PlaneWaveEvaluator<B> {
 }
 
 impl<B> PlaneWaveEvaluator<B> {
-    pub fn evaluate_canonical_modal<J, M>(
-        &self,
-        coordinates: CanonicalCoordinates<J>,
-        exterior: ExteriorWavevectors<J>,
-        stack: &CanonicalStack<M, J>,
-        polarisation: Polarisation,
-    ) -> Result<
-        PlaneWaveResult<J, <J::Scalar as ComplexField>::RealField, PlaneWaveSolution<B::Entries>>,
-        PlaneWaveEvaluationError<
-            CompilePlaneWaveError<J::Scalar>,
-            <B as Backend<J, ComplexPlane>>::Error,
-        >,
-    >
-    where
-        J: ScalarAlgebra + JetMapping,
-        J::Scalar: ComplexScalar,
-        <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
-        J::Dimension: Dimension,
-        ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-        M: Clone,
-        B: Backend<J, ComplexPlane>,
-    {
-        let problem = CanonicalProblem::new(coordinates, stack.clone());
-
-        let solution = self
-            .backend
-            .solve(&problem, &exterior, polarisation)
-            .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
-
-        todo!()
-        // Ok(PlaneWaveResult::new(solution, context))
-    }
-}
-
-impl<B> PlaneWaveEvaluator<B> {
     fn solve_real_coordinate_space<J, M>(
         &self,
         input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
@@ -863,7 +828,12 @@ impl<B> PlaneWaveEvaluator<B> {
             polarisation,
         );
 
-        self.backend.solve(problem, &exterior, polarisation)
+        self.backend.solve(
+            problem.coordinates(),
+            problem.stack(),
+            &exterior,
+            polarisation,
+        )
     }
 
     fn retain_compiled<J, Domain, M>(
@@ -885,7 +855,12 @@ impl<B> PlaneWaveEvaluator<B> {
             polarisation,
         );
 
-        self.backend.retain(problem, &exterior, polarisation)
+        self.backend.retain(
+            problem.coordinates(),
+            problem.stack(),
+            &exterior,
+            polarisation,
+        )
     }
 }
 

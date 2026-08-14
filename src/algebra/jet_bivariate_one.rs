@@ -1,33 +1,26 @@
 //! Bivariate first-order differential jets.
 //!
-//! [`JetBivariate`] propagates derivatives with respect to two independent
-//! scalar coordinates. It stores a value, a two-component gradient, and the
-//! three independent entries of a symmetric Hessian:
+//! [`JetBivariate1`] propagates first derivatives with respect to two
+//! independent scalar coordinates. It stores a value and two-component
+//! gradient:
 //!
 //! ```text
-//! (f, fₓ, fᵧ,)
+//! (f, fₓ, fᵧ)
 //! ```
 //!
-//! The coordinates are abstractly named `axis0` and `axis1`. Application crates may
-//! provide aliases or constructors assigning physical meanings to them.
+//! The coordinates are represented abstractly as `axis0` and `axis1`.
+//! Application-level code assigns their physical meanings.
 //!
 //! Parameter semantics are represented by a marker type:
 //!
 //! - [`RealParameter`] permits differentiation with respect to two real
 //!   coordinates, including conjugation, real-part extraction, and Hermitian
 //!   products;
-//! - [`HolomorphicParameter`] represents differentiation with respect to
-//!   complex coordinates and exposes only operations preserving
-//!   holomorphicity.
-//!
-//! The stored Hessian assumes that mixed partial derivatives commute:
-//!
-//! ```text
-//! ∂²f/∂x∂y = ∂²f/∂y∂x.
-//! ```
+//! - [`HolomorphicParameter`] represents holomorphic differentiation and
+//!   exposes only operations preserving holomorphicity.
 //!
 //! The payload type determines the available algebra through capability
-//! traits such as [`JetAdditive`], [`JetBilinear`], and [`JetField`].
+//! traits such as [`JetAdditive`], [`JetBilinear`], and [`JetReciprocal`].
 
 use crate::algebra::{FirstOrderExpansion, JetMultiplyByScalar, exprel, exprel_first};
 use crate::differential::BivariateGradient;
@@ -48,6 +41,10 @@ pub(crate) type ArrayJetBivariate1<C, D, P> = JetBivariate1<ArrayBase<OwnedRepr<
 pub(crate) type PhysicalJetBivariate1<C, D> = ArrayJetBivariate1<C, D, RealParameter>;
 pub(crate) type ModeJetBivariate1<C, D> = ArrayJetBivariate1<C, D, HolomorphicParameter>;
 
+/// A first-order bivariate jet.
+///
+/// Stores a primal value and first derivatives with respect to two scalar
+/// coordinates.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct JetBivariate1<A, P> {
@@ -97,7 +94,7 @@ where
     I: JetOneLike + JetZeroLike,
 {
     /// Construct the first independent coordinate.
-    pub fn variable_axis0(value: I) -> Self {
+    pub(crate) fn variable_axis0(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
         let one = I::jet_ones_like(&value);
 
@@ -105,7 +102,7 @@ where
     }
 
     /// Construct the second independent coordinate.
-    pub fn variable_axis1(value: I) -> Self {
+    pub(crate) fn variable_axis1(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
         let one = I::jet_ones_like(&value);
 
@@ -117,13 +114,13 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetZeroLike,
 {
-    pub fn from_x_derivatives(value: I, first: I) -> Self {
+    pub(crate) fn from_axis0_derivatives(value: I, first: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(value, first, zero.clone())
     }
 
-    pub fn from_y_derivatives(value: I, first: I) -> Self {
+    pub(crate) fn from_axis1_derivatives(value: I, first: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(value, zero.clone(), first)
@@ -171,7 +168,6 @@ impl<V, P> JetBivariate1<V, P> {
     pub(crate) fn multiply_by_scalar<S>(&self, scalar: &JetBivariate1<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
-        P: Clone,
     {
         let value = self.value().jet_multiply_by_scalar(scalar.value());
 
@@ -193,7 +189,7 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetBilinear,
 {
-    pub fn multiply(&self, rhs: &Self) -> Self {
+    pub(crate) fn multiply(&self, rhs: &Self) -> Self {
         let value = self.value.jet_multiply(&rhs.value);
 
         let x = self
@@ -214,7 +210,8 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetZeroLike,
 {
-    pub fn constant(value: I) -> Self {
+    /// Lift a value as a bivariate jet with zero gradient.
+    pub(crate) fn constant(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(value, zero.clone(), zero.clone())
@@ -225,7 +222,8 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetConstant + JetZeroLike,
 {
-    pub fn constant_like(source: &I, value: I::Scalar) -> Self {
+    /// Construct a constant with the representation and sampled shape of `source`.
+    pub(crate) fn constant_like(source: &I, value: I::Scalar) -> Self {
         Self::constant(source.jet_constant_like(value))
     }
 }
@@ -234,8 +232,8 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetScaleBy,
 {
-    /// Scale the value, gradient, and Hessian by a constant scalar.
-    pub fn scale_by(&self, scalar: I::Scalar) -> Self {
+    /// Scale the value and both gradient components by a constant scalar.
+    pub(crate) fn scale_by(&self, scalar: I::Scalar) -> Self {
         Self::from_components(
             self.value.jet_scale_by(scalar),
             self.axis0().jet_scale_by(scalar),
@@ -282,7 +280,9 @@ impl<I, P> JetBivariate1<I, P>
 where
     I: JetCrossProduct + JetAdditive,
 {
-    /// Compute the cross product of two bivariate second-order jets.
+    /// Compute the cross product of two first-order bivariate jets.
+    ///
+    /// Both gradient components are propagated using the bilinear product rule.
     pub(crate) fn cross(&self, rhs: &Self) -> Self {
         let value = self.value().jet_cross(rhs.value());
 
@@ -305,7 +305,10 @@ where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
 {
-    /// Compute the Hermitian product of two bivariate second-order jets.
+    /// Compute the Hermitian product of two first-order bivariate jets.
+    ///
+    /// This operation is available only for real-parameter jets because the
+    /// Hermitian product conjugates its first operand.
     pub(crate) fn hermitian_dot_product(
         &self,
         rhs: &Self,
@@ -392,7 +395,7 @@ where
         self.compose_unary(|x| C::one() / *x, |x| -C::one() / (*x * *x))
     }
 
-    /// Divide two second-order jets elementwise.
+    /// Divide two first-order bivariate jets elementwise.
     pub(crate) fn divide(&self, rhs: &Self) -> Self
     where
         C: Copy,
@@ -520,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_composition_applies_bivariate_chain_rule() {
+    fn unaraxis1_composition_applies_bivariate_chain_rule() {
         let value = c(0.7, -0.4);
         let x = c(1.3, 0.2);
         let y = c(-0.6, 0.8);
@@ -613,8 +616,8 @@ mod tests {
     }
 
     #[test]
-    fn from_x_derivatives_sets_only_x_components() {
-        let jet: RealJet = JetBivariate1::from_x_derivatives(a(2.0, 1.0), a(3.0, -1.0));
+    fn from_axis0_derivatives_sets_only_axis0_components() {
+        let jet: RealJet = JetBivariate1::from_axis0_derivatives(a(2.0, 1.0), a(3.0, -1.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.axis0()[()], c(3.0, -1.0));
@@ -622,8 +625,8 @@ mod tests {
     }
 
     #[test]
-    fn from_y_derivatives_sets_only_y_components() {
-        let jet: RealJet = JetBivariate1::from_y_derivatives(a(2.0, 1.0), a(3.0, -1.0));
+    fn from_axis1_derivatives_sets_only_axis1_components() {
+        let jet: RealJet = JetBivariate1::from_axis1_derivatives(a(2.0, 1.0), a(3.0, -1.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.axis0()[()], r(0.0));
@@ -662,7 +665,7 @@ mod tests {
     }
 
     #[test]
-    fn negation_negates_every_component() {
+    fn negation_negates_everaxis1_component() {
         let original = sample_jet();
         let result = original.negate();
 
@@ -672,7 +675,7 @@ mod tests {
     }
 
     #[test]
-    fn scaling_scales_every_component() {
+    fn scaling_scales_everaxis1_component() {
         let original = sample_jet();
         let scale = c(2.0, -1.0);
 
@@ -880,7 +883,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     #[test]
-    fn sampled_function_composition_matches_unary_composition() {
+    fn sampled_function_composition_matches_unaraxis1_composition() {
         let value = c(0.7, -0.4);
 
         let argument: HolomorphicJet =
@@ -923,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_composition_is_equivariant_under_coordinate_exchange() {
+    fn unaraxis1_composition_is_equivariant_under_coordinate_exchange() {
         let original = swap_coordinates(&sample_jet().sin());
 
         let swapped = swap_coordinates(&sample_jet()).sin();
@@ -982,7 +985,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     #[test]
-    fn conjugation_conjugates_every_component() {
+    fn conjugation_conjugates_everaxis1_component() {
         let result = sample_jet().conjugated();
 
         assert_close(result.value()[()], c(1.0, -2.0));
@@ -991,7 +994,7 @@ mod tests {
     }
 
     #[test]
-    fn real_extracts_every_component() {
+    fn real_extracts_everaxis1_component() {
         let result = sample_jet().real();
 
         assert_relative_eq!(result.value()[()], 1.0, epsilon = EPSILON,);

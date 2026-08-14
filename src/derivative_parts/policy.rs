@@ -1,9 +1,9 @@
 //! Policies for extracting coordinate-free derivative parts.
 //!
 //! Internal calculations retain values and derivatives in algebraic types such
-//! as univariate and bivariate jets. This module defines policies that select
-//! the derivative information required by a caller and convert an internal
-//! quantity into a small, flattened parts container.
+//! as directional and bivariate jets. This module defines crystallisation
+//! policies that select the derivative structure represented by an evaluated
+//! algebra and convert it into flattened, coordinate-free parts.
 //!
 //! The available policies are:
 //!
@@ -68,14 +68,11 @@ pub trait IntoDerivativeParts: Sized {
 
 impl<T> IntoDerivativeParts for T {}
 
-/// Converts an internal algebraic quantity into a public result.
-///
-/// Implementations select the required decomposition capability and determine
-/// the derivative representation stored in the resulting
-/// [`DifferentialResponse`].
+/// Converts an internal algebraic quantity into coordinate-free derivative
+/// parts.
 #[doc(hidden)]
 pub trait DerivativePartsPolicy<T> {
-    /// Public response produced by this policy.
+    /// Parts representation produced by this policy.
     type Output;
 
     /// Convert `input` into its public value and derivative representation.
@@ -100,8 +97,7 @@ where
     type Output = DirectionalFirstParts<T::Value>;
 
     fn derivative_parts(&self, input: T) -> Self::Output {
-        let (value, first) = input.into_first().into_parts();
-        DirectionalFirstParts::new(value, first)
+        input.into_first()
     }
 }
 
@@ -112,8 +108,7 @@ where
     type Output = DirectionalSecondParts<T::Value>;
 
     fn derivative_parts(&self, input: T) -> Self::Output {
-        let (value, first, second) = input.into_second().into_parts();
-        DirectionalSecondParts::new(value, first, second)
+        input.into_second()
     }
 }
 
@@ -124,8 +119,7 @@ where
     type Output = BivariateFirstParts<T::Value>;
 
     fn derivative_parts(&self, input: T) -> Self::Output {
-        let (value, x, y) = input.into_bivariate_first().into_parts();
-        BivariateFirstParts::new(value, x, y)
+        input.into_bivariate_first()
     }
 }
 
@@ -136,9 +130,7 @@ where
     type Output = BivariateSecondParts<T::Value>;
 
     fn derivative_parts(&self, input: T) -> Self::Output {
-        let (value, x, y, x_x, x_y, y_y) = input.into_bivariate_second().into_parts();
-
-        BivariateSecondParts::new(value, x, y, x_x, x_y, y_y)
+        input.into_bivariate_second()
     }
 }
 

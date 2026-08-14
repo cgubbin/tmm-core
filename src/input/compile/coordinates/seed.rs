@@ -16,7 +16,7 @@
 
 use ndarray::Array;
 
-use crate::input::compile::seed::{SeedJet, UnsupportedDerivativeSlot};
+use crate::algebra::{SeedJet, UnsupportedDerivativeSlot};
 
 /// Seed caller-facing coordinate values into a jet algebra.
 ///

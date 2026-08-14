@@ -698,11 +698,11 @@ where
         <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra,
         J::Policy: DerivativePartsPolicy<
                 ElectromagneticIntensities<
-                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
                 >
         >,
         ElectromagneticIntensities<
-        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
         >:
             IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: PlaneWaveSolutionSource
@@ -849,14 +849,14 @@ where
         J::RealJet: Jet + Clone,
         <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
         J::Stacked: CartesianScalarAlgebra + ComplexJet + RealScalarAlgebra,
-        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra<RealScalarField =  <<J as JetStack>::Stacked as ComplexJet>::RealJet>,
+        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra<RealScalarAlgebra =  <<J as JetStack>::Stacked as ComplexJet>::RealJet>,
         J::Policy: DerivativePartsPolicy<
                 ElectromagneticDissipation<
-                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
                 >
         >,
         ElectromagneticDissipation<
-        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
         >:
             IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: PlaneWaveSolutionSource
@@ -913,15 +913,15 @@ where
         J::Scalar: ComplexScalar,
         <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
         J::Stacked: CartesianScalarAlgebra + RealScalarAlgebra,
-        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra<RealScalarField =  <<J as JetStack>::Stacked as ComplexJet>::RealJet>,
-        <<J::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField: ScalarAlgebra,
+        <J::Stacked as CartesianScalarAlgebra>::Vector: RealCartesianVectorAlgebra<RealScalarAlgebra =  <<J as JetStack>::Stacked as ComplexJet>::RealJet>,
+        <<J::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra: ScalarAlgebra,
         J::Policy: DerivativePartsPolicy<
                 ElectromagneticEnergy<
-                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+                    <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
                 >
         >,
         ElectromagneticEnergy<
-        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField,
+        <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra,
         >:
             IntoDifferentialResponse<J::Policy, J::Mapping>,
         W: PlaneWaveSolutionSource
@@ -999,7 +999,7 @@ pub type PlaneWaveIntensityResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticIntensities<
-            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField
+            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >,
     >,
     R,
@@ -1021,7 +1021,7 @@ pub type ElectromagneticDissipationResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticDissipation<
-            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField
+            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >
     >,
     R,
@@ -1031,7 +1031,7 @@ pub type ElectromagneticEnergyResponse<J, R> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticEnergy<
-            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarField
+            <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >
     >,
     R,

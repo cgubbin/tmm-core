@@ -5,10 +5,10 @@ use crate::{
         JetAdditive, JetConjugate, JetCrossProduct, JetHermitianProduct, JetMultiplyByScalar,
         JetRealPart, JetScaleBy,
     },
-    field::FieldShapeError,
+    field::{FieldShapeError, ScalarField},
 };
 use nalgebra::ComplexField;
-use ndarray::{Array, ArrayView, ArrayView1, Dimension, Ix1};
+use ndarray::{Array, ArrayView, Dimension};
 use num_traits::Zero;
 
 /// One Cartesian vector value.
@@ -66,14 +66,6 @@ where
     x: Array<C, D>,
     y: Array<C, D>,
     z: Array<C, D>,
-}
-
-/// A borrowed one-dimensional Cartesian vector-field view.
-#[derive(Clone, Copy, Debug)]
-pub struct VectorFieldView1<'a, C> {
-    x: ArrayView1<'a, C>,
-    y: ArrayView1<'a, C>,
-    z: ArrayView1<'a, C>,
 }
 
 impl<C, D> VectorField<C, D>
@@ -235,20 +227,21 @@ where
     ///
     /// Complex conjugation is not applied. Use [`Self::hermitian_dot`] for a conjugating inner
     /// product
-    pub(crate) fn dot(&self, rhs: &Self) -> Array<C, D>
+    pub(crate) fn dot(&self, rhs: &Self) -> ScalarField<C, D>
     where
         C: ComplexField + Copy,
     {
-        self.x.clone() * rhs.x.view()
+        (self.x.clone() * rhs.x.view()
             + self.y.clone() * rhs.y.view()
-            + self.z.clone() * rhs.z.view()
+            + self.z.clone() * rhs.z.view())
+        .into()
     }
 
     /// Compute the pointwise Hermitian inner product.
     ///
     /// This evaluates `conjugate(self) · rhs`, and is conjugate-linear in
     /// `self` and linear in `rhs`.
-    pub(crate) fn hermitian_dot(&self, rhs: &Self) -> Array<C, D>
+    pub(crate) fn hermitian_dot(&self, rhs: &Self) -> ScalarField<C, D>
     where
         C: ComplexField + Copy,
     {
@@ -288,101 +281,14 @@ where
     /// ```
     ///
     /// The result is real and non-negative up to floating-point roundoff.
-    pub(crate) fn magnitude_squared(&self) -> Array<C::RealField, D>
+    pub(crate) fn magnitude_squared(&self) -> ScalarField<C::RealField, D>
     where
         C: ComplexField + Copy,
     {
-        self.x.mapv(|value| value.modulus_squared())
+        (self.x.mapv(|value| value.modulus_squared())
             + self.y.mapv(|value| value.modulus_squared())
-            + self.z.mapv(|value| value.modulus_squared())
-    }
-}
-
-use crate::field::ScalarField;
-
-impl<C> VectorField<C, Ix1> {
-    /// Borrow this one-dimensional vector field as a profile view.
-    pub fn view1(&self) -> VectorFieldView1<'_, C> {
-        VectorFieldView1::new(self.x.view(), self.y.view(), self.z.view())
-            .expect("owned vector-field components have matching shapes")
-    }
-}
-
-impl<'a, C> VectorFieldView1<'a, C> {
-    /// Construct a vector-field profile view after checking lengths.
-    pub fn new(
-        x: ArrayView1<'a, C>,
-        y: ArrayView1<'a, C>,
-        z: ArrayView1<'a, C>,
-    ) -> Result<Self, FieldShapeError> {
-        let expected = x.shape();
-
-        if y.shape() != expected {
-            return Err(FieldShapeError::new("y", expected, y.shape()));
-        }
-
-        if z.shape() != expected {
-            return Err(FieldShapeError::new("z", expected, z.shape()));
-        }
-
-        Ok(Self { x, y, z })
-    }
-
-    pub(crate) fn new_unchecked(
-        x: ArrayView1<'a, C>,
-        y: ArrayView1<'a, C>,
-        z: ArrayView1<'a, C>,
-    ) -> Self {
-        debug_assert_eq!(x.shape(), y.shape());
-        debug_assert_eq!(x.shape(), z.shape());
-
-        Self { x, y, z }
-    }
-
-    pub fn x(&self) -> ArrayView1<'a, C> {
-        self.x
-    }
-
-    pub fn y(&self) -> ArrayView1<'a, C> {
-        self.y
-    }
-
-    pub fn z(&self) -> ArrayView1<'a, C> {
-        self.z
-    }
-
-    pub fn components(&self) -> (ArrayView1<'a, C>, ArrayView1<'a, C>, ArrayView1<'a, C>) {
-        (self.x, self.y, self.z)
-    }
-
-    pub fn len(&self) -> usize {
-        self.x.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.x.is_empty()
-    }
-
-    pub fn get(&self, index: usize) -> Option<VectorValue<&C>> {
-        Some(VectorValue {
-            x: self.x.get(index)?,
-            y: self.y.get(index)?,
-            z: self.z.get(index)?,
-        })
-    }
-
-    pub fn to_owned(&self) -> VectorField<C, Ix1>
-    where
-        C: Clone,
-    {
-        VectorField::new_unchecked(self.x.to_owned(), self.y.to_owned(), self.z.to_owned())
-    }
-
-    pub fn map<B, F>(&self, mut map: F) -> VectorField<B, Ix1>
-    where
-        F: FnMut(&C) -> B,
-    {
-        VectorField::new_unchecked(self.x.map(&mut map), self.y.map(&mut map), self.z.map(map))
+            + self.z.mapv(|value| value.modulus_squared()))
+        .into()
     }
 }
 
@@ -626,7 +532,7 @@ where
     type Output = Array<C, D>;
 
     fn jet_hermitian_product(&self, rhs: &Self) -> Self::Output {
-        self.hermitian_dot(rhs)
+        self.hermitian_dot(rhs).into()
     }
 }
 
@@ -746,23 +652,6 @@ mod tests {
         let field = VectorField::new(component.clone(), component.clone(), component).unwrap();
 
         assert_eq!(field.get([1, 0]), Some(VectorValue::new(&3, &3, &3)),);
-    }
-
-    #[test]
-    fn view1_borrows_components() {
-        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
-
-        let view = field.view1();
-
-        assert_eq!(view.len(), 2);
-        assert_eq!(view.get(0), Some(VectorValue::new(&1, &3, &5)),);
-    }
-
-    #[test]
-    fn view1_can_be_copied_to_owned_field() {
-        let field = VectorField::new(array![1, 2], array![3, 4], array![5, 6]).unwrap();
-
-        assert_eq!(field.view1().to_owned(), field);
     }
 
     #[test]
@@ -913,7 +802,7 @@ mod tests {
         let expected =
             c(1.0, 1.0) * c(3.0, -2.0) + c(2.0, -1.0) * c(1.0, 4.0) + c(-1.0, 2.0) * c(2.0, 1.0);
 
-        assert_complex_array_close(&lhs.dot(&rhs), &arr1(&[expected]));
+        assert_complex_array_close(&lhs.dot(&rhs).into_values(), &arr1(&[expected]));
     }
 
     #[test]
@@ -926,7 +815,7 @@ mod tests {
             + c(2.0, -1.0) * c(1.0, 4.0).conj()
             + c(-1.0, 2.0) * c(2.0, 1.0).conj();
 
-        assert_complex_array_close(&lhs.hermitian_dot(&rhs), &arr1(&[expected]));
+        assert_complex_array_close(&lhs.hermitian_dot(&rhs).into_values(), &arr1(&[expected]));
     }
 
     #[test]
@@ -991,7 +880,7 @@ mod tests {
         );
 
         assert_real_array_close(
-            &vector.magnitude_squared(),
+            &vector.magnitude_squared().into_values(),
             &arr1(&[25.0 + 4.0 + 1.0, 1.0 + 4.0 + 4.0]),
         );
     }
@@ -1060,7 +949,10 @@ mod tests {
         let inner = value.hermitian_dot(&value);
         let magnitude = value.magnitude_squared();
 
-        assert_real_array_close(&inner.mapv(|value| value.real()), &magnitude);
+        assert_real_array_close(
+            &inner.clone().into_values().mapv(|value| value.real()),
+            &magnitude.into_values(),
+        );
 
         assert!(
             inner
@@ -1079,7 +971,7 @@ mod tests {
 
         let rhs_lhs = rhs.hermitian_dot(&lhs).mapv(|value| value.conjugate());
 
-        assert_complex_array_close(&lhs_rhs, &rhs_lhs);
+        assert_complex_array_close(&lhs_rhs.into_values(), &rhs_lhs.into_values());
     }
 
     #[test]
@@ -1100,9 +992,9 @@ mod tests {
 
         let zero = arr1(&[C::zero(), C::zero()]);
 
-        assert_complex_array_close(&lhs.dot(&cross), &zero);
+        assert_complex_array_close(&lhs.dot(&cross).into_values(), &zero);
 
-        assert_complex_array_close(&rhs.dot(&cross), &zero);
+        assert_complex_array_close(&rhs.dot(&cross).into_values(), &zero);
     }
 
     #[test]
@@ -1163,7 +1055,7 @@ mod tests {
 
         assert_eq!(
             JetHermitianProduct::jet_hermitian_product(&lhs, &rhs,),
-            lhs.hermitian_dot(&rhs),
+            lhs.hermitian_dot(&rhs).into_values(),
         );
     }
 }

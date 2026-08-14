@@ -8,13 +8,15 @@ use crate::{
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
-/// Canonical longitudinal wavevectors in the exterior media.
+/// Canonical longitudinal angular wavevectors in the exterior media.
 ///
-/// The values correspond to the branch-selected out-of-plane angular
-/// wavevectors in the left and right exterior media.
+/// `left` and `right` contain the branch-selected out-of-plane angular
+/// wavevectors `κ` in the corresponding semi-infinite exterior media.
 ///
-/// Branch selection is resolved before backend-specific boundary quantities
-/// such as admittances are constructed.
+/// Branch selection is completed before this value reaches a numerical
+/// backend. This allows advanced callers, such as complex-frequency mode
+/// solvers, to supply branch choices determined by an external conformal map
+/// rather than relying on the backend to reconstruct them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExteriorWavevectors<A> {
     left: A,
@@ -22,18 +24,22 @@ pub struct ExteriorWavevectors<A> {
 }
 
 impl<A> ExteriorWavevectors<A> {
+    /// Construct exterior longitudinal wavevectors.
     pub fn new(left: A, right: A) -> Self {
         Self { left, right }
     }
 
-    pub(crate) fn left(&self) -> &A {
+    /// Return the longitudinal wavevector in the left exterior medium.
+    pub fn left(&self) -> &A {
         &self.left
     }
 
-    pub(crate) fn right(&self) -> &A {
+    /// Return the longitudinal wavevector in the right exterior medium.
+    pub fn right(&self) -> &A {
         &self.right
     }
 
+    /// Consume the container into `(left, right)`.
     pub(crate) fn into_parts(self) -> (A, A) {
         (self.left, self.right)
     }

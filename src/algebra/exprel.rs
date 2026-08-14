@@ -1,6 +1,23 @@
+//! Numerically stable relative-exponential functions.
+//!
+//! This module evaluates
+//!
+//! ```text
+//! exprel(z) = (exp(z) - 1) / z
+//! ```
+//!
+//! together with its first two derivatives.
+//!
+//! Direct evaluation loses precision near `z = 0` through cancellation, so
+//! local Taylor series are used below order-dependent thresholds.
+//!
+//! The functions are used in jet propagation for expressions whose analytic
+//! limit at zero must be retained exactly.
+
 use nalgebra::ComplexField;
 use num_traits::{FromPrimitive, float::FloatCore};
 
+/// Evaluate `(exp(z) - 1) / z` using a stable series near zero.
 pub(crate) fn exprel<C>(z: C) -> C
 where
     C: ComplexField + Copy,
@@ -17,6 +34,7 @@ where
     }
 }
 
+/// Evaluate the first derivative of [`exprel`].
 pub(crate) fn exprel_first<C>(z: C) -> C
 where
     C: ComplexField + Copy,
@@ -35,6 +53,7 @@ where
     }
 }
 
+/// Evaluate the second derivative of [`exprel`].
 pub(crate) fn exprel_second<C>(z: C) -> C
 where
     C: ComplexField + Copy,
@@ -58,7 +77,7 @@ where
     }
 }
 
-fn constant<C>(value: f64) -> C
+fn from_f64<C>(value: f64) -> C
 where
     C: ComplexField,
     C::RealField: FromPrimitive,
@@ -71,14 +90,14 @@ where
     C: ComplexField + Copy,
     C::RealField: FromPrimitive,
 {
-    constant::<C>(1.0)
-        + z * (constant::<C>(1.0 / 2.0)
-            + z * (constant::<C>(1.0 / 6.0)
-                + z * (constant::<C>(1.0 / 24.0)
-                    + z * (constant::<C>(1.0 / 120.0)
-                        + z * (constant::<C>(1.0 / 720.0)
-                            + z * (constant::<C>(1.0 / 5040.0)
-                                + z * constant::<C>(1.0 / 40320.0)))))))
+    from_f64::<C>(1.0)
+        + z * (from_f64::<C>(1.0 / 2.0)
+            + z * (from_f64::<C>(1.0 / 6.0)
+                + z * (from_f64::<C>(1.0 / 24.0)
+                    + z * (from_f64::<C>(1.0 / 120.0)
+                        + z * (from_f64::<C>(1.0 / 720.0)
+                            + z * (from_f64::<C>(1.0 / 5040.0)
+                                + z * from_f64::<C>(1.0 / 40320.0)))))))
 }
 
 fn exprel_first_series<C>(z: C) -> C
@@ -86,12 +105,12 @@ where
     C: ComplexField + Copy,
     C::RealField: FromPrimitive,
 {
-    constant::<C>(1.0 / 2.0)
-        + z * (constant::<C>(1.0 / 3.0)
-            + z * (constant::<C>(1.0 / 8.0)
-                + z * (constant::<C>(1.0 / 30.0)
-                    + z * (constant::<C>(1.0 / 144.0)
-                        + z * (constant::<C>(1.0 / 840.0) + z * constant::<C>(1.0 / 5760.0))))))
+    from_f64::<C>(1.0 / 2.0)
+        + z * (from_f64::<C>(1.0 / 3.0)
+            + z * (from_f64::<C>(1.0 / 8.0)
+                + z * (from_f64::<C>(1.0 / 30.0)
+                    + z * (from_f64::<C>(1.0 / 144.0)
+                        + z * (from_f64::<C>(1.0 / 840.0) + z * from_f64::<C>(1.0 / 5760.0))))))
 }
 
 fn exprel_second_series<C>(z: C) -> C
@@ -99,11 +118,11 @@ where
     C: ComplexField + Copy,
     C::RealField: FromPrimitive,
 {
-    constant::<C>(1.0 / 3.0)
-        + z * (constant::<C>(1.0 / 4.0)
-            + z * (constant::<C>(1.0 / 10.0)
-                + z * (constant::<C>(1.0 / 36.0)
-                    + z * (constant::<C>(1.0 / 168.0) + z * constant::<C>(1.0 / 960.0)))))
+    from_f64::<C>(1.0 / 3.0)
+        + z * (from_f64::<C>(1.0 / 4.0)
+            + z * (from_f64::<C>(1.0 / 10.0)
+                + z * (from_f64::<C>(1.0 / 36.0)
+                    + z * (from_f64::<C>(1.0 / 168.0) + z * from_f64::<C>(1.0 / 960.0)))))
 }
 
 #[cfg(test)]

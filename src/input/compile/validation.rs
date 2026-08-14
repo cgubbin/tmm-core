@@ -1,7 +1,6 @@
+use lamina_units::Length;
 use num_traits::{Float, FromPrimitive};
 use thiserror::Error;
-
-use super::thickness::Thickness;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ValidationError<F> {
@@ -20,31 +19,28 @@ pub enum ValidationError<F> {
     #[error("thickness at layer {index} is below minimum {min:?}: {actual:?}")]
     ThicknessTooSmall {
         index: usize,
-        actual: Thickness<F>,
-        min: Thickness<F>,
+        actual: Length<F>,
+        min: Length<F>,
     },
 
     #[error("thickness at layer {index} exceeds maximum {max:?}: {actual:?}")]
     ThicknessTooLarge {
         index: usize,
-        actual: Thickness<F>,
-        max: Thickness<F>,
+        actual: Length<F>,
+        max: Length<F>,
     },
 
     #[error("total thickness exceeds maximum {max:?}: {actual:?}")]
-    TotalThicknessTooLarge {
-        actual: Thickness<F>,
-        max: Thickness<F>,
-    },
+    TotalThicknessTooLarge { actual: Length<F>, max: Length<F> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationConfig<F> {
     pub allow_empty: bool,
     pub allow_zero_thickness: bool,
-    pub min_thickness: Option<Thickness<F>>,
-    pub max_thickness: Option<Thickness<F>>,
-    pub max_total_thickness: Option<Thickness<F>>,
+    pub min_thickness: Option<Length<F>>,
+    pub max_thickness: Option<Length<F>>,
+    pub max_total_thickness: Option<Length<F>>,
     pub max_layer_count: Option<usize>,
 }
 
@@ -90,7 +86,7 @@ where
 {
     pub fn validate_thicknesses(
         &self,
-        thicknesses: &[Thickness<F>],
+        thicknesses: &[Length<F>],
     ) -> Result<(), ValidationError<F>> {
         if !self.allow_empty && thicknesses.is_empty() {
             return Err(ValidationError::NoLayers);
@@ -151,7 +147,7 @@ where
             let max_thickness_cm = value * unit.to_centimetres_factor();
             if total_cm > max_thickness_cm {
                 return Err(ValidationError::TotalThicknessTooLarge {
-                    actual: Thickness::centimetres(total_cm),
+                    actual: Length::centimetres(total_cm),
                     max,
                 });
             }

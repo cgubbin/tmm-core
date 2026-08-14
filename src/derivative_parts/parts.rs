@@ -1,12 +1,12 @@
 //! Coordinate-free derivative parts.
 //!
-//! These containers hold values and selected derivative components after an
-//! internal algebraic quantity has been decomposed. They deliberately contain
-//! no physical parameter or coordinate metadata.
+//! These containers hold the primal value and selected derivative components
+//! after an internal algebraic quantity has been decomposed.
 //!
-//! The first and second bivariate axes are named `axis0` and `axis1` because
-//! they may represent arbitrary caller-facing parameters rather than spatial
-//! coordinates.
+//! They deliberately carry no physical parameter metadata. Bivariate
+//! coordinates are therefore named `axis0` and `axis1`; their meanings are
+//! attached only when the parts are crystallised into public differential
+//! responses.
 //!
 //! Parts are assembled into public differential responses in a later stage,
 //! where the derivative axes are associated with their physical parameters.

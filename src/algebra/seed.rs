@@ -1,13 +1,13 @@
 //! Construction of constant and independently seeded jets.
 //!
-//! Caller-facing parameters are assigned to numbered derivative slots by
-//! [`DerivativeMapping`](crate::parameter::DerivativeMapping). This module
-//! maps those slot numbers onto the constructors supplied by each concrete
-//! jet algebra.
+//! Jet families expose a fixed number of independent-variable slots. This
+//! module maps zero-based slot indices onto the corresponding concrete jet
+//! constructors.
 //!
-//! Slot numbers have no intrinsic physical meaning. For example, slot zero
-//! represents the spectral coordinate only when the active derivative mapping
-//! places that coordinate in slot zero.
+//! Slot numbers have no intrinsic physical meaning. Their interpretation is
+//! supplied by the caller: the plane-wave compiler associates them with
+//! physical parameters through derivative mappings, while other consumers may
+//! assign different semantics.
 
 use nalgebra::ComplexField;
 use ndarray::{Array, Dimension};
@@ -36,6 +36,16 @@ impl UnsupportedDerivativeSlot {
     const fn new(slot: usize, available: usize) -> Self {
         Self { slot, available }
     }
+
+    /// Return the requested zero-based slot.
+    pub const fn slot(&self) -> usize {
+        self.slot
+    }
+
+    /// Return the number of slots supported by the jet family.
+    pub const fn available(&self) -> usize {
+        self.available
+    }
 }
 
 /// Construction of constant and independently seeded jets.
@@ -56,8 +66,8 @@ impl UnsupportedDerivativeSlot {
 /// The physical meaning of each slot is supplied separately by a derivative
 /// mapping.
 ///
-/// This trait is public only because it appears in bounds on public evaluator
-/// implementations. It is not intended as a user-facing extension point.
+/// This trait is primarily used by Lamina's evaluators and sibling crates.
+/// It is not intended to be implemented by downstream users.
 #[doc(hidden)]
 pub trait SeedJet: Sized + Jet {
     /// Number of independent-variable slots represented by this algebra.
@@ -92,10 +102,7 @@ where
         _value: Array<Self::Scalar, Self::Dimension>,
         slot: usize,
     ) -> Result<Self, UnsupportedDerivativeSlot> {
-        Err(UnsupportedDerivativeSlot {
-            slot,
-            available: Self::VARIABLE_SLOTS,
-        })
+        Err(UnsupportedDerivativeSlot::new(slot, Self::VARIABLE_SLOTS))
     }
 }
 
@@ -114,10 +121,7 @@ where
         match slot {
             0 => Ok(Jet1::variable(value)),
 
-            _ => Err(UnsupportedDerivativeSlot {
-                slot,
-                available: Self::VARIABLE_SLOTS,
-            }),
+            _ => Err(UnsupportedDerivativeSlot::new(slot, Self::VARIABLE_SLOTS)),
         }
     }
 }
@@ -137,10 +141,7 @@ where
         match slot {
             0 => Ok(Jet2::variable(value)),
 
-            _ => Err(UnsupportedDerivativeSlot {
-                slot,
-                available: Self::VARIABLE_SLOTS,
-            }),
+            _ => Err(UnsupportedDerivativeSlot::new(slot, Self::VARIABLE_SLOTS)),
         }
     }
 }
@@ -161,10 +162,7 @@ where
             0 => Ok(JetBivariate1::variable_axis0(value)),
             1 => Ok(JetBivariate1::variable_axis1(value)),
 
-            _ => Err(UnsupportedDerivativeSlot {
-                slot,
-                available: Self::VARIABLE_SLOTS,
-            }),
+            _ => Err(UnsupportedDerivativeSlot::new(slot, Self::VARIABLE_SLOTS)),
         }
     }
 }
@@ -185,10 +183,7 @@ where
             0 => Ok(JetBivariate2::variable_axis0(value)),
             1 => Ok(JetBivariate2::variable_axis1(value)),
 
-            _ => Err(UnsupportedDerivativeSlot {
-                slot,
-                available: Self::VARIABLE_SLOTS,
-            }),
+            _ => Err(UnsupportedDerivativeSlot::new(slot, Self::VARIABLE_SLOTS)),
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Scalar-valued array fields.
 
-use ndarray::{Array, ArrayView, ArrayView1, Dimension, Ix1};
+use ndarray::{Array, ArrayView, Dimension, Ix1};
 use std::ops::{Index, IndexMut};
 
 /// A scalar-valued field stored in an `ndarray`.
@@ -25,15 +25,6 @@ where
     D: Dimension,
 {
     values: Array<C, D>,
-}
-
-/// A borrowed one-dimensional scalar-field view.
-///
-/// This is the natural representation of a spatial profile after all
-/// excitation axes have been selected.
-#[derive(Clone, Copy, Debug)]
-pub struct ScalarFieldView1<'a, C> {
-    values: ArrayView1<'a, C>,
 }
 
 impl<C, D> ScalarField<C, D>
@@ -118,61 +109,6 @@ where
     }
 }
 
-impl<C> ScalarField<C, Ix1> {
-    /// Borrow this one-dimensional field as a [`ScalarFieldView1`].
-    pub fn view1(&self) -> ScalarFieldView1<'_, C> {
-        ScalarFieldView1::new(self.values.view())
-    }
-}
-
-impl<'a, C> ScalarFieldView1<'a, C> {
-    /// Construct a one-dimensional scalar-field view.
-    pub fn new(values: ArrayView1<'a, C>) -> Self {
-        Self { values }
-    }
-
-    /// Return the underlying ndarray view.
-    pub fn values(&self) -> ArrayView1<'a, C> {
-        self.values
-    }
-
-    /// Return the profile length.
-    pub fn len(&self) -> usize {
-        self.values.len()
-    }
-
-    /// Return `true` when the profile is empty.
-    pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
-
-    /// Return the value at `index`, or `None` when it is out of bounds.
-    pub fn get(&self, index: usize) -> Option<&C> {
-        self.values.get(index)
-    }
-
-    /// Iterate over the profile values.
-    pub fn iter(&self) -> impl Iterator<Item = &C> + '_ {
-        self.values.iter()
-    }
-
-    /// Copy the profile into an owned scalar field.
-    pub fn to_owned(&self) -> ScalarField<C, Ix1>
-    where
-        C: Clone,
-    {
-        ScalarField::new(self.values.to_owned())
-    }
-
-    /// Map the borrowed profile into an owned scalar field.
-    pub fn map<B, F>(&self, map: F) -> ScalarField<B, Ix1>
-    where
-        F: FnMut(&C) -> B,
-    {
-        ScalarField::new(self.values.map(map))
-    }
-}
-
 impl<C, D> From<Array<C, D>> for ScalarField<C, D>
 where
     D: Dimension,
@@ -219,14 +155,6 @@ where
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.values[index]
-    }
-}
-
-impl<'a, C> Index<usize> for ScalarFieldView1<'a, C> {
-    type Output = C;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.values[index]
     }
 }
 
@@ -290,24 +218,6 @@ mod tests {
             mapped.values(),
             &array!["1".to_owned(), "2".to_owned(), "3".to_owned(),],
         );
-    }
-
-    #[test]
-    fn view1_borrows_values() {
-        let field = ScalarField::new(array![1, 2, 3]);
-        let view = field.view1();
-
-        assert_eq!(view.len(), 3);
-        assert_eq!(view[1], 2);
-        assert_eq!(view.get(3), None);
-    }
-
-    #[test]
-    fn view1_can_be_copied_to_owned_field() {
-        let field = ScalarField::new(array![1, 2, 3]);
-        let owned = field.view1().to_owned();
-
-        assert_eq!(owned, field);
     }
 
     #[test]

@@ -1,30 +1,21 @@
-//! Scalar-, vector-, and tensor-valued array fields.
+//! Scalar- and vector-valued array fields.
 //!
 //! The types in this module describe the geometric rank of a sampled
 //! quantity:
 //!
 //! - [`ScalarField`] stores one scalar array;
-//! - [`VectorField`] stores three Cartesian component arrays;
-//! - [`TensorField`] stores nine Cartesian component arrays.
+//! - [`VectorField`] stores three Cartesian component arrays.
 //!
 //! These types make no assumption about the physical meaning of an array
 //! axis. In particular, they do not assume that the final axis represents
 //! position. Spatial profile extraction is implemented separately by the
 //! response sampling layer.
-//!
-//! One-dimensional borrowed views are provided for spatial profiles:
-//!
-//! - [`ScalarFieldView1`];
-//! - [`VectorFieldView1`];
-//! - [`TensorFieldView1`].
 
 mod scalar;
-mod tensor;
 mod vector;
 
-pub use scalar::{ScalarField, ScalarFieldView1};
-pub use tensor::{TensorField, TensorFieldView1, TensorValue};
-pub use vector::{VectorField, VectorFieldView1, VectorValue};
+pub use scalar::ScalarField;
+pub use vector::{VectorField, VectorValue};
 
 /// Error returned when the components of a field have inconsistent shapes.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

@@ -27,7 +27,9 @@ mod request;
 pub(crate) use canonical::{CanonicalBackendInput, CanonicalProblem, CanonicalStack};
 pub(crate) use compile::{
     CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping,
-    ProjectionConstraint, ProjectionConstraintError, compile_complex, compile_real,
+    MappingError, ProjectionConstraint, ProjectionConstraintError, StackCompileError,
+    StackThicknessJet, ValidationConfig, compile_canonical_constant_stack, compile_complex,
+    compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
 pub(crate) use coordinate_input::CoordinateValues;

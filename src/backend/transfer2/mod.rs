@@ -34,10 +34,10 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, Polarisation,
+    CanonicalCoordinates, ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
     backend::{Backend, ExteriorWavevectors, PlaneWaveSolution, RunMode, SolutionWorkspace},
-    input::CanonicalProblem,
+    input::CanonicalStack,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
@@ -110,7 +110,8 @@ where
 
     fn solve<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<PlaneWaveSolution<Self::Entries>, Self::Error>
@@ -119,8 +120,8 @@ where
         J: ConstitutiveLift<Domain, M>,
     {
         let workspace = self.accumulate::<J, Domain, M>(
-            problem.coordinates(),
-            problem.stack(),
+            coordinates,
+            stack,
             polarisation,
             exterior,
             RunMode::ResponseOnly,
@@ -131,7 +132,8 @@ where
 
     fn retain<M>(
         &self,
-        problem: &CanonicalProblem<M, J>,
+        coordinates: &CanonicalCoordinates<J>,
+        stack: &CanonicalStack<M, J>,
         exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
     ) -> Result<Self::Workspace, Self::Error>
@@ -140,8 +142,8 @@ where
         J: ConstitutiveLift<Domain, M>,
     {
         let workspace = self.accumulate::<J, Domain, M>(
-            problem.coordinates(),
-            problem.stack(),
+            coordinates,
+            stack,
             polarisation,
             exterior,
             RunMode::InternalFields,

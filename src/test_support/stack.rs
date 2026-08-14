@@ -1,7 +1,8 @@
+use lamina_units::Length;
 use ndarray::{Array, Ix0};
 
 use crate::{
-    AnalyticalMaterialStack, Constant, Stack, Thickness,
+    AnalyticalMaterialStack, Constant, Stack,
     algebra::Jet0,
     input::canonical::{CanonicalLayer, CanonicalStack},
     test_support::{
@@ -64,7 +65,7 @@ pub fn absorbing_single_layer_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::vacuum())
         .analytical_layer(
             Drude::new(1.0, 15000.0, 20.0).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .finalise()
 }
@@ -76,7 +77,7 @@ pub fn asymmetric_absorbing_single_layer_stack(
     Stack::from_analytical_materials(Constant::dielectric(left), Constant::dielectric(right))
         .analytical_layer(
             Drude::new(1.0, 15000.0, 20.0).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .finalise()
 }
@@ -85,21 +86,21 @@ pub fn absorbing_two_layer_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
         .analytical_layer(
             Drude::new(1.0, 15000.0, 20.0).unwrap(),
-            Thickness::micrometres(0.35),
+            Length::micrometres(0.35),
         )
         .analytical_layer(
             Drude::new(1.0, 30000.0, 30.0).unwrap(),
-            Thickness::micrometres(0.7),
+            Length::micrometres(0.7),
         )
         .finalise()
 }
 
 pub fn two_layer_stack_with_lossless_first_layer() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
-        .analytical_layer(Constant::dielectric(2.0), Thickness::micrometres(0.35))
+        .analytical_layer(Constant::dielectric(2.0), Length::micrometres(0.35))
         .analytical_layer(
             Drude::new(1.0, 30000.0, 30.0).unwrap(),
-            Thickness::micrometres(0.7),
+            Length::micrometres(0.7),
         )
         .finalise()
 }
@@ -108,7 +109,7 @@ pub fn electric_loss_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::dielectric(1.0), Constant::dielectric(2.0))
         .analytical_layer(
             Drude::new(1.0, 15000.0, 20.0).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .finalise()
 }
@@ -117,7 +118,7 @@ pub fn magnetic_loss_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::dielectric(1.0), Constant::dielectric(2.0))
         .analytical_layer(
             MagneticDrudeLorentz::new(1.0, 15000.0, 20.0, vec![]).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .finalise()
 }
@@ -126,21 +127,21 @@ pub fn differentiable_lossless_two_layer_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::dielectric(1.0), Constant::dielectric(2.0))
         .analytical_layer(
             Drude::new(1.0, 15000.0, 0.0).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .analytical_layer(
             Drude::new(2.0, 5000.0, 0.0).unwrap(),
-            Thickness::micrometres(100.0),
+            Length::micrometres(100.0),
         )
         .finalise()
 }
 
 pub fn two_layer_stack_with_thicknesses(first: f64, second: f64) -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
-        .analytical_layer(Constant::dielectric(2.0), Thickness::micrometres(first))
+        .analytical_layer(Constant::dielectric(2.0), Length::micrometres(first))
         .analytical_layer(
             Drude::new(1.0, 30000.0, 30.0).unwrap(),
-            Thickness::micrometres(second),
+            Length::micrometres(second),
         )
         .finalise()
 }

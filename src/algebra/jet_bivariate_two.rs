@@ -1,33 +1,20 @@
 //! Bivariate second-order differential jets.
 //!
-//! [`JetBivariate`] propagates derivatives with respect to two independent
-//! scalar coordinates. It stores a value, a two-component gradient, and the
-//! three independent entries of a symmetric Hessian:
+//! [`JetBivariate2`] propagates first and second derivatives with respect to
+//! two independent scalar coordinates. It stores a value, a two-component
+//! gradient, and the three independent entries of a symmetric Hessian:
 //!
 //! ```text
-//! (f, fₓ, fᵧ, fₓₓ, fₓᵧ, fᵧᵧ)
+//! (f, f₀, f₁, f₀₀, f₀₁, f₁₁)
 //! ```
 //!
-//! The coordinates are abstractly named `x` and `y`. Application crates may
-//! provide aliases or constructors assigning physical meanings to them.
+//! The coordinates are represented abstractly as `axis0` and `axis1`.
+//! Application-level code assigns their physical meanings.
 //!
-//! Parameter semantics are represented by a marker type:
+//! The Hessian representation assumes commuting mixed partial derivatives.
 //!
-//! - [`RealParameter`] permits differentiation with respect to two real
-//!   coordinates, including conjugation, real-part extraction, and Hermitian
-//!   products;
-//! - [`HolomorphicParameter`] represents differentiation with respect to
-//!   complex coordinates and exposes only operations preserving
-//!   holomorphicity.
-//!
-//! The stored Hessian assumes that mixed partial derivatives commute:
-//!
-//! ```text
-//! ∂²f/∂x∂y = ∂²f/∂y∂x.
-//! ```
-//!
-//! The payload type determines the available algebra through capability
-//! traits such as [`JetAdditive`], [`JetBilinear`], and [`JetField`].
+//! Parameter semantics are represented by [`RealParameter`] and
+//! [`HolomorphicParameter`], as for the other jet families.
 
 use crate::algebra::{JetMultiplyByScalar, exprel, exprel_first, exprel_second};
 use crate::differential::{BivariateGradient, BivariateHessian};
@@ -132,7 +119,7 @@ where
     I: JetOneLike + JetZeroLike,
 {
     /// Construct the first independent coordinate.
-    pub fn variable_axis0(value: I) -> Self {
+    pub(crate) fn variable_axis0(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
         let one = I::jet_ones_like(&value);
 
@@ -140,7 +127,7 @@ where
     }
 
     /// Construct the second independent coordinate.
-    pub fn variable_axis1(value: I) -> Self {
+    pub(crate) fn variable_axis1(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
         let one = I::jet_ones_like(&value);
 
@@ -152,13 +139,13 @@ impl<I, P> JetBivariate2<I, P>
 where
     I: JetZeroLike,
 {
-    pub fn from_x_derivatives(value: I, first: I, second: I) -> Self {
+    pub(crate) fn from_axis0_derivatives(value: I, first: I, second: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(value, first, zero.clone(), second, zero.clone(), zero)
     }
 
-    pub fn from_y_derivatives(value: I, first: I, second: I) -> Self {
+    pub(crate) fn from_axis1_derivatives(value: I, first: I, second: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(value, zero.clone(), first, zero.clone(), zero, second)
@@ -212,14 +199,13 @@ impl<V, P> JetBivariate2<V, P> {
     /// w_x  = v_x s + v s_x
     /// w_y  = v_y s + v s_y
     ///
-    /// w_xx = v_xx s + 2 v_x s_x + v s_xx
-    /// w_xy = v_xy s + v_x s_y + v_y s_x + v s_xy
-    /// w_yy = v_yy s + 2 v_y s_y + v s_yy
+    /// w_axis0_axis0 = v_xx s + 2 v_x s_x + v s_xx
+    /// w_axis0_axis1 = v_xy s + v_x s_y + v_y s_x + v s_xy
+    /// w_axis1_axis1 = v_yy s + 2 v_y s_y + v s_yy
     /// ```
     pub(crate) fn multiply_by_scalar<S>(&self, scalar: &JetBivariate2<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
-        P: Clone,
     {
         let value = self.value().jet_multiply_by_scalar(scalar.value());
 
@@ -233,7 +219,7 @@ impl<V, P> JetBivariate2<V, P> {
             .jet_multiply_by_scalar(scalar.value())
             .jet_add(&self.value().jet_multiply_by_scalar(scalar.axis1()));
 
-        let xx = self
+        let axis0_axis0 = self
             .axis0_axis0()
             .jet_multiply_by_scalar(scalar.value())
             .jet_add(
@@ -244,14 +230,14 @@ impl<V, P> JetBivariate2<V, P> {
             )
             .jet_add(&self.value().jet_multiply_by_scalar(scalar.axis0_axis0()));
 
-        let xy = self
+        let axis0_axis1 = self
             .axis0_axis1()
             .jet_multiply_by_scalar(scalar.value())
             .jet_add(&self.axis0().jet_multiply_by_scalar(scalar.axis1()))
             .jet_add(&self.axis1().jet_multiply_by_scalar(scalar.axis0()))
             .jet_add(&self.value().jet_multiply_by_scalar(scalar.axis0_axis1()));
 
-        let yy = self
+        let axis1_axis1 = self
             .axis1_axis1()
             .jet_multiply_by_scalar(scalar.value())
             .jet_add(
@@ -262,7 +248,7 @@ impl<V, P> JetBivariate2<V, P> {
             )
             .jet_add(&self.value().jet_multiply_by_scalar(scalar.axis1_axis1()));
 
-        Self::from_components(value, x, y, xx, xy, yy)
+        Self::from_components(value, x, y, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -270,7 +256,7 @@ impl<I, P> JetBivariate2<I, P>
 where
     I: JetBilinear,
 {
-    pub fn multiply(&self, rhs: &Self) -> Self {
+    pub(crate) fn multiply(&self, rhs: &Self) -> Self {
         let value = self.value.jet_multiply(&rhs.value);
 
         let x = self
@@ -283,26 +269,26 @@ where
             .jet_multiply(&rhs.value)
             .jet_add(&self.value.jet_multiply(rhs.axis1()));
 
-        let xx = self
+        let axis0_axis0 = self
             .axis0_axis0()
             .jet_multiply(&rhs.value)
             .jet_add(&self.axis0().jet_multiply(rhs.axis0()).jet_double())
             .jet_add(&self.value.jet_multiply(rhs.axis0_axis0()));
 
-        let xy = self
+        let axis0_axis1 = self
             .axis0_axis1()
             .jet_multiply(&rhs.value)
             .jet_add(&self.axis0().jet_multiply(rhs.axis1()))
             .jet_add(&self.axis1().jet_multiply(rhs.axis0()))
             .jet_add(&self.value.jet_multiply(rhs.axis0_axis1()));
 
-        let yy = self
+        let axis1_axis1 = self
             .axis1_axis1()
             .jet_multiply(&rhs.value)
             .jet_add(&self.axis1().jet_multiply(rhs.axis1()).jet_double())
             .jet_add(&self.value.jet_multiply(rhs.axis1_axis1()));
 
-        Self::from_components(value, x, y, xx, xy, yy)
+        Self::from_components(value, x, y, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -310,7 +296,7 @@ impl<I, P> JetBivariate2<I, P>
 where
     I: JetZeroLike,
 {
-    pub fn constant(value: I) -> Self {
+    pub(crate) fn constant(value: I) -> Self {
         let zero = I::jet_zeros_like(&value);
 
         Self::from_components(
@@ -328,7 +314,7 @@ impl<I, P> JetBivariate2<I, P>
 where
     I: JetConstant + JetZeroLike,
 {
-    pub fn constant_like(source: &I, value: I::Scalar) -> Self {
+    pub(crate) fn constant_like(source: &I, value: I::Scalar) -> Self {
         Self::constant(source.jet_constant_like(value))
     }
 }
@@ -338,7 +324,7 @@ where
     I: JetScaleBy,
 {
     /// Scale the value, gradient, and Hessian by a constant scalar.
-    pub fn scale_by(&self, scalar: I::Scalar) -> Self {
+    pub(crate) fn scale_by(&self, scalar: I::Scalar) -> Self {
         Self::from_components(
             self.value.jet_scale_by(scalar),
             self.axis0().jet_scale_by(scalar),
@@ -411,32 +397,32 @@ where
             .jet_cross(rhs.value())
             .jet_add(&self.value().jet_cross(rhs.axis1()));
 
-        let mixed_k0 = self.axis0().jet_cross(rhs.axis0());
+        let mixed_axis0 = self.axis0().jet_cross(rhs.axis0());
 
-        let xx = self
+        let axis0_axis0 = self
             .axis0_axis0()
             .jet_cross(rhs.value())
-            .jet_add(&mixed_k0)
-            .jet_add(&mixed_k0)
+            .jet_add(&mixed_axis0)
+            .jet_add(&mixed_axis0)
             .jet_add(&self.value().jet_cross(rhs.axis0_axis0()));
 
         let mixed_kx = self.axis1().jet_cross(rhs.axis1());
 
-        let yy = self
+        let axis1_axis1 = self
             .axis1_axis1()
             .jet_cross(rhs.value())
             .jet_add(&mixed_kx)
             .jet_add(&mixed_kx)
             .jet_add(&self.value().jet_cross(rhs.axis1_axis1()));
 
-        let xy = self
+        let axis0_axis1 = self
             .axis0_axis1()
             .jet_cross(rhs.value())
             .jet_add(&self.axis0().jet_cross(rhs.axis1()))
             .jet_add(&self.axis1().jet_cross(rhs.axis0()))
             .jet_add(&self.value().jet_cross(rhs.axis0_axis1()));
 
-        Self::from_components(value, x, y, xx, xy, yy)
+        Self::from_components(value, x, y, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -452,42 +438,42 @@ where
     ) -> JetBivariate2<I::Output, RealParameter> {
         let value = self.value().jet_hermitian_product(rhs.value());
 
-        let x = self
+        let axis0 = self
             .axis0()
             .jet_hermitian_product(rhs.value())
             .jet_add(&self.value().jet_hermitian_product(rhs.axis0()));
 
-        let y = self
+        let axis1 = self
             .axis1()
             .jet_hermitian_product(rhs.value())
             .jet_add(&self.value().jet_hermitian_product(rhs.axis1()));
 
-        let mixed_k0 = self.axis0().jet_hermitian_product(rhs.axis0());
+        let mixed_axis0 = self.axis0().jet_hermitian_product(rhs.axis0());
 
-        let xx = self
+        let axis0_axis0 = self
             .axis0_axis0()
             .jet_hermitian_product(rhs.value())
-            .jet_add(&mixed_k0)
-            .jet_add(&mixed_k0)
+            .jet_add(&mixed_axis0)
+            .jet_add(&mixed_axis0)
             .jet_add(&self.value().jet_hermitian_product(rhs.axis0_axis0()));
 
         let mixed_kx = self.axis1().jet_hermitian_product(rhs.axis1());
 
-        let yy = self
+        let axis1_axis1 = self
             .axis1_axis1()
             .jet_hermitian_product(rhs.value())
             .jet_add(&mixed_kx)
             .jet_add(&mixed_kx)
             .jet_add(&self.value().jet_hermitian_product(rhs.axis1_axis1()));
 
-        let xy = self
+        let axis0_axis1 = self
             .axis0_axis1()
             .jet_hermitian_product(rhs.value())
             .jet_add(&self.axis0().jet_hermitian_product(rhs.axis1()))
             .jet_add(&self.axis1().jet_hermitian_product(rhs.axis0()))
             .jet_add(&self.value().jet_hermitian_product(rhs.axis0_axis1()));
 
-        JetBivariate2::from_components(value, x, y, xx, xy, yy)
+        JetBivariate2::from_components(value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -506,17 +492,17 @@ where
         let g1 = self.value.mapv(|x| first(&x));
         let g2 = self.value.mapv(|x| second(&x));
 
-        let x = &g1 * self.axis0();
+        let axis0 = &g1 * self.axis0();
 
-        let y = &g1 * self.axis1();
+        let axis1 = &g1 * self.axis1();
 
-        let xx = &g2 * self.axis0() * self.axis0() + &g1 * self.axis0_axis0();
+        let axis0_axis0 = &g2 * self.axis0() * self.axis0() + &g1 * self.axis0_axis0();
 
-        let xy = &g2 * self.axis0() * self.axis1() + &g1 * self.axis0_axis1();
+        let axis0_axis1 = &g2 * self.axis0() * self.axis1() + &g1 * self.axis0_axis1();
 
-        let yy = &g2 * self.axis1() * self.axis1() + &g1 * self.axis1_axis1();
+        let axis1_axis1 = &g2 * self.axis1() * self.axis1() + &g1 * self.axis1_axis1();
 
-        Self::from_components(value, x, y, xx, xy, yy)
+        Self::from_components(value, axis0, axis1, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 
     pub(crate) fn exprel(&self) -> Self
@@ -602,19 +588,22 @@ where
 
         let y = &function_first * argument.axis1();
 
-        let argument_x_squared = argument.axis0() * argument.axis0();
+        let argument_axis0_squared = argument.axis0() * argument.axis0();
 
-        let argument_y_squared = argument.axis1() * argument.axis1();
+        let argument_axis1_squared = argument.axis1() * argument.axis1();
 
-        let argument_xy = argument.axis0() * argument.axis1();
+        let argument_axis0_axis1 = argument.axis0() * argument.axis1();
 
-        let xx = &function_second * &argument_x_squared + &function_first * argument.axis0_axis0();
+        let axis0_axis0 =
+            &function_second * &argument_axis0_squared + &function_first * argument.axis0_axis0();
 
-        let xy = &function_second * &argument_xy + &function_first * argument.axis0_axis1();
+        let axis0_axis1 =
+            &function_second * &argument_axis0_axis1 + &function_first * argument.axis0_axis1();
 
-        let yy = &function_second * &argument_y_squared + &function_first * argument.axis1_axis1();
+        let axis1_axis1 =
+            &function_second * &argument_axis1_squared + &function_first * argument.axis1_axis1();
 
-        Self::from_components(value, x, y, xx, xy, yy)
+        Self::from_components(value, x, y, axis0_axis0, axis0_axis1, axis1_axis1)
     }
 }
 
@@ -680,28 +669,28 @@ mod tests {
         );
     }
 
-    fn finite_difference_x<F>(function: &F, x: f64, y: f64, step: f64) -> C
+    fn finite_difference_axis0<F>(function: &F, x: f64, y: f64, step: f64) -> C
     where
         F: Fn(f64, f64) -> C,
     {
         (function(x + step, y) - function(x - step, y)) / (2.0 * step)
     }
 
-    fn finite_difference_y<F>(function: &F, x: f64, y: f64, step: f64) -> C
+    fn finite_difference_axis1<F>(function: &F, x: f64, y: f64, step: f64) -> C
     where
         F: Fn(f64, f64) -> C,
     {
         (function(x, y + step) - function(x, y - step)) / (2.0 * step)
     }
 
-    fn finite_difference_xx<F>(function: &F, x: f64, y: f64, step: f64) -> C
+    fn finite_difference_axis0_axis0<F>(function: &F, x: f64, y: f64, step: f64) -> C
     where
         F: Fn(f64, f64) -> C,
     {
         (function(x + step, y) - r(2.0) * function(x, y) + function(x - step, y)) / (step * step)
     }
 
-    fn finite_difference_xy<F>(function: &F, x: f64, y: f64, step: f64) -> C
+    fn finite_difference_axis0_axis1<F>(function: &F, x: f64, y: f64, step: f64) -> C
     where
         F: Fn(f64, f64) -> C,
     {
@@ -710,7 +699,7 @@ mod tests {
             / (4.0 * step * step)
     }
 
-    fn finite_difference_yy<F>(function: &F, x: f64, y: f64, step: f64) -> C
+    fn finite_difference_axis1_axis1<F>(function: &F, x: f64, y: f64, step: f64) -> C
     where
         F: Fn(f64, f64) -> C,
     {
@@ -720,77 +709,77 @@ mod tests {
     #[test]
     fn multiplication_applies_bivariate_product_rules() {
         let f_value = c(1.0, 2.0);
-        let fx = c(0.5, -0.2);
-        let fy = c(-0.3, 0.7);
-        let fxx = c(0.8, 0.1);
-        let fxy = c(-0.4, 0.6);
-        let fyy = c(0.2, -0.5);
+        let faxis0 = c(0.5, -0.2);
+        let faxis1 = c(-0.3, 0.7);
+        let faxis0_axis0 = c(0.8, 0.1);
+        let faxis0_axis1 = c(-0.4, 0.6);
+        let faxis1_axis1 = c(0.2, -0.5);
 
         let g_value = c(2.0, -1.0);
-        let gx = c(-0.1, 0.4);
-        let gy = c(0.9, -0.3);
-        let gxx = c(-0.7, 0.2);
-        let gxy = c(0.3, 0.8);
-        let gyy = c(0.6, -0.9);
+        let gaxis0 = c(-0.1, 0.4);
+        let gaxis1 = c(0.9, -0.3);
+        let gaxis0_axis0 = c(-0.7, 0.2);
+        let gaxis0_axis1 = c(0.3, 0.8);
+        let gaxis1_axis1 = c(0.6, -0.9);
 
         let f: RealJet = JetBivariate2::from_components(
             arr0(f_value),
-            arr0(fx),
-            arr0(fy),
-            arr0(fxx),
-            arr0(fxy),
-            arr0(fyy),
+            arr0(faxis0),
+            arr0(faxis1),
+            arr0(faxis0_axis0),
+            arr0(faxis0_axis1),
+            arr0(faxis1_axis1),
         );
 
         let g = JetBivariate2::from_components(
             arr0(g_value),
-            arr0(gx),
-            arr0(gy),
-            arr0(gxx),
-            arr0(gxy),
-            arr0(gyy),
+            arr0(gaxis0),
+            arr0(gaxis1),
+            arr0(gaxis0_axis0),
+            arr0(gaxis0_axis1),
+            arr0(gaxis1_axis1),
         );
 
         let result = f.multiply(&g);
 
         assert_close(result.value()[()], f_value * g_value);
 
-        assert_close(result.axis0()[()], fx * g_value + f_value * gx);
+        assert_close(result.axis0()[()], faxis0 * g_value + f_value * gaxis0);
 
-        assert_close(result.axis1()[()], fy * g_value + f_value * gy);
+        assert_close(result.axis1()[()], faxis1 * g_value + f_value * gaxis1);
 
         assert_close(
             result.axis0_axis0()[()],
-            fxx * g_value + r(2.0) * fx * gx + f_value * gxx,
+            faxis0_axis0 * g_value + r(2.0) * faxis0 * gaxis0 + f_value * gaxis0_axis0,
         );
 
         assert_close(
             result.axis0_axis1()[()],
-            fxy * g_value + fx * gy + fy * gx + f_value * gxy,
+            faxis0_axis1 * g_value + faxis0 * gaxis1 + faxis1 * gaxis0 + f_value * gaxis0_axis1,
         );
 
         assert_close(
             result.axis1_axis1()[()],
-            fyy * g_value + r(2.0) * fy * gy + f_value * gyy,
+            faxis1_axis1 * g_value + r(2.0) * faxis1 * gaxis1 + f_value * gaxis1_axis1,
         );
     }
 
     #[test]
-    fn unary_composition_applies_bivariate_chain_rule() {
+    fn unaraxis1_composition_applies_bivariate_chain_rule() {
         let value = c(0.7, -0.4);
         let x = c(1.3, 0.2);
         let y = c(-0.6, 0.8);
-        let xx = c(0.1, -0.5);
-        let xy = c(0.3, 0.7);
-        let yy = c(-0.2, 0.4);
+        let axis0_axis0 = c(0.1, -0.5);
+        let axis0_axis1 = c(0.3, 0.7);
+        let axis1_axis1 = c(-0.2, 0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.sin();
@@ -802,11 +791,20 @@ mod tests {
         assert_close(result.axis0()[()], first * x);
         assert_close(result.axis1()[()], first * y);
 
-        assert_close(result.axis0_axis0()[()], second * x * x + first * xx);
+        assert_close(
+            result.axis0_axis0()[()],
+            second * x * x + first * axis0_axis0,
+        );
 
-        assert_close(result.axis0_axis1()[()], second * x * y + first * xy);
+        assert_close(
+            result.axis0_axis1()[()],
+            second * x * y + first * axis0_axis1,
+        );
 
-        assert_close(result.axis1_axis1()[()], second * y * y + first * yy);
+        assert_close(
+            result.axis1_axis1()[()],
+            second * y * y + first * axis1_axis1,
+        );
     }
 
     #[test]
@@ -828,32 +826,33 @@ mod tests {
 
         let z = x.add(&y.scale_by(imaginary_scale));
 
-        let xy = x.multiply(&y).scale_by(r(0.3));
+        let axis0_axis1 = x.multiply(&y).scale_by(r(0.3));
 
-        let result = z.clone().exp().multiply(&z.add(&xy).sin());
+        let result = z.clone().exp().multiply(&z.add(&axis0_axis1).sin());
 
         let h = 1.0e-4;
 
-        let fx = (function(x0 + h, y0) - function(x0 - h, y0)) / (2.0 * h);
+        let faxis0 = (function(x0 + h, y0) - function(x0 - h, y0)) / (2.0 * h);
 
-        let fy = (function(x0, y0 + h) - function(x0, y0 - h)) / (2.0 * h);
+        let faxis1 = (function(x0, y0 + h) - function(x0, y0 - h)) / (2.0 * h);
 
-        let fxx =
+        let faxis0_axis0 =
             (function(x0 + h, y0) - r(2.0) * function(x0, y0) + function(x0 - h, y0)) / (h * h);
 
-        let fyy =
+        let faxis1_axis1 =
             (function(x0, y0 + h) - r(2.0) * function(x0, y0) + function(x0, y0 - h)) / (h * h);
 
-        let fxy = (function(x0 + h, y0 + h) - function(x0 + h, y0 - h) - function(x0 - h, y0 + h)
-            + function(x0 - h, y0 - h))
-            / (4.0 * h * h);
+        let faxis0_axis1 =
+            (function(x0 + h, y0 + h) - function(x0 + h, y0 - h) - function(x0 - h, y0 + h)
+                + function(x0 - h, y0 - h))
+                / (4.0 * h * h);
 
         assert_fd_close(result.value()[()], function(x0, y0));
-        assert_fd_close(result.axis0()[()], fx);
-        assert_fd_close(result.axis1()[()], fy);
-        assert_fd_close(result.axis0_axis0()[()], fxx);
-        assert_fd_close(result.axis0_axis1()[()], fxy);
-        assert_fd_close(result.axis1_axis1()[()], fyy);
+        assert_fd_close(result.axis0()[()], faxis0);
+        assert_fd_close(result.axis1()[()], faxis1);
+        assert_fd_close(result.axis0_axis0()[()], faxis0_axis0);
+        assert_fd_close(result.axis0_axis1()[()], faxis0_axis1);
+        assert_fd_close(result.axis1_axis1()[()], faxis1_axis1);
     }
 
     #[test]
@@ -918,9 +917,9 @@ mod tests {
     }
 
     #[test]
-    fn from_x_derivatives_sets_only_x_components() {
+    fn from_axis0_derivatives_sets_only_axis0_components() {
         let jet: RealJet =
-            JetBivariate2::from_x_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
+            JetBivariate2::from_axis0_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.axis0()[()], c(3.0, -1.0));
@@ -931,9 +930,9 @@ mod tests {
     }
 
     #[test]
-    fn from_y_derivatives_sets_only_y_components() {
+    fn from_axis1_derivatives_sets_only_axis1_components() {
         let jet: RealJet =
-            JetBivariate2::from_y_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
+            JetBivariate2::from_axis1_derivatives(a(2.0, 1.0), a(3.0, -1.0), a(5.0, 2.0));
 
         assert_close(jet.value()[()], c(2.0, 1.0));
         assert_close(jet.axis0()[()], r(0.0));
@@ -995,7 +994,7 @@ mod tests {
     }
 
     #[test]
-    fn negation_negates_every_component() {
+    fn negation_negates_everaxis1_component() {
         let original = sample_jet();
         let result = original.negate();
 
@@ -1008,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn scaling_scales_every_component() {
+    fn scaling_scales_everaxis1_component() {
         let original = sample_jet();
         let scale = c(2.0, -1.0);
 
@@ -1034,58 +1033,58 @@ mod tests {
     #[test]
     fn multiplication_applies_all_bivariate_product_rules() {
         let f_value = c(1.0, 2.0);
-        let fx = c(0.5, -0.2);
-        let fy = c(-0.3, 0.7);
-        let fxx = c(0.8, 0.1);
-        let fxy = c(-0.4, 0.6);
-        let fyy = c(0.2, -0.5);
+        let faxis0 = c(0.5, -0.2);
+        let faxis1 = c(-0.3, 0.7);
+        let faxis0_axis0 = c(0.8, 0.1);
+        let faxis0_axis1 = c(-0.4, 0.6);
+        let faxis1_axis1 = c(0.2, -0.5);
 
         let g_value = c(2.0, -1.0);
-        let gx = c(-0.1, 0.4);
-        let gy = c(0.9, -0.3);
-        let gxx = c(-0.7, 0.2);
-        let gxy = c(0.3, 0.8);
-        let gyy = c(0.6, -0.9);
+        let gaxis0 = c(-0.1, 0.4);
+        let gaxis1 = c(0.9, -0.3);
+        let gaxis0_axis0 = c(-0.7, 0.2);
+        let gaxis0_axis1 = c(0.3, 0.8);
+        let gaxis1_axis1 = c(0.6, -0.9);
 
         let f: RealJet = JetBivariate2::from_components(
             arr0(f_value),
-            arr0(fx),
-            arr0(fy),
-            arr0(fxx),
-            arr0(fxy),
-            arr0(fyy),
+            arr0(faxis0),
+            arr0(faxis1),
+            arr0(faxis0_axis0),
+            arr0(faxis0_axis1),
+            arr0(faxis1_axis1),
         );
 
         let g = JetBivariate2::from_components(
             arr0(g_value),
-            arr0(gx),
-            arr0(gy),
-            arr0(gxx),
-            arr0(gxy),
-            arr0(gyy),
+            arr0(gaxis0),
+            arr0(gaxis1),
+            arr0(gaxis0_axis0),
+            arr0(gaxis0_axis1),
+            arr0(gaxis1_axis1),
         );
 
         let result = f.multiply(&g);
 
         assert_close(result.value()[()], f_value * g_value);
 
-        assert_close(result.axis0()[()], fx * g_value + f_value * gx);
+        assert_close(result.axis0()[()], faxis0 * g_value + f_value * gaxis0);
 
-        assert_close(result.axis1()[()], fy * g_value + f_value * gy);
+        assert_close(result.axis1()[()], faxis1 * g_value + f_value * gaxis1);
 
         assert_close(
             result.axis0_axis0()[()],
-            fxx * g_value + r(2.0) * fx * gx + f_value * gxx,
+            faxis0_axis0 * g_value + r(2.0) * faxis0 * gaxis0 + f_value * gaxis0_axis0,
         );
 
         assert_close(
             result.axis0_axis1()[()],
-            fxy * g_value + fx * gy + fy * gx + f_value * gxy,
+            faxis0_axis1 * g_value + faxis0 * gaxis1 + faxis1 * gaxis0 + f_value * gaxis0_axis1,
         );
 
         assert_close(
             result.axis1_axis1()[()],
-            fyy * g_value + r(2.0) * fy * gy + f_value * gyy,
+            faxis1_axis1 * g_value + r(2.0) * faxis1 * gaxis1 + f_value * gaxis1_axis1,
         );
     }
 
@@ -1150,17 +1149,17 @@ mod tests {
         let value = c(2.0, 0.5);
         let x = c(0.7, -0.2);
         let y = c(-0.3, 0.4);
-        let xx = c(0.2, 0.1);
-        let xy = c(-0.5, 0.3);
-        let yy = c(0.6, -0.4);
+        let axis0_axis0 = c(0.2, 0.1);
+        let axis0_axis1 = c(-0.5, 0.3);
+        let axis1_axis1 = c(0.6, -0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.reciprocal();
@@ -1173,11 +1172,20 @@ mod tests {
         assert_close(result.axis0()[()], first * x);
         assert_close(result.axis1()[()], first * y);
 
-        assert_close(result.axis0_axis0()[()], second * x * x + first * xx);
+        assert_close(
+            result.axis0_axis0()[()],
+            second * x * x + first * axis0_axis0,
+        );
 
-        assert_close(result.axis0_axis1()[()], second * x * y + first * xy);
+        assert_close(
+            result.axis0_axis1()[()],
+            second * x * y + first * axis0_axis1,
+        );
 
-        assert_close(result.axis1_axis1()[()], second * y * y + first * yy);
+        assert_close(
+            result.axis1_axis1()[()],
+            second * y * y + first * axis1_axis1,
+        );
     }
 
     #[test]
@@ -1242,17 +1250,17 @@ mod tests {
         let value = c(0.7, -0.4);
         let x = c(1.3, 0.2);
         let y = c(-0.6, 0.8);
-        let xx = c(0.1, -0.5);
-        let xy = c(0.3, 0.7);
-        let yy = c(-0.2, 0.4);
+        let axis0_axis0 = c(0.1, -0.5);
+        let axis0_axis1 = c(0.3, 0.7);
+        let axis1_axis1 = c(-0.2, 0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.exp();
@@ -1262,11 +1270,20 @@ mod tests {
         assert_close(result.axis0()[()], exponential * x);
         assert_close(result.axis1()[()], exponential * y);
 
-        assert_close(result.axis0_axis0()[()], exponential * (x * x + xx));
+        assert_close(
+            result.axis0_axis0()[()],
+            exponential * (x * x + axis0_axis0),
+        );
 
-        assert_close(result.axis0_axis1()[()], exponential * (x * y + xy));
+        assert_close(
+            result.axis0_axis1()[()],
+            exponential * (x * y + axis0_axis1),
+        );
 
-        assert_close(result.axis1_axis1()[()], exponential * (y * y + yy));
+        assert_close(
+            result.axis1_axis1()[()],
+            exponential * (y * y + axis1_axis1),
+        );
     }
 
     #[test]
@@ -1274,17 +1291,17 @@ mod tests {
         let value = c(0.7, -0.4);
         let x = c(1.3, 0.2);
         let y = c(-0.6, 0.8);
-        let xx = c(0.1, -0.5);
-        let xy = c(0.3, 0.7);
-        let yy = c(-0.2, 0.4);
+        let axis0_axis0 = c(0.1, -0.5);
+        let axis0_axis1 = c(0.3, 0.7);
+        let axis1_axis1 = c(-0.2, 0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.sin();
@@ -1296,11 +1313,20 @@ mod tests {
         assert_close(result.axis0()[()], first * x);
         assert_close(result.axis1()[()], first * y);
 
-        assert_close(result.axis0_axis0()[()], second * x * x + first * xx);
+        assert_close(
+            result.axis0_axis0()[()],
+            second * x * x + first * axis0_axis0,
+        );
 
-        assert_close(result.axis0_axis1()[()], second * x * y + first * xy);
+        assert_close(
+            result.axis0_axis1()[()],
+            second * x * y + first * axis0_axis1,
+        );
 
-        assert_close(result.axis1_axis1()[()], second * y * y + first * yy);
+        assert_close(
+            result.axis1_axis1()[()],
+            second * y * y + first * axis1_axis1,
+        );
     }
 
     #[test]
@@ -1308,17 +1334,17 @@ mod tests {
         let value = c(0.7, -0.4);
         let x = c(1.3, 0.2);
         let y = c(-0.6, 0.8);
-        let xx = c(0.1, -0.5);
-        let xy = c(0.3, 0.7);
-        let yy = c(-0.2, 0.4);
+        let axis0_axis0 = c(0.1, -0.5);
+        let axis0_axis1 = c(0.3, 0.7);
+        let axis1_axis1 = c(-0.2, 0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.cos();
@@ -1330,11 +1356,20 @@ mod tests {
         assert_close(result.axis0()[()], first * x);
         assert_close(result.axis1()[()], first * y);
 
-        assert_close(result.axis0_axis0()[()], second * x * x + first * xx);
+        assert_close(
+            result.axis0_axis0()[()],
+            second * x * x + first * axis0_axis0,
+        );
 
-        assert_close(result.axis0_axis1()[()], second * x * y + first * xy);
+        assert_close(
+            result.axis0_axis1()[()],
+            second * x * y + first * axis0_axis1,
+        );
 
-        assert_close(result.axis1_axis1()[()], second * y * y + first * yy);
+        assert_close(
+            result.axis1_axis1()[()],
+            second * y * y + first * axis1_axis1,
+        );
     }
 
     #[test]
@@ -1342,17 +1377,17 @@ mod tests {
         let value = c(2.0, 0.5);
         let x = c(0.7, -0.2);
         let y = c(-0.3, 0.4);
-        let xx = c(0.2, 0.1);
-        let xy = c(-0.5, 0.3);
-        let yy = c(0.6, -0.4);
+        let axis0_axis0 = c(0.2, 0.1);
+        let axis0_axis1 = c(-0.5, 0.3);
+        let axis1_axis1 = c(0.6, -0.4);
 
         let jet: HolomorphicJet = JetBivariate2::from_components(
             arr0(value),
             arr0(x),
             arr0(y),
-            arr0(xx),
-            arr0(xy),
-            arr0(yy),
+            arr0(axis0_axis0),
+            arr0(axis0_axis1),
+            arr0(axis1_axis1),
         );
 
         let result = jet.sqrt();
@@ -1365,11 +1400,20 @@ mod tests {
         assert_close(result.axis0()[()], first * x);
         assert_close(result.axis1()[()], first * y);
 
-        assert_close(result.axis0_axis0()[()], second * x * x + first * xx);
+        assert_close(
+            result.axis0_axis0()[()],
+            second * x * x + first * axis0_axis0,
+        );
 
-        assert_close(result.axis0_axis1()[()], second * x * y + first * xy);
+        assert_close(
+            result.axis0_axis1()[()],
+            second * x * y + first * axis0_axis1,
+        );
 
-        assert_close(result.axis1_axis1()[()], second * y * y + first * yy);
+        assert_close(
+            result.axis1_axis1()[()],
+            second * y * y + first * axis1_axis1,
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -1377,7 +1421,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     #[test]
-    fn sampled_function_composition_matches_unary_composition() {
+    fn sampled_function_composition_matches_unaraxis1_composition() {
         let value = c(0.7, -0.4);
 
         let argument: HolomorphicJet = JetBivariate2::from_components(
@@ -1440,7 +1484,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_composition_is_equivariant_under_coordinate_exchange() {
+    fn unaraxis1_composition_is_equivariant_under_coordinate_exchange() {
         let original = swap_coordinates(&sample_jet().sin());
 
         let swapped = swap_coordinates(&sample_jet()).sin();
@@ -1519,7 +1563,7 @@ mod tests {
     // ---------------------------------------------------------------------
 
     #[test]
-    fn conjugation_conjugates_every_component() {
+    fn conjugation_conjugates_everaxis1_component() {
         let result = sample_jet().conjugated();
 
         assert_close(result.value()[()], c(1.0, -2.0));
@@ -1531,7 +1575,7 @@ mod tests {
     }
 
     #[test]
-    fn real_extracts_every_component() {
+    fn real_extracts_everaxis1_component() {
         let result = sample_jet().real();
 
         assert_relative_eq!(result.value()[()], 1.0, epsilon = EPSILON,);
@@ -1588,27 +1632,27 @@ mod tests {
 
         assert_fd_close(
             result.axis0()[()],
-            finite_difference_x(&function, x0, y0, first_step),
+            finite_difference_axis0(&function, x0, y0, first_step),
         );
 
         assert_fd_close(
             result.axis1()[()],
-            finite_difference_y(&function, x0, y0, first_step),
+            finite_difference_axis1(&function, x0, y0, first_step),
         );
 
         assert_fd_close(
             result.axis0_axis0()[()],
-            finite_difference_xx(&function, x0, y0, second_step),
+            finite_difference_axis0_axis0(&function, x0, y0, second_step),
         );
 
         assert_fd_close(
             result.axis0_axis1()[()],
-            finite_difference_xy(&function, x0, y0, second_step),
+            finite_difference_axis0_axis1(&function, x0, y0, second_step),
         );
 
         assert_fd_close(
             result.axis1_axis1()[()],
-            finite_difference_yy(&function, x0, y0, second_step),
+            finite_difference_axis1_axis1(&function, x0, y0, second_step),
         );
     }
 }

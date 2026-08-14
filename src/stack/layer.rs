@@ -1,31 +1,36 @@
-use super::Thickness;
+use lamina_units::Length;
 
+/// A finite material layer in a planar stack.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer<M, F> {
     material: M,
-    thickness: Thickness<F>,
+    thickness: Length<F>,
 }
 
 impl<M, F> Layer<M, F> {
-    pub fn new(material: M, thickness: Thickness<F>) -> Self {
+    /// Construct a finite layer.
+    pub fn new(material: M, thickness: Length<F>) -> Self {
         Self {
             material,
             thickness,
         }
     }
 
+    /// Return the layer material.
     pub fn material(&self) -> &M {
         &self.material
     }
 
-    pub fn thickness(&self) -> Thickness<F>
+    /// Return the layer thickness in its caller-selected unit.
+    pub fn thickness(&self) -> Length<F>
     where
         F: Copy,
     {
         self.thickness
     }
 
-    pub fn into_parts(self) -> (M, Thickness<F>) {
+    /// Consume the layer into its material and thickness.
+    pub fn into_parts(self) -> (M, Length<F>) {
         (self.material, self.thickness)
     }
 }

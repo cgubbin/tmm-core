@@ -3,7 +3,7 @@
 //! This module provides generic containers for propagating first and second
 //! derivatives through algebraic expressions.
 //!
-//! [`Jet`] stores a value and its first two derivatives with respect to one
+//! [`Jet2`] stores a value and its first two derivatives with respect to one
 //! scalar parameter:
 //!
 //! ```text
@@ -28,7 +28,7 @@
 //!
 //! - [`JetAdditive`] supports addition, subtraction, and negation;
 //! - [`JetBilinear`] supports a bilinear product and its product rules;
-//! - [`JetField`] supports elementwise reciprocals and division.
+//! - [`JetReciprocal`] supports elementwise reciprocals and division.
 //!
 //! Arrays implement these capabilities elementwise. Transfer matrices may
 //! implement additive and bilinear operations because ordinary matrix
@@ -36,14 +36,13 @@
 //! [`JetBilinear`] because the Redheffer star product is rational rather than
 //! bilinear.
 //!
-//! Value-only calculations should use the underlying value type directly.
-//! [`Jet`] is reserved for calculations that request derivatives.
 
 use crate::algebra::{JetMultiplyByScalar, exprel, exprel_first, exprel_second};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetField, JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
+    JetHermitianProduct, JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike,
+    RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -56,7 +55,11 @@ pub(crate) type ArrayJet2<C, D, P> = Jet2<ArrayBase<OwnedRepr<C>, D>, P>;
 pub(crate) type PhysicalJet2<C, D> = ArrayJet2<C, D, RealParameter>;
 pub(crate) type ModeJet2<C, D> = ArrayJet2<C, D, HolomorphicParameter>;
 
-/// A value and its first and second derivatives.
+/// A second-order directional jet.
+///
+/// Stores a primal value `f`, first derivative `f′`, and second derivative
+/// `f″` with respect to one scalar parameter. `P` determines whether that
+/// parameter is real or holomorphic.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Jet2<I, P> {
@@ -127,7 +130,6 @@ impl<V, P> Jet2<V, P> {
     pub fn multiply_by_scalar<S>(&self, scalar: &Jet2<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
-        P: Clone,
     {
         let value = self.value().jet_multiply_by_scalar(scalar.value());
 
@@ -212,7 +214,7 @@ where
 
 impl<I, P> Jet2<I, P>
 where
-    I: JetField,
+    I: JetReciprocal,
 {
     /// Compute the elementwise reciprocal and its first two derivatives.
     pub(crate) fn reciprocal(&self) -> Self {
@@ -242,9 +244,10 @@ impl<I, P> Jet2<I, P>
 where
     I: JetCrossProduct + JetAdditive,
 {
-    /// Compute the cross product of two first-order jets.
+    /// Compute the cross product of two second-order jets.
     ///
-    /// The derivative is evaluated using the bilinear product rule.
+    /// The first and second derivatives are propagated using the bilinear
+    /// product rules.
     pub(crate) fn cross(&self, rhs: &Self) -> Self {
         let value = self.value.jet_cross(&rhs.value);
 
@@ -433,6 +436,7 @@ where
     ///
     /// The derivative is `f' / (2 sqrt(f))`. It is singular where the value is
     /// zero. For complex values, the branch convention is that of
+    /// [`ComplexField::sqrt`].
     pub(crate) fn sqrt(self) -> Self {
         let value = self.value.mapv(|x| x.sqrt());
 
@@ -457,13 +461,15 @@ impl<I, P> Jet2<I, P> {
     }
 }
 
-/// Samples of a scalar function and its first two derivatives.
+/// Sampled value and first two derivatives of a scalar function with respect
+/// to its direct argument.
 ///
-/// For a function `f`, this stores:
+/// Given an argument jet carrying `x′` and `x″`, composition produces
 ///
-/// - `value = f(x)`
-/// - `first = f'(x)`
-/// - `second = f''(x)`
+/// ```text
+/// (f ∘ x)′  = f′ x′
+/// (f ∘ x)″ = f″ (x′)² + f′ x″
+/// ```
 #[derive(Clone, Debug)]
 pub(crate) struct SecondOrderExpansion<I> {
     value: I,

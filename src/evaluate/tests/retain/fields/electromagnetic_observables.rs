@@ -159,13 +159,13 @@ fn assert_norm_values_match_fields(
 ) {
     assert_real_array_close(
         norms.electric(),
-        &fields.electric().magnitude_squared(),
+        &fields.electric().magnitude_squared().into_values(),
         VALUE_TOLERANCE,
     );
 
     assert_real_array_close(
         norms.magnetic(),
-        &fields.magnetic().magnitude_squared(),
+        &fields.magnetic().magnitude_squared().into_values(),
         VALUE_TOLERANCE,
     );
 }

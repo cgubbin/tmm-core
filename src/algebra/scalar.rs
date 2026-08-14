@@ -10,61 +10,107 @@ use super::{
     RealParameter, SecondOrderExpansion,
 };
 
+/// Common representation metadata for a differential jet.
+///
+/// A jet combines a sampled primal value with zero or more derivative
+/// components. All components share the same scalar type and sampled
+/// dimension.
 pub trait Jet {
-    type Dimension;
-    type Scalar;
+    /// Sample dimension carried by each jet component.
+    type Dimension: Dimension;
+
+    /// Scalar stored by each sampled component.
+    type Scalar: ComplexField;
+
+    /// Equivalent jet family for a point-valued (`Ix0`) sample.
     type PointJet: Jet<Dimension = Ix0, Scalar = Self::Scalar>;
 }
 
+/// A complex-valued jet with a corresponding real-valued jet representation.
+///
+/// `RealJet` preserves the derivative family, sampled dimension, and parameter
+/// policy while replacing the complex scalar by its real field.
 pub trait ComplexJet: Jet {
     type RealJet;
 
+    /// Promote a real-valued jet to the corresponding complex representation.
     fn into_complex(real: Self::RealJet) -> Self;
 }
 
 #[doc(hidden)]
 pub trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
+    /// Return the primal sampled value.
     fn value(&self) -> &ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>;
 
+    /// Lift a sampled value as a derivative-free constant.
     fn lift_constant(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
 
+    /// Construct a derivative-free constant with the sampled shape of `source`.
     fn filled_constant_like(
         source: &ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>,
         value: Self::Scalar,
     ) -> Self;
 
+    /// Construct zero with the same sampled shape.
     fn zero_like(&self) -> Self;
+
+    /// Construct unity with the same sampled shape.
     fn one_like(&self) -> Self;
 
+    /// Construct a constant with the same sampled shape as this value.
     fn constant(&self, value: Self::Scalar) -> Self {
         Self::filled_constant_like(self.value(), value)
     }
 
+    /// Add another scalar-algebra value.
     fn add(&self, rhs: &Self) -> Self;
+
+    /// Subtract another scalar-algebra value.
     fn subtract(&self, rhs: &Self) -> Self;
+
+    /// Negate this value.
     fn negate(&self) -> Self;
 
+    /// Multiply pointwise.
     fn multiply(&self, rhs: &Self) -> Self;
+
+    /// Compute the pointwise reciprocal.
     fn reciprocal(&self) -> Self;
+
+    /// Scale by a scalar constant.
     fn scale(&self, coefficient: Self::Scalar) -> Self;
 
+    /// Apply the complex exponential pointwise.
     fn exp(&self) -> Self;
+
+    /// Apply sine pointwise.
     fn sin(&self) -> Self;
+
+    /// Apply cosine pointwise.
     fn cos(&self) -> Self;
+
+    /// Apply the principal square root pointwise.
     fn sqrt(&self) -> Self;
 
+    /// Return whether every primal and derivative component is finite.
     fn all_finite(&self) -> bool;
 
+    /// Apply the square pointwise
     fn square(&self) -> Self {
         self.multiply(self)
     }
 
+    /// Divide pointwise
     fn divide(&self, rhs: &Self) -> Self {
         self.multiply(&rhs.reciprocal())
     }
 }
 
-pub trait ScalarAlgebraExpRelExt: ScalarAlgebra {
+/// Numerically stable relative-exponential evaluation for scalar jets.
+///
+/// This is separated from [`ScalarAlgebra`] because its implementation
+/// requires additional floating-point capabilities from the real scalar type.
+pub(crate) trait ScalarAlgebraExpRelExt: ScalarAlgebra {
     fn exprel(&self) -> Self;
 }
 
@@ -80,6 +126,11 @@ pub trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
 
     fn imaginary(&self) -> Self::RealJet;
 
+    /// Return `|self|²`, differentiating with respect to the active real
+    /// parameter.
+    ///
+    /// This operation involves complex conjugation and is therefore not
+    /// holomorphic.
     fn magnitude_squared(&self) -> Self::RealJet {
         self.multiply(&self.conjugated()).real()
     }
@@ -90,23 +141,14 @@ pub trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
 }
 
 // -------------------------------------------------------------------------
-// Variable-seeding capabilities
-// -------------------------------------------------------------------------
-
-pub(crate) trait UnivariateVariableAlgebra: ScalarAlgebra {
-    fn variable(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
-}
-
-pub(crate) trait BivariateVariableAlgebra: ScalarAlgebra {
-    fn variable_axis0(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
-
-    fn variable_axis1(value: ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>) -> Self;
-}
-
-// -------------------------------------------------------------------------
 // Sampled unary-function composition
 // -------------------------------------------------------------------------
 
+/// Compose a sampled scalar function with a first-order argument jet.
+///
+/// `expansion` contains the sampled function value and derivative with
+/// respect to its direct argument. The jet algebra applies the chain rule
+/// using the derivatives already carried by `argument`.
 pub(crate) trait FirstOrderFunctionAlgebra: ScalarAlgebra {
     fn compose_sampled_function(
         argument: &Self,
@@ -114,6 +156,11 @@ pub(crate) trait FirstOrderFunctionAlgebra: ScalarAlgebra {
     ) -> Self;
 }
 
+/// Compose a sampled scalar function with a second-order argument jet.
+///
+/// `expansion` contains the sampled function value and first, and second derivatives with
+/// respect to its direct argument. The jet algebra applies the chain rule
+/// using the derivatives already carried by `argument`.
 pub(crate) trait SecondOrderFunctionAlgebra: ScalarAlgebra {
     fn compose_sampled_function(
         argument: &Self,
@@ -144,7 +191,11 @@ where
 // Plain sampled arrays
 // -------------------------------------------------------------------------
 //
-impl<C, D, P> Jet for ArrayJet0<C, D, P> {
+impl<C, D, P> Jet for ArrayJet0<C, D, P>
+where
+    C: ComplexField,
+    D: Dimension,
+{
     type Scalar = C;
     type Dimension = D;
     type PointJet = ArrayJet0<C, Ix0, P>;
@@ -269,7 +320,11 @@ where
 // First-order univariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> Jet for ArrayJet1<C, D, P> {
+impl<C, D, P> Jet for ArrayJet1<C, D, P>
+where
+    C: ComplexField,
+    D: Dimension,
+{
     type Scalar = C;
     type Dimension = D;
     type PointJet = ArrayJet1<C, Ix0, P>;
@@ -393,17 +448,6 @@ where
     }
 }
 
-impl<C, D, P> UnivariateVariableAlgebra for ArrayJet1<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn variable(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJet1::variable(value)
-    }
-}
-
 impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJet1<C, D, P>
 where
     C: ComplexField + Copy,
@@ -422,7 +466,11 @@ where
 // Second-order univariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> Jet for ArrayJet2<C, D, P> {
+impl<C, D, P> Jet for ArrayJet2<C, D, P>
+where
+    C: ComplexField,
+    D: Dimension,
+{
     type Scalar = C;
     type Dimension = D;
     type PointJet = ArrayJet2<C, Ix0, P>;
@@ -549,17 +597,6 @@ where
     }
 }
 
-impl<C, D, P> UnivariateVariableAlgebra for ArrayJet2<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn variable(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJet2::variable(value)
-    }
-}
-
 impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJet2<C, D, P>
 where
     C: ComplexField + Copy,
@@ -578,7 +615,11 @@ where
 // Second-order bivariate jets
 // -------------------------------------------------------------------------
 
-impl<C, D, P> Jet for ArrayJetBivariate1<C, D, P> {
+impl<C, D, P> Jet for ArrayJetBivariate1<C, D, P>
+where
+    C: ComplexField,
+    D: Dimension,
+{
     type Scalar = C;
     type Dimension = D;
     type PointJet = ArrayJetBivariate1<C, Ix0, P>;
@@ -709,21 +750,6 @@ where
     }
 }
 
-impl<C, D, P> BivariateVariableAlgebra for ArrayJetBivariate1<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn variable_axis0(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate1::variable_axis0(value)
-    }
-
-    fn variable_axis1(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate1::variable_axis1(value)
-    }
-}
-
 impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJetBivariate1<C, D, P>
 where
     C: ComplexField + Copy,
@@ -738,7 +764,11 @@ where
     }
 }
 
-impl<C, D, P> Jet for ArrayJetBivariate2<C, D, P> {
+impl<C, D, P> Jet for ArrayJetBivariate2<C, D, P>
+where
+    C: ComplexField,
+    D: Dimension,
+{
     type Scalar = C;
     type Dimension = D;
     type PointJet = ArrayJetBivariate2<C, Ix0, P>;
@@ -878,21 +908,6 @@ where
     }
 }
 
-impl<C, D, P> BivariateVariableAlgebra for ArrayJetBivariate2<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn variable_axis0(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate2::variable_axis0(value)
-    }
-
-    fn variable_axis1(value: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        ArrayJetBivariate2::variable_axis1(value)
-    }
-}
-
 impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJetBivariate2<C, D, P>
 where
     C: ComplexField + Copy,
@@ -911,759 +926,384 @@ where
 mod tests {
     use super::*;
 
-    use approx::assert_relative_eq;
-    use ndarray::{Array1, Ix1, array};
+    use nalgebra::ComplexField;
+    use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
+    use num_traits::{One, Zero};
 
-    use crate::algebra::{ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, RealParameter};
+    use crate::{
+        algebra::{
+            ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
+            HolomorphicParameter, RealParameter,
+        },
+        differential::{BivariateGradient, BivariateHessian},
+    };
 
     type C = Complex64;
-    type D = Ix1;
-    type Array = Array1<C>;
-    type RealArray = Array1<f64>;
 
-    type Zero = ArrayJet0<C, D, RealParameter>;
+    type J0 = ArrayJet0<C, Ix0, RealParameter>;
+    type J1 = ArrayJet1<C, Ix0, RealParameter>;
+    type J2 = ArrayJet2<C, Ix0, RealParameter>;
+    type JB1 = ArrayJetBivariate1<C, Ix0, RealParameter>;
+    type JB2 = ArrayJetBivariate2<C, Ix0, RealParameter>;
 
-    type First = ArrayJet1<C, D, RealParameter>;
-
-    type Second = ArrayJet2<C, D, RealParameter>;
-
-    type Bivariate = ArrayJetBivariate2<C, D, RealParameter>;
-
-    const EPSILON: f64 = 1.0e-11;
+    type HolomorphicJ1 = ArrayJet1<C, Ix0, HolomorphicParameter>;
+    type HolomorphicJ2 = ArrayJet2<C, Ix0, HolomorphicParameter>;
 
     fn c(real: f64, imaginary: f64) -> C {
         C::new(real, imaginary)
     }
 
-    fn assert_complex_close(actual: C, expected: C) {
-        assert_relative_eq!(
-            actual.re,
-            expected.re,
-            epsilon = EPSILON,
-            max_relative = EPSILON,
-        );
-
-        assert_relative_eq!(
-            actual.im,
-            expected.im,
-            epsilon = EPSILON,
-            max_relative = EPSILON,
-        );
-    }
-
-    fn assert_complex_array_close(actual: &Array, expected: &Array) {
-        assert_eq!(actual.raw_dim(), expected.raw_dim(),);
-
-        for (actual, expected) in actual.iter().zip(expected.iter()) {
-            assert_complex_close(*actual, *expected);
-        }
-    }
-
-    fn assert_real_array_close(actual: &RealArray, expected: &RealArray) {
-        assert_eq!(actual.raw_dim(), expected.raw_dim(),);
-
-        for (actual, expected) in actual.iter().zip(expected.iter()) {
-            assert_relative_eq!(actual, expected, epsilon = EPSILON, max_relative = EPSILON,);
-        }
-    }
-
-    fn values() -> Array {
-        array![c(1.0, 0.5), c(2.0, -0.25), c(-0.5, 1.5),]
-    }
-
-    fn other_values() -> Array {
-        array![c(0.5, -1.0), c(-0.75, 0.5), c(2.0, 0.25),]
-    }
-
-    fn first_derivative() -> Array {
-        array![c(0.2, 0.3), c(-0.4, 0.1), c(0.7, -0.2),]
-    }
-
-    fn other_first_derivative() -> Array {
-        array![c(-0.1, 0.4), c(0.6, -0.3), c(-0.2, 0.8),]
-    }
-
-    fn second_derivative() -> Array {
-        array![c(0.8, -0.1), c(-0.2, 0.5), c(0.3, 0.9),]
-    }
-
-    fn other_second_derivative() -> Array {
-        array![c(-0.3, 0.7), c(0.4, 0.2), c(-0.6, -0.1),]
-    }
-
     // ---------------------------------------------------------------------
-    // Plain arrays
+    // Jet metadata
     // ---------------------------------------------------------------------
 
     #[test]
-    fn array_scalar_algebra_lifts_values_unchanged() {
-        let source = values();
+    fn point_jet_preserves_family_scalar_and_policy() {
+        fn assert_point_jet<J>()
+        where
+            J: Jet<Dimension = Ix0, Scalar = C>,
+            J::PointJet: Jet<Dimension = Ix0, Scalar = C>,
+        {
+        }
 
-        let result = <Zero as ScalarAlgebra>::lift_constant(source.clone());
+        assert_point_jet::<J0>();
+        assert_point_jet::<J1>();
+        assert_point_jet::<J2>();
+        assert_point_jet::<JB1>();
+        assert_point_jet::<JB2>();
+    }
 
-        assert_eq!(result.into_inner(), source);
+    // ---------------------------------------------------------------------
+    // Constant lifting
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn value_only_lift_constant_preserves_value() {
+        let value = arr0(c(2.0, -1.0));
+
+        let jet = <J0 as ScalarAlgebra>::lift_constant(value.clone());
+
+        assert_eq!(jet.value(), &value);
+    }
+
+    #[test]
+    fn first_order_lift_constant_zeros_derivative() {
+        let value = arr0(c(2.0, -1.0));
+
+        let jet = <J1 as ScalarAlgebra>::lift_constant(value.clone());
+
+        assert_eq!(jet.value(), &value);
+        assert_eq!(jet.first(), &arr0(C::new(0.0, 0.0)));
+    }
+
+    #[test]
+    fn second_order_lift_constant_zeros_all_derivatives() {
+        let value = arr0(c(2.0, -1.0));
+
+        let jet = <J2 as ScalarAlgebra>::lift_constant(value.clone());
+
+        assert_eq!(jet.value(), &value);
+        assert_eq!(jet.first(), &arr0(C::new(0.0, 0.0)));
+        assert_eq!(jet.second(), &arr0(C::new(0.0, 0.0)));
+    }
+
+    #[test]
+    fn bivariate_lift_constant_zeros_gradient_and_hessian() {
+        let value = arr0(c(2.0, -1.0));
+
+        let jet = <JB2 as ScalarAlgebra>::lift_constant(value.clone());
+
+        assert_eq!(jet.value(), &value);
+
+        assert_eq!(jet.axis0(), &arr0(C::zero()));
+        assert_eq!(jet.axis1(), &arr0(C::zero()));
+
+        assert_eq!(jet.axis0_axis0(), &arr0(C::zero()));
+        assert_eq!(jet.axis0_axis1(), &arr0(C::zero()));
+        assert_eq!(jet.axis1_axis1(), &arr0(C::zero()));
+    }
+
+    #[test]
+    fn filled_constant_like_preserves_sample_shape() {
+        use ndarray::{Ix1, array};
+
+        type J = ArrayJet1<C, Ix1, RealParameter>;
+
+        let source = array![c(1.0, 0.0), c(2.0, 0.0), c(3.0, 0.0)];
+
+        let jet = <J as ScalarAlgebra>::filled_constant_like(&source, c(7.0, -2.0));
+
+        assert_eq!(
+            jet.value(),
+            &array![c(7.0, -2.0), c(7.0, -2.0), c(7.0, -2.0)],
+        );
+
+        assert_eq!(jet.first(), &array![C::zero(), C::zero(), C::zero()],);
+    }
+
+    // ---------------------------------------------------------------------
+    // Sampled function composition
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn first_order_composition_respects_preseeded_holomorphic_direction() {
+        /*
+         * x(z) = 3 + 2 z locally
+         *
+         *     x      = 3
+         *     dx/dz  = 2
+         *
+         * f(x) = x²
+         *
+         *     f(3)   = 9
+         *     f'(3)  = 6
+         *
+         * Therefore
+         *
+         *     df/dz = f'(x) dx/dz = 12.
+         */
+
+        let argument = HolomorphicJ1::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)));
+
+        let expansion = FirstOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)));
+
+        let result = <HolomorphicJ1 as FirstOrderFunctionAlgebra>::compose_sampled_function(
+            &argument, expansion,
+        );
+
+        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
+        assert_eq!(result.first(), &arr0(c(12.0, 0.0)));
+    }
+
+    #[test]
+    fn second_order_composition_applies_full_chain_rule() {
+        /*
+         * At the evaluation point:
+         *
+         *     x       = 3
+         *     x'      = 2
+         *     x''     = 5
+         *
+         * f(x) = x²:
+         *
+         *     f       = 9
+         *     f'      = 6
+         *     f''     = 2
+         *
+         * Therefore
+         *
+         *     (f ∘ x)'  = f' x'
+         *                = 12
+         *
+         *     (f ∘ x)'' = f'' (x')² + f' x''
+         *                = 2 * 4 + 6 * 5
+         *                = 38.
+         */
+
+        let argument =
+            HolomorphicJ2::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)), arr0(c(5.0, 0.0)));
+
+        let expansion =
+            SecondOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)), arr0(c(2.0, 0.0)));
+
+        let result = <HolomorphicJ2 as SecondOrderFunctionAlgebra>::compose_sampled_function(
+            &argument, expansion,
+        );
+
+        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
+        assert_eq!(result.first(), &arr0(c(12.0, 0.0)));
+        assert_eq!(result.second(), &arr0(c(38.0, 0.0)));
+    }
+
+    #[test]
+    fn bivariate_first_order_composition_applies_chain_rule_to_both_axes() {
+        /*
+         * x_u = 2
+         * x_v = -3
+         * f'(x) = 6
+         *
+         * Therefore
+         *
+         *     f_u = 12
+         *     f_v = -18.
+         */
+
+        let argument = JB1::from_parts(
+            arr0(c(3.0, 0.0)),
+            BivariateGradient::new(arr0(c(2.0, 0.0)), arr0(c(-3.0, 0.0))),
+        );
+
+        let expansion = FirstOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)));
+
+        let result =
+            <JB1 as FirstOrderFunctionAlgebra>::compose_sampled_function(&argument, expansion);
+
+        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
+        assert_eq!(result.axis0(), &arr0(c(12.0, 0.0)));
+        assert_eq!(result.axis1(), &arr0(c(-18.0, 0.0)));
+    }
+
+    // ---------------------------------------------------------------------
+    // Complex / real representation conversion
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn into_complex_preserves_all_univariate_components() {
+        type Complex = ArrayJet2<C, Ix0, RealParameter>;
+        type Real = ArrayJet2<f64, Ix0, RealParameter>;
+
+        let real = Real::from_parts(arr0(2.0), arr0(-3.0), arr0(5.0));
+
+        let complex = <Complex as ComplexJet>::into_complex(real);
+
+        assert_eq!(complex.value(), &arr0(c(2.0, 0.0)));
+        assert_eq!(complex.first(), &arr0(c(-3.0, 0.0)));
+        assert_eq!(complex.second(), &arr0(c(5.0, 0.0)));
+    }
+
+    #[test]
+    fn into_complex_preserves_bivariate_gradient_and_hessian() {
+        type Complex = ArrayJetBivariate2<C, Ix0, RealParameter>;
+
+        type Real = ArrayJetBivariate2<f64, Ix0, RealParameter>;
+
+        let real = Real::from_parts(
+            arr0(1.0),
+            BivariateGradient::new(arr0(2.0), arr0(3.0)),
+            BivariateHessian::new(arr0(4.0), arr0(5.0), arr0(6.0)),
+        );
+
+        let complex = <Complex as ComplexJet>::into_complex(real);
+
+        assert_eq!(complex.value(), &arr0(c(1.0, 0.0)));
+        assert_eq!(complex.axis0(), &arr0(c(2.0, 0.0)));
+        assert_eq!(complex.axis1(), &arr0(c(3.0, 0.0)));
+        assert_eq!(complex.axis0_axis0(), &arr0(c(4.0, 0.0)),);
+        assert_eq!(complex.axis0_axis1(), &arr0(c(5.0, 0.0)),);
+        assert_eq!(complex.axis1_axis1(), &arr0(c(6.0, 0.0)),);
+    }
+
+    // ---------------------------------------------------------------------
+    // Real-parameter-only operations
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn real_scalar_algebra_propagates_real_and_imaginary_parts() {
+        let source = J1::from_parts(arr0(c(2.0, -3.0)), arr0(c(5.0, 7.0)));
+
+        let real = source.real();
+        let imaginary = source.imaginary();
+
+        assert_eq!(real.value(), &arr0(2.0));
+        assert_eq!(real.first(), &arr0(5.0));
+
+        assert_eq!(imaginary.value(), &arr0(-3.0));
+        assert_eq!(imaginary.first(), &arr0(7.0));
+    }
+
+    #[test]
+    fn magnitude_squared_propagates_derivative_for_real_parameter() {
+        /*
+         * z(t) = (2 + 3i) + (5 - 7i) t
+         *
+         * d|z|²/dt = 2 Re(conj(z) z')
+         *           = 2 (2*5 + 3*(-7))
+         *           = -22.
+         */
+
+        let source = J1::from_parts(arr0(c(2.0, 3.0)), arr0(c(5.0, -7.0)));
+
+        let magnitude_squared = RealScalarAlgebra::magnitude_squared(&source);
+
+        assert_eq!(magnitude_squared.value(), &arr0(13.0),);
+
+        assert_eq!(magnitude_squared.first(), &arr0(-22.0),);
+    }
+
+    // ---------------------------------------------------------------------
+    // Finiteness
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn all_finite_accepts_finite_values_and_derivatives() {
+        let zero = J0::new(arr0(c(1.0, 2.0)));
+
+        let first = J1::from_parts(arr0(c(1.0, 2.0)), arr0(c(3.0, 4.0)));
+
+        let second = J2::from_parts(arr0(c(1.0, 2.0)), arr0(c(3.0, 4.0)), arr0(c(5.0, 6.0)));
+
+        let bivariate = JB2::from_parts(
+            arr0(c(1.0, 2.0)),
+            BivariateGradient::new(arr0(c(3.0, 4.0)), arr0(c(5.0, 6.0))),
+            BivariateHessian::new(arr0(c(7.0, 8.0)), arr0(c(9.0, 10.0)), arr0(c(11.0, 12.0))),
+        );
+
+        assert!(zero.all_finite());
+        assert!(first.all_finite());
+        assert!(second.all_finite());
+        assert!(bivariate.all_finite());
+    }
+
+    #[test]
+    fn all_finite_checks_first_derivative() {
+        let source = J1::from_parts(arr0(c(1.0, 0.0)), arr0(c(f64::INFINITY, 0.0)));
+
+        assert!(!source.all_finite());
+    }
+
+    #[test]
+    fn all_finite_checks_second_derivative() {
+        let source = J2::from_parts(arr0(c(1.0, 0.0)), arr0(c(2.0, 0.0)), arr0(c(0.0, f64::NAN)));
+
+        assert!(!source.all_finite());
+    }
+
+    #[test]
+    fn all_finite_checks_bivariate_mixed_derivative() {
+        let source = JB2::from_parts(
+            arr0(c(1.0, 0.0)),
+            BivariateGradient::new(arr0(c(2.0, 0.0)), arr0(c(3.0, 0.0))),
+            BivariateHessian::new(arr0(c(4.0, 0.0)), arr0(c(f64::NAN, 0.0)), arr0(c(6.0, 0.0))),
+        );
+
+        assert!(!source.all_finite());
+    }
+
+    // ---------------------------------------------------------------------
+    // ScalarAlgebra default operations
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn square_uses_scalar_algebra_multiplication() {
+        let source = J1::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)));
+
+        let result = ScalarAlgebra::square(&source);
+
+        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
+        assert_eq!(result.first(), &arr0(c(12.0, 0.0)));
+    }
+
+    #[test]
+    fn divide_uses_reciprocal_with_derivatives() {
+        /*
+         * f = 6, f' = 4
+         * g = 3, g' = 2
+         *
+         * f/g = 2
+         *
+         * (f/g)' = (f'g - fg') / g²
+         *          = (12 - 12) / 9
+         *          = 0.
+         */
+
+        let numerator = J1::from_parts(arr0(c(6.0, 0.0)), arr0(c(4.0, 0.0)));
+
+        let denominator = J1::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)));
+
+        let result = ScalarAlgebra::divide(&numerator, &denominator);
+
+        assert_eq!(result.value(), &arr0(c(2.0, 0.0)));
+        assert_eq!(result.first(), &arr0(c(0.0, 0.0)));
     }
 }
-//     #[test]
-//     fn array_scalar_algebra_constructs_constants() {
-//         let source = values();
-//         let constant = c(3.0, -2.0);
-
-//         let result = <Array as ScalarAlgebra<C, D>>::filled_constant_like(&source, constant);
-
-//         assert_eq!(result, Array::from_elem(source.raw_dim(), constant,),);
-//     }
-
-//     #[test]
-//     fn array_scalar_algebra_zero_like_preserves_shape() {
-//         let source = values();
-
-//         let result = <Array as ScalarAlgebra<C, D>>::zero_like(&source);
-
-//         assert_eq!(result.raw_dim(), source.raw_dim(),);
-
-//         assert!(result.iter().all(|value| *value == C::default(),),);
-//     }
-
-//     #[test]
-//     fn array_scalar_algebra_delegates_arithmetic() {
-//         let left = values();
-//         let right = other_values();
-
-//         let sum = <Array as ScalarAlgebra<C, D>>::add(&left, &right);
-
-//         let difference = <Array as ScalarAlgebra<C, D>>::subtract(&left, &right);
-
-//         let product = <Array as ScalarAlgebra<C, D>>::multiply(&left, &right);
-
-//         let quotient = <Array as ScalarAlgebra<C, D>>::divide(&left, &right);
-
-//         assert_complex_array_close(&sum, &(left.clone() + &right));
-
-//         assert_complex_array_close(&difference, &(left.clone() - &right));
-
-//         assert_complex_array_close(&product, &(left.clone() * &right));
-
-//         assert_complex_array_close(&quotient, &(left / right));
-//     }
-
-//     #[test]
-//     fn array_scalar_algebra_delegates_unary_functions() {
-//         let source = values();
-
-//         let exponential = <Array as ScalarAlgebra<C, D>>::exp(&source);
-
-//         let sine = <Array as ScalarAlgebra<C, D>>::sin(&source);
-
-//         let cosine = <Array as ScalarAlgebra<C, D>>::cos(&source);
-
-//         let square_root = <Array as ScalarAlgebra<C, D>>::sqrt(&source);
-
-//         assert_complex_array_close(&exponential, &source.mapv(C::exp));
-
-//         assert_complex_array_close(&sine, &source.mapv(C::sin));
-
-//         assert_complex_array_close(&cosine, &source.mapv(C::cos));
-
-//         assert_complex_array_close(&square_root, &source.mapv(C::sqrt));
-//     }
-
-//     #[test]
-//     fn array_real_scalar_algebra_delegates_real_operations() {
-//         let source = values();
-
-//         let conjugated = <Array as RealScalarAlgebra<C, D>>::conjugated(&source);
-
-//         let real = <Array as RealScalarAlgebra<C, D>>::real(&source);
-
-//         let magnitude_squared = <Array as RealScalarAlgebra<C, D>>::magnitude_squared(&source);
-
-//         assert_complex_array_close(&conjugated, &source.mapv(|value| value.conj()));
-
-//         assert_real_array_close(&real, &source.mapv(|value| value.re));
-
-//         assert_real_array_close(&magnitude_squared, &source.mapv(|value| value.norm_sqr()));
-//     }
-
-//     #[test]
-//     fn array_scalar_algebra_builds_cartesian_vector() {
-//         let x = values();
-//         let y = other_values();
-//         let z = first_derivative();
-
-//         let vector =
-//             <Array as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
-
-//         assert_eq!(vector.axis0(), &x);
-//         assert_eq!(vector.axis1(), &y);
-//         assert_eq!(vector.z(), &z);
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Constant lifting
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn first_order_lift_constant_zeros_derivative() {
-//         let value = values();
-
-//         let result = <First as ScalarAlgebra<C, D>>::lift_constant(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(result.first().iter().all(|value| *value == C::default()),);
-//     }
-
-//     #[test]
-//     fn second_order_lift_constant_zeros_all_derivatives() {
-//         let value = values();
-
-//         let result = <Second as ScalarAlgebra<C, D>>::lift_constant(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(result.first().iter().all(|value| *value == C::default()),);
-
-//         assert!(result.second().iter().all(|value| *value == C::default()),);
-//     }
-
-//     #[test]
-//     fn bivariate_lift_constant_zeros_gradient_and_hessian() {
-//         let value = values();
-
-//         let result = <Bivariate as ScalarAlgebra<C, D>>::lift_constant(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         for derivative in [
-//             result.axis0(),
-//             result.axis1(),
-//             result.axis0_axis0(),
-//             result.axis0_axis1(),
-//             result.axis1_axis1(),
-//         ] {
-//             assert!(derivative.iter().all(|value| { *value == C::default() },),);
-//         }
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Variable seeding
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn first_order_variable_seeds_unit_first_derivative() {
-//         let value = values();
-
-//         let result = <First as UnivariateVariableAlgebra<C, D>>::variable(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(
-//             result
-//                 .first()
-//                 .iter()
-//                 .all(|value| *value == C::new(1.0, 0.0)),
-//         );
-//     }
-
-//     #[test]
-//     fn second_order_variable_seeds_first_but_not_second_derivative() {
-//         let value = values();
-
-//         let result = <Second as UnivariateVariableAlgebra<C, D>>::variable(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(
-//             result
-//                 .first()
-//                 .iter()
-//                 .all(|value| *value == C::new(1.0, 0.0)),
-//         );
-
-//         assert!(result.second().iter().all(|value| *value == C::default()),);
-//     }
-
-//     #[test]
-//     fn bivariate_variable_axis0_seeds_only_axis0() {
-//         let value = values();
-
-//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_axis0(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(result.axis0().iter().all(|value| *value == C::new(1.0, 0.0)),);
-
-//         for derivative in [result.axis1(), result.axis0_axis0(), result.axis0_axis1(), result.axis1_axis1()] {
-//             assert!(derivative.iter().all(|value| { *value == C::default() },),);
-//         }
-//     }
-
-//     #[test]
-//     fn bivariate_variable_axis1_seeds_only_axis1() {
-//         let value = values();
-
-//         let result = <Bivariate as BivariateVariableAlgebra<C, D>>::variable_axis1(value.clone());
-
-//         assert_eq!(result.value(), &value);
-
-//         assert!(result.axis1().iter().all(|value| *value == C::new(1.0, 0.0)),);
-
-//         for derivative in [result.axis0(), result.axis0_axis0(), result.axis0_axis1(), result.axis1_axis1()] {
-//             assert!(derivative.iter().all(|value| { *value == C::default() },),);
-//         }
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Arithmetic delegation
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn first_order_scalar_algebra_matches_inherent_jet_arithmetic() {
-//         let left = Jet1::from_parts(values(), first_derivative());
-
-//         let right = Jet1::from_parts(other_values(), other_first_derivative());
-
-//         let via_trait = <First as ScalarAlgebra<C, D>>::multiply(&left, &right);
-
-//         let inherent = Jet1::multiply(&left, &right);
-
-//         assert_eq!(via_trait, inherent);
-//     }
-
-//     #[test]
-//     fn second_order_scalar_algebra_matches_inherent_jet_arithmetic() {
-//         let left = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let right = Jet2::from_parts(
-//             other_values(),
-//             other_first_derivative(),
-//             other_second_derivative(),
-//         );
-
-//         let via_trait = <Second as ScalarAlgebra<C, D>>::multiply(&left, &right);
-
-//         let inherent = Jet2::multiply(&left, &right);
-
-//         assert_eq!(via_trait, inherent);
-//     }
-
-//     #[test]
-//     fn bivariate_scalar_algebra_matches_inherent_jet_arithmetic() {
-//         let left = JetBivariate2::from_components(
-//             values(),
-//             first_derivative(),
-//             other_first_derivative(),
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//         );
-
-//         let right = JetBivariate2::from_components(
-//             other_values(),
-//             other_first_derivative(),
-//             first_derivative(),
-//             other_second_derivative(),
-//             second_derivative(),
-//             other_values(),
-//         );
-
-//         let via_trait = <Bivariate as ScalarAlgebra<C, D>>::multiply(&left, &right);
-
-//         let inherent = JetBivariate2::multiply(&left, &right);
-
-//         assert_eq!(via_trait, inherent);
-//     }
-
-//     #[test]
-//     fn scalar_algebra_default_square_uses_multiplication() {
-//         let source = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let via_trait = <Second as ScalarAlgebra<C, D>>::square(&source);
-
-//         let expected = Jet2::multiply(&source, &source);
-
-//         assert_eq!(via_trait, expected);
-//     }
-
-//     #[test]
-//     fn scalar_algebra_default_divide_uses_reciprocal() {
-//         let left = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let right = Jet2::from_parts(
-//             other_values(),
-//             other_first_derivative(),
-//             other_second_derivative(),
-//         );
-
-//         let via_trait = <Second as ScalarAlgebra<C, D>>::divide(&left, &right);
-
-//         let expected = Jet2::multiply(&left, &Jet::reciprocal(&right));
-
-//         assert_eq!(via_trait, expected);
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Real scalar operations
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn first_order_real_scalar_algebra_matches_inherent_operations() {
-//         let source = Jet1::from_parts(values(), first_derivative());
-
-//         let conjugated = <First as RealScalarAlgebra<C, D>>::conjugated(&source);
-
-//         let real = <First as RealScalarAlgebra<C, D>>::real(&source);
-
-//         let magnitude_squared = <First as RealScalarAlgebra<C, D>>::magnitude_squared(&source);
-
-//         assert_eq!(conjugated, Jet1::conjugated(&source),);
-
-//         assert_eq!(real, Jet1::real(&source),);
-
-//         assert_eq!(
-//             magnitude_squared,
-//             Jet1::multiply(&source, &Jet1::conjugated(&source),).real(),
-//         );
-//     }
-
-//     #[test]
-//     fn second_order_real_scalar_algebra_matches_inherent_operations() {
-//         let source = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let conjugated = <Second as RealScalarAlgebra<C, D>>::conjugated(&source);
-
-//         let real = <Second as RealScalarAlgebra<C, D>>::real(&source);
-
-//         let magnitude_squared = <Second as RealScalarAlgebra<C, D>>::magnitude_squared(&source);
-
-//         assert_eq!(conjugated, Jet2::conjugated(&source),);
-
-//         assert_eq!(real, Jet2::real(&source),);
-
-//         assert_eq!(
-//             magnitude_squared,
-//             Jet2::multiply(&source, &Jet::conjugated(&source),).real(),
-//         );
-//     }
-
-//     #[test]
-//     fn bivariate_real_scalar_algebra_matches_inherent_operations() {
-//         let source = JetBivariate2::from_components(
-//             values(),
-//             first_derivative(),
-//             other_first_derivative(),
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//         );
-
-//         let conjugated = <Bivariate as RealScalarAlgebra<C, D>>::conjugated(&source);
-
-//         let real = <Bivariate as RealScalarAlgebra<C, D>>::real(&source);
-
-//         let magnitude_squared = <Bivariate as RealScalarAlgebra<C, D>>::magnitude_squared(&source);
-
-//         assert_eq!(conjugated, JetBivariate2::conjugated(&source),);
-
-//         assert_eq!(real, JetBivariate2::real(&source),);
-
-//         assert_eq!(
-//             magnitude_squared,
-//             JetBivariate2::multiply(&source, &JetBivariate::conjugated(&source,),).real(),
-//         );
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Cartesian vector construction
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn first_order_scalar_jets_pack_into_vector_jet() {
-//         let x = Jet1::from_parts(values(), first_derivative());
-
-//         let y = Jet1::from_parts(other_values(), other_first_derivative());
-
-//         let z = Jet1::from_parts(second_derivative(), other_second_derivative());
-
-//         let result =
-//             <First as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
-
-//         assert_eq!(result.value().axis0(), x.value(),);
-
-//         assert_eq!(result.value().axis1(), y.value(),);
-
-//         assert_eq!(result.value().z(), z.value(),);
-
-//         assert_eq!(result.first().axis0(), x.first(),);
-
-//         assert_eq!(result.first().axis1(), y.first(),);
-
-//         assert_eq!(result.first().z(), z.first(),);
-//     }
-
-//     #[test]
-//     fn second_order_scalar_jets_pack_into_vector_jet() {
-//         let x = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let y = Jet2::from_parts(
-//             other_values(),
-//             other_first_derivative(),
-//             other_second_derivative(),
-//         );
-
-//         let z = Jet2::from_parts(second_derivative(), other_second_derivative(), values());
-
-//         let result =
-//             <Second as ScalarAlgebra<C, D>>::into_cartesian_vector(x.clone(), y.clone(), z.clone());
-
-//         assert_eq!(result.value().axis0(), x.value(),);
-
-//         assert_eq!(result.value().axis1(), y.value(),);
-
-//         assert_eq!(result.value().z(), z.value(),);
-
-//         assert_eq!(result.first().axis0(), x.first(),);
-
-//         assert_eq!(result.first().axis1(), y.first(),);
-
-//         assert_eq!(result.first().z(), z.first(),);
-
-//         assert_eq!(result.second().axis0(), x.second(),);
-
-//         assert_eq!(result.second().axis1(), y.second(),);
-
-//         assert_eq!(result.second().z(), z.second(),);
-//     }
-
-//     #[test]
-//     fn bivariate_scalar_jets_pack_into_vector_jet() {
-//         let x = JetBivariate2::from_components(
-//             values(),
-//             first_derivative(),
-//             other_first_derivative(),
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//         );
-
-//         let y = JetBivariate2::from_components(
-//             other_values(),
-//             other_first_derivative(),
-//             first_derivative(),
-//             other_second_derivative(),
-//             values(),
-//             second_derivative(),
-//         );
-
-//         let z = JetBivariate2::from_components(
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//             first_derivative(),
-//             other_values(),
-//             other_first_derivative(),
-//         );
-
-//         let result = <Bivariate as ScalarAlgebra<C, D>>::into_cartesian_vector(
-//             x.clone(),
-//             y.clone(),
-//             z.clone(),
-//         );
-
-//         assert_eq!(result.value().axis0(), x.value(),);
-
-//         assert_eq!(result.value().axis1(), y.value(),);
-
-//         assert_eq!(result.value().z(), z.value(),);
-
-//         assert_eq!(result.axis0().axis0(), x.axis0());
-//         assert_eq!(result.axis0().axis1(), y.axis0());
-//         assert_eq!(result.axis0().z(), z.axis0());
-
-//         assert_eq!(result.axis1().axis0(), x.axis1());
-//         assert_eq!(result.axis1().axis1(), y.axis1());
-//         assert_eq!(result.axis1().z(), z.axis1());
-
-//         assert_eq!(result.axis0_axis0().axis0(), x.axis0_axis0());
-//         assert_eq!(result.axis0_axis0().axis1(), y.axis0_axis0());
-//         assert_eq!(result.axis0_axis0().z(), z.axis0_axis0());
-
-//         assert_eq!(result.axis0_axis1().axis0(), x.axis0_axis1());
-//         assert_eq!(result.axis0_axis1().axis1(), y.axis0_axis1());
-//         assert_eq!(result.axis0_axis1().z(), z.axis0_axis1());
-
-//         assert_eq!(result.axis1_axis1().axis0(), x.axis1_axis1());
-//         assert_eq!(result.axis1_axis1().axis1(), y.axis1_axis1());
-//         assert_eq!(result.axis1_axis1().z(), z.axis1_axis1());
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Finiteness
-//     // ---------------------------------------------------------------------
-
-//     #[test]
-//     fn all_finite_accepts_finite_arrays_and_jets() {
-//         let array = values();
-
-//         let first = Jet1::from_parts(values(), first_derivative());
-
-//         let second = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let bivariate = JetBivariate2::from_components(
-//             values(),
-//             first_derivative(),
-//             other_first_derivative(),
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//         );
-
-//         assert!(<Array as ScalarAlgebra<C, D>>::all_finite(&array),);
-
-//         assert!(<First as ScalarAlgebra<C, D>>::all_finite(&first),);
-
-//         assert!(<Second as ScalarAlgebra<C, D>>::all_finite(&second),);
-
-//         assert!(<Bivariate as ScalarAlgebra<C, D>>::all_finite(&bivariate),);
-//     }
-
-//     #[test]
-//     fn all_finite_checks_first_order_derivative() {
-//         let mut derivative = first_derivative();
-
-//         derivative[1] = c(f64::INFINITY, 0.0);
-
-//         let source = Jet1::from_parts(values(), derivative);
-
-//         assert!(!<First as ScalarAlgebra<C, D>>::all_finite(&source),);
-//     }
-
-//     #[test]
-//     fn all_finite_checks_second_order_derivative() {
-//         let mut derivative = second_derivative();
-
-//         derivative[1] = c(0.0, f64::NAN);
-
-//         let source = Jet2::from_parts(values(), first_derivative(), derivative);
-
-//         assert!(!<Second as ScalarAlgebra<C, D>>::all_finite(&source),);
-//     }
-
-//     #[test]
-//     fn all_finite_checks_every_bivariate_component() {
-//         fn finite_jet() -> Bivariate {
-//             JetBivariate2::from_components(
-//                 values(),
-//                 first_derivative(),
-//                 other_first_derivative(),
-//                 second_derivative(),
-//                 other_second_derivative(),
-//                 values(),
-//             )
-//         }
-
-//         let positions = ["value", "x", "y", "xx", "xy", "yy"];
-
-//         for position in positions {
-//             let source = finite_jet();
-
-//             let (mut value, mut x, mut y, mut xx, mut xy, mut yy) = source.into_components();
-
-//             match position {
-//                 "value" => {
-//                     value[0] = c(f64::NAN, 0.0);
-//                 }
-//                 "x" => {
-//                     x[0] = c(f64::NAN, 0.0);
-//                 }
-//                 "y" => {
-//                     y[0] = c(f64::NAN, 0.0);
-//                 }
-//                 "xx" => {
-//                     xx[0] = c(f64::NAN, 0.0);
-//                 }
-//                 "xy" => {
-//                     xy[0] = c(f64::NAN, 0.0);
-//                 }
-//                 "yy" => {
-//                     yy[0] = c(f64::NAN, 0.0);
-//                 }
-//                 _ => unreachable!(),
-//             }
-
-//             let source = JetBivariate2::from_components(value, x, y, xx, xy, yy);
-
-//             assert!(
-//                 !<Bivariate as ScalarAlgebra<C, D>>::all_finite(&source),
-//                 "all_finite ignored {position}",
-//             );
-//         }
-//     }
-
-//     // ---------------------------------------------------------------------
-//     // Generic usability
-//     // ---------------------------------------------------------------------
-
-//     fn generic_scalar_expression<S>(x: &S, y: &S) -> S
-//     where
-//         S: ScalarAlgebra<C, D>,
-//     {
-//         let numerator = x.multiply(y).add(&x.sin());
-
-//         let denominator = y.square().add(&y.constant(c(2.0, 0.0)));
-
-//         numerator.divide(&denominator.sqrt())
-//     }
-
-//     #[test]
-//     fn generic_scalar_expression_accepts_every_scalar_representation() {
-//         let array_x = values();
-//         let array_y = other_values();
-
-//         let first_x = Jet1::from_parts(values(), first_derivative());
-
-//         let first_y = Jet1::from_parts(other_values(), other_first_derivative());
-
-//         let second_x = Jet2::from_parts(values(), first_derivative(), second_derivative());
-
-//         let second_y = Jet2::from_parts(
-//             other_values(),
-//             other_first_derivative(),
-//             other_second_derivative(),
-//         );
-
-//         let bivariate_x = JetBivariate2::from_components(
-//             values(),
-//             first_derivative(),
-//             other_first_derivative(),
-//             second_derivative(),
-//             other_second_derivative(),
-//             values(),
-//         );
-
-//         let bivariate_y = JetBivariate2::from_components(
-//             other_values(),
-//             other_first_derivative(),
-//             first_derivative(),
-//             other_second_derivative(),
-//             values(),
-//             second_derivative(),
-//         );
-
-//         let array_result = generic_scalar_expression(&array_x, &array_y);
-
-//         let first_result = generic_scalar_expression(&first_x, &first_y);
-
-//         let second_result = generic_scalar_expression(&second_x, &second_y);
-
-//         let bivariate_result = generic_scalar_expression(&bivariate_x, &bivariate_y);
-
-//         assert_complex_array_close(first_result.value(), &array_result);
-
-//         assert_complex_array_close(second_result.value(), &array_result);
-
-//         assert_complex_array_close(bivariate_result.value(), &array_result);
-//     }
-// }

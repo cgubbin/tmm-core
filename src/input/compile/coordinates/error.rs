@@ -1,12 +1,10 @@
 use thiserror::Error;
 
-use crate::input::compile::{
-    coordinates::{
-        CoordinateVariable,
-        in_plane::{InPlaneCanonicalisationError, InPlaneInputError},
-        spectral::SpectralInputError,
-    },
-    seed::UnsupportedDerivativeSlot,
+use crate::algebra::UnsupportedDerivativeSlot;
+use crate::input::compile::coordinates::{
+    CoordinateVariable,
+    in_plane::{InPlaneCanonicalisationError, InPlaneInputError},
+    spectral::SpectralInputError,
 };
 
 #[derive(Debug, Error)]

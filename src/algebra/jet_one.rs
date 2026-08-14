@@ -28,21 +28,20 @@
 //!
 //! - [`JetAdditive`] supports addition, subtraction, and negation;
 //! - [`JetBilinear`] supports a bilinear product and its product rules;
-//! - [`JetField`] supports elementwise reciprocals and division.
+//! - [`JetReciprocal`] supports elementwise reciprocals and division.
 //!
 //! Arrays implement these capabilities elementwise. Transfer matrices may
 //! implement additive and bilinear operations because ordinary matrix
 //! multiplication is bilinear. Scattering matrices must not implement
 //! [`JetBilinear`] because the Redheffer star product is rational rather than
 //! bilinear.
-//!
-//! Value-only calculations should use the underlying value type directly.
-//! [`Jet`] is reserved for calculations that request derivatives.
+
 use crate::algebra::{JetMultiplyByScalar, exprel, exprel_first};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetField, JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
+    JetHermitianProduct, JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike,
+    RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -55,7 +54,11 @@ pub(crate) type ArrayJet1<C, D, P> = Jet1<ArrayBase<OwnedRepr<C>, D>, P>;
 pub(crate) type PhysicalJet1<C, D> = ArrayJet1<C, D, RealParameter>;
 pub(crate) type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
-/// A value and its first derivative.
+/// A first-order directional jet.
+///
+/// Stores a primal value `f` and its first derivative `f′` with respect to
+/// one scalar parameter. `P` determines whether that parameter is real or
+/// holomorphic.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Jet1<I, P = RealParameter> {
@@ -128,12 +131,14 @@ where
     }
 }
 
-/// Samples of a scalar function and its first derivative.
+/// Sampled value and first derivative of a scalar function with respect to
+/// its direct argument.
 ///
-/// For a function `f`, this stores:
+/// Given an argument jet carrying `dx/dp`, composition produces
 ///
-/// - `value = f(x)`
-/// - `first = f'(x)`
+/// ```text
+/// d f(x(p)) / dp = f′(x) dx/dp.
+/// ```
 #[derive(Clone, Debug)]
 pub(crate) struct FirstOrderExpansion<I> {
     value: I,
@@ -211,7 +216,7 @@ where
 
 impl<I, P> Jet1<I, P>
 where
-    I: JetField,
+    I: JetReciprocal,
 {
     /// Compute the elementwise reciprocal and its first derivative.
     pub(crate) fn reciprocal(&self) -> Self {
@@ -234,7 +239,6 @@ impl<V, P> Jet1<V, P> {
     pub fn multiply_by_scalar<S>(&self, scalar: &Jet1<S, P>) -> Self
     where
         V: JetAdditive + JetMultiplyByScalar<S>,
-        P: Clone,
     {
         Self::from_parts(
             self.value().jet_multiply_by_scalar(scalar.value()),
@@ -269,11 +273,6 @@ where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
 {
-    /// This operation does not preserve holomorphicity and is therefore not
-    /// available for holomorphic-parameter jets.
-    /// Compute the Hermitian product of two jets differentiated with respect
-    /// to a real scalar parameter.
-    ///
     /// The Hermitian product is assumed to be conjugate-linear in its first
     /// operand and linear in its second operand:
     ///
@@ -1157,5 +1156,21 @@ mod tests {
         assert_array1_close(result.value(), &expected_values);
 
         assert_array1_close(result.first(), &expected_derivatives);
+    }
+
+    #[test]
+    fn holomorphic_jet_propagates_analytic_derivative() {
+        let value = c(0.7, -0.4);
+        let first = c(1.3, 0.2);
+
+        let jet: ArrayJet1<_, _, HolomorphicParameter> =
+            ArrayJet1::from_parts(arr0(value), arr0(first));
+
+        let result = jet.exp();
+
+        let expected = value.exp();
+
+        assert_array0_close(result.value(), expected);
+        assert_array0_close(result.first(), expected * first);
     }
 }

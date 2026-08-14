@@ -1,47 +1,33 @@
-//! zero-order differential jets.
+//! Zero-order differential jets.
 //!
-//! This module provides generic containers for propagating first
-//! derivatives through algebraic expressions.
-//!
-//! [`Jet0`] stores a value
+//! [`Jet0`] wraps a primal value without carrying derivative components:
 //!
 //! ```text
 //! (f)
 //! ```
 //!
-//! The parameter semantics are represented by a marker type:
-//!
-//! - [`RealParameter`] permits differentiation of complex-valued expressions
-//!   with respect to a real parameter, including conjugation, real-part
-//!   extraction, and Hermitian products;
-//! - [`HolomorphicParameter`] represents complex differentiation and exposes
-//!   only operations that preserve holomorphicity.
-//!
-//! Holomorphic jets are suitable for analytic or meromorphic characteristic
-//! functions used in argument-principle mode finding. Real-parameter jets are
-//! suitable for derivatives of complex fields and physical observables with
-//! respect to real frequency, wavenumber, angle, or thickness.
+//! It provides the value-only member of the jet families used throughout the
+//! differential algebra. Keeping the same parameter marker as higher-order
+//! jets allows generic code to preserve whether a calculation belongs to a
+//! real-parameter or holomorphic family even when no derivatives are
+//! requested.
 //!
 //! The underlying value type determines which algebraic operations are
-//! available through capability traits:
+//! available through capability traits. Operations on [`Jet0`] simply apply
+//! the corresponding operation to its wrapped value; no product or chain
+//! rules are required.
 //!
-//! - [`JetAdditive`] supports addition, subtraction, and negation;
-//! - [`JetBilinear`] supports a bilinear product and its product rules;
-//! - [`JetField`] supports elementwise reciprocals and division.
-//!
-//! Arrays implement these capabilities elementwise. Transfer matrices may
-//! implement additive and bilinear operations because ordinary matrix
-//! multiplication is bilinear. Scattering matrices must not implement
-//! [`JetBilinear`] because the Redheffer star product is rational rather than
-//! bilinear.
-//!
-//! Value-only calculations should use the underlying value type directly.
-//! [`Jet`] is reserved for calculations that request derivatives.
+//! For complex-valued payloads, non-holomorphic operations such as
+//! conjugation, real-part extraction, and Hermitian products are exposed only
+//! for [`RealParameter`] jets. This preserves the same capability boundary as
+//! the higher-order jet families.
+
 use crate::algebra::{JetMultiplyByScalar, exprel};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetField, JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
+    JetHermitianProduct, JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike,
+    RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -54,7 +40,10 @@ pub(crate) type ArrayJet0<C, D, P> = Jet0<ArrayBase<OwnedRepr<C>, D>, P>;
 pub(crate) type PhysicalJet0<C, D> = ArrayJet0<C, D, RealParameter>;
 pub(crate) type ModeJet0<C, D> = ArrayJet0<C, D, HolomorphicParameter>;
 
-/// A value
+/// A zero-order jet containing only a primal value.
+///
+/// `P` identifies the parameter policy of the corresponding differential
+/// family but has no effect on the stored value.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Jet0<I, P = RealParameter> {
@@ -62,11 +51,14 @@ pub struct Jet0<I, P = RealParameter> {
     parameter: PhantomData<P>,
 }
 
-impl<I, P> std::ops::Deref for Jet0<I, P> {
-    type Target = I;
+#[cfg(test)]
+mod jet0_deref {
+    impl<I, P> std::ops::Deref for super::Jet0<I, P> {
+        type Target = I;
 
-    fn deref(&self) -> &Self::Target {
-        &self.value
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
     }
 }
 
@@ -111,7 +103,7 @@ impl<I, P> Jet0<I, P>
 where
     I: JetBilinear,
 {
-    /// Multiply two zero-order jets using the product rule.
+    /// Multiply the wrapped values using their bilinear product.
     pub(crate) fn multiply(&self, rhs: &Self) -> Self {
         Self::new(self.value.jet_multiply(&rhs.value))
     }
@@ -119,19 +111,16 @@ where
 
 impl<I, P> Jet0<I, P>
 where
-    I: JetConstant + JetZeroLike,
+    I: JetConstant,
 {
-    /// Construct a constant zero-order jet with zero derivative.
+    /// Construct a zero-order constant with the representation of `source`.
     pub(crate) fn constant_like(source: &I, value: I::Scalar) -> Self {
         Self::new(source.jet_constant_like(value))
     }
 }
 
-impl<I, P> Jet0<I, P>
-where
-    I: JetZeroLike,
-{
-    /// Construct a zero-order jet whose derivative is zero.
+impl<I, P> Jet0<I, P> {
+    /// Lift a value into the zero-order jet representation.
     pub(crate) fn constant(value: I) -> Self {
         Self::new(value)
     }
@@ -141,7 +130,7 @@ impl<I, P> Jet0<I, P>
 where
     I: JetScaleBy,
 {
-    /// Scale the value and derivative by a constant scalar.
+    /// Scale the wrapped value by a constant scalar.
     pub(crate) fn scale_by(&self, value: I::Scalar) -> Self {
         Self::new(self.value.jet_scale_by(value))
     }
@@ -149,9 +138,9 @@ where
 
 impl<I, P> Jet0<I, P>
 where
-    I: JetField,
+    I: JetReciprocal,
 {
-    /// Compute the elementwise reciprocal and its first derivative.
+    /// Compute the elementwise reciprocal.
     pub(crate) fn reciprocal(&self) -> Self {
         let inverse = self.value.jet_elementwise_reciprocal();
 
@@ -165,10 +154,9 @@ where
 }
 
 impl<V, P> Jet0<V, P> {
-    pub fn multiply_by_scalar<S>(&self, scalar: &Jet0<S, P>) -> Self
+    pub(crate) fn multiply_by_scalar<S>(&self, scalar: &Jet0<S, P>) -> Self
     where
-        V: JetAdditive + JetMultiplyByScalar<S>,
-        P: Clone,
+        V: JetMultiplyByScalar<S>,
     {
         Self::new(self.value().jet_multiply_by_scalar(scalar.value()))
     }
@@ -176,11 +164,9 @@ impl<V, P> Jet0<V, P> {
 
 impl<I, P> Jet0<I, P>
 where
-    I: JetCrossProduct + JetAdditive,
+    I: JetCrossProduct,
 {
-    /// Compute the cross product of two zero-order jets.
-    ///
-    /// The derivative is evaluated using the bilinear product rule.
+    /// Compute the cross product of two wrapped values
     pub(crate) fn cross(&self, rhs: &Self) -> Self {
         let value = self.value.jet_cross(&rhs.value);
 
@@ -193,22 +179,10 @@ where
     I: JetHermitianProduct,
     I::Output: JetAdditive,
 {
-    /// This operation does not preserve holomorphicity and is therefore not
-    /// available for holomorphic-parameter jets.
-    /// Compute the Hermitian product of two jets differentiated with respect
-    /// to a real scalar parameter.
-    ///
-    /// The Hermitian product is assumed to be conjugate-linear in its first
-    /// operand and linear in its second operand:
-    ///
-    /// ```text
-    /// h      = ⟨f, g⟩
-    /// h′     = ⟨f′, g⟩ + ⟨f, g′⟩
-    /// ```
+    /// Compute the Hermitian product of two real-parameter zero-order jets.
     ///
     /// This operation is intentionally unavailable for holomorphic-parameter
-    /// jets because conjugating the first operand does not preserve
-    /// holomorphicity.
+    /// jets because the Hermitian product conjugates its first operand.
     pub(crate) fn hermitian_dot_product(&self, rhs: &Self) -> Jet0<I::Output, RealParameter> {
         let value = self.value().jet_hermitian_product(rhs.value());
 
@@ -301,8 +275,7 @@ where
     /// Compute the elementwise principal square root and its derivative.
     ///
     /// The derivative is `f' / (2 sqrt(f))`. It is singular where the value is
-    /// zero. For complex values, the branch convention is that of
-    /// [`ComplexField::sqrt`].
+    /// zero.
     pub(crate) fn sqrt(self) -> Self {
         let value = self.into_inner();
 
@@ -313,22 +286,15 @@ where
 }
 
 impl<I, P> Jet0<I, P> {
-    /// Apply the same representation transformation independently to the value
-    /// and derivative.
+    /// Transform the wrapped representation without applying a differential
+    /// chain rule.
     ///
-    /// This does not apply the differential chain rule and must not be used as a
-    /// general function map.
+    /// This is a structural mapping operation rather than composition with a
+    /// scalar function.
     pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet0<O, P>
     where
         F: FnMut(I) -> O,
     {
         Jet0::new(f(self.value))
-    }
-
-    pub(crate) fn variable(value: I) -> Self
-    where
-        I: JetOneLike,
-    {
-        Self::new(value)
     }
 }

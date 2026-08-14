@@ -3,6 +3,7 @@ mod problem;
 mod quantities;
 mod workspace;
 
+use nalgebra::ComplexField;
 use ndarray::{Array, Dimension, NdIndex, arr0};
 use thiserror::Error;
 
@@ -70,7 +71,7 @@ pub trait JetPointProjection: Jet {
 
 impl<C, D, P> JetPointProjection for ArrayJet0<C, D, P>
 where
-    C: Copy,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn project_point<I>(&self, index: &I) -> Result<Self::PointJet, PointProjectionError>
@@ -85,7 +86,7 @@ where
 
 impl<C, D, P> JetPointProjection for ArrayJet1<C, D, P>
 where
-    C: Copy,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn project_point<I>(&self, index: &I) -> Result<Self::PointJet, PointProjectionError>
@@ -101,7 +102,7 @@ where
 
 impl<C, D, P> JetPointProjection for ArrayJet2<C, D, P>
 where
-    C: Copy,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn project_point<I>(&self, index: &I) -> Result<Self::PointJet, PointProjectionError>
@@ -118,7 +119,7 @@ where
 
 impl<C, D, P> JetPointProjection for ArrayJetBivariate1<C, D, P>
 where
-    C: Copy,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn project_point<I>(&self, index: &I) -> Result<Self::PointJet, PointProjectionError>
@@ -138,7 +139,7 @@ where
 
 impl<C, D, P> JetPointProjection for ArrayJetBivariate2<C, D, P>
 where
-    C: Copy,
+    C: ComplexField + Copy,
     D: Dimension,
 {
     fn project_point<I>(&self, index: &I) -> Result<Self::PointJet, PointProjectionError>

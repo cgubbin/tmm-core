@@ -216,14 +216,14 @@ where
     fn relative_permittivity(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
         Self::new(E::relative_permittivity(
             material,
-            vacuum_angular_wavenumber,
+            vacuum_angular_wavenumber.value(),
         ))
     }
 
     fn relative_permeability(material: &M, vacuum_angular_wavenumber: &Self) -> Self {
         Self::new(E::relative_permeability(
             material,
-            vacuum_angular_wavenumber,
+            vacuum_angular_wavenumber.value(),
         ))
     }
 }

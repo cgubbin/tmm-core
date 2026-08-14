@@ -16,12 +16,12 @@
 //! Dᵥ² f = v₀² ∂₀₀f + 2 v₀v₁ ∂₀₁f + v₁² ∂₁₁f.
 //! ```
 //!
-//! Directions are not normalised. Their components may therefore represent an
-//! arbitrary parameterised path rather than a unit direction.
+//! Directions are not normalised. Their components may therefore represent
+//! arbitrary scaling of a straight direction in parameter space.
 //!
-//! This machinery operates after jet decomposition. The contracted values may
-//! be arrays, matrices, observable containers, or any other type implementing
-//! [`LinearCombination`]. No physical parameter metadata is attached here.
+//! Second-order contraction computes the Hessian quadratic form along that
+//! direction. It does not include additional chain-rule terms associated with
+//! curvature of a non-linear parameterised path.
 
 use super::{
     BivariateFirstParts, BivariateSecondParts, DirectionalFirstParts, DirectionalSecondParts,
@@ -360,5 +360,32 @@ mod tests {
         let contracted = parts.contract_direction(BivariateDirection::new(0.0, 0.0));
 
         assert_eq!(contracted.into_parts(), (arr0(10.0), arr0(0.0), arr0(0.0)),);
+    }
+
+    #[test]
+    fn second_order_contraction_is_hessian_quadratic_form_only() {
+        /*
+         * f₀ = 7, f₁ = 11 are deliberately non-zero.
+         *
+         * Contraction with v = (2, 3) should depend only on the Hessian
+         * when computing the second directional derivative. No path-curvature
+         * term involving the gradient is introduced.
+         */
+        let parts = BivariateSecondParts::new(
+            arr0(0.0),
+            arr0(7.0),
+            arr0(11.0),
+            arr0(5.0),
+            arr0(13.0),
+            arr0(17.0),
+        );
+
+        let contracted = parts.contract_direction(BivariateDirection::new(2.0, 3.0));
+
+        let (_, _, second) = contracted.into_parts();
+
+        let expected = 4.0 * 5.0 + 2.0 * 2.0 * 3.0 * 13.0 + 9.0 * 17.0;
+
+        assert_eq!(second, arr0(expected));
     }
 }

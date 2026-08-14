@@ -19,16 +19,14 @@ use thiserror::Error;
 use crate::{
     algebra::{
         ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
+        SeedJet, UnsupportedDerivativeSlot,
     },
-    input::{
-        canonical::{CanonicalLayer, CanonicalStack},
-        compile::seed::{SeedJet, UnsupportedDerivativeSlot},
-    },
+    input::canonical::{CanonicalLayer, CanonicalStack},
     parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},
-    stack::{Stack, ValidationConfig, ValidationError},
+    stack::Stack,
 };
 
-use super::StackContext;
+use super::{StackContext, ValidationConfig, ValidationError};
 
 /// Result of validating and compiling a public stack.
 #[derive(Clone, Debug, PartialEq)]
@@ -87,8 +85,6 @@ where
 {
     let thickness_mapping = ThicknessMapping::new(mapping);
 
-    stack.validate(validation)?;
-
     let mut canonical_layers = Vec::with_capacity(stack.len());
 
     let mut caller_thicknesses = Vec::with_capacity(stack.len());
@@ -123,6 +119,8 @@ where
         canonical_layers.push(CanonicalLayer::new(layer.material().clone(), thickness_cm));
     }
 
+    validation.validate_thicknesses(&caller_thicknesses)?;
+
     let canonical = CanonicalStack::new(
         stack.left_exterior().clone(),
         stack.right_exterior().clone(),
@@ -132,6 +130,48 @@ where
     let context = StackContext::new(caller_thicknesses);
 
     Ok(CompiledStack::new(canonical, context))
+}
+
+pub(crate) fn compile_canonical_constant_stack<M, J>(
+    stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
+    sampled_shape: J::Dimension,
+    validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
+) -> Result<CanonicalStack<M, J>, StackCompileError<<J::Scalar as ComplexField>::RealField>>
+where
+    J: StackThicknessJet,
+    J::Scalar: ComplexField,
+    <J::Scalar as ComplexField>::RealField: Float + FromPrimitive + Copy + Debug,
+    J::Dimension: Dimension + Clone,
+    M: Clone,
+{
+    let mut canonical_layers = Vec::with_capacity(stack.len());
+    let mut caller_thicknesses = Vec::with_capacity(stack.len());
+
+    for layer in stack.layers_left_to_right() {
+        let thickness = layer.thickness();
+
+        caller_thicknesses.push(thickness);
+
+        let (value, unit) = thickness.into_parts();
+
+        let sampled_thickness: Array<J::Scalar, J::Dimension> =
+            super::complexify(&Array::from_elem(sampled_shape.clone(), value));
+
+        let thickness_jet = <J as SeedJet>::constant(sampled_thickness);
+
+        let thickness_cm = thickness_jet
+            .scale_real(unit.to_centimetres_factor::<<J::Scalar as ComplexField>::RealField>());
+
+        canonical_layers.push(CanonicalLayer::new(layer.material().clone(), thickness_cm));
+    }
+
+    validation.validate_thicknesses(&caller_thicknesses)?;
+
+    Ok(CanonicalStack::new(
+        stack.left_exterior().clone(),
+        stack.right_exterior().clone(),
+        canonical_layers,
+    ))
 }
 
 /// Layer-thickness-specific view over a parameter assignment.
@@ -220,15 +260,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use lamina_units::Length;
     use ndarray::{Array, Dimension, Ix0, Ix1};
     use num_complex::Complex64;
 
     use super::*;
-    use crate::{
-        algebra::RealParameter,
-        input::compile::seed::UnsupportedDerivativeSlot,
-        stack::{Layer, Thickness},
-    };
+    use crate::{algebra::RealParameter, stack::Layer};
 
     /// Minimal jet used to observe how stack compilation seeds a thickness.
     #[derive(Clone, Debug, PartialEq)]
@@ -250,13 +287,13 @@ mod tests {
         }
     }
 
-    impl<D> crate::algebra::Jet for RecordingJet<Array<Complex64, D>> {
+    impl<D: Dimension> crate::algebra::Jet for RecordingJet<Array<Complex64, D>> {
         type Scalar = Complex64;
         type Dimension = D;
         type PointJet = RecordingJet<Array<Complex64, Ix0>>;
     }
 
-    impl<D> SeedJet for RecordingJet<Array<Complex64, D>> {
+    impl<D: Dimension> SeedJet for RecordingJet<Array<Complex64, D>> {
         const VARIABLE_SLOTS: usize = 2;
 
         fn constant(value: Array<Complex64, D>) -> Self {
@@ -294,8 +331,8 @@ mod tests {
         Stack::new(
             "left exterior",
             vec![
-                Layer::new("first material", Thickness::nanometres(500.0)),
-                Layer::new("second material", Thickness::micrometres(2.0)),
+                Layer::new("first material", Length::nanometres(500.0)),
+                Layer::new("second material", Length::micrometres(2.0)),
             ],
             "right exterior",
         )
@@ -518,15 +555,9 @@ mod tests {
 
         assert_eq!(context.layer_count(), 2);
 
-        assert_eq!(
-            context.layer_thickness(0),
-            Some(&Thickness::nanometres(500.0)),
-        );
+        assert_eq!(context.layer_thickness(0), Some(&Length::nanometres(500.0)),);
 
-        assert_eq!(
-            context.layer_thickness(1),
-            Some(&Thickness::micrometres(2.0)),
-        );
+        assert_eq!(context.layer_thickness(1), Some(&Length::micrometres(2.0)),);
 
         assert_eq!(context.layer_thickness(2), None);
     }
@@ -586,7 +617,7 @@ mod tests {
     fn compile_stack_forwards_stack_validation_errors() {
         let stack = Stack::new(
             "left",
-            vec![Layer::new("invalid", Thickness::nanometres(-1.0))],
+            vec![Layer::new("invalid", Length::nanometres(-1.0))],
             "right",
         );
 
@@ -607,7 +638,7 @@ mod tests {
 
         let stack = Stack::new(
             "left",
-            vec![Layer::new("film", Thickness::nanometres(500.0))],
+            vec![Layer::new("film", Length::nanometres(500.0))],
             "right",
         );
 

@@ -1,3 +1,10 @@
+//! Stacking of sampled jet values along a new final array axis.
+//!
+//! Stacking preserves the jet family and parameter policy while increasing
+//! the sampled ndarray dimension by one. Every primal and derivative
+//! component is stacked independently along the same new axis.
+
+use nalgebra::ComplexField;
 use ndarray::{Axis, Dimension, ShapeError};
 
 use crate::{
@@ -8,20 +15,26 @@ use crate::{
     differential::{BivariateGradient, BivariateHessian},
 };
 
-pub trait JetStack: Sized + Jet
+/// Stack jets along a new final sampled axis.
+///
+/// The returned jet has the same scalar type, derivative family, and parameter
+/// policy as the inputs, with one additional ndarray dimension.
+///
+/// An empty input returns `Ok(None)`. Shape incompatibilities are reported as
+/// [`ndarray::ShapeError`].
+pub(crate) trait JetStack: Sized + Jet
 where
     Self::Dimension: Dimension,
 {
     type Stacked: Jet<Scalar = Self::Scalar, Dimension = <Self::Dimension as Dimension>::Larger>;
 
-    fn stack(stack: Vec<Self>) -> Result<Option<Self::Stacked>, ShapeError>;
+    fn stack(values: Vec<Self>) -> Result<Option<Self::Stacked>, ShapeError>;
 }
 
 impl<C, D, P> JetStack for ArrayJet0<C, D, P>
 where
-    C: Clone,
+    C: ComplexField,
     D: Dimension,
-    P: Clone,
 {
     type Stacked = ArrayJet0<C, D::Larger, P>;
 
@@ -35,7 +48,7 @@ where
             .map(|each| each.view())
             .collect::<Vec<_>>();
 
-        let ndim = values[0].ndim();
+        let ndim = values[0].value().ndim();
 
         ndarray::stack(Axis(ndim), &views[..])
             .map(Jet0::new)
@@ -45,9 +58,8 @@ where
 
 impl<C, D, P> JetStack for ArrayJet1<C, D, P>
 where
-    C: Clone,
+    C: ComplexField,
     D: Dimension,
-    P: Clone,
 {
     type Stacked = ArrayJet1<C, D::Larger, P>;
 
@@ -79,9 +91,8 @@ where
 
 impl<C, D, P> JetStack for ArrayJet2<C, D, P>
 where
-    C: Clone,
+    C: ComplexField,
     D: Dimension,
-    P: Clone,
 {
     type Stacked = ArrayJet2<C, D::Larger, P>;
 
@@ -120,9 +131,8 @@ where
 
 impl<C, D, P> JetStack for ArrayJetBivariate1<C, D, P>
 where
-    C: Clone,
+    C: ComplexField,
     D: Dimension,
-    P: Clone,
 {
     type Stacked = ArrayJetBivariate1<C, D::Larger, P>;
 
@@ -164,9 +174,8 @@ where
 
 impl<C, D, P> JetStack for ArrayJetBivariate2<C, D, P>
 where
-    C: Clone,
+    C: ComplexField,
     D: Dimension,
-    P: Clone,
 {
     type Stacked = ArrayJetBivariate2<C, D::Larger, P>;
 
@@ -225,75 +234,6 @@ where
             BivariateGradient::new(axis0, axis1),
             BivariateHessian::new(axis0_axis0, axis0_axis1, axis1_axis1),
         )))
-    }
-}
-
-#[cfg(test)]
-mod jet0_tests {
-    use crate::algebra::RealParameter;
-
-    use super::*;
-
-    use ndarray::{Ix1, arr0, arr1, arr2, array};
-
-    #[test]
-    fn empty_stack_returns_none() {
-        let values = Vec::<ArrayJet0<f64, Ix1, ()>>::new();
-
-        assert!(JetStack::stack(values).unwrap().is_none());
-    }
-
-    #[test]
-    fn stacks_scalar_arrays_into_vector() {
-        let values = vec![
-            Jet0::<_, RealParameter>::new(arr0(1.0)),
-            Jet0::new(arr0(2.0)),
-            Jet0::new(arr0(3.0)),
-        ];
-
-        let stacked = JetStack::stack(values).unwrap().unwrap();
-
-        assert_eq!(stacked.into_inner(), arr1(&[1.0, 2.0, 3.0]));
-    }
-
-    #[test]
-    fn stacks_vectors_along_final_axis() {
-        let values = vec![
-            Jet0::<_, RealParameter>::new(arr1(&[1.0, 2.0])),
-            Jet0::new(arr1(&[3.0, 4.0])),
-            Jet0::new(arr1(&[5.0, 6.0])),
-        ];
-
-        let stacked = JetStack::stack(values).unwrap().unwrap();
-
-        assert_eq!(
-            stacked.into_inner(),
-            array![[1.0, 3.0, 5.0], [2.0, 4.0, 6.0],],
-        );
-    }
-
-    #[test]
-    fn stacks_matrices_along_final_axis() {
-        let values = vec![
-            Jet0::<_, RealParameter>::new(arr2(&[[1.0, 2.0], [3.0, 4.0]])),
-            Jet0::new(arr2(&[[5.0, 6.0], [7.0, 8.0]])),
-        ];
-
-        let stacked = JetStack::stack(values).unwrap().unwrap();
-
-        assert_eq!(stacked.clone().into_inner().shape(), &[2, 2, 2]);
-
-        assert_eq!(stacked.into_inner()[[1, 0, 1]], 7.0);
-    }
-
-    #[test]
-    fn rejects_incompatible_shapes() {
-        let values = vec![
-            Jet0::<_, RealParameter>::new(arr1(&[1.0, 2.0])),
-            Jet0::new(arr1(&[3.0])),
-        ];
-
-        assert!(JetStack::stack(values).is_err());
     }
 }
 
