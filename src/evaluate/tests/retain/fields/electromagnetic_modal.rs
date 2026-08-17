@@ -598,8 +598,7 @@ fn modal_last_layer_state_matches_right_exterior_state() {
     let layer_admittance = workspace
         .layer_quantities(layers.len() - 1)
         .unwrap()
-        .admittance()
-        .into_inner();
+        .admittance();
 
     let right_admittance = workspace.solution().context().right_admittance();
 

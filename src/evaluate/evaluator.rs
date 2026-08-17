@@ -825,7 +825,6 @@ impl<B> PlaneWaveEvaluator<B> {
             problem.coordinates(),
             problem.stack().left_exterior(),
             problem.stack().right_exterior(),
-            polarisation,
         );
 
         self.backend.solve(
@@ -852,7 +851,6 @@ impl<B> PlaneWaveEvaluator<B> {
             problem.coordinates(),
             problem.stack().left_exterior(),
             problem.stack().right_exterior(),
-            polarisation,
         );
 
         self.backend.retain(

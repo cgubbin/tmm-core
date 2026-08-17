@@ -280,15 +280,13 @@ mod tests {
             .clone(),
         );
 
-        Scatter2::new()
-            .accumulate::<A, RealAxis, _>(
-                &coordinates,
-                &stack,
-                Polarisation::TransverseElectric,
-                &exterior,
-                mode,
-            )
-            .expect("scatter workspace accumulation should succeed")
+        Scatter2::new().accumulate::<A, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior,
+            Polarisation::TransverseElectric,
+            mode,
+        )
     }
 
     #[test]

@@ -1,8 +1,24 @@
+//! Isotropic 2×2 scattering-matrix backend.
+//!
+//! [`Scatter2`] evaluates scalar TE or TM channels using cascaded two-port
+//! scattering matrices. The backend is intended to remain numerically stable
+//! for structures where direct transfer-matrix multiplication may become
+//! poorly conditioned.
+//!
+//! Ordinary plane-wave solutions are represented through projective scattering
+//! entries, while retained workspaces additionally preserve the intermediate
+//! components required for field and modal reconstruction.
+//!
+//! Exterior longitudinal wavevectors are supplied explicitly through
+//! [`ExteriorWavevectors`], allowing complex-plane callers to control exterior
+//! branch selection independently of the finite-layer propagation convention.
+
 mod backend;
 mod entries;
-mod error;
 mod projection;
 mod workspace;
+
+use std::convert::Infallible;
 
 use crate::{
     CanonicalCoordinates, ComplexScalar, Polarisation,
@@ -12,7 +28,6 @@ use crate::{
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 pub(crate) use entries::{Scatter2Entries, Scatter2ExteriorContext};
-pub use error::Scatter2Error;
 pub(crate) use workspace::{RetainedScatterComponents, Scatter2Workspace};
 
 pub(crate) use projection::{Scatter2ProjectiveEntries, cascade_projection};
@@ -33,12 +48,12 @@ impl Scatter2 {
 
 impl<J, Domain> Backend<J, Domain> for Scatter2
 where
-    J: ScalarAlgebra + Clone,
+    J: ScalarAlgebra,
     J::Scalar: ComplexScalar,
     J::Dimension: Dimension,
     <J::Scalar as ComplexField>::RealField: Copy,
 {
-    type Error = Scatter2Error;
+    type Error = Infallible;
     type Entries = Scatter2ProjectiveEntries<J>;
     type Workspace = Scatter2Workspace<J>;
 
@@ -56,10 +71,10 @@ where
         let workspace = self.accumulate::<J, Domain, M>(
             coordinates,
             stack,
-            polarisation,
             exterior,
+            polarisation,
             RunMode::ResponseOnly,
-        )?;
+        );
 
         Ok(workspace.into_solution())
     }
@@ -78,10 +93,10 @@ where
         let workspace = self.accumulate::<J, Domain, M>(
             coordinates,
             stack,
-            polarisation,
             exterior,
+            polarisation,
             RunMode::InternalFields,
-        )?;
+        );
 
         Ok(workspace)
     }

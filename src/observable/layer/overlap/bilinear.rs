@@ -341,9 +341,9 @@ impl<A> BilinearLayerOverlapInput<A> {
             &thickness,
         );
 
-        let left_admittance = left_quantities.admittance().into_inner();
+        let left_admittance = left_quantities.admittance();
 
-        let right_admittance = right_quantities.admittance().into_inner();
+        let right_admittance = right_quantities.admittance();
 
         let left_polarisation = left_quantities.polarisation();
 

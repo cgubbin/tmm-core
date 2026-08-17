@@ -1,19 +1,20 @@
 //! Entry-wise scattering algebra.
 //!
+//!
 //! [`Scatter2Entries`] is the internal computational representation used by the
 //! scalar-channel scattering backend. Its entry type determines the derivative
 //! order carried by the representation:
 //!
-//! - [`SampleArray`] for value-only evaluation;
-//! - [`ArrayJetFirst`] for first-order evaluation;
-//! - [`ArrayJet`] for first- and second-order evaluation.
+//! The scalar entry algebra determines the sampled shape, derivative order,
+//! and parameter policy carried by the representation. The same scattering
+//! implementation therefore operates over zero-, first-, second-, and
+//! bivariate-order jet families.
 //!
-//! Redheffer composition is evaluated directly over these scalar entries. This
-//! allows the scalar jet algebra to differentiate the rational star product
-//! without incorrectly treating the scattering matrix itself as a bilinear
-//! algebra.
+//! Redheffer composition is evaluated directly over the scalar entries. A
+//! scattering matrix deliberately does not implement `JetBilinear`, because
+//! the Redheffer star product is rational rather than bilinear.
 
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::{Array, ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
 use crate::{
@@ -24,15 +25,12 @@ use crate::{
     },
     backend::{
         ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries,
-        isotropic::IsotropicLayerQuantities,
+        isotropic::IsotropicMediumQuantities,
     },
     input::{CanonicalCoordinates, IncidentSide},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{ProjectAmplitudes, ProjectPower},
 };
-
-/// Owned sampled scalar array used by the scattering backend.
-pub(crate) type SampleArray<C, D> = ArrayBase<OwnedRepr<C>, D>;
 
 /// Zero-order entry-wise scattering representation.
 pub(crate) type Scatter2Jet0<C, D, P> = Scatter2Entries<ArrayJet0<C, D, P>>;
@@ -95,7 +93,7 @@ impl<A> Scatter2Entries<A> {
     /// S_identity = [0 1]
     ///              [1 0].
     /// ```
-    pub(crate) fn identity_like(source: &SampleArray<A::Scalar, A::Dimension>) -> Self
+    pub(crate) fn identity_like(source: &Array<A::Scalar, A::Dimension>) -> Self
     where
         A: ScalarAlgebra,
         A::Scalar: One + Zero,
@@ -197,7 +195,7 @@ impl<A> ExteriorContextProvider for Scatter2ExteriorContext<A> {
     }
 
     fn right_epsilon(&self) -> &Self::Algebra {
-        &self.left_epsilon
+        &self.right_epsilon
     }
 
     fn left_mu(&self) -> &Self::Algebra {
@@ -263,23 +261,25 @@ impl<J> Scatter2ExteriorContext<J> {
         J::Dimension: Dimension,
         E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
     {
-        let left_quantities =
-            IsotropicLayerQuantities::evaluate::<E, M>(left_exterior, coordinates, polarisation);
+        let left_medium = IsotropicMediumQuantities::evaluate::<E, M>(left_exterior, coordinates);
+        let right_medium = IsotropicMediumQuantities::evaluate::<E, M>(right_exterior, coordinates);
 
-        let right_quantities =
-            IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
+        let left_kappa = exterior.left().clone();
+        let right_kappa = exterior.right().clone();
 
-        let (left_kappa, right_kappa) = exterior.clone().into_parts();
-        let left_admittance = left_kappa.divide(left_quantities.factor());
-        let right_admittance = right_kappa.divide(right_quantities.factor());
+        let left_admittance = left_medium.admittance_with_kappa(&left_kappa, polarisation);
+        let right_admittance = right_medium.admittance_with_kappa(&right_kappa, polarisation);
+
+        let (left_epsilon, left_mu, _) = left_medium.into_parts();
+        let (right_epsilon, right_mu, _) = right_medium.into_parts();
 
         Self {
             left_kappa,
             right_kappa,
-            left_mu: left_quantities.mu().clone(),
-            right_mu: right_quantities.mu().clone(),
-            left_epsilon: left_quantities.epsilon().clone(),
-            right_epsilon: right_quantities.epsilon().clone(),
+            left_mu,
+            right_mu,
+            left_epsilon,
+            right_epsilon,
             left_admittance,
             right_admittance,
             vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),
@@ -435,13 +435,15 @@ mod tests {
     use super::{Scatter2Entries, cascade};
 
     use crate::{
+        Polarisation,
         algebra::ArrayJet0,
+        backend::{ExteriorContextProvider, scatter2::Scatter2ExteriorContext},
         input::IncidentSide,
         test_support::{
             C,
             assertions::{assert_array_close, assert_complex_close},
             c,
-            jet::{J0, J1, J2, P, zero_jet_from_value},
+            jet::{J0, J1, J2, P, zero_jet_from_real_value, zero_jet_from_value},
         },
     };
 
@@ -851,6 +853,45 @@ mod tests {
         );
 
         assert_second_entries_close(&analytic, &expected, 2e-7);
+    }
+
+    fn value(jet: &J0) -> C {
+        jet.clone().into_inner()[()]
+    }
+
+    #[test]
+    fn exterior_context_provider_preserves_all_context_components() {
+        let context = Scatter2ExteriorContext::from_parts(
+            zero_jet_from_real_value(1.0),  // left Y
+            zero_jet_from_real_value(2.0),  // right Y
+            zero_jet_from_real_value(3.0),  // left kappa
+            zero_jet_from_real_value(4.0),  // right kappa
+            zero_jet_from_real_value(5.0),  // left epsilon
+            zero_jet_from_real_value(6.0),  // right epsilon
+            zero_jet_from_real_value(7.0),  // left mu
+            zero_jet_from_real_value(8.0),  // right mu
+            zero_jet_from_real_value(9.0),  // k0
+            zero_jet_from_real_value(10.0), // k_parallel
+            Polarisation::TransverseMagnetic,
+        );
+
+        assert_eq!(value(context.left_admittance()), c(1.0));
+        assert_eq!(value(context.right_admittance()), c(2.0));
+
+        assert_eq!(value(context.left_kappa()), c(3.0));
+        assert_eq!(value(context.right_kappa()), c(4.0));
+
+        assert_eq!(value(context.left_epsilon()), c(5.0));
+        assert_eq!(value(context.right_epsilon()), c(6.0));
+
+        assert_eq!(value(context.left_mu()), c(7.0));
+        assert_eq!(value(context.right_mu()), c(8.0));
+
+        assert_eq!(value(context.vacuum_angular_wavenumber()), c(9.0),);
+
+        assert_eq!(value(context.parallel_angular_wavenumber()), c(10.0),);
+
+        assert_eq!(context.polarisation(), Polarisation::TransverseMagnetic,);
     }
 }
 

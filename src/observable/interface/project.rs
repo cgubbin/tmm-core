@@ -182,7 +182,7 @@ where
                     layer_count,
                 })?;
 
-        admittances.push(quantities.clone().into_admittance().into_inner());
+        admittances.push(quantities.clone().into_admittance());
     }
 
     Ok(admittances)

@@ -46,7 +46,7 @@ use crate::{
     },
     backend::{
         ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries, PlaneWaveModeCandidate,
-        isotropic::IsotropicLayerQuantities,
+        isotropic::{IsotropicLayerQuantities, IsotropicMediumQuantities},
         transfer2::{error::Transfer2Entry, state::right_outgoing_transfer_state},
     },
     input::CanonicalCoordinates,
@@ -76,14 +76,9 @@ pub(crate) type Transfer2JetBivariate2<C, D, P> = Transfer2Entries<ArrayJetBivar
 
 /// Internal algebraic representation of a 2×2 transfer matrix.
 ///
-/// `A` may be:
-///
-/// - an owned sampled array;
-/// - a first-order scalar jet;
-/// - a second-order scalar jet.
-///
-/// All four entries must share the same sampled shape and derivative
-/// representation.
+/// `A` determines the sampled shape, derivative order, and parameter policy
+/// propagated through each matrix entry. All four entries share the same
+/// algebraic representation.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transfer2Entries<A> {
@@ -292,7 +287,7 @@ impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
     }
 
     fn right_epsilon(&self) -> &Self::Algebra {
-        &self.left_epsilon
+        &self.right_epsilon
     }
 
     fn left_mu(&self) -> &Self::Algebra {
@@ -358,23 +353,25 @@ impl<J> Transfer2ExteriorContext<J> {
         J::Dimension: Dimension,
         E: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
     {
-        let left_quantities =
-            IsotropicLayerQuantities::evaluate::<E, M>(left_exterior, coordinates, polarisation);
+        let left_kappa = exterior.left().clone();
+        let right_kappa = exterior.right().clone();
 
-        let right_quantities =
-            IsotropicLayerQuantities::evaluate::<E, M>(right_exterior, coordinates, polarisation);
+        let left_medium = IsotropicMediumQuantities::evaluate::<E, M>(left_exterior, coordinates);
+        let right_medium = IsotropicMediumQuantities::evaluate::<E, M>(right_exterior, coordinates);
 
-        let (left_kappa, right_kappa) = exterior.clone().into_parts();
-        let left_admittance = left_kappa.divide(left_quantities.factor());
-        let right_admittance = right_kappa.divide(right_quantities.factor());
+        let left_admittance = left_medium.admittance_with_kappa(&left_kappa, polarisation);
+        let right_admittance = right_medium.admittance_with_kappa(&right_kappa, polarisation);
+
+        let (left_epsilon, left_mu, _) = left_medium.into_parts();
+        let (right_epsilon, right_mu, _) = right_medium.into_parts();
 
         Self {
             left_kappa,
             right_kappa,
-            left_mu: left_quantities.mu().clone(),
-            right_mu: right_quantities.mu().clone(),
-            left_epsilon: left_quantities.epsilon().clone(),
-            right_epsilon: right_quantities.epsilon().clone(),
+            left_mu,
+            right_mu,
+            left_epsilon,
+            right_epsilon,
             left_admittance,
             right_admittance,
             vacuum_angular_wavenumber: coordinates.vacuum_angular_wavenumber().clone(),
@@ -521,7 +518,7 @@ where
             exterior.right_admittance(),
         );
 
-        PlaneWaveDeterminant::new(candidate.into_projective_residual())
+        PlaneWaveDeterminant::new(candidate.into_residual())
     }
 }
 
@@ -955,5 +952,43 @@ mod projection_tests {
         ));
 
         assert_ne!(first.value(), second.value(),);
+    }
+
+    #[test]
+    fn determinant_projection_uses_supplied_exterior_wavevector_branches() {
+        let entries = Transfer2Entries::new(jet(c(1.0)), jet(c(0.2)), jet(c(0.3)), jet(c(1.1)));
+
+        let left_exterior = constant(1.0, 1.0);
+        let right_exterior = constant(2.25, 1.0);
+        let coordinates = coordinates();
+
+        let ordinary = ExteriorWavevectors::new(
+            IsotropicMediumQuantities::real_axis(&left_exterior, &coordinates).into_kappa(),
+            IsotropicMediumQuantities::real_axis(&right_exterior, &coordinates).into_kappa(),
+        );
+
+        let flipped = ExteriorWavevectors::new(ordinary.left().negate(), ordinary.right().clone());
+
+        let ordinary_context = Transfer2ExteriorContext::new::<RealAxis, _>(
+            &coordinates,
+            &left_exterior,
+            &right_exterior,
+            &ordinary,
+            Polarisation::TransverseElectric,
+        );
+
+        let flipped_context = Transfer2ExteriorContext::new::<RealAxis, _>(
+            &coordinates,
+            &left_exterior,
+            &right_exterior,
+            &flipped,
+            Polarisation::TransverseElectric,
+        );
+
+        let ordinary = entries.project_determinant(&ordinary_context);
+
+        let flipped = entries.project_determinant(&flipped_context);
+
+        assert_ne!(ordinary.value(), flipped.value());
     }
 }

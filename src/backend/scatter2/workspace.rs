@@ -24,16 +24,6 @@ use crate::{
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
-pub type Scatter2WorkspaceJet0<C, D, P> = Scatter2Workspace<ArrayJet0<C, D, P>>;
-
-pub type Scatter2WorkspaceJet1<C, D, P> = Scatter2Workspace<ArrayJet1<C, D, P>>;
-
-pub type Scatter2WorkspaceJet2<C, D, P> = Scatter2Workspace<ArrayJet2<C, D, P>>;
-
-pub type Scatter2WorkspaceJetBivariate1<C, D, P> = Scatter2Workspace<ArrayJetBivariate1<C, D, P>>;
-
-pub type Scatter2WorkspaceJetBivariate2<C, D, P> = Scatter2Workspace<ArrayJetBivariate2<C, D, P>>;
-
 /// Cut positions corresponding to the two boundaries of one finite layer.
 ///
 /// A cut index `k` refers to the division:
@@ -67,60 +57,15 @@ impl LayerCutIndices {
     }
 }
 
-/// Regularized projective data for the right-outgoing modal chart.
-///
-/// The physical scattering entries satisfy:
-///
-/// ```text
-/// s11 = left_reflection_numerator / denominator
-/// s21 = transmission_numerator    / denominator
-/// ```
-///
-/// The modal candidate is represented projectively, so no division by the
-/// transmission numerator is required.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Scatter2ModalData<A> {
-    denominator: A,
-    left_reflection_numerator: A,
-    transmission_numerator: A,
-}
-
-impl<A> Scatter2ModalData<A> {
-    pub(crate) const fn new(
-        denominator: A,
-        left_reflection_numerator: A,
-        transmission_numerator: A,
-    ) -> Self {
-        Self {
-            denominator,
-            left_reflection_numerator,
-            transmission_numerator,
-        }
-    }
-
-    pub(crate) fn denominator(&self) -> &A {
-        &self.denominator
-    }
-
-    pub(crate) fn left_reflection_numerator(&self) -> &A {
-        &self.left_reflection_numerator
-    }
-
-    pub(crate) fn transmission_numerator(&self) -> &A {
-        &self.transmission_numerator
-    }
-}
-
 /// Workspace used while constructing a scalar-channel scattering response.
 ///
-/// `A` determines the derivative order carried by each scattering entry:
+/// `A` is the scalar algebra propagated through the scattering calculation and
+/// therefore determines the sampled shape, derivative structure, and parameter
+/// policy.
 ///
-/// - sampled arrays for value-only evaluation;
-/// - first-order jets for first derivatives;
-/// - second-order jets for first and second derivatives.
-///
-/// The workspace always accumulates `solution`. Individual components and layer
-/// cut positions are retained only when internal fields were requested.
+/// The projective accumulated solution is always stored. Individual
+/// scattering components, layer cut positions, constitutive quantities, and
+/// thicknesses are retained only when internal reconstruction was requested.
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct Scatter2Workspace<A> {
@@ -217,13 +162,6 @@ impl<A> Scatter2Workspace<A> {
     }
 
     fn total(&self) -> Scatter2Entries<A>
-    where
-        A: ScalarAlgebra,
-    {
-        self.solution.entries().entries()
-    }
-
-    pub(crate) fn total_projection(&self) -> Scatter2Entries<A>
     where
         A: ScalarAlgebra,
     {
@@ -348,19 +286,19 @@ impl<A> RetainedScatterComponents<A> {
         self.quantities.len()
     }
 
-    pub(crate) fn components(&self) -> &Vec<Scatter2Entries<A>> {
+    pub(crate) fn components(&self) -> &[Scatter2Entries<A>] {
         &self.components
     }
 
-    pub(crate) fn layer_cuts(&self) -> &Vec<LayerCutIndices> {
+    pub(crate) fn layer_cuts(&self) -> &[LayerCutIndices] {
         &self.layer_cuts
     }
 
-    pub(crate) fn quantities(&self) -> &Vec<IsotropicLayerQuantities<A>> {
+    pub(crate) fn quantities(&self) -> &[IsotropicLayerQuantities<A>] {
         &self.quantities
     }
 
-    pub(crate) fn thicknesses(&self) -> &Vec<A> {
+    pub(crate) fn thicknesses(&self) -> &[A] {
         &self.thicknesses
     }
 
@@ -404,33 +342,6 @@ where
     prefixes
 }
 
-// fn suffix_cascades<A>(
-//     components: &[Scatter2Entries<A>],
-//     source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
-// ) -> Vec<Scatter2Entries<A>>
-// where
-//     A: ScalarAlgebra + Clone,
-//     A::Scalar: ComplexScalar,
-//     A::Dimension: Dimension,
-// {
-//     let component_count = components.len();
-
-//     let mut reversed = Vec::with_capacity(component_count + 1);
-
-//     reversed.push(Scatter2Entries::identity_like(source));
-
-//     for component in components.iter().rev() {
-//         let next = cascade(
-//             component,
-//             reversed.last().expect("identity suffix was inserted"),
-//         );
-
-//         reversed.push(next);
-//     }
-
-//     reversed.reverse();
-//     reversed
-// }
 fn suffix_cascades<A>(
     components: &[Scatter2Entries<A>],
     source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
@@ -1256,30 +1167,28 @@ mod tests {
         stack: CanonicalStack<Constant<f64>, J0>,
         mode: RunMode,
     ) -> Scatter2Workspace<J0> {
-        Scatter2::new()
-            .accumulate::<J0, RealAxis, _>(
-                &test_coordinates(),
-                &stack,
-                Polarisation::TransverseElectric,
-                &ExteriorWavevectors::new(
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.left_exterior(),
-                        &test_coordinates(),
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.right_exterior(),
-                        &test_coordinates(),
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                ),
-                mode,
-            )
-            .expect("scatter workspace accumulation should succeed")
+        Scatter2::new().accumulate::<J0, RealAxis, _>(
+            &test_coordinates(),
+            &stack,
+            &ExteriorWavevectors::new(
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    stack.left_exterior(),
+                    &test_coordinates(),
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+                IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+                    stack.right_exterior(),
+                    &test_coordinates(),
+                    Polarisation::TransverseElectric,
+                )
+                .kappa()
+                .clone(),
+            ),
+            Polarisation::TransverseElectric,
+            mode,
+        )
     }
 
     #[test]

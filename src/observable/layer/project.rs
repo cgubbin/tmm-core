@@ -226,7 +226,7 @@ impl<A> LayerIntegrationInput<A> {
 
         let products = integrate_hermitian_wave_products(&waves, quantities.kappa(), &thickness);
 
-        let admittance = quantities.admittance().into_inner();
+        let admittance = quantities.admittance();
 
         let state_products = project_integrated_hermitian_state_products(&products, &admittance);
 
@@ -245,7 +245,7 @@ impl<A> LayerIntegrationInput<A> {
 
         let products = integrate_bilinear_wave_products(&waves, quantities.kappa(), &thickness);
 
-        let admittance = quantities.admittance().into_inner();
+        let admittance = quantities.admittance();
 
         let state_products = project_integrated_bilinear_state_products(&products, &admittance);
 
@@ -358,21 +358,6 @@ mod tests {
         fn layer_thickness(&self, index: usize) -> Option<&Self::Algebra> {
             self.thicknesses.get(index).and_then(Option::as_ref)
         }
-    }
-
-    #[test]
-    fn layer_integration_input_into_parts_preserves_order() {
-        let input = LayerIntegrationInput::new(
-            BoundaryWaves::new(1, 2),
-            IsotropicLayerQuantities::test_fixture(3, 4, 5, Polarisation::TransverseElectric),
-            6,
-        );
-
-        let (waves, quantities, thickness) = input.into_parts();
-
-        assert_eq!(waves.into_parts(), (1, 2));
-        assert_eq!(quantities.kappa(), &3);
-        assert_eq!(thickness, 6);
     }
 
     #[test]
@@ -568,9 +553,9 @@ mod tests {
         let wave_products =
             integrate_hermitian_wave_products(&waves, quantities.kappa(), &thickness);
 
-        let admittance = quantities.admittance().into_inner();
+        let admittance = quantities.admittance();
 
-        let expected = project_integrated_hermitian_state_products(&wave_products, &admittance);
+        let expected = project_integrated_hermitian_state_products(&wave_products, admittance);
 
         let actual = input_for_actual.integrate();
 

@@ -1,34 +1,72 @@
+//! Backend-independent plane-wave solution containers.
+//!
+//! Numerical backends produce backend-specific matrix entries together with
+//! exterior-medium context required to interpret those entries physically.
+//!
+//! [`PlaneWaveSolution`] owns both pieces, while [`PlaneWaveSolutionView`]
+//! provides the same projection interface over borrowed data.
+//!
+//! Observable projections such as amplitudes, power, and modal determinants
+//! are implemented separately through projection traits. This keeps backend
+//! storage independent from the public physical quantities derived from it.
+
 use crate::{
     IncidentSide, Polarisation,
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
+/// Exterior-medium context required to interpret backend solution entries.
+///
+/// The context stores the branch-selected exterior propagation quantities,
+/// constitutive properties, canonical coordinates, and polarization used by
+/// observable projections.
 pub trait ExteriorContextProvider {
+    /// Scalar algebra representation used by the backend.
     type Algebra;
 
+    /// Return the left exterior characteristic admittance.
     fn left_admittance(&self) -> &Self::Algebra;
+
+    /// Return the right exterior characteristic admittance.
     fn right_admittance(&self) -> &Self::Algebra;
 
+    /// Return the left exterior normal angular wavenumber.
     fn left_kappa(&self) -> &Self::Algebra;
+
+    /// Return the right exterior normal angular wavenumber.
     fn right_kappa(&self) -> &Self::Algebra;
 
+    /// Return the left exterior relative permittivity.
     fn left_epsilon(&self) -> &Self::Algebra;
+
+    /// Return the right exterior relative permittivity.
     fn right_epsilon(&self) -> &Self::Algebra;
 
+    /// Return the left exterior relative permeability.
     fn left_mu(&self) -> &Self::Algebra;
+
+    /// Return the right exterior relative permeability.
     fn right_mu(&self) -> &Self::Algebra;
 
+    /// Return the canonical vacuum angular wavenumber.
     fn vacuum_angular_wavenumber(&self) -> &Self::Algebra;
+
+    /// Return the canonical parallel angular wavenumber.
     fn parallel_angular_wavenumber(&self) -> &Self::Algebra;
 
+    /// Return the selected polarization.
     fn polarisation(&self) -> Polarisation;
 }
 
 pub trait PlaneWaveEntries {
-    type ExteriorContext;
+    type ExteriorContext: ExteriorContextProvider<Algebra = Self::Algebra>;
     type Algebra;
 }
 
+/// A source from which a borrowed plane-wave solution can be obtained.
+///
+/// Implemented by completed solutions and retained backend workspaces so that
+/// projection code can operate uniformly on either representation.
 pub trait PlaneWaveSolutionSource {
     type Entries: PlaneWaveEntries;
 

@@ -23,7 +23,7 @@ mod waves;
 #[cfg(test)]
 mod test_support;
 
-pub use algebra::{ScalarAlgebra, SeedJet};
+pub use algebra::{ModeJet1, ScalarAlgebra, SeedJet};
 
 pub use backend::ExteriorWavevectors;
 

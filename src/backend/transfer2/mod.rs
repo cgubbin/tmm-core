@@ -1,13 +1,21 @@
 //! Isotropic 2×2 transfer-matrix backend.
 //!
-//! [`Transfer2`] implements:
+//! [`Transfer2`] evaluates scalar TE or TM channels using ordinary 2×2
+//! transfer matrices.
 //!
-//! - [`RawMatrixBackend`](crate::backend::RawMatrixBackend);
-//! - [`PlaneWaveBackend`](crate::backend::PlaneWaveBackend);
-//! - [`OutgoingModeResidualBackend`](crate::backend::OutgoingModeBackend).
+//! The backend operates on canonical coordinates and a canonical stack.
+//! Exterior longitudinal wavevectors are supplied explicitly through
+//! [`ExteriorWavevectors`](crate::backend::ExteriorWavevectors), allowing
+//! complex-plane callers to control exterior branch selection independently
+//! of finite-layer propagation.
 //!
-//! The backend is suitable for moderate optical thicknesses. For strongly
-//! evanescent or optically thick stacks, prefer the scattering-matrix backend.
+//! Transfer matrices are compact and convenient for moderate optical
+//! thicknesses, but may overflow or become poorly conditioned for strongly
+//! evanescent, absorbing, or optically thick stacks. In those regimes,
+//! [`Scatter2`](crate::backend::Scatter2) is generally preferable.
+//!
+//! Optional stability checks detect non-finite matrix entries but do not
+//! diagnose all forms of ill-conditioning or loss of precision.
 
 mod backend;
 mod entries;
@@ -45,6 +53,9 @@ use crate::{
 ///
 /// These checks detect overflow and invalid arithmetic. They do not detect all
 /// forms of ill-conditioning or loss of precision.
+///
+/// Stability checks inspect the physical matrix values only. Derivative
+/// components carried by jet algebras are not included in these checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TransferStabilityCheck {
     /// Check only the completed transfer matrix.
@@ -53,9 +64,10 @@ pub enum TransferStabilityCheck {
     #[default]
     Final,
 
-    /// Check each layer matrix and each intermediate accumulated matrix.
+    /// Check every finite-layer matrix and every accumulated transfer matrix.
     ///
-    /// This is useful for diagnostics but adds two scans per finite layer.
+    /// This is useful for locating the point at which overflow or invalid
+    /// arithmetic first appears, but adds two finiteness scans per finite layer.
     PerLayer,
 
     /// Perform no explicit finiteness checks.
@@ -122,8 +134,8 @@ where
         let workspace = self.accumulate::<J, Domain, M>(
             coordinates,
             stack,
-            polarisation,
             exterior,
+            polarisation,
             RunMode::ResponseOnly,
         )?;
 
@@ -144,8 +156,8 @@ where
         let workspace = self.accumulate::<J, Domain, M>(
             coordinates,
             stack,
-            polarisation,
             exterior,
+            polarisation,
             RunMode::InternalFields,
         )?;
 

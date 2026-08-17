@@ -147,7 +147,7 @@ mod tests {
         kappa: Complex64,
         polarisation: Polarisation,
     ) -> IsotropicLayerQuantities<A> {
-        IsotropicLayerQuantities::from_parts(jet(epsilon), jet(mu), jet(kappa), polarisation)
+        IsotropicLayerQuantities::from_parts(jet(kappa), jet(epsilon), jet(mu), polarisation)
     }
 
     fn state(

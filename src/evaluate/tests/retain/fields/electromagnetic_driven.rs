@@ -768,7 +768,7 @@ fn reconstructed_exterior_and_first_layer_states_match_at_left_interface() {
     let exterior_state = exterior_waves.into_state(exterior_admittance);
 
     let layer_waves: crate::observable::BoundaryWaves<_> = layers[0].left().clone().into();
-    let layer_state = layer_waves.into_state(&layer_admittance.clone().into_inner());
+    let layer_state = layer_waves.into_state(&layer_admittance.clone());
 
     crate::test_support::assertions::assert_complex_close(
         exterior_state.field().value()[()],

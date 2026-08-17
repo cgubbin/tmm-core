@@ -12,7 +12,7 @@ pub enum ModeReconstructionError {
     ModeDataNotRetained,
 
     #[error("the outgoing boundary system has no usable modal null vector")]
-    NoModalNullVector,
+    NoUsableNullVector,
 
     #[error("the outgoing boundary system has a degenerate modal null space")]
     DegenerateNullSpace,
@@ -27,12 +27,31 @@ pub enum ModeReconstructionError {
     },
 }
 
+/// Gauge used to select a representative vector from the one-dimensional
+/// null space of the outgoing boundary system.
+///
+/// Different gauges represent the same physical mode up to an arbitrary
+/// nonzero complex scale.
+#[doc(hidden)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ModalGauge {
     FirstAdjugateColumn,
     SecondAdjugateColumn,
 }
 
+/// Unnormalised candidate solution of the outgoing homogeneous boundary
+/// problem.
+///
+/// A candidate contains:
+///
+/// - a boundary state representing one chosen null-space gauge;
+/// - the corresponding right-exterior outgoing amplitude;
+/// - a projective residual measuring failure to satisfy the homogeneous
+///   boundary condition exactly.
+///
+/// The overall complex scale is arbitrary. Physical modal normalisation is
+/// applied only after reconstruction.
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct PlaneWaveModeCandidate<A> {
     state: BoundaryState<A>,
@@ -57,7 +76,7 @@ impl<A> PlaneWaveModeCandidate<A> {
         &self.right_outgoing
     }
 
-    pub(crate) fn projective_residual(&self) -> &A {
+    pub(crate) fn residual(&self) -> &A {
         &self.residual
     }
 
@@ -65,7 +84,7 @@ impl<A> PlaneWaveModeCandidate<A> {
         self.state
     }
 
-    pub(crate) fn into_projective_residual(self) -> A {
+    pub(crate) fn into_residual(self) -> A {
         self.residual
     }
 
@@ -100,14 +119,14 @@ pub trait ReconstructExteriorModeWaves {
     ) -> Result<ExteriorBoundaryWaves<Self::Algebra>, ModeReconstructionError>;
 }
 
-/// Reconstruct directional waves for an outgoing homogeneous modal solution.
+/// Reconstruct directional waves in every finite layer for an outgoing
+/// homogeneous modal solution.
 ///
-/// Unlike [`ReconstructLayerBoundaryWaves`], this operation has no incident
-/// side. The workspace must construct a nonzero solution of the outgoing
-/// homogeneous boundary system and propagate it through all finite layers.
+/// The returned vector contains one entry per retained finite layer in
+/// physical left-to-right order.
 ///
-/// The reconstructed mode retains an arbitrary complex amplitude. Modal
-/// normalization is applied later.
+/// The reconstruction preserves the arbitrary complex scale carried by
+/// `seed`; modal normalisation is applied later.
 pub trait ReconstructLayerModeWaves {
     type Algebra;
 
@@ -117,10 +136,16 @@ pub trait ReconstructLayerModeWaves {
     ) -> Result<Vec<LayerBoundaryWaves<Self::Algebra>>, ModeReconstructionError>;
 }
 
+/// Source of an unnormalised outgoing homogeneous boundary solution.
+///
+/// Implemented by retained backend workspaces that contain sufficient data to
+/// construct a representative vector in the outgoing boundary-system null
+/// space.
 pub trait ModalSolutionSource {
     type Algebra;
 
-    /// Construct an arbitrary nonzero outgoing homogeneous boundary solution
+    /// Construct an arbitrary nonzero representative of the outgoing
+    /// homogeneous boundary solution.
     fn modal_boundary_solution(
         &self,
     ) -> Result<PlaneWaveModeCandidate<Self::Algebra>, ModeReconstructionError>;

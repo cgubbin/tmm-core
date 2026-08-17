@@ -650,22 +650,19 @@ fn transfer_single_layer_waves_match_boundary_continuity() {
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.iter().next().unwrap().material(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.right_exterior(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         IncidentSide::Left,
     );
 
@@ -704,22 +701,19 @@ fn scatter_single_layer_waves_match_boundary_continuity() {
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.iter().next().unwrap().material(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.right_exterior(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         IncidentSide::Left,
     );
 
@@ -758,22 +752,19 @@ fn transfer_single_layer_reconstruction_localises_boundary_error() {
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.iter().next().unwrap().material(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         &IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.right_exterior(),
             &coordinates,
             polarisation,
         )
-        .into_admittance()
-        .into_inner(),
+        .into_admittance(),
         IncidentSide::Left,
     );
 
@@ -813,11 +804,7 @@ fn analytic_right_boundary_matches_transfer_state_conversion() {
 
     let right_admittance = solution.context().right_admittance();
 
-    let layer_admittance = retained.layers()[0]
-        .quantities()
-        .clone()
-        .into_admittance()
-        .into_inner();
+    let layer_admittance = retained.layers()[0].quantities().clone().into_admittance();
 
     let exterior_waves =
         right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
@@ -905,11 +892,7 @@ fn evaluator_workspace_right_boundary_matches_analytic_continuity() {
 
     let retained = workspace.retained().expect("layers should be retained");
 
-    let layer_admittance = retained.layers()[0]
-        .quantities()
-        .clone()
-        .into_admittance()
-        .into_inner();
+    let layer_admittance = retained.layers()[0].quantities().clone().into_admittance();
 
     let right_exterior =
         right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
@@ -1008,11 +991,7 @@ fn transfer_evaluator_right_boundary_reconstruction_is_stepwise_consistent() {
 
     let right_admittance = solution.context().right_admittance();
 
-    let layer_admittance = retained.layers()[0]
-        .quantities()
-        .clone()
-        .into_admittance()
-        .into_inner();
+    let layer_admittance = retained.layers()[0].quantities().clone().into_admittance();
 
     /*
      * Stage 1: construct the right-exterior waves exactly as the workspace

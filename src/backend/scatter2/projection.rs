@@ -1,3 +1,15 @@
+//! Projective scattering representation and modal projection.
+//!
+//! The ordinary scattering entries are represented by a common denominator
+//! and four numerators. Redheffer composition is performed directly on this
+//! homogeneous representation, avoiding division by intermediate scattering
+//! denominators.
+//!
+//! Physical amplitudes and powers are obtained by returning to ordinary
+//! scattering entries. Modal quantities are projected directly from the
+//! projective representation so that poles of the ordinary scattering matrix
+//! need not be materialised.
+
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
 
@@ -15,14 +27,14 @@ use super::Scatter2Entries;
 
 /// Projective representation of a two-port scattering matrix.
 ///
-/// The into_entriesd entries satisfy:
+/// The represented scattering entries satisfy:
 ///
 /// ```text
-/// s_ij = numerator_ij / denominator
+/// sᵢⱼ = nᵢⱼ / d.
 /// ```
 ///
-/// Multiplying every field by the same nonzero scalar leaves the represented
-/// scattering matrix unchanged.
+/// Multiplying `d` and every numerator by the same nonzero scalar leaves the
+/// represented scattering matrix unchanged.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scatter2ProjectiveEntries<A> {
     denominator: A,
@@ -261,6 +273,9 @@ where
     }
 }
 
+/// The projection uses `n21` as its transmission chart and is therefore
+/// singular where `n21 = 0`. Such points are distinct from poles represented
+/// by `denominator = 0`.
 impl<J> ProjectPlaneWaveModeDeterminant for Scatter2ProjectiveEntries<J>
 where
     J: ScalarAlgebra,
@@ -404,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn common_projective_scaling_does_not_change_into_entriesd_entries() {
+    fn common_projective_scaling_does_not_change_into_scattering_entries() {
         let data = projection(c(2.0), c(3.0), c(5.0), c(7.0), c(11.0));
 
         let scale = c(1.7) + C::i() * c(-0.4);
@@ -486,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn candidate_projective_residual_is_left_outgoing_boundary_residual() {
+    fn candidate_residual_is_left_outgoing_boundary_residual() {
         let data = projection(c(2.0), c(3.0), c(5.0), c(7.0), c(11.0));
 
         let context = make_context();
@@ -499,11 +514,7 @@ mod tests {
             .multiply(candidate.state().field())
             .subtract(candidate.state().secondary());
 
-        assert_array_close(
-            candidate.projective_residual().value(),
-            expected.value(),
-            TOLERANCE,
-        );
+        assert_array_close(candidate.residual().value(), expected.value(), TOLERANCE);
     }
 
     #[test]
@@ -516,7 +527,7 @@ mod tests {
 
         let determinant = data.project_determinant(&context);
 
-        let chart_normalized = candidate.projective_residual().divide(data.n21());
+        let chart_normalized = candidate.residual().divide(data.n21());
 
         assert_array_close(
             chart_normalized.value(),
@@ -526,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn projective_candidate_scales_with_projective_representation() {
+    fn projective_candidate_scales_with_representation() {
         let data = projection(c(2.0), c(3.0), c(5.0), c(7.0), c(11.0));
 
         let scale = c(1.7) + C::i() * c(-0.4);
@@ -542,8 +553,8 @@ mod tests {
         assert_state_scaled(scaled.state(), base.state(), scale);
 
         assert_complex_close(
-            scalar(scaled.projective_residual()),
-            scale * scalar(base.projective_residual()),
+            scalar(scaled.residual()),
+            scale * scalar(base.residual()),
             TOLERANCE,
         );
     }
@@ -564,7 +575,7 @@ mod tests {
 
         assert!(scalar(candidate.state().secondary()).im.is_finite(),);
 
-        assert_complex_close(scalar(candidate.projective_residual()), c(0.0), TOLERANCE);
+        assert_complex_close(scalar(candidate.residual()), c(0.0), TOLERANCE);
 
         let determinant = data.project_determinant(&context);
 
@@ -632,7 +643,7 @@ mod cascade_tests {
     }
 
     #[test]
-    fn projective_cascade_into_entriess_to_ordinary_redheffer_cascade() {
+    fn projective_cascade_reduces_to_ordinary_redheffer_cascade() {
         let left = entries(c(0.10), c(0.80), c(0.70), c(-0.20));
 
         let right = entries(c(0.30), c(0.60), c(0.50), c(-0.10));
@@ -682,7 +693,7 @@ mod cascade_tests {
     }
 
     #[test]
-    fn projective_identity_into_entriess_to_redheffer_identity() {
+    fn projective_identity_reduces_to_redheffer_identity() {
         let source = ndarray::arr0(c(0.0));
 
         let identity: Projection = Projection::identity_like(&source);

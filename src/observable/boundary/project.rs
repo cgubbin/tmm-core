@@ -137,7 +137,7 @@ where
                 },
             )?;
 
-            let admittance = quantities.clone().into_admittance().into_inner();
+            let admittance = quantities.clone().into_admittance();
 
             Ok(waves.into_states(&admittance))
         })

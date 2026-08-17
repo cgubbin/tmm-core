@@ -43,18 +43,22 @@ pub(crate) struct TransferState<A> {
 }
 
 impl<A> TransferState<A> {
+    /// Construct a transfer state from its field- and slope-like components.
     pub(crate) const fn new(field: A, slope: A) -> Self {
         Self { field, slope }
     }
 
+    /// Return the field-like component.
     pub(crate) fn field(&self) -> &A {
         &self.field
     }
 
+    /// Return the slope-like component.
     pub(crate) fn slope(&self) -> &A {
         &self.slope
     }
 
+    /// Consume the state and return `(field, slope)`.
     pub(crate) fn into_parts(self) -> (A, A) {
         (self.field, self.slope)
     }
@@ -126,6 +130,10 @@ where
 /// forward  = ½(field - slope / ξ)
 /// backward = ½(field + slope / ξ).
 /// ```
+///
+/// This decomposition requires nonzero characteristic slope `ξ`. At points
+/// where the characteristic admittance vanishes, the directional basis is
+/// degenerate and the decomposition is singular.
 pub(crate) fn bidirectional_waves_from_state<A>(
     state: &TransferState<A>,
     admittance: &A,
@@ -239,5 +247,19 @@ mod tests {
 
         assert_eq!(state.field()[()], c(2.0));
         assert_eq!(state.slope()[()], C::new(0.0, -6.0),);
+    }
+
+    #[test]
+    fn right_outgoing_state_matches_pure_forward_wave_state() {
+        let admittance = jet(c(2.5));
+        let amplitude = jet(C::new(1.2, -0.4));
+
+        let outgoing = right_outgoing_transfer_state(&amplitude, &admittance);
+
+        let waves = BidirectionalWaves::new(amplitude, jet(c(0.0)));
+
+        let expected = transfer_state_from_waves(&waves, &admittance);
+
+        assert_eq!(outgoing, expected);
     }
 }

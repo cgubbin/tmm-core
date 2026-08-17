@@ -1,12 +1,15 @@
-use crate::backend::{
-    ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
-    scatter2::{
-        RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
-        Scatter2ProjectiveEntries, Scatter2Workspace,
-    },
-    transfer2::{
-        RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries, Transfer2ExteriorContext,
-        Transfer2Workspace,
+use crate::{
+    ScalarAlgebra,
+    backend::{
+        ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
+        scatter2::{
+            RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
+            Scatter2ProjectiveEntries, Scatter2Workspace,
+        },
+        transfer2::{
+            RetainedTransferLayer, RetainedTransferLayers, Transfer2Entries,
+            Transfer2ExteriorContext, Transfer2Workspace,
+        },
     },
 };
 
@@ -15,6 +18,7 @@ use super::{PointProjectionError, ProjectPoint};
 impl<J> ProjectPoint for Scatter2Workspace<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = Scatter2Workspace<J::Point>;
@@ -35,6 +39,7 @@ where
 impl<J> ProjectPoint for Transfer2Workspace<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = Transfer2Workspace<J::Point>;
@@ -193,6 +198,7 @@ where
 impl<J> ProjectPoint for RetainedScatterComponents<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = RetainedScatterComponents<J::Point>;
@@ -206,7 +212,7 @@ where
                 .iter()
                 .map(|each| each.project_point(index))
                 .collect::<Result<_, _>>()?,
-            self.layer_cuts().clone(),
+            self.layer_cuts().to_vec().clone(),
             self.quantities()
                 .iter()
                 .map(|each| each.project_point(index))
@@ -222,6 +228,7 @@ where
 impl<J> ProjectPoint for RetainedTransferLayers<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = RetainedTransferLayers<J::Point>;
@@ -242,6 +249,7 @@ where
 impl<J> ProjectPoint for RetainedTransferLayer<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = RetainedTransferLayer<J::Point>;
@@ -261,6 +269,7 @@ where
 impl<J> ProjectPoint for IsotropicLayerQuantities<J>
 where
     J: ProjectPoint,
+    J::Point: ScalarAlgebra,
 {
     type Dimension = J::Dimension;
     type Point = IsotropicLayerQuantities<J::Point>;
@@ -270,9 +279,9 @@ where
         I: ndarray::NdIndex<Self::Dimension> + Clone,
     {
         Ok(IsotropicLayerQuantities::from_parts(
+            self.kappa().project_point(index)?,
             self.epsilon().project_point(index)?,
             self.mu().project_point(index)?,
-            self.kappa().project_point(index)?,
             self.polarisation(),
         ))
     }
@@ -407,9 +416,9 @@ mod tests {
     #[test]
     fn isotropic_quantities_project_every_sampled_quantity() {
         let quantities = IsotropicLayerQuantities::from_parts(
+            jet(&[11.0, 13.0]),
             jet(&[2.0, 3.0]),
             jet(&[5.0, 7.0]),
-            jet(&[11.0, 13.0]),
             Polarisation::TransverseElectric,
         );
 

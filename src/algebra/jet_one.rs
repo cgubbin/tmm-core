@@ -52,7 +52,7 @@ use std::marker::PhantomData;
 pub(crate) type ArrayJet1<C, D, P> = Jet1<ArrayBase<OwnedRepr<C>, D>, P>;
 
 pub(crate) type PhysicalJet1<C, D> = ArrayJet1<C, D, RealParameter>;
-pub(crate) type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
+pub type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
 /// A first-order directional jet.
 ///
@@ -78,12 +78,12 @@ impl<I, P> Jet1<I, P> {
     }
 
     /// Return the value.
-    pub(crate) fn value(&self) -> &I {
+    pub fn value(&self) -> &I {
         &self.value
     }
 
     /// Return the first derivative.
-    pub(crate) fn first(&self) -> &I {
+    pub fn first(&self) -> &I {
         &self.first
     }
 

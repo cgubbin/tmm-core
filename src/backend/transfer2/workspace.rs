@@ -1,3 +1,19 @@
+//! Retained state and reconstruction for the isotropic transfer backend.
+//!
+//! [`Transfer2Workspace`] always stores the accumulated transfer-matrix
+//! solution and optionally retains each finite-layer matrix, constitutive
+//! quantities, and thickness.
+//!
+//! Retained layers support reconstruction of transfer states and directional
+//! wave amplitudes throughout the stack. Because each layer matrix maps its
+//! right boundary state to its left boundary state, reconstruction proceeds
+//! from the right exterior through finite layers in reverse storage order;
+//! returned layer records are restored to physical left-to-right order.
+//!
+//! Modal reconstruction uses the same retained propagation path but seeds it
+//! with an arbitrary outgoing homogeneous boundary solution rather than a
+//! driven plane-wave excitation.
+
 use nalgebra::ComplexField;
 use ndarray::{ArrayBase, Dimension, OwnedRepr};
 use num_traits::{One, Zero};
@@ -84,7 +100,7 @@ impl<A> LayerBoundaryStates<A> {
     {
         let (left_state, right_state, quantities) = self.into_parts();
 
-        let admittance = quantities.into_admittance().into_inner();
+        let admittance = quantities.into_admittance();
 
         let left = bidirectional_waves_from_state(&left_state, &admittance);
 
@@ -824,7 +840,7 @@ mod tests {
         );
 
         Transfer2::new()
-            .accumulate::<J0, RealAxis, _>(&coordinates, &stack, polarisation, &exterior, mode)
+            .accumulate::<J0, RealAxis, _>(&coordinates, &stack, &exterior, polarisation, mode)
             .expect("scatter workspace accumulation should succeed")
     }
 
@@ -1097,7 +1113,7 @@ mod tests {
 
         let layer = &retained.layers()[0];
 
-        let layer_admittance = layer.quantities().clone().into_admittance().into_inner();
+        let layer_admittance = layer.quantities().clone().into_admittance();
 
         let expected = bidirectional_waves_from_state(&right_state, &layer_admittance);
 
@@ -1117,11 +1133,7 @@ mod tests {
 
         let retained = workspace.retained().expect("layers should be retained");
 
-        let retained_admittance = retained.layers()[0]
-            .quantities()
-            .clone()
-            .into_admittance()
-            .into_inner();
+        let retained_admittance = retained.layers()[0].quantities().clone().into_admittance();
 
         let fresh_quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             stack.layers()[0].material(),
@@ -1129,7 +1141,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let fresh_admittance = fresh_quantities.into_admittance().into_inner();
+        let fresh_admittance = fresh_quantities.into_admittance();
 
         assert_zero_jet_close(&retained_admittance, &fresh_admittance);
     }
@@ -1301,11 +1313,7 @@ mod tests {
 
         let exterior_admittance = workspace.solution().context().left_admittance();
 
-        let layer_admittance = workspace
-            .layer_quantities(0)
-            .unwrap()
-            .admittance()
-            .into_inner();
+        let layer_admittance = workspace.layer_quantities(0).unwrap().admittance();
 
         let exterior_waves: crate::observable::BoundaryWaves<_> = exterior.left().clone().into();
 
@@ -1376,11 +1384,7 @@ mod tests {
 
         let waves = workspace.reconstruct_layer_mode_waves(&candidate).unwrap();
 
-        let admittance = workspace
-            .layer_quantities(0)
-            .unwrap()
-            .admittance()
-            .into_inner();
+        let admittance = workspace.layer_quantities(0).unwrap().admittance();
 
         let waves: crate::observable::BoundaryWaves<_> = waves[0].left().clone().into();
 

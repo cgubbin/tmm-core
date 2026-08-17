@@ -41,7 +41,7 @@ pub(crate) use mode::{
     ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate,
     ReconstructExteriorModeWaves, ReconstructLayerModeWaves,
 };
-pub use scatter2::{Scatter2, Scatter2Error};
+pub use scatter2::Scatter2;
 pub(crate) use solution::{
     ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolution, PlaneWaveSolutionSource,
     PlaneWaveSolutionView,

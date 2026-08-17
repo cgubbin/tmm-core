@@ -2,14 +2,15 @@ use crate::{
     ComplexScalar, Polarisation,
     algebra::ScalarAlgebra,
     backend::{
-        ExteriorWavevectors, RunMode, isotropic::IsotropicLayerQuantities,
+        ExteriorWavevectors, RunMode,
+        isotropic::{IsotropicLayerQuantities, IsotropicMediumQuantities},
         scatter2::Scatter2ExteriorContext,
     },
     input::{CanonicalCoordinates, CanonicalStack},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
 
-use super::{Scatter2, Scatter2Entries, Scatter2Error, Scatter2Workspace};
+use super::{Scatter2, Scatter2Entries, Scatter2Workspace};
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
@@ -59,12 +60,12 @@ impl Scatter2 {
         &self,
         coordinates: &CanonicalCoordinates<J>,
         stack: &CanonicalStack<M, J>,
-        polarisation: Polarisation,
         exterior: &ExteriorWavevectors<J>,
+        polarisation: Polarisation,
         request: RunMode,
-    ) -> Result<Scatter2Workspace<J>, Scatter2Error>
+    ) -> Scatter2Workspace<J>
     where
-        J: ScalarAlgebra + ConstitutiveLift<E, M> + Clone,
+        J: ScalarAlgebra + ConstitutiveLift<E, M>,
         J::Scalar: ComplexScalar,
         <J::Scalar as ComplexField>::RealField: Copy,
         J::Dimension: Dimension,
@@ -85,13 +86,9 @@ impl Scatter2 {
             stack.layer_count(),
         );
 
-        let left_quantities = IsotropicLayerQuantities::evaluate::<E, M>(
-            stack.left_exterior(),
-            coordinates,
-            polarisation,
-        );
-
-        let mut current_admittance = left_quantities.into_admittance().into_inner();
+        let mut current_admittance =
+            IsotropicMediumQuantities::evaluate::<E, M>(stack.left_exterior(), coordinates)
+                .admittance_with_kappa(exterior.left(), polarisation);
 
         for layer in stack.layers() {
             let quantities = IsotropicLayerQuantities::evaluate::<E, M>(
@@ -100,17 +97,12 @@ impl Scatter2 {
                 polarisation,
             );
 
-            let imaginary_unit = J::filled_constant_like(
-                coordinates.vacuum_angular_wavenumber().value(),
-                <J::Scalar as ComplexScalar>::i(),
-            );
-
             let exponent = quantities
                 .kappa()
-                .multiply(&imaginary_unit)
+                .scale(<J::Scalar as ComplexScalar>::i())
                 .multiply(layer.thickness_cm());
 
-            let layer_admittance = quantities.clone().into_admittance().into_inner();
+            let layer_admittance = quantities.admittance().clone();
 
             let interface = interface(&current_admittance, &layer_admittance);
 
@@ -126,19 +118,15 @@ impl Scatter2 {
             current_admittance = layer_admittance;
         }
 
-        let right_quantities = IsotropicLayerQuantities::evaluate::<E, M>(
-            stack.right_exterior(),
-            coordinates,
-            polarisation,
-        );
-
-        let right_admittance = right_quantities.into_admittance().into_inner();
+        let right_admittance =
+            IsotropicMediumQuantities::evaluate::<E, M>(stack.right_exterior(), coordinates)
+                .admittance_with_kappa(exterior.right(), polarisation);
 
         let final_interface = interface(&current_admittance, &right_admittance);
 
         workspace.append(final_interface);
 
-        Ok(workspace)
+        workspace
     }
 }
 
@@ -169,8 +157,8 @@ impl Scatter2 {
 ///
 /// corresponding to equal and opposite characteristic admittances.
 ///
-/// No explicit check is performed; callers are expected to avoid singular
-//  constitutive parameters
+/// No explicit singularity check is performed. If `Y_L + Y_R = 0`, the
+/// resulting entries inherit the corresponding non-finite algebraic values.
 pub(crate) fn interface<A>(left: &A, right: &A) -> Scatter2Entries<A>
 where
     A: ScalarAlgebra,
@@ -207,8 +195,8 @@ where
 /// lower-level constructor is used when the exponent itself must carry
 /// derivative information, such as for a layer-thickness derivative.
 ///
-///Reflection is identically zero, while forward and backward transmission are
-// equal to exp(iκd).
+/// Reflection is identically zero, while forward and backward transmission are
+/// equal to exp(iκd).
 pub(crate) fn propagation_from_exponent<A>(exponent: A) -> Scatter2Entries<A>
 where
     A: ScalarAlgebra + Clone,
@@ -1014,13 +1002,32 @@ mod propagation_tests {
 #[cfg(test)]
 mod accumulate_tests {
     use crate::{
-        Polarisation, RealAxis,
-        backend::{ExteriorWavevectors, IsotropicLayerQuantities, RunMode, scatter2::Scatter2},
+        CanonicalCoordinates, Constant, Polarisation, RealAxis,
+        backend::{
+            ExteriorContextProvider, ExteriorWavevectors, IsotropicLayerQuantities, RunMode,
+            SolutionWorkspace, evaluate_exterior_wavevectors,
+            scatter2::{Scatter2, backend::interface},
+        },
+        input::CanonicalStack,
         test_support::{
+            TOLERANCE,
+            assertions::assert_array_close,
             coordinates::test_coordinates,
+            jet::J0,
             stack::{empty_stack, single_layer_stack, stack_with_layers, two_layer_stack},
         },
     };
+
+    fn exterior_wavevectors(
+        coordinates: &CanonicalCoordinates<J0>,
+        stack: &CanonicalStack<Constant<f64>, J0>,
+    ) -> ExteriorWavevectors<J0> {
+        evaluate_exterior_wavevectors::<RealAxis, _, _>(
+            coordinates,
+            stack.left_exterior(),
+            stack.right_exterior(),
+        )
+    }
 
     #[test]
     fn response_only_does_not_retain_components() {
@@ -1029,30 +1036,13 @@ mod accumulate_tests {
         let coordinates = test_coordinates();
         let stack = empty_stack();
 
-        let workspace = backend
-            .accumulate::<_, RealAxis, _>(
-                &coordinates,
-                &stack,
-                Polarisation::TransverseElectric,
-                &ExteriorWavevectors::new(
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.left_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.right_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                ),
-                RunMode::ResponseOnly,
-            )
-            .unwrap();
+        let workspace = backend.accumulate::<_, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior_wavevectors(&coordinates, &stack),
+            Polarisation::TransverseElectric,
+            RunMode::ResponseOnly,
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -1066,30 +1056,13 @@ mod accumulate_tests {
         let coordinates = test_coordinates();
         let stack = empty_stack();
 
-        let workspace = backend
-            .accumulate::<_, RealAxis, _>(
-                &coordinates,
-                &stack,
-                Polarisation::TransverseElectric,
-                &ExteriorWavevectors::new(
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.left_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.right_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                ),
-                RunMode::InternalFields,
-            )
-            .unwrap();
+        let workspace = backend.accumulate::<_, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior_wavevectors(&coordinates, &stack),
+            Polarisation::TransverseElectric,
+            RunMode::InternalFields,
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -1106,30 +1079,13 @@ mod accumulate_tests {
         let coordinates = test_coordinates();
         let stack = single_layer_stack();
 
-        let workspace = backend
-            .accumulate::<_, RealAxis, _>(
-                &coordinates,
-                &stack,
-                Polarisation::TransverseElectric,
-                &ExteriorWavevectors::new(
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.left_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.right_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                ),
-                RunMode::InternalFields,
-            )
-            .unwrap();
+        let workspace = backend.accumulate::<_, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior_wavevectors(&coordinates, &stack),
+            Polarisation::TransverseElectric,
+            RunMode::InternalFields,
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -1155,30 +1111,13 @@ mod accumulate_tests {
         let coordinates = test_coordinates();
         let stack = two_layer_stack();
 
-        let workspace = backend
-            .accumulate::<_, RealAxis, _>(
-                &coordinates,
-                &stack,
-                Polarisation::TransverseElectric,
-                &ExteriorWavevectors::new(
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.left_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                    IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                        stack.right_exterior(),
-                        &coordinates,
-                        Polarisation::TransverseElectric,
-                    )
-                    .kappa()
-                    .clone(),
-                ),
-                RunMode::InternalFields,
-            )
-            .unwrap();
+        let workspace = backend.accumulate::<_, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior_wavevectors(&coordinates, &stack),
+            Polarisation::TransverseElectric,
+            RunMode::InternalFields,
+        );
 
         let (_, retained) = workspace.into_parts();
 
@@ -1204,30 +1143,13 @@ mod accumulate_tests {
             let coordinates = test_coordinates();
             let stack = stack_with_layers(layer_count);
 
-            let workspace = backend
-                .accumulate::<_, RealAxis, _>(
-                    &coordinates,
-                    &stack,
-                    Polarisation::TransverseElectric,
-                    &ExteriorWavevectors::new(
-                        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                            stack.left_exterior(),
-                            &coordinates,
-                            Polarisation::TransverseElectric,
-                        )
-                        .kappa()
-                        .clone(),
-                        IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                            stack.right_exterior(),
-                            &coordinates,
-                            Polarisation::TransverseElectric,
-                        )
-                        .kappa()
-                        .clone(),
-                    ),
-                    RunMode::InternalFields,
-                )
-                .unwrap();
+            let workspace = backend.accumulate::<_, RealAxis, _>(
+                &coordinates,
+                &stack,
+                &exterior_wavevectors(&coordinates, &stack),
+                Polarisation::TransverseElectric,
+                RunMode::InternalFields,
+            );
 
             let (_, retained) = workspace.into_parts();
 
@@ -1237,5 +1159,69 @@ mod accumulate_tests {
 
             assert_eq!(retained.layer_cuts.len(), layer_count,);
         }
+    }
+
+    #[test]
+    fn empty_stack_uses_supplied_exterior_wavevector_branches() {
+        let backend = Scatter2::new();
+
+        let coordinates = test_coordinates();
+        let stack = empty_stack();
+
+        /*
+         * Obtain the ordinary branch-selected exterior wavevectors, then reverse
+         * the left branch explicitly.
+         *
+         * This is deliberately different from the branch that would be obtained
+         * by independently evaluating the left exterior medium inside the
+         * backend. The accumulated scattering network must therefore use the
+         * supplied ExteriorWavevectors rather than recomputing κ.
+         */
+        let left_quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            stack.left_exterior(),
+            &coordinates,
+            Polarisation::TransverseElectric,
+        );
+
+        let right_quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
+            stack.right_exterior(),
+            &coordinates,
+            Polarisation::TransverseElectric,
+        );
+
+        let exterior = ExteriorWavevectors::new(
+            left_quantities.kappa().negate(),
+            right_quantities.kappa().clone(),
+        );
+
+        let workspace = backend.accumulate::<_, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior,
+            Polarisation::TransverseElectric,
+            RunMode::ResponseOnly,
+        );
+
+        let solution = workspace.into_solution();
+
+        let actual = solution.entries().entries();
+
+        /*
+         * The workspace context is constructed from the explicitly supplied
+         * exterior wavevectors. Its admittances therefore represent the branch
+         * choices that the scattering calculation must also use.
+         */
+        let expected = interface(
+            solution.context().left_admittance(),
+            solution.context().right_admittance(),
+        );
+
+        assert_array_close(actual.s11().value(), expected.s11().value(), TOLERANCE);
+
+        assert_array_close(actual.s12().value(), expected.s12().value(), TOLERANCE);
+
+        assert_array_close(actual.s21().value(), expected.s21().value(), TOLERANCE);
+
+        assert_array_close(actual.s22().value(), expected.s22().value(), TOLERANCE);
     }
 }

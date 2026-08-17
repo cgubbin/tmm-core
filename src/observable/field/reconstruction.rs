@@ -101,7 +101,7 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
                             FieldReconstructionError::MissingLayerData { index: index.get() },
                         )?;
 
-                    let admittance = quantities.admittance().into_inner();
+                    let admittance = quantities.admittance();
 
                     let state = waves.into_state(&admittance);
 
@@ -791,15 +791,13 @@ mod integration_tests {
             .kappa()
             .clone(),
         );
-        Scatter2::new()
-            .accumulate::<A, RealAxis, _>(
-                &coordinates,
-                &stack,
-                polarisation,
-                &exterior,
-                RunMode::InternalFields,
-            )
-            .expect("scatter workspace accumulation should succeed")
+        Scatter2::new().accumulate::<A, RealAxis, _>(
+            &coordinates,
+            &stack,
+            &exterior,
+            polarisation,
+            RunMode::InternalFields,
+        )
     }
 
     fn assert_zero_component(values: impl IntoIterator<Item = C>) {
@@ -896,7 +894,7 @@ mod integration_tests {
                              retained quantities",
                     );
 
-                    let admittance = quantities.admittance().into_inner();
+                    let admittance = quantities.admittance();
 
                     let state = waves.into_state(&admittance);
 
