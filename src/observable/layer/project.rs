@@ -5,18 +5,16 @@ use crate::{
     ComplexScalar,
     algebra::{RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt},
     backend::{IsotropicLayerQuantities, RetainedIsotropicLayers},
-    observable::{
-        BoundaryProjectionError, BoundaryWaves, LayerBoundaries, LayerBoundaryWaves,
-        layer::integration::{
-            IntegratedBilinearCrossStateProducts, integrate_bilinear_wave_products,
-            project_integrated_bilinear_state_products,
-        },
-    },
+    observable::{BoundaryProjectionError, BoundaryWaves, LayerBoundaries, LayerBoundaryWaves},
 };
 
 use super::{
-    IntegratedHermitianCrossStateProducts, Layers, integrate_hermitian_wave_products,
-    integration::project_integrated_hermitian_state_products,
+    Layers,
+    integration::{
+        IntegratedBilinearCrossStateProducts, IntegratedHermitianCrossStateProducts,
+        integrate_bilinear_wave_products, integrate_hermitian_wave_products,
+        project_integrated_bilinear_state_products, project_integrated_hermitian_state_products,
+    },
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
@@ -90,30 +88,23 @@ impl<A> LayerIntegrationInput<A> {
     }
 }
 
-/// Analytically integrated Hermitian canonical-state products and
+/// Analytically integrated canonical-state products and
 /// constitutive quantities for one finite layer.
-///
-/// This type is specific to real-input Hermitian analysis. The original wave
-/// products and thickness are discarded after the canonical-state products
-/// have been constructed.
 #[derive(Clone, Debug)]
-pub(crate) struct IntegratedLayerData<A> {
-    state_products: IntegratedHermitianCrossStateProducts<A>,
+pub(crate) struct IntegratedLayerData<S, A> {
+    state_products: S,
     quantities: IsotropicLayerQuantities<A>,
 }
 
-impl<A> IntegratedLayerData<A> {
-    pub(super) const fn new(
-        state_products: IntegratedHermitianCrossStateProducts<A>,
-        quantities: IsotropicLayerQuantities<A>,
-    ) -> Self {
+impl<S, A> IntegratedLayerData<S, A> {
+    pub(super) const fn new(state_products: S, quantities: IsotropicLayerQuantities<A>) -> Self {
         Self {
             state_products,
             quantities,
         }
     }
 
-    pub(crate) fn state_products(&self) -> &IntegratedHermitianCrossStateProducts<A> {
+    pub(crate) fn state_products(&self) -> &S {
         &self.state_products
     }
 
@@ -121,53 +112,7 @@ impl<A> IntegratedLayerData<A> {
         &self.quantities
     }
 
-    pub(super) fn into_parts(
-        self,
-    ) -> (
-        IntegratedHermitianCrossStateProducts<A>,
-        IsotropicLayerQuantities<A>,
-    ) {
-        (self.state_products, self.quantities)
-    }
-}
-
-/// Analytically integrated Bilinear canonical-state products and
-/// constitutive quantities for one finite layer.
-///
-/// This type is specific to complex-input Bilinear analysis. The original wave
-/// products and thickness are discarded after the canonical-state products
-/// have been constructed.
-#[derive(Clone, Debug)]
-pub(crate) struct IntegratedBilinearLayerData<A> {
-    state_products: IntegratedBilinearCrossStateProducts<A>,
-    quantities: IsotropicLayerQuantities<A>,
-}
-
-impl<A> IntegratedBilinearLayerData<A> {
-    pub(super) const fn new(
-        state_products: IntegratedBilinearCrossStateProducts<A>,
-        quantities: IsotropicLayerQuantities<A>,
-    ) -> Self {
-        Self {
-            state_products,
-            quantities,
-        }
-    }
-
-    pub(crate) fn state_products(&self) -> &IntegratedBilinearCrossStateProducts<A> {
-        &self.state_products
-    }
-
-    pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
-        &self.quantities
-    }
-
-    pub(super) fn into_parts(
-        self,
-    ) -> (
-        IntegratedBilinearCrossStateProducts<A>,
-        IsotropicLayerQuantities<A>,
-    ) {
+    pub(super) fn into_parts(self) -> (S, IsotropicLayerQuantities<A>) {
         (self.state_products, self.quantities)
     }
 }
@@ -207,6 +152,10 @@ where
             .ok_or(LayerProjectionError::MissingLayerThickness { index, layer_count })?
             .clone();
 
+        /*
+         * Analytic integration uses the directional amplitudes referenced to the
+         * layer's left boundary. The right-boundary reconstruction is not required.
+         */
         let (left, _right) = boundaries.into_parts();
 
         layers.push(LayerIntegrationInput::new(left, quantities, thickness));
@@ -216,7 +165,7 @@ where
 }
 
 impl<A> LayerIntegrationInput<A> {
-    fn integrate(self) -> IntegratedLayerData<A>
+    fn integrate_hermitian(self) -> IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>
     where
         A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
@@ -235,7 +184,7 @@ impl<A> LayerIntegrationInput<A> {
 }
 
 impl<A> LayerIntegrationInput<A> {
-    fn integrate_bilinear(self) -> IntegratedBilinearLayerData<A>
+    fn integrate_bilinear(self) -> IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>
     where
         A: ScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
@@ -249,23 +198,27 @@ impl<A> LayerIntegrationInput<A> {
 
         let state_products = project_integrated_bilinear_state_products(&products, &admittance);
 
-        IntegratedBilinearLayerData::new(state_products, quantities)
+        IntegratedLayerData::new(state_products, quantities)
     }
 }
 
 impl<A> Layers<LayerIntegrationInput<A>> {
-    pub(crate) fn integrate(self) -> Layers<IntegratedLayerData<A>>
+    pub(crate) fn integrate_hermitian(
+        self,
+    ) -> Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>>
     where
         A: RealScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
         A::Dimension: Dimension,
     {
-        self.map(LayerIntegrationInput::integrate)
+        self.map(LayerIntegrationInput::integrate_hermitian)
     }
 }
 
 impl<A> Layers<LayerIntegrationInput<A>> {
-    pub(crate) fn integrate_bilinear(self) -> Layers<IntegratedBilinearLayerData<A>>
+    pub(crate) fn integrate_bilinear(
+        self,
+    ) -> Layers<IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>>
     where
         A: ScalarAlgebra + ScalarAlgebraExpRelExt,
         A::Scalar: ComplexScalar,
@@ -526,7 +479,7 @@ mod tests {
             jet(c(1.7, 0.0)),
         );
 
-        let integrated = input.integrate();
+        let integrated = input.integrate_hermitian();
 
         assert_eq!(
             integrated.quantities().polarisation(),
@@ -557,7 +510,7 @@ mod tests {
 
         let expected = project_integrated_hermitian_state_products(&wave_products, admittance);
 
-        let actual = input_for_actual.integrate();
+        let actual = input_for_actual.integrate_hermitian();
 
         let actual_state = actual.state_products();
 
@@ -589,7 +542,7 @@ mod tests {
             ),
         ]);
 
-        let integrated = inputs.integrate();
+        let integrated = inputs.integrate_hermitian();
 
         assert_eq!(integrated.len(), 2);
 
@@ -601,5 +554,37 @@ mod tests {
                 < scalar(second.state_products().field_field(),).re,
             "larger forward amplitude should remain in the second record",
         );
+    }
+
+    #[test]
+    fn bilinear_integration_matches_direct_wave_and_state_projection() {
+        let input_for_actual = LayerIntegrationInput::new(
+            BoundaryWaves::new(jet(c(0.8, 0.3)), jet(c(-0.2, 0.5))),
+            quantities(0.0),
+            jet(c(1.7, 0.0)),
+        );
+
+        let input_for_expected = input_for_actual.clone();
+
+        let (waves, quantities, thickness) = input_for_expected.into_parts();
+
+        let products = integrate_bilinear_wave_products(&waves, quantities.kappa(), &thickness);
+
+        let admittance = quantities.admittance();
+
+        let expected = project_integrated_bilinear_state_products(&products, &admittance);
+
+        let actual = input_for_actual.integrate_bilinear();
+
+        let actual = actual.state_products();
+
+        for (actual, expected) in [
+            (actual.field_field(), expected.field_field()),
+            (actual.secondary_secondary(), expected.secondary_secondary()),
+            (actual.field_secondary(), expected.field_secondary()),
+            (actual.secondary_field(), expected.secondary_field()),
+        ] {
+            assert_complex_close(scalar(actual), scalar(expected), TOLERANCE);
+        }
     }
 }

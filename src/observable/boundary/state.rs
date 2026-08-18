@@ -45,29 +45,19 @@ impl<A> BoundaryState<A> {
         Self { field, secondary }
     }
 
-    /// Return canonical field component
+    /// Return the canonical field-like continuity component.
     pub fn field(&self) -> &A {
         &self.field
     }
 
-    /// Return canonical secondary component
+    /// Return the canonical secondary continuity component.
     pub fn secondary(&self) -> &A {
         &self.secondary
     }
 
-    /// Consume the state and return
+    /// Consume the state and return `(field, secondary)`.
     pub fn into_parts(self) -> (A, A) {
         (self.field, self.secondary)
-    }
-
-    pub fn scaled(mut self, factor: &A) -> Self
-    where
-        A: ScalarAlgebra,
-    {
-        self.field = self.field.multiply(factor);
-        self.secondary = self.secondary.multiply(factor);
-
-        self
     }
 
     /// Transform both canonical components
@@ -109,14 +99,17 @@ impl<A> LayerBoundaryStates<A> {
         Self { left, right }
     }
 
+    /// Return the left boundary state
     pub fn left(&self) -> &BoundaryState<A> {
         &self.left
     }
 
+    /// Return the right boundary state
     pub fn right(&self) -> &BoundaryState<A> {
         &self.right
     }
 
+    /// Consume and return (`left`, `right`)
     pub fn into_parts(self) -> (BoundaryState<A>, BoundaryState<A>) {
         (self.left, self.right)
     }

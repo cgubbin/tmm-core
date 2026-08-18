@@ -36,7 +36,7 @@ mod workspace;
 
 pub use exterior::ExteriorWavevectors;
 pub(crate) use exterior::evaluate_exterior_wavevectors;
-pub(crate) use isotropic::IsotropicLayerQuantities;
+pub(crate) use isotropic::{IsotropicLayerQuantities, IsotropicMediumQuantities};
 pub(crate) use mode::{
     ModalSolutionSource, ModeReconstructionError, PlaneWaveModeCandidate,
     ReconstructExteriorModeWaves, ReconstructLayerModeWaves,

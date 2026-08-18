@@ -3,17 +3,21 @@
 //! A stack containing `N` finite layers produces `N` layer records in
 //! physical left-to-right order.
 //!
-//! The layer pipeline has three stages:
+//! The finite-layer pipeline has three stages:
 //!
-//! 1. retained boundary waves and homogeneous-layer quantities are assembled
-//!    into internal layer data;
-//! 2. directional-wave and canonical-state products are integrated
+//! 1. retained boundary waves, layer geometry, and constitutive quantities are
+//!    assembled into internal layer inputs;
+//! 2. products of directional waves and canonical states are integrated
 //!    analytically through each homogeneous layer;
-//! 3. physical projections produce layer power, dissipation, or energy.
+//! 3. physical projections produce layer-resolved power, dissipation, energy,
+//!    participation, and confinement quantities.
 //!
-//! Real-input dissipation and energy use Hermitian products. Bilinear wave
-//! products are exposed internally for complex modal overlap and
-//! normalization.
+//! Real-frequency energy and dissipation use Hermitian products. Bilinear
+//! products are retained separately for complex modal overlap and
+//! normalization, where holomorphic dependence must be preserved.
+//!
+//! Public types represent physical layer observables. Integration kernels and
+//! overlap operands remain internal implementation details.
 
 mod aggregate;
 mod confinement;
@@ -48,10 +52,11 @@ pub(crate) use project::{LayerIntegrationInput, assemble_layer_integration_input
 
 use crate::FiniteLayerIndex;
 
-/// A quantity associated with every finite-layer, in physical left-to-right order.
+/// A quantity associated with every finite layer in physical left-to-right
+/// order.
 ///
-/// Exterior media are not represented. The collection length is therefore equal to the number of
-/// finite layers in the stack;
+/// Exterior media are not represented. The collection length therefore equals
+/// the number of finite layers in the stack.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layers<T> {
     values: Vec<T>,
@@ -92,6 +97,7 @@ impl<T> Layers<T> {
         self.values.iter()
     }
 
+    /// Iterate over finite-layer records together with their typed layer indices.
     pub fn iter_indexed(&self) -> impl ExactSizeIterator<Item = (FiniteLayerIndex, &T)> {
         self.values
             .iter()

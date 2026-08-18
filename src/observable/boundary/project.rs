@@ -21,12 +21,6 @@ use crate::{
 
 use super::{LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum RetainedLayerDatum {
-    Quantities,
-    Thickness,
-}
-
 /// Failure to construct boundary observables from a retained backend result.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum BoundaryProjectionError {
@@ -42,17 +36,6 @@ pub enum BoundaryProjectionError {
     )]
     LayerCountMismatch {
         wave_count: usize,
-        layer_count: usize,
-    },
-
-    /// The retained workspace reported a layer count but did not provide the
-    /// corresponding layer quantities.
-    #[error(
-        "retained layer {requested} is unavailable; retained layer count is \
-         {layer_count}"
-    )]
-    LayerOutOfBounds {
-        requested: usize,
         layer_count: usize,
     },
 
@@ -137,9 +120,7 @@ where
                 },
             )?;
 
-            let admittance = quantities.clone().into_admittance();
-
-            Ok(waves.into_states(&admittance))
+            Ok(waves.into_states(quantities.admittance()))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -169,7 +150,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        Polarisation, RealAxis,
+        FiniteLayerIndex, Polarisation, RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
         backend::IsotropicLayerQuantities,
         input::CanonicalCoordinates,
@@ -402,5 +383,28 @@ mod tests {
 
         assert_eq!(waves.len(), 2);
         assert_eq!(states.len(), 2);
+    }
+
+    #[test]
+    fn boundary_state_projection_uses_layer_local_admittance() {
+        let workspace = MockRetainedWorkspace {
+            waves: Some(vec![boundary_waves(0.0)]),
+            retained_layer_count: Some(1),
+            quantities: vec![quantities(4.0)],
+            thicknesses: vec![thickness(2.0)],
+        };
+
+        let projected = project_layer_boundary_states(&workspace, IncidentSide::Left).unwrap();
+
+        let states = projected.get(FiniteLayerIndex::new(0)).unwrap();
+
+        let waves = workspace.waves.as_ref().unwrap()[0].clone();
+        let observable = LayerBoundaryWaves::from(waves);
+
+        let admittance = workspace.quantities[0].admittance();
+
+        let expected = observable.into_states(&admittance);
+
+        assert_eq!(states, &expected);
     }
 }

@@ -120,16 +120,7 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    let cross = project_integrated_hermitian_cross_state_products(products, admittance, admittance);
-
-    let (field_field, secondary_secondary, field_secondary, secondary_field) = cross.into_parts();
-
-    IntegratedHermitianCrossStateProducts::new(
-        field_field,
-        secondary_secondary,
-        field_secondary,
-        secondary_field,
-    )
+    project_integrated_hermitian_cross_state_products(products, admittance, admittance)
 }
 
 /// Transform integrated Hermitian directional-wave cross-products into

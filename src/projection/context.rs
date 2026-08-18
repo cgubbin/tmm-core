@@ -1,3 +1,9 @@
+//! Point projection of caller-facing compilation metadata.
+//!
+//! Sampled coordinate values are reduced to `Ix0`, while coordinate
+//! parameterisations, stack metadata, derivative mappings, and projection
+//! constraints are preserved unchanged.
+
 use nalgebra::ComplexField;
 use ndarray::{Dimension, Ix0, arr0};
 

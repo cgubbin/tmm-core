@@ -61,15 +61,6 @@ impl<A> BoundaryWaves<A> {
         }
     }
 
-    pub(crate) fn state(&self, admittance: &A) -> BoundaryState<A>
-    where
-        A: ScalarAlgebra + Clone,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-    {
-        self.clone().into_state(admittance)
-    }
-
     /// Convert directional amplitudes into the canonical isotropic boundary
     /// state for `admittance`.
     ///
@@ -87,6 +78,9 @@ impl<A> BoundaryWaves<A> {
     /// ```
     ///
     /// where `factor = μ` for TE and `factor = ε` for TM.
+    ///
+    /// TODO: This duplicates the methods in the Transfer2 backend, and both should be factored into a
+    /// common helper in waves/
     pub(crate) fn into_state(self, admittance: &A) -> BoundaryState<A>
     where
         A: ScalarAlgebra,

@@ -10,8 +10,11 @@ use crate::{
     observable::{
         LayerAggregateError,
         layer::{
-            integration::project_integrated_bilinear_field_overlap,
-            overlap::BilinearLayerNormalization, project::IntegratedBilinearLayerData,
+            IntegratedHermitianCrossStateProducts,
+            integration::{
+                IntegratedBilinearCrossStateProducts, project_integrated_bilinear_field_overlap,
+            },
+            overlap::BilinearLayerNormalization,
         },
     },
 };
@@ -136,13 +139,13 @@ impl<A> BrillouinConstitutiveDerivatives<A> {
 
 #[derive(Clone, Debug)]
 pub(crate) struct BrillouinLayerInput<A> {
-    integrated: IntegratedLayerData<A>,
+    integrated: IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>,
     derivative: BrillouinConstitutiveDerivatives<A>,
 }
 
 impl<A> BrillouinLayerInput<A> {
     pub(crate) const fn new(
-        integrated: IntegratedLayerData<A>,
+        integrated: IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>,
         derivative: BrillouinConstitutiveDerivatives<A>,
     ) -> Self {
         Self {
@@ -151,7 +154,9 @@ impl<A> BrillouinLayerInput<A> {
         }
     }
 
-    pub(crate) fn integrated(&self) -> &IntegratedLayerData<A> {
+    pub(crate) fn integrated(
+        &self,
+    ) -> &IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A> {
         &self.integrated
     }
 
@@ -161,12 +166,15 @@ impl<A> BrillouinLayerInput<A> {
 
     pub(crate) fn into_parts(
         self,
-    ) -> (IntegratedLayerData<A>, BrillouinConstitutiveDerivatives<A>) {
+    ) -> (
+        IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>,
+        BrillouinConstitutiveDerivatives<A>,
+    ) {
         (self.integrated, self.derivative)
     }
 }
 
-impl<A> Layers<IntegratedLayerData<A>> {
+impl<A> Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>> {
     pub(crate) fn into_brillouin_layers<'a, E, M>(
         self,
         materials: impl ExactSizeIterator<Item = &'a M>,
@@ -214,13 +222,13 @@ impl<A> Layers<IntegratedLayerData<A>> {
 
 #[derive(Clone, Debug)]
 pub(crate) struct BrillouinBilinearLayerInput<A> {
-    integrated: IntegratedBilinearLayerData<A>,
+    integrated: IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>,
     derivative: BrillouinConstitutiveDerivatives<A>,
 }
 
 impl<A> BrillouinBilinearLayerInput<A> {
     pub(crate) const fn new(
-        integrated: IntegratedBilinearLayerData<A>,
+        integrated: IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>,
         derivative: BrillouinConstitutiveDerivatives<A>,
     ) -> Self {
         Self {
@@ -229,7 +237,9 @@ impl<A> BrillouinBilinearLayerInput<A> {
         }
     }
 
-    pub(crate) fn integrated(&self) -> &IntegratedBilinearLayerData<A> {
+    pub(crate) fn integrated(
+        &self,
+    ) -> &IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A> {
         &self.integrated
     }
 
@@ -240,14 +250,14 @@ impl<A> BrillouinBilinearLayerInput<A> {
     pub(crate) fn into_parts(
         self,
     ) -> (
-        IntegratedBilinearLayerData<A>,
+        IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>,
         BrillouinConstitutiveDerivatives<A>,
     ) {
         (self.integrated, self.derivative)
     }
 }
 
-impl<A> Layers<IntegratedBilinearLayerData<A>> {
+impl<A> Layers<IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A>> {
     pub(crate) fn into_brillouin_layers<'a, E, M>(
         self,
         materials: impl ExactSizeIterator<Item = &'a M>,
@@ -307,7 +317,7 @@ where
     A::RealJet::filled_constant_like(vacuum.value(), quarter)
 }
 
-impl<A> IntegratedLayerData<A> {
+impl<A> IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A> {
     fn into_nondispersive_energy(
         self,
         vacuum_angular_wavenumber: &A,
@@ -342,7 +352,7 @@ impl<A> IntegratedLayerData<A> {
     }
 }
 
-impl<A> Layers<IntegratedLayerData<A>> {
+impl<A> Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>> {
     pub(crate) fn into_nondispersive_energy(
         self,
         vacuum_angular_wavenumber: &A,
@@ -642,7 +652,7 @@ mod tests {
         mu: C,
         field_field: f64,
         secondary_secondary: f64,
-    ) -> IntegratedLayerData<A0> {
+    ) -> IntegratedLayerData<IntegratedHermitianCrossStateProducts<A0>, A0> {
         IntegratedLayerData::new(
             state_products(field_field, secondary_secondary),
             quantities(polarisation, epsilon, mu),
@@ -877,7 +887,8 @@ mod tests {
 
     #[test]
     fn empty_nondispersive_sequence_remains_empty() {
-        let layers: Layers<IntegratedLayerData<A0>> = Layers::new(Vec::new());
+        let layers: Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A0>, A0>> =
+            Layers::new(Vec::new());
 
         let energy = layers.into_nondispersive_energy(&jet(c(2.0, 0.0)), &jet(c(0.6, 0.0)));
 
@@ -1388,7 +1399,8 @@ mod tests {
 
     #[test]
     fn empty_layers_pair_with_empty_materials() {
-        let layers: Layers<IntegratedLayerData<A0>> = Layers::new(Vec::new());
+        let layers: Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A0>, A0>> =
+            Layers::new(Vec::new());
 
         let materials: [DifferentiableMaterialHandle<C>; 0] = [];
 

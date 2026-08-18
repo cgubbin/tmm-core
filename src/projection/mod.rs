@@ -1,6 +1,20 @@
+//! Structural projection of sampled calculations to owned point calculations.
+//!
+//! Projection selects one sampled coordinate from a recursively structured
+//! calculation while preserving:
+//!
+//! - scalar type;
+//! - derivative order and parameter policy;
+//! - all derivative components;
+//! - backend and material metadata.
+//!
+//! Only the sampled ndarray dimension changes to `Ix0`.
+//!
+//! Projection does not evaluate derivatives, crystallise jets, transform
+//! coordinates, or recompute physical quantities.
+
 mod context;
 mod problem;
-mod quantities;
 mod workspace;
 
 use nalgebra::ComplexField;
@@ -32,13 +46,6 @@ pub(crate) trait ProjectPoint {
     fn project_point<I>(&self, index: &I) -> Result<Self::Point, PointProjectionError>
     where
         I: NdIndex<Self::Dimension> + Clone;
-
-    fn at<I>(&self, index: &I) -> Result<Self::Point, PointProjectionError>
-    where
-        I: ndarray::NdIndex<Self::Dimension> + Clone,
-    {
-        self.project_point(index)
-    }
 }
 
 impl<J> ProjectPoint for J

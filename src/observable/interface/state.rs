@@ -7,7 +7,8 @@ use crate::{
 
 use super::{InterfaceWaveData, Interfaces};
 
-/// Boundary States in the two external media
+/// Canonical boundary states in the two exterior media.
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ExteriorBoundaryStates<A> {
     pub(crate) left: BoundaryState<A>,
     pub(crate) right: BoundaryState<A>,

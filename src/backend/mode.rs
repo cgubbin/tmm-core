@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    algebra::ScalarAlgebra,
+    algebra::{ScalarAlgebra, ScaleBy},
     observable::BoundaryState,
     waves::{ExteriorBoundaryWaves, LayerBoundaryWaves},
 };
@@ -94,7 +94,7 @@ impl<A> PlaneWaveModeCandidate<A> {
     {
         self.right_outgoing = self.right_outgoing.multiply(factor);
         self.residual = self.residual.multiply(factor);
-        self.state = self.state.scaled(factor);
+        self.state = self.state.scale_by(factor);
 
         self
     }

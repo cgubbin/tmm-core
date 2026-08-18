@@ -1,7 +1,8 @@
 use crate::{
     ScalarAlgebra,
     backend::{
-        ExteriorContextProvider, IsotropicLayerQuantities, PlaneWaveEntries, PlaneWaveSolution,
+        ExteriorContextProvider, IsotropicLayerQuantities, IsotropicMediumQuantities,
+        PlaneWaveEntries, PlaneWaveSolution,
         scatter2::{
             RetainedScatterComponents, Scatter2Entries, Scatter2ExteriorContext,
             Scatter2ProjectiveEntries, Scatter2Workspace,
@@ -212,7 +213,7 @@ where
                 .iter()
                 .map(|each| each.project_point(index))
                 .collect::<Result<_, _>>()?,
-            self.layer_cuts().to_vec().clone(),
+            self.layer_cuts().to_vec(),
             self.quantities()
                 .iter()
                 .map(|each| each.project_point(index))
@@ -278,11 +279,29 @@ where
     where
         I: ndarray::NdIndex<Self::Dimension> + Clone,
     {
-        Ok(IsotropicLayerQuantities::from_parts(
-            self.kappa().project_point(index)?,
+        Ok(self
+            .medium()
+            .project_point(index)?
+            .with_polarisation(self.polarisation()))
+    }
+}
+
+impl<J> ProjectPoint for IsotropicMediumQuantities<J>
+where
+    J: ProjectPoint,
+    J::Point: ScalarAlgebra,
+{
+    type Dimension = J::Dimension;
+    type Point = IsotropicMediumQuantities<J::Point>;
+
+    fn project_point<I>(&self, index: &I) -> Result<Self::Point, PointProjectionError>
+    where
+        I: ndarray::NdIndex<Self::Dimension> + Clone,
+    {
+        Ok(IsotropicMediumQuantities::from_parts(
             self.epsilon().project_point(index)?,
             self.mu().project_point(index)?,
-            self.polarisation(),
+            self.kappa().project_point(index)?,
         ))
     }
 }
@@ -431,5 +450,28 @@ mod tests {
         assert_eq!(point.kappa().value()[()], Complex64::new(13.0, 0.0),);
 
         assert_eq!(point.polarisation(), Polarisation::TransverseElectric,);
+    }
+
+    #[test]
+    fn scatter_exterior_context_projects_explicit_wavevectors() {
+        let context = Scatter2ExteriorContext::from_parts(
+            jet(&[2.0, 3.0]),   // left Y
+            jet(&[5.0, 7.0]),   // right Y
+            jet(&[11.0, 13.0]), // left κ
+            jet(&[17.0, 19.0]), // right κ
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            jet(&[0.0, 0.0]),
+            Polarisation::TransverseElectric,
+        );
+
+        let point = context.project_point(&1).unwrap();
+
+        assert_eq!(point.left_kappa().value()[()], Complex64::new(13.0, 0.0),);
+
+        assert_eq!(point.right_kappa().value()[()], Complex64::new(19.0, 0.0),);
     }
 }

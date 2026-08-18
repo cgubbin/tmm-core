@@ -110,19 +110,21 @@ where
 ///
 /// - left incidence gives `(1, r)` on the left and `(t, 0)` on the right;
 /// - right incidence gives `(0, t)` on the left and `(r, 1)` on the right.
+///
+/// TODO: This duplicates the methods in waves, which should be extracted into a shared helper
 pub(crate) fn exterior_boundary_waves<A>(
     amplitudes: &PlaneWaveAmplitudes<A>,
     incident_side: IncidentSide,
-    source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
+    shape_source: &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>,
 ) -> ExteriorBoundaryWaves<A>
 where
     A: ScalarAlgebra + Clone,
     A::Scalar: One + Zero,
     A::Dimension: Dimension,
 {
-    let zero = A::filled_constant_like(source, <A::Scalar as Zero>::zero());
+    let zero = A::filled_constant_like(shape_source, <A::Scalar as Zero>::zero());
 
-    let one = A::filled_constant_like(source, <A::Scalar as One>::one());
+    let one = A::filled_constant_like(shape_source, <A::Scalar as One>::one());
 
     match incident_side {
         IncidentSide::Left => ExteriorBoundaryWaves::new(
@@ -174,15 +176,14 @@ where
     let mut admittances = Vec::with_capacity(layer_count);
 
     for index in 0..layer_count {
-        let quantities =
-            workspace
-                .layer_quantities(index)
-                .ok_or(BoundaryProjectionError::LayerOutOfBounds {
-                    requested: index,
-                    layer_count,
-                })?;
+        let quantities = workspace.layer_quantities(index).ok_or(
+            BoundaryProjectionError::LayerQuantitiesUnavailable {
+                requested: index,
+                layer_count,
+            },
+        )?;
 
-        admittances.push(quantities.clone().into_admittance());
+        admittances.push(quantities.admittance().clone());
     }
 
     Ok(admittances)

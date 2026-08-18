@@ -5,6 +5,7 @@ use num_traits::{FromPrimitive, One};
 use crate::{
     algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::IsotropicLayerQuantities,
+    observable::layer::IntegratedHermitianCrossStateProducts,
 };
 
 use super::{Layers, integration::project_integrated_field_norms, project::IntegratedLayerData};
@@ -68,7 +69,7 @@ impl<R> LayerDissipation<R> {
     }
 }
 
-impl<A> IntegratedLayerData<A> {
+impl<A> IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A> {
     /// Project this integrated layer into normalized electric, magnetic, and
     /// total dissipation.
     fn into_dissipation(
@@ -105,7 +106,7 @@ impl<A> IntegratedLayerData<A> {
     }
 }
 
-impl<A> Layers<IntegratedLayerData<A>> {
+impl<A> Layers<IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A>> {
     /// Project every integrated finite layer into normalized dissipation.
     ///
     /// Results preserve physical left-to-right finite-layer order.
@@ -227,7 +228,7 @@ mod tests {
         mu: C,
         field_field: f64,
         secondary_secondary: f64,
-    ) -> IntegratedLayerData<A0> {
+    ) -> IntegratedLayerData<IntegratedHermitianCrossStateProducts<A0>, A0> {
         IntegratedLayerData::new(
             state_products(field_field, secondary_secondary),
             quantities(polarisation, epsilon, mu),

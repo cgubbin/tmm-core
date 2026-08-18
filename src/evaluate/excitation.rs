@@ -307,7 +307,7 @@ where
     {
         let layers = self
             .normalised_layer_integration_inputs()?
-            .integrate();
+            .integrate_hermitian();
 
 
         let coordinates = self.state.problem().coordinates();
@@ -337,7 +337,7 @@ where
     {
         let integrated = self
             .normalised_layer_integration_inputs()?
-            .integrate();
+            .integrate_hermitian();
 
         let problem = self.state.problem();
         let coordinates = problem.coordinates();
@@ -372,7 +372,7 @@ where
 
         let sequence = self
             .normalised_layer_integration_inputs()?
-            .integrate()
+            .integrate_hermitian()
             .into_brillouin_layers(
                 self.state.problem()
                     .stack()

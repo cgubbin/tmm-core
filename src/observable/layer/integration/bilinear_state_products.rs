@@ -98,16 +98,7 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
-    let cross = project_integrated_bilinear_cross_state_products(products, admittance, admittance);
-
-    let (field_field, secondary_secondary, field_secondary, secondary_field) = cross.into_parts();
-
-    IntegratedBilinearCrossStateProducts::new(
-        field_field,
-        secondary_secondary,
-        field_secondary,
-        secondary_field,
-    )
+    project_integrated_bilinear_cross_state_products(products, admittance, admittance)
 }
 
 /// Transform integrated bilinear directional-wave cross-products into
