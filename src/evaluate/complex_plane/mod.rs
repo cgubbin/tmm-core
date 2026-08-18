@@ -1,3 +1,6 @@
+// mod mode;
+// mod pair;
+
 use std::fmt::Debug;
 
 use nalgebra::ComplexField;
@@ -10,26 +13,13 @@ use crate::{
     Polarisation, Stack,
     algebra::{Jet, ScalarAlgebra},
     backend::Backend,
-    evaluate::{PlaneWaveEvaluationError, SolveRequestError},
     input::{
-        CanonicalProblem, CanonicalStack, MappingError, StackCompileError, StackThicknessJet,
-        ValidationConfig, compile_canonical_constant_stack,
+        CanonicalStack, StackCompileError, StackThicknessJet, ValidationConfig,
+        compile_canonical_constant_stack,
     },
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::ProjectPlaneWaveModeDeterminant,
 };
-
-#[derive(Debug, Error)]
-pub enum CompileModalError<R> {
-    #[error(transparent)]
-    Request(#[from] SolveRequestError),
-
-    #[error(transparent)]
-    Mapping(#[from] MappingError),
-
-    #[error(transparent)]
-    Stack(#[from] StackCompileError<R>),
-}
 
 /// Compiles and solves modal problems using a statically
 /// selected backend.
@@ -49,7 +39,7 @@ pub enum CompileModalError<R> {
 /// Modal evaluators should be probed in the canonical backend coordinates. No coordinate
 /// compilation occurs in the evaluation path
 #[derive(Clone, Debug)]
-pub struct ModalEvaluator<J, M, B> {
+pub struct ComplexPlaneEvaluator<J, M, B> {
     backend: B,
     stack: CanonicalStack<M, J>,
 }
@@ -68,11 +58,11 @@ impl From<ModalAnalysisParameter> for Parameter {
     }
 }
 
-impl<J, M, B> ModalEvaluator<J, M, B> {
-    fn new(
+impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
+    pub fn compile(
         stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
         backend: B,
-    ) -> Result<Self, CompileModalError<<J::Scalar as ComplexField>::RealField>>
+    ) -> Result<Self, StackCompileError<<J::Scalar as ComplexField>::RealField>>
     where
         J: Jet<Dimension = Ix0> + StackThicknessJet,
         J::Scalar: ComplexField + Copy,
@@ -89,6 +79,10 @@ impl<J, M, B> ModalEvaluator<J, M, B> {
         Ok(Self { stack, backend })
     }
 
+    pub fn from_canonical_stack(stack: CanonicalStack<M, J>, backend: B) -> Self {
+        Self { stack, backend }
+    }
+
     fn backend(&self) -> &B {
         &self.backend
     }
@@ -98,19 +92,13 @@ impl<J, M, B> ModalEvaluator<J, M, B> {
     }
 }
 
-impl<J, M, B> ModalEvaluator<J, M, B> {
+impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
     pub fn determinant(
         &self,
         coordinates: CanonicalCoordinates<J>,
         exterior: ExteriorWavevectors<J>,
         polarisation: Polarisation,
-    ) -> Result<
-        RawModeDeterminant<B, J>,
-        PlaneWaveEvaluationError<
-            StackCompileError<J::Scalar>,
-            <B as Backend<J, ComplexPlane>>::Error,
-        >,
-    >
+    ) -> Result<RawModeDeterminant<B, J>, <B as Backend<J, ComplexPlane>>::Error>
     where
         J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
         J::Scalar: ComplexScalar,
@@ -122,11 +110,41 @@ impl<J, M, B> ModalEvaluator<J, M, B> {
     {
         let solution = self
             .backend()
-            .solve(&coordinates, self.stack(), &exterior, polarisation)
-            .map_err(|err| PlaneWaveEvaluationError::Backend { source: err })?;
+            .solve(&coordinates, self.stack(), &exterior, polarisation)?;
 
         Ok(solution.determinant())
     }
+
+    // pub fn retain(
+    //     &self,
+    //     coordinates: CanonicalCoordinates<J>,
+    //     exterior: ExteriorWavevectors<J>,
+    //     polarisation: Polarisation,
+    // ) -> Result<
+    //     RawState<J, <J::Scalar as ComplexField>::RealField, M, B::Workspace>,
+    //     <B as Backend<J, ComplexPlane>>::Error,
+    // >
+    // where
+    //     J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
+    //     J::Scalar: ComplexScalar,
+    //     J::Dimension: Dimension,
+    //     M: Clone,
+    //     ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+    //     B: Backend<J, ComplexPlane>,
+    //     <B as Backend<J, ComplexPlane>>::Entries: ProjectPlaneWaveModeDeterminant,
+    // {
+    //     let workspace =
+    //         self.backend()
+    //             .retain(&coordinates, self.stack(), &exterior, polarisation)?;
+
+    //     Ok(RawState::new(
+    //         canonical_problem,
+    //         workspace,
+    //         context,
+    //         stack.clone(),
+    //         polarisation,
+    //     ))
+    // }
 }
 
 pub(crate) type QueryEntries<B, J> = <B as Backend<J, ComplexPlane>>::Entries;

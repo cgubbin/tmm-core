@@ -1,39 +1,30 @@
-use std::ops::Neg;
-
 use nalgebra::ComplexField;
 use ndarray::{Dimension, Ix0, NdIndex};
 use num_traits::{FromPrimitive, One, Zero};
 
 use crate::{
-    ComplexPlane, ComplexScalar, IncidentSide, InterfacePower, LayerDissipation, LayerPower,
-    PlaneWaveAmplitudes, Polarisation, RealAxis, Stack,
+    ComplexScalar, IncidentSide, InterfacePower, LayerPower, PlaneWaveAmplitudes, Polarisation,
+    Stack,
     algebra::{
         ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
     },
     backend::{
-        ExteriorContextProvider, ModalSolutionSource, PlaneWaveEntries, PlaneWaveSolutionSource,
-        PlaneWaveSolutionView, ReconstructLayerModeWaves, RetainedIsotropicLayers,
+        ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, PlaneWaveSolutionView,
+        RetainedIsotropicLayers,
     },
-    derivative_parts::DerivativePartsPolicy,
-    differential::IntoDifferentialResponse,
-    evaluate::mode::{PlaneWaveMode, QnmCreationError},
     input::{
         CanonicalProblem, CompilationContext, JetMapping, ProjectionConstraint,
         ProjectionConstraintError,
     },
-    material::{
-        ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
-        ConstitutiveSpectralFirstLift,
-    },
+    material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
-        AggregateBilinearNormalization, BoundaryProjectionError, ConstitutiveSamplingContext,
-        ConstitutiveSamplingError, InterfaceProjectionError, InterfaceStates, InterfaceWaveData,
-        Interfaces, IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
-        LayerBoundaries, LayerBoundaryStates, LayerBoundaryWaves, LayerEnergy, LayerEnergyError,
-        LayerIntegrationInput, LayerProjectionError, Layers, ProjectAmplitudes,
-        ProjectPlaneWaveModeDeterminant, assemble_interface_wave_data,
-        assemble_layer_integration_inputs, exterior_boundary_states, exterior_boundary_waves,
-        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
+        BoundaryProjectionError, ConstitutiveSamplingContext, ConstitutiveSamplingError,
+        InterfaceProjectionError, InterfaceStates, InterfaceWaveData, Interfaces,
+        IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData, LayerBoundaries,
+        LayerBoundaryStates, LayerBoundaryWaves, LayerIntegrationInput, LayerProjectionError,
+        Layers, ProjectAmplitudes, assemble_interface_wave_data, assemble_layer_integration_inputs,
+        exterior_boundary_states, exterior_boundary_waves, project_layer_admittances,
+        project_layer_boundary_states, project_layer_boundary_waves,
     },
     projection::{JetPointProjection, PointProjectionError, ProjectPoint},
     spatial::ResolvedFieldSampling,
@@ -41,10 +32,8 @@ use crate::{
 };
 
 use super::{
-    excitation::PlaneWaveExcitation,
-    query::{
-        DifferentialResponseFor, PlaneWaveExternalQueries, PlaneWaveQuery, RawModeDeterminant,
-    },
+    RealAxisExcitation,
+    query::{DifferentialResponseFor, PlaneWaveQuery, RealAxisExternalQueries},
 };
 
 /// A completed plane-wave evaluation.
@@ -61,31 +50,35 @@ use super::{
 /// finally assemble a caller-facing
 /// [`DifferentialResponse`](crate::differential::DifferentialResponse).
 #[derive(Clone, Debug)]
-pub struct PlaneWaveState<J, I, M, W>
+pub struct RealAxisState<J, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
     problem: CanonicalProblem<M, J>,
     workspace: W,
-    context: CompilationContext<I, J::Dimension, J::Mapping>,
+    context: CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
     stack: Stack<M, <J::Scalar as ComplexField>::RealField>,
     polarisation: Polarisation,
 }
 
-impl<J, I, M, W> PlaneWaveState<J, I, M, W>
+impl<J, M, W> RealAxisState<J, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
     pub(crate) fn new(
         problem: CanonicalProblem<M, J>,
         workspace: W,
-        context: CompilationContext<I, J::Dimension, J::Mapping>,
+        context: CompilationContext<
+            <J::Scalar as ComplexField>::RealField,
+            J::Dimension,
+            J::Mapping,
+        >,
         stack: Stack<M, <J::Scalar as ComplexField>::RealField>,
         polarisation: Polarisation,
     ) -> Self {
@@ -98,47 +91,29 @@ where
         }
     }
 
-    pub fn excitation(
-        &self,
-        incident_side: IncidentSide,
-    ) -> Result<PlaneWaveExcitation<'_, J, I, M, W>, ProjectionConstraintError>
-    where
-        J: ComplexJet + ScalarAlgebra + RealScalarAlgebra,
-        J::RealJet: ScalarAlgebra,
-        J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive,
-        W: PlaneWaveSolutionSource,
-        W::Entries: PlaneWaveEntries,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-    {
-        if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
-            if side != incident_side {
-                return Err(ProjectionConstraintError {
-                    constraint: side,
-                    requested: incident_side,
-                });
-            }
-        }
-
-        Ok(PlaneWaveExcitation::new(self, incident_side))
-    }
-
     pub(crate) fn project_point<Idx>(
         &self,
         index: &Idx,
-    ) -> Result<PlaneWaveState<J::PointJet, I, M, W::Point>, PointProjectionError>
+    ) -> Result<RealAxisState<J::PointJet, M, W::Point>, PointProjectionError>
     where
         J: JetPointProjection,
         J::PointJet: JetMapping<Mapping = J::Mapping>,
         CanonicalProblem<M, J>:
             ProjectPoint<Dimension = J::Dimension, Point = CanonicalProblem<M, J::PointJet>>,
         W: ProjectPoint<Dimension = J::Dimension>,
-        CompilationContext<I, J::Dimension, J::Mapping>:
-            ProjectPoint<Dimension = J::Dimension, Point = CompilationContext<I, Ix0, J::Mapping>>,
+        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>:
+            ProjectPoint<
+                    Dimension = J::Dimension,
+                    Point = CompilationContext<
+                        <J::Scalar as ComplexField>::RealField,
+                        Ix0,
+                        J::Mapping,
+                    >,
+                >,
         Idx: NdIndex<J::Dimension> + Clone,
         M: Clone,
     {
-        Ok(PlaneWaveState::new(
+        Ok(RealAxisState::new(
             self.problem.project_point(index)?,
             self.workspace.project_point(index)?,
             self.context.project_point(index)?,
@@ -173,7 +148,9 @@ where
     }
 
     /// Return the retained compilation metadata.
-    pub fn context(&self) -> &CompilationContext<I, J::Dimension, J::Mapping> {
+    pub fn context(
+        &self,
+    ) -> &CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping> {
         &self.context
     }
 
@@ -183,15 +160,15 @@ where
     ) -> (
         CanonicalProblem<M, J>,
         W,
-        CompilationContext<I, J::Dimension, J::Mapping>,
+        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
     ) {
         (self.problem, self.workspace, self.context)
     }
 
     /// Transform the retained workspace while preserving the canonical
     /// problem and compilation context.
-    pub fn map_result<W2>(self, map: impl FnOnce(W) -> W2) -> PlaneWaveState<J, I, M, W2> {
-        PlaneWaveState {
+    pub fn map_result<W2>(self, map: impl FnOnce(W) -> W2) -> RealAxisState<J, M, W2> {
+        RealAxisState {
             problem: self.problem,
             workspace: map(self.workspace),
             context: self.context,
@@ -340,49 +317,74 @@ where
 
         context.sample_spectral_first(sampling, self.problem.stack())
     }
-}
 
-impl<J, M, W> PlaneWaveState<J, J::Scalar, M, W>
-where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
-    J::Policy: Default,
-    W: PlaneWaveSolutionSource,
-{
-    pub fn mode(&self) -> Result<PlaneWaveMode<'_, J, M, W>, QnmCreationError>
+    pub fn excitation(
+        &self,
+        incident_side: IncidentSide,
+    ) -> Result<RealAxisExcitation<'_, J, M, W>, ProjectionConstraintError>
     where
-        J: ComplexJet
-            + ScalarAlgebra
-            + ScalarAlgebraExpRelExt
-            + ConstitutiveSpectralFirstLift<ComplexPlane, M>
-            + Clone,
+        J: ComplexJet + ScalarAlgebra + RealScalarAlgebra,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
-        <J::RealJet as Jet>::Scalar: FromPrimitive + One,
-        J::Dimension: Dimension,
-        ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
-        W: PlaneWaveSolutionSource
-            + ReconstructLayerModeWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>
-            + ModalSolutionSource<Algebra = J>,
+        <J::RealJet as Jet>::Scalar: FromPrimitive,
+        W: PlaneWaveSolutionSource,
+        W::Entries: PlaneWaveEntries,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
-        AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
-        PlaneWaveMode::new(self)
-    }
+        if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
+            if side != incident_side {
+                return Err(ProjectionConstraintError {
+                    constraint: side,
+                    requested: incident_side,
+                });
+            }
+        }
 
-    pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<Self, J>>
-    where
-        W::Entries: ProjectPlaneWaveModeDeterminant,
-        J::Policy: DerivativePartsPolicy<RawModeDeterminant<Self, J>>,
-        RawModeDeterminant<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
-    {
-        self.raw_determinant()
-            .into_differential_response(&J::Policy::default(), self.mapping())
+        Ok(RealAxisExcitation::new(self, incident_side))
     }
 }
+
+// impl<J, M, W> RealAxisState<J, J::Scalar, M, W>
+// where
+//     J: Jet + JetMapping,
+//     J::Scalar: ComplexField,
+//     J::Dimension: Dimension,
+//     J::Policy: Default,
+//     W: PlaneWaveSolutionSource,
+// {
+//     pub fn mode(&self) -> Result<PlaneWaveMode<'_, J, M, W>, QnmCreationError>
+//     where
+//         J: ComplexJet
+//             + ScalarAlgebra
+//             + ScalarAlgebraExpRelExt
+//             + ConstitutiveSpectralFirstLift<ComplexPlane, M>
+//             + Clone,
+//         J::RealJet: ScalarAlgebra,
+//         J::Scalar: ComplexScalar,
+//         <J::RealJet as Jet>::Scalar: FromPrimitive + One,
+//         J::Dimension: Dimension,
+//         ComplexPlane: ConstitutiveDerivativeEvaluator<J::Scalar, J::Dimension, M>,
+//         W: PlaneWaveSolutionSource
+//             + ReconstructLayerModeWaves<Algebra = J>
+//             + RetainedIsotropicLayers<Algebra = J>
+//             + ModalSolutionSource<Algebra = J>,
+//         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
+//         J::Policy: DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
+//         AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+//     {
+//         PlaneWaveMode::new(self)
+//     }
+
+//     pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<Self, J>>
+//     where
+//         W::Entries: ProjectPlaneWaveModeDeterminant,
+//         J::Policy: DerivativePartsPolicy<RawModeDeterminant<Self, J>>,
+//         RawModeDeterminant<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+//     {
+//         self.raw_determinant()
+//             .into_differential_response(&J::Policy::default(), self.mapping())
+//     }
+// }
 
 pub(super) type RawInterfacePower<J> = Interfaces<InterfacePower<<J as ComplexJet>::RealJet>>;
 pub(super) type RawLayerPower<J> = Layers<LayerPower<<J as ComplexJet>::RealJet>>;

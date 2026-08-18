@@ -34,7 +34,7 @@ pub use input::{
     Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
 };
 
-pub use evaluate::PlaneWaveEvaluator;
+pub use evaluate::{ComplexPlaneEvaluator, RealAxisEvaluator};
 
 pub use material::{
     Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,

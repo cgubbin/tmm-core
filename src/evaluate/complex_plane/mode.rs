@@ -15,7 +15,7 @@ use crate::{
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
     evaluate::{
-        PlaneWaveState,
+        RawState,
         query::{DifferentialResponseFor, PlaneWaveQuery},
     },
     input::JetMapping,
@@ -72,7 +72,7 @@ where
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
 {
-    state: &'a PlaneWaveState<J, J::Scalar, M, W>,
+    state: &'a RawState<J, J::Scalar, M, W>,
     solution: PlaneWaveModeCandidate<J>,
     raw_normalisation: AggregateBilinearNormalization<J>,
 }
@@ -84,9 +84,7 @@ where
     J::Dimension: Dimension,
 {
     /// Construct an excitation after validating the state's projection constraint.
-    pub(crate) fn new(
-        state: &'a PlaneWaveState<J, J::Scalar, M, W>,
-    ) -> Result<Self, QnmCreationError>
+    pub(crate) fn new(state: &'a RawState<J, J::Scalar, M, W>) -> Result<Self, QnmCreationError>
     where
         J: ComplexJet
             + ScalarAlgebra
@@ -119,7 +117,7 @@ where
         })
     }
 
-    pub(crate) fn state(&self) -> &'a PlaneWaveState<J, J::Scalar, M, W> {
+    pub(crate) fn state(&self) -> &'a RawState<J, J::Scalar, M, W> {
         self.state
     }
 
@@ -134,7 +132,7 @@ where
     pub(crate) fn into_parts(
         self,
     ) -> (
-        &'a PlaneWaveState<J, J::Scalar, M, W>,
+        &'a RawState<J, J::Scalar, M, W>,
         PlaneWaveModeCandidate<J>,
         AggregateBilinearNormalization<J>,
     ) {
@@ -277,7 +275,7 @@ where
 
 pub(crate) fn raw_qnm_normalisation_unchecked<J, M, W>(
     seed: &PlaneWaveModeCandidate<J>,
-    state: &PlaneWaveState<J, J::Scalar, M, W>,
+    state: &RawState<J, J::Scalar, M, W>,
 ) -> Result<AggregateBilinearNormalization<J>, QnmNormalisationError>
 where
     J: ComplexJet

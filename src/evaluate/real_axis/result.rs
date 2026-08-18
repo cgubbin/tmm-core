@@ -8,12 +8,11 @@ use crate::{
     derivative_parts::DerivativePartsPolicy,
     differential::IntoDifferentialResponse,
     input::{CompilationContext, JetMapping, ProjectionConstraint, ProjectionConstraintError},
-    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+    observable::{ProjectAmplitudes, ProjectPower},
 };
 
 use super::query::{
-    DifferentialResponseFor, PlaneWaveExternalQueries, PlaneWaveQuery, RawAmplitudes,
-    RawModeDeterminant, RawPower,
+    DifferentialResponseFor, PlaneWaveQuery, RawAmplitudes, RawPower, RealAxisExternalQueries,
 };
 
 /// A completed non-retained plane-wave evaluation.
@@ -25,27 +24,31 @@ use super::query::{
 /// result supports external projections such as amplitudes, powers, and modal
 /// determinants, but not internal-field reconstruction.
 #[derive(Clone, Debug)]
-pub struct PlaneWaveResult<J, I, S>
+pub struct RealAxisResult<J, S>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
     solution: S,
-    context: CompilationContext<I, J::Dimension, J::Mapping>,
+    context: CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
 }
 
-impl<J, I, S> PlaneWaveResult<J, I, S>
+impl<J, S> RealAxisResult<J, S>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
     pub(crate) fn new(
         solution: S,
-        context: CompilationContext<I, J::Dimension, J::Mapping>,
+        context: CompilationContext<
+            <J::Scalar as ComplexField>::RealField,
+            J::Dimension,
+            J::Mapping,
+        >,
     ) -> Self {
         Self { solution, context }
     }
@@ -55,17 +58,24 @@ where
     }
 
     /// Return the retained compilation context.
-    pub fn context(&self) -> &CompilationContext<I, J::Dimension, J::Mapping> {
+    pub fn context(
+        &self,
+    ) -> &CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping> {
         &self.context
     }
 
     /// Consume the result and return its components.
-    pub fn into_parts(self) -> (S, CompilationContext<I, J::Dimension, J::Mapping>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        S,
+        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
+    ) {
         (self.solution, self.context)
     }
 }
 
-impl<J, S> PlaneWaveResult<J, <J::Scalar as ComplexField>::RealField, S>
+impl<J, S> RealAxisResult<J, S>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
@@ -118,24 +128,5 @@ where
         Ok(self
             .raw_power(incident_side)
             .into_differential_response(&J::Policy::default(), self.mapping()))
-    }
-}
-
-impl<J, S> PlaneWaveResult<J, J::Scalar, S>
-where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
-    J::Policy: Default,
-    S: PlaneWaveSolutionSource,
-{
-    pub fn determinant(&self) -> DifferentialResponseFor<J, RawModeDeterminant<Self, J>>
-    where
-        S::Entries: ProjectPlaneWaveModeDeterminant,
-        J::Policy: DerivativePartsPolicy<RawModeDeterminant<Self, J>>,
-        RawModeDeterminant<Self, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
-    {
-        self.raw_determinant()
-            .into_differential_response(&J::Policy::default(), self.mapping())
     }
 }

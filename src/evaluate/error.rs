@@ -2,22 +2,19 @@ use thiserror::Error;
 
 use crate::parameter::{DerivativeMappingError, ParameterValidationError};
 
-/// An invalid high-level evaluation request.
+/// Invalid real-axis evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum SolveRequestError {
     #[error(transparent)]
-    PararmeterValidation(#[from] ParameterValidationError),
+    ParameterValidation(#[from] ParameterValidationError),
 
     #[error(transparent)]
     DerivativeMapping(#[from] DerivativeMappingError),
 }
 
-/// Failure while preparing or solving a plane-wave problem.
-///
-/// `C` is the error returned by plane-wave compilation and `B` is the error
-/// returned by the selected backend.
+/// Failure while compiling or solving a real-axis problem.
 #[derive(Debug, Error)]
-pub enum PlaneWaveEvaluationError<C, B> {
+pub enum RealAxisEvaluationError<C, B> {
     #[error(transparent)]
     Request(#[from] SolveRequestError),
 
@@ -34,7 +31,7 @@ pub enum PlaneWaveEvaluationError<C, B> {
     },
 }
 
-impl<C, B> PlaneWaveEvaluationError<C, B> {
+impl<C, B> RealAxisEvaluationError<C, B> {
     pub(crate) fn compile(source: C) -> Self {
         Self::Compile { source }
     }

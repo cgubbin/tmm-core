@@ -10,15 +10,8 @@ use crate::{
         RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt, ScaleBy,
     }, backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
-    }, derivative_parts::DerivativePartsPolicy, differential::IntoDifferentialResponse, evaluate::{
-        PlaneWaveState,
-        pair::{PlaneWaveExcitationPair, PlaneWavePairError},
-        query::{
-            DifferentialResponseFor, PlaneWaveExternalQueries, PlaneWaveQuery, RawAmplitudes,
-            RawPower,
-        },
-        state::{RawInterfacePower, RawLayerPower},
-    }, input::JetMapping, material::{
+    }, derivative_parts::DerivativePartsPolicy, differential::IntoDifferentialResponse, 
+    input::JetMapping, material::{
         ConstitutiveEvaluator, ConstitutiveLift, ConstitutiveSpectralFirstLift,
         ConstitutiveDerivativeEvaluator,
     }, observable::{
@@ -26,28 +19,33 @@ use crate::{
     }, spatial::{FieldSampling, ResolvedFieldSampling, SpatialResponse}, waves::{ReconstructLayerBoundaryWaves, WaveSamplingContext}
 };
 
+use super::{RealAxisExcitationPair, RealAxisPairError, RealAxisState,
+        state::{RawInterfacePower, RawLayerPower},
+    query::{PlaneWaveQuery, RawPower,RawAmplitudes, DifferentialResponseFor, RealAxisExternalQueries}
+};
+
 #[derive(Debug, Copy, Clone)]
-pub struct PlaneWaveExcitation<'a, J, I, M, W>
+pub struct RealAxisExcitation<'a, J, M, W>
 where
     J: Jet + JetMapping + ComplexJet,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
-    state: &'a PlaneWaveState<J, I, M, W>,
+    state: &'a RealAxisState<J, M, W>,
     incident_side: IncidentSide,
     amplitude_scale: J::RealJet,
 }
 
-impl<'a, J, I, M, W> PlaneWaveExcitation<'a, J, I, M, W>
+impl<'a, J, M, W> RealAxisExcitation<'a, J, M, W>
 where
     J: Jet + JetMapping + ComplexJet,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
 {
     /// Construct an excitation after validating the state's projection constraint.
-    pub(crate) fn new(state: &'a PlaneWaveState<J, I, M, W>, incident_side: IncidentSide) -> Self
+    pub(crate) fn new(state: &'a RealAxisState<J, M, W>, incident_side: IncidentSide) -> Self
     where
         J: ComplexJet + ScalarAlgebra + RealScalarAlgebra,
         J::RealJet: ScalarAlgebra,
@@ -80,7 +78,7 @@ where
         }
     }
 
-    pub(crate) fn state(&self) -> &'a PlaneWaveState<J, I, M, W> {
+    pub(crate) fn state(&self) -> &'a RealAxisState<J, M, W> {
         self.state
     }
 
@@ -92,7 +90,7 @@ where
         &self.amplitude_scale
     }
 
-    pub(crate) fn into_parts(self) -> (&'a PlaneWaveState<J, I, M, W>, IncidentSide, J::RealJet) {
+    pub(crate) fn into_parts(self) -> (&'a RealAxisState<J, M, W>, IncidentSide, J::RealJet) {
         (self.state, self.incident_side, self.amplitude_scale)
     }
 
@@ -244,13 +242,13 @@ where
 }
 
 // Real Input Observables
-impl<'a, J, R, M, W> PlaneWaveExcitation<'a, J, R, M, W>
+impl<'a, J, M, W> RealAxisExcitation<'a, J, M, W>
 where
     J: Jet + JetMapping + ComplexJet,
-    J::Scalar: ComplexField<RealField = R>,
+    J::Scalar: ComplexField,
     J::Dimension: Dimension,
     J::Policy: Default,
-    R: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
     W: PlaneWaveSolutionSource,
 {
     fn normalised_interface_power(
@@ -390,11 +388,11 @@ where
 
     pub fn amplitudes(
         &self,
-    ) -> DifferentialResponseFor<J, RawAmplitudes<PlaneWaveState<J, R, M, W>, J>>
+    ) -> DifferentialResponseFor<J, RawAmplitudes<RealAxisState<J, M, W>, J>>
     where
         W::Entries: ProjectAmplitudes,
-        J::Policy: DerivativePartsPolicy<RawAmplitudes<PlaneWaveState<J, R, M, W>, J>>,
-        RawAmplitudes<PlaneWaveState<J, R, M, W>, J>:
+        J::Policy: DerivativePartsPolicy<RawAmplitudes<RealAxisState<J, M, W>, J>>,
+        RawAmplitudes<RealAxisState<J, M, W>, J>:
             IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         self.state
@@ -402,11 +400,11 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping())
     }
 
-    pub fn power(&self) -> DifferentialResponseFor<J, RawPower<PlaneWaveState<J, R, M, W>, J>>
+    pub fn power(&self) -> DifferentialResponseFor<J, RawPower<RealAxisState<J, M, W>, J>>
     where
         W::Entries: ProjectPower,
-        J::Policy: DerivativePartsPolicy<RawPower<PlaneWaveState<J, R, M, W>, J>>,
-        RawPower<PlaneWaveState<J, R, M, W>, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
+        J::Policy: DerivativePartsPolicy<RawPower<RealAxisState<J, M, W>, J>>,
+        RawPower<RealAxisState<J, M, W>, J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
         self.state
             .raw_power(self.incident_side)
@@ -614,7 +612,7 @@ where
 
     fn raw_electromagnetic_fields(
         &self,
-        sampling: &ResolvedFieldSampling<R>,
+        sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
@@ -650,9 +648,9 @@ where
 
     pub fn evaluate_fields(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        PlaneWaveFieldResponse<J, R>,
+        PlaneWaveFieldResponse<J>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -684,9 +682,9 @@ where
 
     pub fn evaluate_field_intensities(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        PlaneWaveIntensityResponse<J, R>,
+        PlaneWaveIntensityResponse<J>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -725,9 +723,9 @@ where
 
     pub fn evaluate_complex_poynting_vector(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        PlaneWaveComplexPoyntingVectorResponse<J, R>,
+        PlaneWaveComplexPoyntingVectorResponse<J>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -761,9 +759,9 @@ where
 
     pub fn evaluate_time_averaged_poynting_vector(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        PlaneWaveTimeAveragedPoyntingVectorResponse<J, R>,
+        PlaneWaveTimeAveragedPoyntingVectorResponse<J>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -799,9 +797,9 @@ where
 
     pub fn evaluate_constitutive_fields(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        ConstitutiveFieldResponse<J, R>,
+        ConstitutiveFieldResponse<J>,
         ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -838,9 +836,9 @@ where
 
     pub fn evaluate_dissipation_density(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        ElectromagneticDissipationResponse<J, R>,
+        ElectromagneticDissipationResponse<J>,
         ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -902,9 +900,9 @@ where
 
     pub fn evaluate_energy_density(
         &self,
-        sampling: &FieldSampling<R>,
+        sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        ElectromagneticEnergyResponse<J, R>,
+        ElectromagneticEnergyResponse<J>,
         ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
@@ -955,12 +953,12 @@ where
     }
 }
 
-impl<'a, J, I, M, W> PlaneWaveExcitation<'a, J, I, M, W>
+impl<'a, J, M, W> RealAxisExcitation<'a, J, M, W>
 where
     J: Jet<Dimension = Ix0> + JetMapping + PartialEq + ComplexJet,
     J::Scalar: ComplexField,
     J::RealJet: std::fmt::Debug,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
     J::Mapping: PartialEq,
     W: RetainedIsotropicLayers<Algebra = J>,
 {
@@ -970,69 +968,69 @@ where
     /// conjugate it; bilinear contractions do not.
     pub fn pair_with<M2, W2>(
         self,
-        comparison: PlaneWaveExcitation<'a, J, I, M2, W2>,
-    ) -> Result<PlaneWaveExcitationPair<'a, J, I, M, M2, W, W2>, PlaneWavePairError>
+        comparison: RealAxisExcitation<'a, J, M2, W2>,
+    ) -> Result<RealAxisExcitationPair<'a, J, M, M2, W, W2>, RealAxisPairError>
     where
         W2: RetainedIsotropicLayers<Algebra = J>,
     {
-        PlaneWaveExcitationPair::new(self, comparison)
+        RealAxisExcitationPair::new(self, comparison)
     }
 }
 
-pub type PlaneWaveFieldResponse<J, R> = SpatialResponse<
+pub type PlaneWaveFieldResponse<J> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type ConstitutiveFieldResponse<J, R> = SpatialResponse<
+pub type ConstitutiveFieldResponse<J> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type PlaneWaveIntensityResponse<J, R> = SpatialResponse<
+pub type PlaneWaveIntensityResponse<J> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticIntensities<
             <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >,
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type PlaneWaveComplexPoyntingVectorResponse<J, R> = SpatialResponse<
+pub type PlaneWaveComplexPoyntingVectorResponse<J> = SpatialResponse<
     DifferentialResponseFor<J, <<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type PlaneWaveTimeAveragedPoyntingVectorResponse<J, R> = SpatialResponse<
+pub type PlaneWaveTimeAveragedPoyntingVectorResponse<J> = SpatialResponse<
     DifferentialResponseFor<J, 
         <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealVector
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type ElectromagneticDissipationResponse<J, R> = SpatialResponse<
+pub type ElectromagneticDissipationResponse<J> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticDissipation<
             <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;
 
-pub type ElectromagneticEnergyResponse<J, R> = SpatialResponse<
+pub type ElectromagneticEnergyResponse<J> = SpatialResponse<
     DifferentialResponseFor<
         J,
         ElectromagneticEnergy<
             <<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector as RealCartesianVectorAlgebra>::RealScalarAlgebra
         >
     >,
-    R,
+    <<J as Jet>::Scalar as ComplexField>::RealField,
 >;

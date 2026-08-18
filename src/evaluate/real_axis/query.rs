@@ -10,7 +10,7 @@ use crate::{
     observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
 };
 
-use super::{PlaneWaveResult, RawState};
+use super::{RealAxisResult, RealAxisState};
 
 #[doc(hidden)]
 pub trait PlaneWaveQuery<J>
@@ -24,12 +24,12 @@ where
     fn mapping(&self) -> &J::Mapping;
 }
 
-impl<J, I, S> PlaneWaveQuery<J> for PlaneWaveResult<J, I, S>
+impl<J, S> PlaneWaveQuery<J> for RealAxisResult<J, S>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
     S: PlaneWaveSolutionSource,
 {
     type Source = S;
@@ -43,12 +43,12 @@ where
     }
 }
 
-impl<J, I, M, W> PlaneWaveQuery<J> for RawState<J, I, M, W>
+impl<J, M, W> PlaneWaveQuery<J> for RealAxisState<J, M, W>
 where
     J: Jet + JetMapping,
     J::Scalar: ComplexField,
     J::Dimension: Dimension,
-    I: ComplexField,
+    <J::Scalar as ComplexField>::RealField: ComplexField,
     W: PlaneWaveSolutionSource,
 {
     type Source = W;
@@ -62,7 +62,7 @@ where
     }
 }
 
-pub(crate) trait PlaneWaveExternalQueries<J>: PlaneWaveQuery<J>
+pub(crate) trait RealAxisExternalQueries<J>: PlaneWaveQuery<J>
 where
     J: Jet + JetMapping,
     J::Policy: Default,
@@ -82,17 +82,9 @@ where
     {
         self.source().solution().power(incident_side)
     }
-
-    fn raw_determinant(&self) -> RawModeDeterminant<Self, J>
-    where
-        Self: Sized,
-        QueryEntries<Self, J>: ProjectPlaneWaveModeDeterminant,
-    {
-        self.source().solution().determinant()
-    }
 }
 
-impl<J, Q> PlaneWaveExternalQueries<J> for Q
+impl<J, Q> RealAxisExternalQueries<J> for Q
 where
     J: Jet + JetMapping,
     J::Policy: Default,
@@ -106,9 +98,6 @@ pub(crate) type QueryEntries<Q, J> =
 pub(crate) type RawAmplitudes<Q, J> = <QueryEntries<Q, J> as ProjectAmplitudes>::Amplitudes;
 
 pub(crate) type RawPower<Q, J> = <QueryEntries<Q, J> as ProjectPower>::Power;
-
-pub(crate) type RawModeDeterminant<Q, J> =
-    <QueryEntries<Q, J> as ProjectPlaneWaveModeDeterminant>::Determinant;
 
 pub(crate) type DifferentialResponseFor<J, T> =
     <T as IntoDifferentialResponse<<J as JetMapping>::Policy, <J as JetMapping>::Mapping>>::Output;
