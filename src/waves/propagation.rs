@@ -39,7 +39,6 @@
 //!                               |<-----------------  a⁻(d)
 //!            offset = z             distance = d - z
 //! ```
-
 //! Thus
 //!
 //! ```text
@@ -73,7 +72,7 @@
 //! - `+distance` in the right exterior.
 //!
 //! Higher-level dispatch from [`CanonicalFieldPosition`] to these propagation
-//! operations is provided by [`propagate_at_position`].
+//! operations is implemented by the wave-sampling layer.
 
 use nalgebra::ComplexField;
 use ndarray::Dimension;
@@ -92,6 +91,10 @@ use crate::{
 /// left.
 pub(crate) trait PropagateWaves<A> {
     /// Propagate both directional amplitudes through `distance`.
+    ///
+    /// Exterior sample distances are fixed caller sampling coordinates and therefore are not seeded
+    /// as differential variables; finite-layer relative positions may depend on layer thickness
+    /// and are consequently represented in the scalar algebra.
     fn propagate(
         &self,
         longitudinal_wavevector: &A,

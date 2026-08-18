@@ -5,8 +5,7 @@
 //! logic: transfer- and scattering-matrix backends may construct them using
 //! different algorithms.
 
-use nalgebra::ComplexField;
-use ndarray::{ArrayBase, Dimension, OwnedRepr};
+use ndarray::Dimension;
 use num_traits::{One, Zero};
 
 use crate::{
@@ -96,20 +95,6 @@ where
     }
 }
 
-impl<C, D> BidirectionalWaves<ArrayBase<OwnedRepr<C>, D>>
-where
-    C: ComplexField,
-    D: Dimension,
-{
-    /// Scale both propagation directions pointwise by the same factor.
-    pub(crate) fn scale(self, factor: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        Self {
-            forward: self.forward * factor.clone(),
-            backward: self.backward * factor,
-        }
-    }
-}
-
 /// Bidirectional wave amplitudes at the left and right boundaries of one
 /// finite layer.
 #[derive(Clone, Debug, PartialEq)]
@@ -144,20 +129,6 @@ where
         let (left, right) = self.into_parts();
 
         Self::new(left.scale_by(scale), right.scale_by(scale))
-    }
-}
-
-impl<C, D> LayerBoundaryWaves<ArrayBase<OwnedRepr<C>, D>>
-where
-    C: ComplexField,
-    D: Dimension,
-{
-    /// Scale all wave amplitudes at both layer boundaries pointwise.
-    pub(crate) fn scale(self, factor: ArrayBase<OwnedRepr<C>, D>) -> Self {
-        Self {
-            left: self.left.scale(factor.clone()),
-            right: self.right.scale(factor),
-        }
     }
 }
 
@@ -231,9 +202,11 @@ where
 mod tests {
     use ndarray::{arr0, array};
 
-    use super::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves};
+    use super::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves, ScaleBy};
 
-    use crate::test_support::{C, TOLERANCE, assertions::assert_array_close, c};
+    use crate::test_support::{
+        C, TOLERANCE, assertions::assert_array_close, c, jet::zero_jet_from_array,
+    };
 
     #[test]
     fn bidirectional_waves_store_both_directions() {
@@ -255,11 +228,14 @@ mod tests {
 
     #[test]
     fn bidirectional_waves_scale_both_directions() {
-        let waves = BidirectionalWaves::new(array![c(1.0), c(2.0)], array![c(3.0), c(4.0)]);
+        let waves = BidirectionalWaves::new(
+            zero_jet_from_array(array![c(1.0), c(2.0)]),
+            zero_jet_from_array(array![c(3.0), c(4.0)]),
+        );
 
         let factor = array![C::new(2.0, 1.0), C::new(-1.0, 0.5),];
 
-        let scaled = waves.scale(factor.clone());
+        let scaled = waves.scale_by(&zero_jet_from_array(factor.clone()));
 
         assert_array_close(
             scaled.forward(),
@@ -275,15 +251,15 @@ mod tests {
     }
 
     #[test]
-    fn bidirectional_waves_scale_preserves_shape() {
+    fn bidirectional_waves_scale_by_preserves_shape() {
         let waves = BidirectionalWaves::new(
-            array![c(1.0), c(2.0), c(3.0)],
-            array![c(4.0), c(5.0), c(6.0)],
+            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
         );
 
         let expected_shape = waves.forward().raw_dim();
 
-        let scaled = waves.scale(array![c(2.0), c(3.0), c(4.0),]);
+        let scaled = waves.scale_by(&zero_jet_from_array(array![c(2.0), c(3.0), c(4.0),]));
 
         assert_eq!(scaled.forward().raw_dim(), expected_shape);
         assert_eq!(scaled.backward().raw_dim(), expected_shape);
@@ -321,13 +297,20 @@ mod tests {
 
     #[test]
     fn layer_boundary_waves_scale_all_amplitudes() {
-        let left = BidirectionalWaves::new(array![c(1.0), c(2.0)], array![c(3.0), c(4.0)]);
+        let left = BidirectionalWaves::new(
+            zero_jet_from_array(array![c(1.0), c(2.0)]),
+            zero_jet_from_array(array![c(3.0), c(4.0)]),
+        );
 
-        let right = BidirectionalWaves::new(array![c(5.0), c(6.0)], array![c(7.0), c(8.0)]);
+        let right = BidirectionalWaves::new(
+            zero_jet_from_array(array![c(5.0), c(6.0)]),
+            zero_jet_from_array(array![c(7.0), c(8.0)]),
+        );
 
         let factor = array![C::new(2.0, 1.0), C::new(-1.0, 0.5),];
 
-        let boundaries = LayerBoundaryWaves::new(left, right).scale(factor.clone());
+        let boundaries =
+            LayerBoundaryWaves::new(left, right).scale_by(&zero_jet_from_array(factor.clone()));
 
         assert_array_close(
             boundaries.left().forward(),

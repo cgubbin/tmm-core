@@ -79,11 +79,25 @@ impl<'a, W, A> WaveSamplingContext<'a, W, A> {
         seed: &PlaneWaveModeCandidate<A>,
     ) -> Result<BoundaryWaveSolution<A>, WaveSamplingError>
     where
-        W: ReconstructExteriorModeWaves<Algebra = A> + ReconstructLayerModeWaves<Algebra = A>,
+        W: ReconstructExteriorModeWaves<Algebra = A>
+            + ReconstructLayerModeWaves<Algebra = A>
+            + RetainedIsotropicLayers,
     {
         let exterior = self.workspace.reconstruct_exterior_mode_waves(seed)?;
 
         let layers = self.workspace.reconstruct_layer_mode_waves(seed)?;
+
+        let retained_layer_count = self
+            .workspace
+            .retained_layer_count()
+            .ok_or(WaveSamplingError::LayersNotRetained)?;
+
+        if layers.len() != retained_layer_count {
+            return Err(WaveSamplingError::LayerCountMismatch {
+                wave_count: layers.len(),
+                retained_count: retained_layer_count,
+            });
+        }
 
         Ok(BoundaryWaveSolution::new(exterior, layers))
     }
@@ -233,7 +247,7 @@ mod tests {
     use crate::{
         FiniteLayerIndex, Polarisation, RealAxis,
         algebra::ArrayJet0,
-        backend::{ExteriorWavevectors, IsotropicLayerQuantities, RunMode, Scatter2},
+        backend::{RunMode, Scatter2, evaluate_exterior_wavevectors},
         input::{CanonicalCoordinates, CanonicalStack},
         material::Constant,
         spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},
@@ -259,25 +273,10 @@ mod tests {
         mode: RunMode,
     ) -> crate::backend::scatter2::Scatter2Workspace<A> {
         let coordinates = coordinates();
-        let left_exterior = stack.left_exterior();
-        let right_exterior = stack.right_exterior();
-        let polarisation = Polarisation::TransverseElectric;
-
-        let exterior = ExteriorWavevectors::new(
-            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                left_exterior,
-                &coordinates,
-                polarisation,
-            )
-            .kappa()
-            .clone(),
-            IsotropicLayerQuantities::evaluate::<RealAxis, _>(
-                right_exterior,
-                &coordinates,
-                polarisation,
-            )
-            .kappa()
-            .clone(),
+        let exterior = evaluate_exterior_wavevectors::<RealAxis, _, _>(
+            &coordinates,
+            stack.left_exterior(),
+            stack.right_exterior(),
         );
 
         Scatter2::new().accumulate::<A, RealAxis, _>(

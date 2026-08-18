@@ -1,3 +1,15 @@
+//! Backend-independent travelling-wave reconstruction.
+//!
+//! This module contains:
+//!
+//! - directional wave-amplitude containers;
+//! - exterior and finite-layer boundary-wave reconstruction;
+//! - spatial propagation of reconstructed amplitudes;
+//! - sampling of retained solutions at canonical field positions.
+//!
+//! Backends are responsible only for reconstructing waves at reference
+//! boundaries. Propagation and spatial sampling are backend-independent.
+
 mod boundary;
 mod propagation;
 mod sampling;
@@ -16,6 +28,11 @@ use crate::{
     observable::{Amplitudes, ProjectAmplitudes},
 };
 
+/// Reconstruction of driven exterior directional waves.
+///
+/// Exterior waves depend only on the projected reflection/transmission
+/// amplitudes and incident side, so this capability is provided automatically
+/// for every compatible plane-wave solution source.
 pub trait ReconstructExteriorBoundaryWaves: PlaneWaveSolutionSource
 where
     Self::Entries: ProjectAmplitudes,
@@ -52,6 +69,10 @@ where
     type Algebra = A;
 }
 
+/// Reconstruction of driven directional waves at every finite-layer boundary.
+///
+/// Returns `None` when the underlying workspace did not retain the internal
+/// state required for reconstruction.
 pub trait ReconstructLayerBoundaryWaves {
     type Algebra;
 
