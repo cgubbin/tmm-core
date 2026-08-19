@@ -54,9 +54,14 @@
 //! which is required for discontinuous field components.
 
 use lamina_units::{Length, LengthUnit};
+use nalgebra::ComplexField;
+use ndarray::Ix0;
 use num_traits::{Float, FromPrimitive, Zero};
 
-use crate::{FiniteLayerIndex, Stack, spatial::ResolvedFieldSampling};
+use crate::{
+    FiniteLayerIndex, ScalarAlgebra, Stack, algebra::Jet, input::CanonicalStack,
+    spatial::ResolvedFieldSampling,
+};
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum FieldSamplingError<R> {
@@ -349,36 +354,54 @@ impl<R> FieldSampling<R> {
         self.regions
     }
 
-    /// Resolve this declarative sampling request against `stack`.
-    ///
-    /// Stack-dependent requests such as layer centres, interfaces, and uniform
-    /// finite-layer samples are expanded using the actual finite-layer
-    /// thicknesses. Explicit layer indices and offsets are validated here.
-    ///
-    /// The resulting positions retain their physical [`Length`] representation;
-    /// conversion to canonical backend coordinates belongs to field evaluation.
-    ///
-    /// # Ordering
-    ///
-    /// Regions are resolved in insertion order. Explicit point lists preserve
-    /// their supplied order. Uniform exterior sampling is geometrically ordered
-    /// from left to right.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`FieldSamplingError`] when:
-    ///
-    /// - a requested finite-layer index does not exist;
-    /// - a uniform request contains zero points;
-    /// - a one-point finite-layer request asks for both distinct boundaries;
-    /// - a layer offset lies outside its layer;
-    /// - an exterior distance is negative or non-finite.
+    /// Resolve this sampling request against a caller-facing physical stack.
     pub fn resolve<M>(
         &self,
         stack: &Stack<M, R>,
     ) -> Result<ResolvedFieldSampling<R>, FieldSamplingError<R>>
     where
         R: Float + FromPrimitive,
+    {
+        self.resolve_with_stack(stack.len(), |index| {
+            stack
+                .layers_left_to_right()
+                .get(index.get())
+                .map(|layer| layer.thickness())
+        })
+    }
+
+    /// Resolve this sampling request against a canonical scalar stack.
+    ///
+    /// Canonical layer thicknesses are stored in centimetres as jet-valued
+    /// quantities. Spatial resolution uses only their primal real values;
+    /// derivative components remain on the canonical stack and enter later
+    /// during propagation of thickness-dependent layer positions.
+    pub(crate) fn resolve_canonical<M, J>(
+        &self,
+        stack: &CanonicalStack<M, J>,
+    ) -> Result<ResolvedFieldSampling<R>, FieldSamplingError<R>>
+    where
+        R: Float + FromPrimitive,
+        J: ScalarAlgebra + Jet<Dimension = Ix0>,
+        J::Scalar: ComplexField<RealField = R> + Copy,
+    {
+        self.resolve_with_stack(stack.layer_count(), |index| {
+            stack.layer(index).map(|layer| {
+                let thickness_cm = layer.thickness_cm().value()[()].real();
+
+                Length::new(thickness_cm, LengthUnit::Centimetre)
+            })
+        })
+    }
+
+    fn resolve_with_stack<F>(
+        &self,
+        layer_count: usize,
+        mut layer_thickness: F,
+    ) -> Result<ResolvedFieldSampling<R>, FieldSamplingError<R>>
+    where
+        R: Float + FromPrimitive,
+        F: FnMut(FiniteLayerIndex) -> Option<Length<R>>,
     {
         let mut positions = Vec::new();
 
@@ -389,14 +412,14 @@ impl<R> FieldSampling<R> {
                 }
 
                 FieldSamplingRegion::Layer { index, sampling } => {
-                    let Some(layer) = stack.layers_left_to_right().get(index.get()) else {
+                    let Some(thickness) = layer_thickness(*index) else {
                         return Err(FieldSamplingError::LayerOutOfBounds {
                             requested: *index,
-                            layer_count: stack.len(),
+                            layer_count,
                         });
                     };
 
-                    expand_layer(*index, layer.thickness(), sampling, &mut positions)?;
+                    expand_layer(*index, thickness, sampling, &mut positions)?;
                 }
 
                 FieldSamplingRegion::RightExterior(sampling) => {
@@ -404,18 +427,20 @@ impl<R> FieldSampling<R> {
                 }
 
                 FieldSamplingRegion::LayerCentres => {
-                    for index in (0..stack.len()).map(FiniteLayerIndex::new) {
+                    let half = R::one() / (R::one() + R::one());
+
+                    for index in 0..layer_count {
                         positions.push(FieldPosition::Layer {
-                            index,
-                            position: ResolvedLayerPosition::Fraction(
-                                R::one() / (R::one() + R::one()),
-                            ),
+                            index: FiniteLayerIndex::new(index),
+                            position: ResolvedLayerPosition::Fraction(half),
                         });
                     }
                 }
 
                 FieldSamplingRegion::LayerInterfaces => {
-                    for index in (0..stack.len()).map(FiniteLayerIndex::new) {
+                    for index in 0..layer_count {
+                        let index = FiniteLayerIndex::new(index);
+
                         positions.push(FieldPosition::Layer {
                             index,
                             position: ResolvedLayerPosition::FromLeft(Length::zero()),
@@ -432,6 +457,90 @@ impl<R> FieldSampling<R> {
 
         Ok(ResolvedFieldSampling::new(positions))
     }
+
+    // /// Resolve this declarative sampling request against `stack`.
+    // ///
+    // /// Stack-dependent requests such as layer centres, interfaces, and uniform
+    // /// finite-layer samples are expanded using the actual finite-layer
+    // /// thicknesses. Explicit layer indices and offsets are validated here.
+    // ///
+    // /// The resulting positions retain their physical [`Length`] representation;
+    // /// conversion to canonical backend coordinates belongs to field evaluation.
+    // ///
+    // /// # Ordering
+    // ///
+    // /// Regions are resolved in insertion order. Explicit point lists preserve
+    // /// their supplied order. Uniform exterior sampling is geometrically ordered
+    // /// from left to right.
+    // ///
+    // /// # Errors
+    // ///
+    // /// Returns [`FieldSamplingError`] when:
+    // ///
+    // /// - a requested finite-layer index does not exist;
+    // /// - a uniform request contains zero points;
+    // /// - a one-point finite-layer request asks for both distinct boundaries;
+    // /// - a layer offset lies outside its layer;
+    // /// - an exterior distance is negative or non-finite.
+    // pub fn resolve<M>(
+    //     &self,
+    //     stack: &Stack<M, R>,
+    // ) -> Result<ResolvedFieldSampling<R>, FieldSamplingError<R>>
+    // where
+    //     R: Float + FromPrimitive,
+    // {
+    //     let mut positions = Vec::new();
+
+    //     for region in &self.regions {
+    //         match region {
+    //             FieldSamplingRegion::LeftExterior(sampling) => {
+    //                 expand_left_exterior(sampling, &mut positions)?;
+    //             }
+
+    //             FieldSamplingRegion::Layer { index, sampling } => {
+    //                 let Some(layer) = stack.layers_left_to_right().get(index.get()) else {
+    //                     return Err(FieldSamplingError::LayerOutOfBounds {
+    //                         requested: *index,
+    //                         layer_count: stack.len(),
+    //                     });
+    //                 };
+
+    //                 expand_layer(*index, layer.thickness(), sampling, &mut positions)?;
+    //             }
+
+    //             FieldSamplingRegion::RightExterior(sampling) => {
+    //                 expand_right_exterior(sampling, &mut positions)?;
+    //             }
+
+    //             FieldSamplingRegion::LayerCentres => {
+    //                 for index in (0..stack.len()).map(FiniteLayerIndex::new) {
+    //                     positions.push(FieldPosition::Layer {
+    //                         index,
+    //                         position: ResolvedLayerPosition::Fraction(
+    //                             R::one() / (R::one() + R::one()),
+    //                         ),
+    //                     });
+    //                 }
+    //             }
+
+    //             FieldSamplingRegion::LayerInterfaces => {
+    //                 for index in (0..stack.len()).map(FiniteLayerIndex::new) {
+    //                     positions.push(FieldPosition::Layer {
+    //                         index,
+    //                         position: ResolvedLayerPosition::FromLeft(Length::zero()),
+    //                     });
+
+    //                     positions.push(FieldPosition::Layer {
+    //                         index,
+    //                         position: ResolvedLayerPosition::FromRight(Length::zero()),
+    //                     });
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Ok(ResolvedFieldSampling::new(positions))
+    // }
 }
 
 fn expand_left_exterior<R>(

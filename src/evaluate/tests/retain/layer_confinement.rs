@@ -1,7 +1,7 @@
 use approx::assert_relative_eq;
 
 use crate::{
-    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    FiniteLayerIndex, IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     backend::scatter2::Scatter2,
     observable::{LayerAggregateError, LayerConfinementError},
     test_support::{planar::scalar_real_input, stack::differentiable_lossless_two_layer_stack},
@@ -12,7 +12,7 @@ const FIRST_TOLERANCE: f64 = 2.0e-8;
 
 #[test]
 fn selecting_all_layers_through_public_api_gives_unit_confinement_nondispersive() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -36,7 +36,7 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_nondispersive(
 
 #[test]
 fn one_layer_nondispersive_confinement_matches_its_participation() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -92,7 +92,7 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
 
 #[test]
 fn nondispersive_unit_confinement_has_zero_first_derivative() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -124,7 +124,7 @@ fn nondispersive_unit_confinement_has_zero_first_derivative() {
 
 #[test]
 fn nondispersive_public_confinement_rejects_empty_selection() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -146,7 +146,7 @@ fn nondispersive_public_confinement_rejects_empty_selection() {
 
 #[test]
 fn selecting_all_layers_through_public_api_gives_unit_confinement_dispersive() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -170,7 +170,7 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_dispersive() {
 
 #[test]
 fn one_layer_dispersive_confinement_matches_its_participation() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -226,7 +226,7 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
 
 #[test]
 fn dispersive_unit_confinement_has_zero_first_derivative() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -258,7 +258,7 @@ fn dispersive_unit_confinement_has_zero_first_derivative() {
 
 #[test]
 fn dispersive_public_confinement_rejects_empty_selection() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),

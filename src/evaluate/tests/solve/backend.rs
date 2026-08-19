@@ -1,15 +1,16 @@
-use ndarray::{ArrayBase, Ix0, OwnedRepr};
+use ndarray::{ArrayBase, Ix0, OwnedRepr, arr0};
 
 use crate::{
-    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveAmplitudes, PlaneWaveDeterminant,
-    PlaneWaveEvaluator, PlaneWavePower, Polarisation,
+    CanonicalCoordinates, ComplexPlaneEvaluator, FiniteLayerIndex, IncidentSide, Parameter,
+    PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower, Polarisation, RealAxisEvaluator,
     backend::{Scatter2, Transfer2},
     test_support::{
         C,
         assertions::{assert_complex_close, assert_real_close},
+        jet::{HoloJ0, HoloJ1, HoloJ2},
         planar::{
-            dielectric_interface, scalar_complex_input, scalar_real_input, single_layer_stack,
-            two_layer_stack,
+            dielectric_interface, principal_exterior_wavevectors, scalar_real_input,
+            single_layer_stack, two_layer_stack,
         },
     },
 };
@@ -48,12 +49,25 @@ fn assert_power_equal(
     assert_real_close(left.absorptance()[()], right.absorptance()[()], tolerance);
 }
 
-fn assert_determinants_equal(
-    left: &PlaneWaveDeterminant<ComplexArray>,
-    right: &PlaneWaveDeterminant<ComplexArray>,
-    tolerance: f64,
-) {
-    assert_complex_close(left.value()[()], right.value()[()], tolerance);
+fn complex_value_coordinates() -> CanonicalCoordinates<HoloJ0> {
+    CanonicalCoordinates::new(
+        HoloJ0::constant(arr0(C::new(2.2, 0.15))),
+        HoloJ0::constant(arr0(C::new(0.3, -0.08))),
+    )
+}
+
+fn complex_first_spectral_coordinates() -> CanonicalCoordinates<HoloJ1> {
+    CanonicalCoordinates::new(
+        HoloJ1::variable(arr0(C::new(2.2, 0.15))),
+        HoloJ1::constant(arr0(C::new(0.3, -0.08))),
+    )
+}
+
+fn complex_second_spectral_coordinates() -> CanonicalCoordinates<HoloJ2> {
+    CanonicalCoordinates::new(
+        HoloJ2::variable(arr0(C::new(2.2, 0.15))),
+        HoloJ2::constant(arr0(C::new(0.3, -0.08))),
+    )
 }
 
 macro_rules! backend_equivalence_suite {
@@ -67,9 +81,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn empty_interface_amplitudes_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = dielectric_interface(2.0);
 
@@ -101,9 +115,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn single_layer_amplitudes_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.7, 0.23);
 
@@ -135,9 +149,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn two_layer_amplitudes_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -169,9 +183,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn empty_interface_power_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = dielectric_interface(2.0);
 
@@ -203,9 +217,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn layered_stack_power_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -237,9 +251,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn first_spectral_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -284,9 +298,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn first_in_plane_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -327,9 +341,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn first_thickness_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -376,9 +390,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn first_power_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -421,9 +435,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn second_spectral_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -470,9 +484,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn second_thickness_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -521,9 +535,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn second_power_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -570,9 +584,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn bivariate_first_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -629,9 +643,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn bivariate_second_amplitude_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -706,9 +720,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn bivariate_second_power_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.17);
 
@@ -779,9 +793,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn retained_value_external_responses_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -822,9 +836,9 @@ macro_rules! backend_equivalence_suite {
 
             #[test]
             fn retained_second_order_external_responses_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -876,173 +890,183 @@ macro_rules! backend_equivalence_suite {
             }
 
             #[test]
-            fn modal_determinants_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
-
-                let right = PlaneWaveEvaluator::new($right_backend);
-
+            fn complex_plane_determinants_match() {
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let left_response = left
-                    .evaluate_modal(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                    )
-                    .unwrap()
-                    .determinant();
+                let left =
+                    ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, $left_backend).unwrap();
 
-                let right_response = right
-                    .evaluate_modal(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                    )
-                    .unwrap()
-                    .determinant();
+                let right =
+                    ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, $right_backend).unwrap();
 
-                assert_determinants_equal(
-                    left_response.value(),
-                    right_response.value(),
+                let polarisation = Polarisation::TransverseElectric;
+
+                let left_coordinates = complex_value_coordinates();
+
+                let right_coordinates = complex_value_coordinates();
+
+                let left_exterior = principal_exterior_wavevectors(left.stack(), &left_coordinates);
+
+                let right_exterior =
+                    principal_exterior_wavevectors(right.stack(), &right_coordinates);
+
+                let left_determinant = left
+                    .determinant(&left_coordinates, &left_exterior, polarisation)
+                    .unwrap();
+
+                let right_determinant = right
+                    .determinant(&right_coordinates, &right_exterior, polarisation)
+                    .unwrap();
+
+                assert_complex_close(
+                    left_determinant.value()[()],
+                    right_determinant.value()[()],
                     VALUE_TOLERANCE,
                 );
             }
 
             #[test]
-            fn modal_first_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
-
-                let right = PlaneWaveEvaluator::new($right_backend);
-
+            fn complex_plane_first_spectral_determinant_derivatives_match() {
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let left_response = left
-                    .evaluate_modal_first(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                        Parameter::Spectral,
-                    )
+                let left =
+                    ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, $left_backend).unwrap();
+
+                let right =
+                    ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, $right_backend).unwrap();
+
+                let polarisation = Polarisation::TransverseElectric;
+
+                let left_coordinates = complex_first_spectral_coordinates();
+
+                let right_coordinates = complex_first_spectral_coordinates();
+
+                let left_exterior = principal_exterior_wavevectors(left.stack(), &left_coordinates);
+
+                let right_exterior =
+                    principal_exterior_wavevectors(right.stack(), &right_coordinates);
+
+                let left_determinant = left
+                    .determinant(&left_coordinates, &left_exterior, polarisation)
                     .unwrap()
-                    .determinant();
+                    .into_inner();
 
-                let right_response = right
-                    .evaluate_modal_first(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                        Parameter::Spectral,
-                    )
+                let right_determinant = right
+                    .determinant(&right_coordinates, &right_exterior, polarisation)
                     .unwrap()
-                    .determinant();
+                    .into_inner();
 
-                assert_eq!(left_response.parameter(), Parameter::Spectral,);
-
-                assert_eq!(right_response.parameter(), Parameter::Spectral,);
-
-                assert_determinants_equal(
-                    left_response.value(),
-                    right_response.value(),
+                assert_complex_close(
+                    left_determinant.value()[()],
+                    right_determinant.value()[()],
                     VALUE_TOLERANCE,
                 );
 
-                assert_determinants_equal(
-                    left_response.first(),
-                    right_response.first(),
+                assert_complex_close(
+                    left_determinant.first()[()],
+                    right_determinant.first()[()],
                     FIRST_TOLERANCE,
                 );
             }
 
             #[test]
-            fn modal_second_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
-
-                let right = PlaneWaveEvaluator::new($right_backend);
-
+            fn complex_plane_second_spectral_determinant_derivatives_match() {
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let left_response = left
-                    .evaluate_modal_second(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseMagnetic,
-                        Parameter::Spectral,
-                    )
-                    .unwrap()
-                    .determinant();
+                let left =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, $left_backend).unwrap();
 
-                let right_response = right
-                    .evaluate_modal_second(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseMagnetic,
-                        Parameter::Spectral,
-                    )
-                    .unwrap()
-                    .determinant();
+                let right =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, $right_backend).unwrap();
 
-                assert_determinants_equal(
-                    left_response.value(),
-                    right_response.value(),
+                let polarisation = Polarisation::TransverseMagnetic;
+
+                let left_coordinates = complex_second_spectral_coordinates();
+
+                let right_coordinates = complex_second_spectral_coordinates();
+
+                let left_exterior = principal_exterior_wavevectors(left.stack(), &left_coordinates);
+
+                let right_exterior =
+                    principal_exterior_wavevectors(right.stack(), &right_coordinates);
+
+                let left_determinant = left
+                    .determinant(&left_coordinates, &left_exterior, polarisation)
+                    .unwrap()
+                    .into_inner();
+
+                let right_determinant = right
+                    .determinant(&right_coordinates, &right_exterior, polarisation)
+                    .unwrap()
+                    .into_inner();
+
+                assert_complex_close(
+                    left_determinant.value()[()],
+                    right_determinant.value()[()],
                     VALUE_TOLERANCE,
                 );
 
-                assert_determinants_equal(
-                    left_response.first(),
-                    right_response.first(),
+                assert_complex_close(
+                    left_determinant.first()[()],
+                    right_determinant.first()[()],
                     FIRST_TOLERANCE,
                 );
 
-                assert_determinants_equal(
-                    left_response.second(),
-                    right_response.second(),
+                assert_complex_close(
+                    left_determinant.second()[()],
+                    right_determinant.second()[()],
                     SECOND_TOLERANCE,
                 );
             }
 
             #[test]
-            fn retained_modal_determinants_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
-
-                let right = PlaneWaveEvaluator::new($right_backend);
-
+            fn retained_complex_plane_second_order_determinants_match() {
                 let stack = single_layer_stack(1.8, 0.17);
 
-                let left_response = left
-                    .retain_modal_second(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                        Parameter::Spectral,
-                    )
-                    .unwrap()
-                    .determinant();
+                let left =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, $left_backend).unwrap();
 
-                let right_response = right
-                    .retain_modal_second(
-                        scalar_complex_input(C::new(2.2, 0.15), C::new(0.3, -0.08)),
-                        &stack,
-                        Polarisation::TransverseElectric,
-                        Parameter::Spectral,
-                    )
-                    .unwrap()
-                    .determinant();
+                let right =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, $right_backend).unwrap();
 
-                assert_determinants_equal(
-                    left_response.value(),
-                    right_response.value(),
+                let polarisation = Polarisation::TransverseElectric;
+
+                let left_coordinates = complex_second_spectral_coordinates();
+
+                let right_coordinates = complex_second_spectral_coordinates();
+
+                let left_exterior = principal_exterior_wavevectors(left.stack(), &left_coordinates);
+
+                let right_exterior =
+                    principal_exterior_wavevectors(right.stack(), &right_coordinates);
+
+                let left_state = left
+                    .retain(left_coordinates, left_exterior, polarisation)
+                    .unwrap();
+
+                let right_state = right
+                    .retain(right_coordinates, right_exterior, polarisation)
+                    .unwrap();
+
+                let left_determinant = left_state.determinant().into_inner();
+
+                let right_determinant = right_state.determinant().into_inner();
+
+                assert_complex_close(
+                    left_determinant.value()[()],
+                    right_determinant.value()[()],
                     VALUE_TOLERANCE,
                 );
 
-                assert_determinants_equal(
-                    left_response.first(),
-                    right_response.first(),
+                assert_complex_close(
+                    left_determinant.first()[()],
+                    right_determinant.first()[()],
                     FIRST_TOLERANCE,
                 );
 
-                assert_determinants_equal(
-                    left_response.second(),
-                    right_response.second(),
+                assert_complex_close(
+                    left_determinant.second()[()],
+                    right_determinant.second()[()],
                     SECOND_TOLERANCE,
                 );
             }

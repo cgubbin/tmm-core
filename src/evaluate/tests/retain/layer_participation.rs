@@ -1,7 +1,7 @@
 use approx::assert_relative_eq;
 
 use crate::{
-    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     backend::scatter2::Scatter2,
     test_support::{planar::scalar_real_input, stack::differentiable_lossless_two_layer_stack},
 };
@@ -11,7 +11,7 @@ const FIRST_TOLERANCE: f64 = 2.0e-8;
 
 #[test]
 fn public_nondispersive_layer_participation_returns_one_record_per_layer() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -30,7 +30,7 @@ fn public_nondispersive_layer_participation_returns_one_record_per_layer() {
 
 #[test]
 fn public_nondispersive_layer_participation_sums_to_unity() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -60,7 +60,7 @@ fn public_nondispersive_layer_participation_sums_to_unity() {
 
 #[test]
 fn public_nondispersive_participation_derivatives_sum_to_zero() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -105,7 +105,7 @@ fn public_nondispersive_participation_derivatives_sum_to_zero() {
 
 #[test]
 fn public_dispersive_layer_participation_returns_one_record_per_layer() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -124,7 +124,7 @@ fn public_dispersive_layer_participation_returns_one_record_per_layer() {
 
 #[test]
 fn public_dispersive_layer_participation_sums_to_unity() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),
@@ -154,7 +154,7 @@ fn public_dispersive_layer_participation_sums_to_unity() {
 
 #[test]
 fn public_dispersive_participation_derivatives_sum_to_zero() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &differentiable_lossless_two_layer_stack(),

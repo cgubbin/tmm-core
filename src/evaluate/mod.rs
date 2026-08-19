@@ -18,12 +18,12 @@
 
 mod complex_plane;
 mod error;
-// mod query;
 mod real_axis;
 
-// #[cfg(test)]
-// mod tests;
-//
+#[cfg(test)]
+mod tests;
+
 pub use complex_plane::ComplexPlaneEvaluator;
+pub(crate) use complex_plane::ComplexPlaneState;
 pub use error::{RealAxisEvaluationError, SolveRequestError};
 pub use real_axis::RealAxisEvaluator;

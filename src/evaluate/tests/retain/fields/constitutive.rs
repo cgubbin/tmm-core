@@ -1,13 +1,11 @@
 use lamina_units::Length;
-use ndarray::{Array1, Ix0, Ix1};
+use ndarray::{Array1, Ix0, Ix1, arr0};
 use num_complex::Complex64;
 
 use crate::{
-    CoordinateInput, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
-    backend::{
-        PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers, scatter2::Scatter2,
-        transfer2::Transfer2,
-    },
+    CanonicalCoordinates, ComplexPlane, ComplexPlaneEvaluator, IncidentSide, Parameter,
+    Polarisation, RealAxisEvaluator, SeedJet,
+    backend::{evaluate_exterior_wavevectors, scatter2::Scatter2, transfer2::Transfer2},
     field::VectorField,
     observable::ConstitutiveSamplingContext,
     parameter::FiniteLayerIndex,
@@ -17,15 +15,12 @@ use crate::{
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        planar::{scalar_complex_input, scalar_real_input, two_layer_stack},
+        jet::{HoloJ0, HoloJ1},
+        planar::{scalar_real_input, two_layer_stack},
     },
 };
 
 type C = Complex64;
-
-fn modal_input() -> CoordinateInput<C, Ix0> {
-    scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
-}
 
 fn sampling() -> FieldSampling<f64> {
     FieldSampling::new()
@@ -98,12 +93,12 @@ fn multiply_vector_second(
 macro_rules! for_each_backend {
     ($evaluator:ident, $body:block) => {{
         {
-            let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+            let $evaluator = RealAxisEvaluator::new(Scatter2::new());
             $body
         }
 
         {
-            let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+            let $evaluator = RealAxisEvaluator::new(Transfer2::new());
             $body
         }
     }};
@@ -309,7 +304,7 @@ fn transfer_and_scatter_agree_on_excitation_constitutive_fields() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter = RealAxisEvaluator::new(Scatter2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -318,7 +313,7 @@ fn transfer_and_scatter_agree_on_excitation_constitutive_fields() {
                 )
                 .unwrap();
 
-            let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer = RealAxisEvaluator::new(Transfer2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -391,42 +386,125 @@ fn modal_constitutive_fields_equal_epsilon_e_and_mu_h() {
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
-        for_each_backend!(evaluator, {
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+            let coordinates = CanonicalCoordinates::new(
+                <HoloJ0 as SeedJet>::constant(arr0(C::new(2.5, -0.05))),
+                <HoloJ0 as SeedJet>::constant(arr0(C::new(0.31, 0.02))),
+            );
+
+            let exterior = evaluate_exterior_wavevectors::<ComplexPlane, _, HoloJ0>(
+                &coordinates,
+                evaluator.stack().left_exterior(),
+                evaluator.stack().right_exterior(),
+            );
+
             let state = evaluator
-                .retain_modal(modal_input(), &stack, polarisation)
+                .retain(coordinates, exterior, polarisation)
                 .unwrap();
 
             let mode = state.mode().unwrap();
 
-            let fields = mode.evaluate_fields(&request).unwrap();
+            let fields = mode.fields(&request).unwrap();
 
-            let constitutive = mode.evaluate_constitutive_fields(&request).unwrap();
+            let constitutive = mode.constitutive_fields(&request).unwrap();
 
-            let resolved = request.resolve(&stack).unwrap();
+            let resolved = request.resolve_canonical(state.stack()).unwrap();
 
             let parameters = ConstitutiveSamplingContext::new(state.workspace())
                 .sample(&resolved)
                 .unwrap();
 
-            let expected_d =
-                multiply_vector(fields.value().electric(), parameters.epsilon().value());
+            /*
+             * Complex-plane field results retain their jet structure.
+             * Compare their primal components here.
+             */
+            let expected_d = multiply_vector(
+                fields.quantity().electric().value(),
+                parameters.epsilon().value(),
+            );
 
-            let expected_b = multiply_vector(fields.value().magnetic(), parameters.mu().value());
+            let expected_b = multiply_vector(
+                fields.quantity().magnetic().value(),
+                parameters.mu().value(),
+            );
 
             assert_eq!(fields.sampling(), constitutive.sampling(),);
 
             assert_vector_close(
-                constitutive.value().electric_displacement(),
+                constitutive.quantity().electric_displacement().value(),
                 &expected_d,
                 VALUE_TOLERANCE,
             );
 
             assert_vector_close(
-                constitutive.value().magnetic_induction(),
+                constitutive.quantity().magnetic_induction().value(),
                 &expected_b,
                 VALUE_TOLERANCE,
             );
-        });
+        }
+
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Transfer2::new()).unwrap();
+
+            let coordinates = CanonicalCoordinates::new(
+                <HoloJ0 as SeedJet>::constant(arr0(C::new(2.5, -0.05))),
+                <HoloJ0 as SeedJet>::constant(arr0(C::new(0.31, 0.02))),
+            );
+
+            let exterior = evaluate_exterior_wavevectors::<ComplexPlane, _, HoloJ0>(
+                &coordinates,
+                evaluator.stack().left_exterior(),
+                evaluator.stack().right_exterior(),
+            );
+
+            let state = evaluator
+                .retain(coordinates, exterior, polarisation)
+                .unwrap();
+
+            let mode = state.mode().unwrap();
+
+            let fields = mode.fields(&request).unwrap();
+
+            let constitutive = mode.constitutive_fields(&request).unwrap();
+
+            let resolved = request.resolve_canonical(state.stack()).unwrap();
+
+            let parameters = ConstitutiveSamplingContext::new(state.workspace())
+                .sample(&resolved)
+                .unwrap();
+
+            /*
+             * Complex-plane field results retain their jet structure.
+             * Compare their primal components here.
+             */
+            let expected_d = multiply_vector(
+                fields.quantity().electric().value(),
+                parameters.epsilon().value(),
+            );
+
+            let expected_b = multiply_vector(
+                fields.quantity().magnetic().value(),
+                parameters.mu().value(),
+            );
+
+            assert_eq!(fields.sampling(), constitutive.sampling(),);
+
+            assert_vector_close(
+                constitutive.quantity().electric_displacement().value(),
+                &expected_d,
+                VALUE_TOLERANCE,
+            );
+
+            assert_vector_close(
+                constitutive.quantity().magnetic_induction().value(),
+                &expected_b,
+                VALUE_TOLERANCE,
+            );
+        }
     }
 }
 
@@ -439,48 +517,124 @@ fn modal_constitutive_first_derivatives_obey_product_rule() {
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
-        for_each_backend!(evaluator, {
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+            let coordinates = CanonicalCoordinates::new(
+                <HoloJ1 as SeedJet>::variable(arr0(C::new(2.5, -0.05)), 0).unwrap(),
+                <HoloJ1 as SeedJet>::constant(arr0(C::new(0.31, 0.02))),
+            );
+
+            let exterior = evaluate_exterior_wavevectors::<ComplexPlane, _, HoloJ1>(
+                &coordinates,
+                evaluator.stack().left_exterior(),
+                evaluator.stack().right_exterior(),
+            );
+
             let state = evaluator
-                .retain_modal_first(modal_input(), &stack, polarisation, Parameter::Spectral)
+                .retain(coordinates, exterior, polarisation)
                 .unwrap();
 
             let mode = state.mode().unwrap();
 
-            let fields = mode.evaluate_fields(&request).unwrap();
+            let fields = mode.fields(&request).unwrap();
 
-            let constitutive = mode.evaluate_constitutive_fields(&request).unwrap();
+            let constitutive = mode.constitutive_fields(&request).unwrap();
 
-            let resolved = request.resolve(&stack).unwrap();
+            let resolved = request.resolve_canonical(state.stack()).unwrap();
 
             let parameters = ConstitutiveSamplingContext::new(state.workspace())
                 .sample(&resolved)
                 .unwrap();
 
+            let epsilon = parameters.epsilon();
+            let mu = parameters.mu();
+
+            let electric = fields.quantity().electric();
+            let magnetic = fields.quantity().magnetic();
+
             let expected_d = multiply_vector_first(
-                parameters.epsilon().value(),
-                parameters.epsilon().first(),
-                fields.value().electric(),
-                fields.derivatives().first().electric(),
+                epsilon.value(),
+                epsilon.first(),
+                electric.value(),
+                electric.first(),
             );
 
-            let expected_b = multiply_vector_first(
-                parameters.mu().value(),
-                parameters.mu().first(),
-                fields.value().magnetic(),
-                fields.derivatives().first().magnetic(),
-            );
+            let expected_b =
+                multiply_vector_first(mu.value(), mu.first(), magnetic.value(), magnetic.first());
 
             assert_vector_close(
-                constitutive.derivatives().first().electric_displacement(),
+                constitutive.quantity().electric_displacement().first(),
                 &expected_d,
                 FIRST_DERIVATIVE_TOLERANCE,
             );
 
             assert_vector_close(
-                constitutive.derivatives().first().magnetic_induction(),
+                constitutive.quantity().magnetic_induction().first(),
                 &expected_b,
                 FIRST_DERIVATIVE_TOLERANCE,
             );
-        });
+        }
+
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, Transfer2::new()).unwrap();
+
+            let coordinates = CanonicalCoordinates::new(
+                <HoloJ1 as SeedJet>::variable(arr0(C::new(2.5, -0.05)), 0).unwrap(),
+                <HoloJ1 as SeedJet>::constant(arr0(C::new(0.31, 0.02))),
+            );
+
+            let exterior = evaluate_exterior_wavevectors::<ComplexPlane, _, HoloJ1>(
+                &coordinates,
+                evaluator.stack().left_exterior(),
+                evaluator.stack().right_exterior(),
+            );
+
+            let state = evaluator
+                .retain(coordinates, exterior, polarisation)
+                .unwrap();
+
+            let mode = state.mode().unwrap();
+
+            let fields = mode.fields(&request).unwrap();
+
+            let constitutive = mode.constitutive_fields(&request).unwrap();
+
+            let resolved = request.resolve_canonical(state.stack()).unwrap();
+
+            let parameters = ConstitutiveSamplingContext::new(state.workspace())
+                .sample(&resolved)
+                .unwrap();
+
+            let epsilon = parameters.epsilon();
+            let mu = parameters.mu();
+
+            let electric = fields.quantity().electric();
+            let magnetic = fields.quantity().magnetic();
+
+            let expected_d = multiply_vector_first(
+                epsilon.value(),
+                epsilon.first(),
+                electric.value(),
+                electric.first(),
+            );
+
+            let expected_b =
+                multiply_vector_first(mu.value(), mu.first(), magnetic.value(), magnetic.first());
+
+            assert_vector_close(
+                constitutive.quantity().electric_displacement().first(),
+                &expected_d,
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+
+            assert_vector_close(
+                constitutive.quantity().magnetic_induction().first(),
+                &expected_b,
+                FIRST_DERIVATIVE_TOLERANCE,
+            );
+        }
     }
 }

@@ -750,8 +750,8 @@ mod integration_tests {
         material::Constant,
         spatial::{CanonicalFieldPosition, CanonicalLayerPosition, CompiledFieldSampling},
         test_support::{
-            C, TOLERANCE, assertions::assert_complex_close, jet::zero_jet_from_real_value,
-            planar::boundary_test_single_layer_stack,
+            C, TOLERANCE, assertions::assert_complex_close, jet::real_j0_from_real,
+            stack::boundary_test_single_layer_stack,
         },
         waves::WaveSamplingContext,
     };
@@ -761,10 +761,7 @@ mod integration_tests {
     type A = ArrayJet0<C, Ix0, RealParameter>;
 
     fn coordinates() -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(
-            zero_jet_from_real_value(2.3),
-            zero_jet_from_real_value(0.37),
-        )
+        CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37))
     }
 
     fn build_workspace(

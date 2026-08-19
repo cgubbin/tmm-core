@@ -205,7 +205,7 @@ mod tests {
     use super::{BidirectionalWaves, ExteriorBoundaryWaves, LayerBoundaryWaves, ScaleBy};
 
     use crate::test_support::{
-        C, TOLERANCE, assertions::assert_array_close, c, jet::zero_jet_from_array,
+        C, TOLERANCE, assertions::assert_array_close, c, jet::real_j0_from_array,
     };
 
     #[test]
@@ -229,13 +229,13 @@ mod tests {
     #[test]
     fn bidirectional_waves_scale_both_directions() {
         let waves = BidirectionalWaves::new(
-            zero_jet_from_array(array![c(1.0), c(2.0)]),
-            zero_jet_from_array(array![c(3.0), c(4.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0)]),
+            real_j0_from_array(array![c(3.0), c(4.0)]),
         );
 
         let factor = array![C::new(2.0, 1.0), C::new(-1.0, 0.5),];
 
-        let scaled = waves.scale_by(&zero_jet_from_array(factor.clone()));
+        let scaled = waves.scale_by(&real_j0_from_array(factor.clone()));
 
         assert_array_close(
             scaled.forward(),
@@ -253,13 +253,13 @@ mod tests {
     #[test]
     fn bidirectional_waves_scale_by_preserves_shape() {
         let waves = BidirectionalWaves::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), c(5.0), c(6.0)]),
         );
 
         let expected_shape = waves.forward().raw_dim();
 
-        let scaled = waves.scale_by(&zero_jet_from_array(array![c(2.0), c(3.0), c(4.0),]));
+        let scaled = waves.scale_by(&real_j0_from_array(array![c(2.0), c(3.0), c(4.0),]));
 
         assert_eq!(scaled.forward().raw_dim(), expected_shape);
         assert_eq!(scaled.backward().raw_dim(), expected_shape);
@@ -298,19 +298,19 @@ mod tests {
     #[test]
     fn layer_boundary_waves_scale_all_amplitudes() {
         let left = BidirectionalWaves::new(
-            zero_jet_from_array(array![c(1.0), c(2.0)]),
-            zero_jet_from_array(array![c(3.0), c(4.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0)]),
+            real_j0_from_array(array![c(3.0), c(4.0)]),
         );
 
         let right = BidirectionalWaves::new(
-            zero_jet_from_array(array![c(5.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0)]),
+            real_j0_from_array(array![c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0)]),
         );
 
         let factor = array![C::new(2.0, 1.0), C::new(-1.0, 0.5),];
 
         let boundaries =
-            LayerBoundaryWaves::new(left, right).scale_by(&zero_jet_from_array(factor.clone()));
+            LayerBoundaryWaves::new(left, right).scale_by(&real_j0_from_array(factor.clone()));
 
         assert_array_close(
             boundaries.left().forward(),

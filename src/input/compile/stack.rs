@@ -132,7 +132,7 @@ where
     Ok(CompiledStack::new(canonical, context))
 }
 
-pub(crate) fn compile_canonical_constant_stack<M, J>(
+pub fn compile_canonical_constant_stack<M, J>(
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     sampled_shape: J::Dimension,
     validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,

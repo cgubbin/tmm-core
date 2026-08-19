@@ -1,6 +1,6 @@
 use crate::{
-    IncidentSide, PlaneWaveEvaluator, Polarisation,
-    evaluate::query::PlaneWaveExternalQueries,
+    IncidentSide, Polarisation, RealAxisEvaluator,
+    evaluate::real_axis::RealAxisExternalQueries,
     test_support::{
         TOLERANCE,
         assertions::{
@@ -13,7 +13,7 @@ use crate::{
 
 #[test]
 fn one_layer_produces_two_interface_wave_records() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
@@ -34,7 +34,7 @@ fn one_layer_produces_two_interface_wave_records() {
 
 #[test]
 fn two_layers_produce_three_interface_wave_records() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -53,7 +53,7 @@ fn two_layers_produce_three_interface_wave_records() {
 
 #[test]
 fn left_incidence_interface_data_contains_expected_exterior_waves() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -86,7 +86,7 @@ fn left_incidence_interface_data_contains_expected_exterior_waves() {
 
 #[test]
 fn right_incidence_interface_data_contains_expected_exterior_waves() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -119,7 +119,7 @@ fn right_incidence_interface_data_contains_expected_exterior_waves() {
 
 #[test]
 fn every_interface_side_state_matches_its_waves_and_admittance() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -146,7 +146,7 @@ fn every_interface_side_state_matches_its_waves_and_admittance() {
 
 #[test]
 fn interface_wave_data_states_match_interface_state_projection() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::scatter2::Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::scatter2::Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -175,7 +175,7 @@ fn interface_wave_data_states_match_interface_state_projection() {
 
 #[test]
 fn transfer_backend_constructs_interface_wave_data() {
-    let evaluator = PlaneWaveEvaluator::new(crate::backend::transfer2::Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(crate::backend::transfer2::Transfer2::new());
 
     let state = evaluator
         .retain(

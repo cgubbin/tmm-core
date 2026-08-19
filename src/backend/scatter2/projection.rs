@@ -316,17 +316,17 @@ mod tests {
             C, TOLERANCE,
             assertions::{assert_array_close, assert_complex_close},
             c,
-            jet::{J0, zero_jet_from_value},
+            jet::{RealJ0, real_j0},
         },
     };
 
-    type Projection = Scatter2ProjectiveEntries<J0>;
+    type Projection = Scatter2ProjectiveEntries<RealJ0>;
 
-    fn jet(value: C) -> J0 {
-        zero_jet_from_value(value)
+    fn jet(value: C) -> RealJ0 {
+        real_j0(value)
     }
 
-    fn scalar(value: &J0) -> C {
+    fn scalar(value: &RealJ0) -> C {
         value.value()[()]
     }
 
@@ -340,7 +340,7 @@ mod tests {
         )
     }
 
-    fn make_context() -> Scatter2ExteriorContext<J0> {
+    fn make_context() -> Scatter2ExteriorContext<RealJ0> {
         let source = jet(c(1.7));
 
         let coordinates = CanonicalCoordinates::new(source.clone(), source);
@@ -379,7 +379,7 @@ mod tests {
         )
     }
 
-    fn assert_state_close(actual: &BoundaryState<J0>, expected: &BoundaryState<J0>) {
+    fn assert_state_close(actual: &BoundaryState<RealJ0>, expected: &BoundaryState<RealJ0>) {
         assert_array_close(actual.field().value(), expected.field().value(), TOLERANCE);
 
         assert_array_close(
@@ -389,7 +389,11 @@ mod tests {
         );
     }
 
-    fn assert_state_scaled(actual: &BoundaryState<J0>, expected: &BoundaryState<J0>, scale: C) {
+    fn assert_state_scaled(
+        actual: &BoundaryState<RealJ0>,
+        expected: &BoundaryState<RealJ0>,
+        scale: C,
+    ) {
         assert_complex_close(
             scalar(actual.field()),
             scale * scalar(expected.field()),
@@ -617,15 +621,15 @@ mod cascade_tests {
             C, TOLERANCE,
             assertions::assert_array_close,
             c,
-            jet::{J0, zero_jet_from_value},
+            jet::{RealJ0, real_j0},
         },
     };
 
-    type Projection = Scatter2ProjectiveEntries<J0>;
-    type Entries = Scatter2Entries<J0>;
+    type Projection = Scatter2ProjectiveEntries<RealJ0>;
+    type Entries = Scatter2Entries<RealJ0>;
 
-    fn jet(value: C) -> J0 {
-        zero_jet_from_value(value)
+    fn jet(value: C) -> RealJ0 {
+        real_j0(value)
     }
 
     fn entries(s11: C, s12: C, s21: C, s22: C) -> Entries {

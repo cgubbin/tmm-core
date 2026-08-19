@@ -1,15 +1,18 @@
 //! Shared planar-system fixtures for evaluator tests.
 
 use lamina_units::{InverseLengthUnit, Length};
-use ndarray::{Ix0, arr0};
+use ndarray::{Dimension, Ix0, arr0};
 use num_complex::Complex64;
 
 use crate::{
-    Constant, CoordinateInput, Coordinates, InPlaneCoordinate, Polarisation, SpectralCoordinate,
-    Stack,
+    ComplexPlane, ComplexScalar, Constant, ConstitutiveEvaluator, ConstitutiveLift,
+    CoordinateInput, Coordinates, ExteriorWavevectors, InPlaneCoordinate, Polarisation,
+    ScalarAlgebra, SpectralCoordinate, Stack,
     algebra::{ArrayJet0, Jet0, RealParameter},
+    backend::evaluate_exterior_wavevectors,
     input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
     stack::Layer,
+    test_support::jet::{HoloJ0, RealJ0, holo_j0, real_j0},
 };
 
 pub type C = Complex64;
@@ -97,17 +100,12 @@ pub fn sampled_real_input(k0: &'_ [R], k_parallel: &'_ [R]) -> CoordinateInput<R
     .unwrap()
 }
 
-/// Scalar complex-coordinate modal input.
-pub fn scalar_complex_input(k0: C, k_parallel: C) -> CoordinateInput<C, ndarray::Ix0> {
-    CoordinateInput::point(
-        Coordinates::new(
-            SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
-            InPlaneCoordinate::ParallelAngularWavenumber(InverseLengthUnit::PerCentimetre),
-        ),
-        k0,
-        k_parallel,
-    )
-    .unwrap()
+pub fn real_canonical_coordinates(k0: f64, k_parallel: f64) -> CanonicalCoordinates<RealJ0> {
+    CanonicalCoordinates::new(real_j0(c(k0)), real_j0(c(k_parallel)))
+}
+
+pub fn canonical_complex_coordinates(k0: C, k_parallel: C) -> CanonicalCoordinates<HoloJ0> {
+    CanonicalCoordinates::new(holo_j0(k0), holo_j0(k_parallel))
 }
 
 /// Fresnel amplitudes at normal incidence for the scattering convention used
@@ -160,74 +158,19 @@ pub fn fresnel_power(left_index: R, right_index: R, polarisation: Polarisation) 
     (reflectance, transmittance, absorptance)
 }
 
-pub(crate) type BoundaryTestScalar = Complex64;
-pub(crate) type BoundaryTestJet = ArrayJet0<Complex64, Ix0, RealParameter>;
-
-pub(crate) fn boundary_test_jet(value: Complex64) -> BoundaryTestJet {
-    Jet0::new(arr0(value))
-}
-
-pub(crate) fn boundary_test_coordinates() -> CanonicalCoordinates<BoundaryTestJet> {
-    CanonicalCoordinates::new(
-        boundary_test_jet(Complex64::new(2.3, 0.0)),
-        boundary_test_jet(Complex64::new(0.37, 0.0)),
-    )
-}
-
-/// An asymmetric one-layer stack.
-///
-/// Asymmetric exteriors and nonzero parallel wavenumber make sign, incidence,
-/// and exterior-normalisation errors visible.
-pub(crate) fn boundary_test_single_layer_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
-    CanonicalStack::new(
-        Constant::new(1.0, 1.0),
-        Constant::new(2.25, 1.0),
-        vec![CanonicalLayer::new(
-            Constant::new(3.24, 1.0),
-            boundary_test_jet(Complex64::new(0.23, 0.0)),
-        )],
-    )
-}
-
-/// An asymmetric two-layer stack.
-///
-/// The layers use different admittances and thicknesses, so reversing physical
-/// order or confusing adjacent layer bases should fail visibly.
-pub(crate) fn boundary_test_two_layer_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
-    CanonicalStack::new(
-        Constant::new(1.0, 1.0),
-        Constant::new(2.56, 1.0),
-        vec![
-            CanonicalLayer::new(
-                Constant::new(2.25, 1.0),
-                boundary_test_jet(Complex64::new(0.17, 0.0)),
-            ),
-            CanonicalLayer::new(
-                Constant::new(4.0, 1.0),
-                boundary_test_jet(Complex64::new(0.29, 0.0)),
-            ),
-        ],
-    )
-}
-
-/// A zero-thickness layer for exact boundary-propagation invariants.
-pub(crate) fn boundary_test_zero_thickness_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet>
+pub fn principal_exterior_wavevectors<M, J>(
+    stack: &CanonicalStack<M, J>,
+    coordinates: &CanonicalCoordinates<J>,
+) -> ExteriorWavevectors<J>
+where
+    J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M> + Clone,
+    J::Scalar: ComplexScalar,
+    J::Dimension: Dimension,
+    ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
 {
-    CanonicalStack::new(
-        Constant::new(1.0, 1.0),
-        Constant::new(2.25, 1.0),
-        vec![CanonicalLayer::new(
-            Constant::new(3.24, 1.0),
-            boundary_test_jet(Complex64::new(0.0, 0.0)),
-        )],
-    )
-}
-
-/// Empty stack for retained-container edge cases.
-pub(crate) fn boundary_test_empty_stack() -> CanonicalStack<Constant<f64>, BoundaryTestJet> {
-    CanonicalStack::new(
-        Constant::new(1.0, 1.0),
-        Constant::new(2.25, 1.0),
-        Vec::new(),
+    evaluate_exterior_wavevectors::<ComplexPlane, _, _>(
+        coordinates,
+        stack.left_exterior(),
+        stack.right_exterior(),
     )
 }

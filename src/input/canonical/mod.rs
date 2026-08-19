@@ -29,7 +29,8 @@ mod stack;
 
 pub use coordinate::CanonicalCoordinates;
 
-pub(crate) use stack::{CanonicalLayer, CanonicalStack};
+pub(crate) use stack::CanonicalLayer;
+pub use stack::CanonicalStack;
 
 use crate::Polarisation;
 

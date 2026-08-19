@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use ndarray::Array0;
 
 use crate::{
-    IncidentSide, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Polarisation, RealAxisEvaluator,
     backend::Scatter2,
     test_support::{
         assertions::VALUE_TOLERANCE,
@@ -16,7 +16,7 @@ fn scalar<C: Copy>(data: &Array0<C>) -> C {
 
 #[test]
 fn nondispersive_energy_returns_one_record_per_layer() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),
@@ -35,7 +35,7 @@ fn nondispersive_energy_returns_one_record_per_layer() {
 
 #[test]
 fn nondispersive_layer_energy_is_positive() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -67,7 +67,7 @@ fn nondispersive_layer_energy_is_positive() {
 
 #[test]
 fn nondispersive_energy_total_is_component_sum() {
-    let state = PlaneWaveEvaluator::new(Scatter2::new())
+    let state = RealAxisEvaluator::new(Scatter2::new())
         .retain(
             scalar_real_input(2.5, 0.31),
             &two_layer_stack(),

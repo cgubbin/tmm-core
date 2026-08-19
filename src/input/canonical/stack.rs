@@ -76,7 +76,7 @@ impl<M, J> CanonicalLayer<M, J> {
 /// Construction is restricted to input compilation, so this type represents a
 /// validated canonical stack rather than an unchecked collection of layers.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct CanonicalStack<M, J> {
+pub struct CanonicalStack<M, J> {
     left_exterior: M,
     right_exterior: M,
     layers_left_to_right: Vec<CanonicalLayer<M, J>>,

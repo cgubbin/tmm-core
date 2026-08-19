@@ -254,18 +254,15 @@ mod tests {
         test_support::{
             C, TOLERANCE,
             assertions::assert_bidirectional_waves_close,
-            jet::zero_jet_from_real_value,
-            planar::{boundary_test_empty_stack, boundary_test_single_layer_stack},
+            jet::real_j0_from_real,
+            stack::{boundary_test_empty_stack, boundary_test_single_layer_stack},
         },
     };
 
     type A = ArrayJet0<C, Ix0, crate::algebra::RealParameter>;
 
     fn coordinates() -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(
-            zero_jet_from_real_value(2.3),
-            zero_jet_from_real_value(0.37),
-        )
+        CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37))
     }
 
     fn build_workspace(
@@ -473,8 +470,8 @@ mod tests {
                 .entries()
                 .project_amplitudes(solution.context(), side);
 
-            let zero = zero_jet_from_real_value(0.0);
-            let one = zero_jet_from_real_value(1.0);
+            let zero = real_j0_from_real(0.0);
+            let one = real_j0_from_real(1.0);
 
             match side {
                 IncidentSide::Left => {

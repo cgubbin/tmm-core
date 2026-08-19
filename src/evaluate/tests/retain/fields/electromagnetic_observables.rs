@@ -4,18 +4,18 @@ use ndarray::{Array, Array1, Dimension, Ix1};
 use num_complex::Complex64;
 
 use crate::{
-    ElectromagneticFields, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
-    algebra::{Jet0, RealCartesianVectorAlgebra},
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
+    algebra::Jet0,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     field::VectorField,
     parameter::FiniteLayerIndex,
     spatial::{ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
-        assertions::{assert_array_close, assert_complex_close},
+        assertions::assert_complex_close,
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        jet::J0,
+        jet::RealJ0,
         planar::{scalar_real_input, two_layer_stack},
     },
 };
@@ -173,12 +173,12 @@ fn assert_norm_values_match_fields(
 macro_rules! for_each_backend {
     ($backend:ident, $body:block) => {{
         {
-            let $backend = PlaneWaveEvaluator::new(Scatter2::new());
+            let $backend = RealAxisEvaluator::new(Scatter2::new());
             $body
         }
 
         {
-            let $backend = PlaneWaveEvaluator::new(Transfer2::new());
+            let $backend = RealAxisEvaluator::new(Transfer2::new());
             $body
         }
     }};
@@ -483,7 +483,7 @@ fn transfer_and_scatter_agree_on_field_norms() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter_state = RealAxisEvaluator::new(Scatter2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -492,7 +492,7 @@ fn transfer_and_scatter_agree_on_field_norms() {
                 )
                 .unwrap();
 
-            let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer_state = RealAxisEvaluator::new(Transfer2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -563,7 +563,7 @@ fn transfer_and_scatter_agree_on_poynting_vectors() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter_state = RealAxisEvaluator::new(Scatter2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -572,7 +572,7 @@ fn transfer_and_scatter_agree_on_poynting_vectors() {
                 )
                 .unwrap();
 
-            let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer_state = RealAxisEvaluator::new(Transfer2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,

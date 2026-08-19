@@ -443,22 +443,22 @@ mod tests {
             C,
             assertions::{assert_array_close, assert_complex_close},
             c,
-            jet::{J0, J1, J2, P, zero_jet_from_real_value, zero_jet_from_value},
+            jet::{P, RealJ0, RealJ1, RealJ2, real_j0, real_j0_from_real},
         },
     };
 
-    type ScalarEntries0 = Scatter2Entries<J0>;
-    type ScalarEntries1 = Scatter2Entries<J1>;
-    type ScalarEntries2 = Scatter2Entries<J2>;
+    type ScalarEntries0 = Scatter2Entries<RealJ0>;
+    type ScalarEntries1 = Scatter2Entries<RealJ1>;
+    type ScalarEntries2 = Scatter2Entries<RealJ2>;
 
     const TOLERANCE: f64 = 1e-12;
 
     fn scalar_entries(s11: C, s12: C, s21: C, s22: C) -> ScalarEntries0 {
         Scatter2Entries {
-            s11: zero_jet_from_value(s11),
-            s12: zero_jet_from_value(s12),
-            s21: zero_jet_from_value(s21),
-            s22: zero_jet_from_value(s22),
+            s11: real_j0(s11),
+            s12: real_j0(s12),
+            s21: real_j0(s21),
+            s22: real_j0(s22),
         }
     }
 
@@ -765,17 +765,17 @@ mod tests {
 
     fn first_order_entry_jets() -> (ScalarEntries1, ScalarEntries1) {
         let left = Scatter2Entries {
-            s11: J1::from_parts(arr0(c(0.1)), arr0(c(0.03))),
-            s12: J1::from_parts(arr0(c(0.8)), arr0(c(-0.04))),
-            s21: J1::from_parts(arr0(c(0.7)), arr0(c(0.02))),
-            s22: J1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
+            s11: RealJ1::from_parts(arr0(c(0.1)), arr0(c(0.03))),
+            s12: RealJ1::from_parts(arr0(c(0.8)), arr0(c(-0.04))),
+            s21: RealJ1::from_parts(arr0(c(0.7)), arr0(c(0.02))),
+            s22: RealJ1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
         };
 
         let right = Scatter2Entries {
-            s11: J1::from_parts(arr0(c(0.3)), arr0(c(-0.02))),
-            s12: J1::from_parts(arr0(c(0.6)), arr0(c(0.05))),
-            s21: J1::from_parts(arr0(c(0.5)), arr0(c(-0.03))),
-            s22: J1::from_parts(arr0(c(-0.1)), arr0(c(0.04))),
+            s11: RealJ1::from_parts(arr0(c(0.3)), arr0(c(-0.02))),
+            s12: RealJ1::from_parts(arr0(c(0.6)), arr0(c(0.05))),
+            s21: RealJ1::from_parts(arr0(c(0.5)), arr0(c(-0.03))),
+            s22: RealJ1::from_parts(arr0(c(-0.1)), arr0(c(0.04))),
         };
 
         (left, right)
@@ -807,17 +807,17 @@ mod tests {
 
     fn second_order_entry_jets() -> (ScalarEntries2, ScalarEntries2) {
         let left = Scatter2Entries {
-            s11: J2::from_parts(arr0(c(0.1)), arr0(c(0.03)), arr0(c(0.02))),
-            s12: J2::from_parts(arr0(c(0.8)), arr0(c(-0.04)), arr0(c(0.04))),
-            s21: J2::from_parts(arr0(c(0.7)), arr0(c(0.02)), arr0(c(-0.03))),
-            s22: J2::from_parts(arr0(c(-0.2)), arr0(c(0.01)), arr0(c(0.01))),
+            s11: RealJ2::from_parts(arr0(c(0.1)), arr0(c(0.03)), arr0(c(0.02))),
+            s12: RealJ2::from_parts(arr0(c(0.8)), arr0(c(-0.04)), arr0(c(0.04))),
+            s21: RealJ2::from_parts(arr0(c(0.7)), arr0(c(0.02)), arr0(c(-0.03))),
+            s22: RealJ2::from_parts(arr0(c(-0.2)), arr0(c(0.01)), arr0(c(0.01))),
         };
 
         let right = Scatter2Entries {
-            s11: J2::from_parts(arr0(c(0.3)), arr0(c(-0.02)), arr0(c(0.024))),
-            s12: J2::from_parts(arr0(c(0.6)), arr0(c(0.05)), arr0(c(-0.02))),
-            s21: J2::from_parts(arr0(c(0.5)), arr0(c(-0.03)), arr0(c(0.04))),
-            s22: J2::from_parts(arr0(c(-0.1)), arr0(c(0.04)), arr0(c(0.03))),
+            s11: RealJ2::from_parts(arr0(c(0.3)), arr0(c(-0.02)), arr0(c(0.024))),
+            s12: RealJ2::from_parts(arr0(c(0.6)), arr0(c(0.05)), arr0(c(-0.02))),
+            s21: RealJ2::from_parts(arr0(c(0.5)), arr0(c(-0.03)), arr0(c(0.04))),
+            s22: RealJ2::from_parts(arr0(c(-0.1)), arr0(c(0.04)), arr0(c(0.03))),
         };
 
         (left, right)
@@ -855,23 +855,23 @@ mod tests {
         assert_second_entries_close(&analytic, &expected, 2e-7);
     }
 
-    fn value(jet: &J0) -> C {
+    fn value(jet: &RealJ0) -> C {
         jet.clone().into_inner()[()]
     }
 
     #[test]
     fn exterior_context_provider_preserves_all_context_components() {
         let context = Scatter2ExteriorContext::from_parts(
-            zero_jet_from_real_value(1.0),  // left Y
-            zero_jet_from_real_value(2.0),  // right Y
-            zero_jet_from_real_value(3.0),  // left kappa
-            zero_jet_from_real_value(4.0),  // right kappa
-            zero_jet_from_real_value(5.0),  // left epsilon
-            zero_jet_from_real_value(6.0),  // right epsilon
-            zero_jet_from_real_value(7.0),  // left mu
-            zero_jet_from_real_value(8.0),  // right mu
-            zero_jet_from_real_value(9.0),  // k0
-            zero_jet_from_real_value(10.0), // k_parallel
+            real_j0_from_real(1.0),  // left Y
+            real_j0_from_real(2.0),  // right Y
+            real_j0_from_real(3.0),  // left kappa
+            real_j0_from_real(4.0),  // right kappa
+            real_j0_from_real(5.0),  // left epsilon
+            real_j0_from_real(6.0),  // right epsilon
+            real_j0_from_real(7.0),  // left mu
+            real_j0_from_real(8.0),  // right mu
+            real_j0_from_real(9.0),  // k0
+            real_j0_from_real(10.0), // k_parallel
             Polarisation::TransverseMagnetic,
         );
 
@@ -900,7 +900,7 @@ mod determinant_helper_tests {
     use crate::test_support::{
         TOLERANCE,
         assertions::assert_complex_close,
-        jet::{J0, zero_jet_from_value},
+        jet::{RealJ0, real_j0},
     };
 
     use super::*;
@@ -908,10 +908,10 @@ mod determinant_helper_tests {
     use ndarray::Ix0;
     use num_complex::Complex64;
 
-    type Algebra = J0;
+    type Algebra = RealJ0;
 
     fn scalar(value: impl Into<Complex64>) -> Algebra {
-        zero_jet_from_value(value.into())
+        real_j0(value.into())
     }
 
     fn value<J>(jet: &J) -> J::Scalar

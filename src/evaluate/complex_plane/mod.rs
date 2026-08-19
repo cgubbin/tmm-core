@@ -1,18 +1,34 @@
-// mod mode;
-// mod pair;
+//! Canonical complex-plane evaluation.
+//!
+//! Complex-plane evaluation operates directly on canonical vacuum and
+//! in-plane angular wavenumbers. Unlike real-axis evaluation, it performs no
+//! caller-coordinate compilation and attaches no physical meaning to jet
+//! derivative slots.
+//!
+//! The evaluator owns a precompiled canonical stack. Callers provide:
+//!
+//! - canonical complex coordinates;
+//! - explicitly branch-selected exterior longitudinal wavevectors;
+//! - the polarization;
+//! - the jet algebra used to propagate any desired analytic derivatives.
+//!
+//! This path is intended for complex continuation, outgoing-mode
+//! determinants, argument-principle searches, mode refinement, modal
+//! reconstruction, and continuation calculations.
+
+pub(super) mod mode;
+mod state;
 
 use std::fmt::Debug;
 
 use nalgebra::ComplexField;
-use ndarray::{Dimension, Ix0, arr0};
-use num_traits::{Float, FromPrimitive, One};
-use thiserror::Error;
+use ndarray::{Dimension, Ix0};
+use num_traits::{Float, FromPrimitive};
 
 use crate::{
-    CanonicalCoordinates, ComplexPlane, ComplexScalar, ExteriorWavevectors, Parameter,
-    Polarisation, Stack,
+    CanonicalCoordinates, ComplexPlane, ComplexScalar, ExteriorWavevectors, Polarisation, Stack,
     algebra::{Jet, ScalarAlgebra},
-    backend::Backend,
+    backend::{Backend, PlaneWaveSolution},
     input::{
         CanonicalStack, StackCompileError, StackThicknessJet, ValidationConfig,
         compile_canonical_constant_stack,
@@ -21,41 +37,26 @@ use crate::{
     observable::ProjectPlaneWaveModeDeterminant,
 };
 
-/// Compiles and solves modal problems using a statically
-/// selected backend.
+pub use mode::{ComplexPlaneMode, QnmCreationError};
+pub use state::ComplexPlaneState;
+
+/// Evaluates canonical complex-plane problems using a precompiled stack.
 ///
-/// The evaluator does not compute or crystallise observables. It returns a
-/// retained [`ModalState`] from which quantities may be requested later.
+/// `J` determines the analytic value/derivative algebra propagated through
+/// coordinates, exterior wavevectors, constitutive models, and layer
+/// thicknesses.
 ///
-/// This evaluator is designed for advanced consumers in the lamina ecosystem. Contrasting
-/// [`PlaneWaveEvaluator`] the stack is pre-compiled. The evaluator is unsuitable for parameter
-/// optimisation, and is designed for analysis of systems with fixed geometric and material
-/// properties.
+/// [`compile`](Self::compile) constructs a stack with constant geometric jets.
+/// [`from_canonical_stack`](Self::from_canonical_stack) accepts an already
+/// compiled stack and therefore permits advanced callers to seed geometry
+/// derivatives explicitly.
 ///
-/// Unlike a [`PlaneWaveEvaluator`], a modal evaluator is crystallised on instantiation for a given
-/// derivative order through the jet composition. A new instance must be created to probe a
-/// different derivative structure.
-///
-/// Modal evaluators should be probed in the canonical backend coordinates. No coordinate
-/// compilation occurs in the evaluation path
+/// The evaluator does not perform coordinate conversion, derivative mapping,
+/// or differential-response crystallisation.
 #[derive(Clone, Debug)]
 pub struct ComplexPlaneEvaluator<J, M, B> {
     backend: B,
     stack: CanonicalStack<M, J>,
-}
-
-pub enum ModalAnalysisParameter {
-    InPlane,
-    Spectral,
-}
-
-impl From<ModalAnalysisParameter> for Parameter {
-    fn from(value: ModalAnalysisParameter) -> Self {
-        match value {
-            ModalAnalysisParameter::Spectral => Parameter::Spectral,
-            ModalAnalysisParameter::InPlane => Parameter::InPlane,
-        }
-    }
 }
 
 impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
@@ -83,22 +84,51 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
         Self { stack, backend }
     }
 
-    fn backend(&self) -> &B {
+    pub(crate) fn backend(&self) -> &B {
         &self.backend
     }
 
-    fn stack(&self) -> &CanonicalStack<M, J> {
+    pub(crate) fn stack(&self) -> &CanonicalStack<M, J> {
         &self.stack
+    }
+
+    pub fn into_parts(self) -> (CanonicalStack<M, J>, B) {
+        (self.stack, self.backend)
     }
 }
 
 impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
+    /// Solve a canonical complex-plane problem without retaining internal
+    /// finite-layer state.
+    pub fn solve(
+        &self,
+        coordinates: &CanonicalCoordinates<J>,
+        exterior: &ExteriorWavevectors<J>,
+        polarisation: Polarisation,
+    ) -> Result<
+        PlaneWaveSolution<<B as Backend<J, ComplexPlane>>::Entries>,
+        <B as Backend<J, ComplexPlane>>::Error,
+    >
+    where
+        J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        B: Backend<J, ComplexPlane>,
+    {
+        self.backend
+            .solve(coordinates, &self.stack, exterior, polarisation)
+    }
+
     pub fn determinant(
         &self,
-        coordinates: CanonicalCoordinates<J>,
-        exterior: ExteriorWavevectors<J>,
+        coordinates: &CanonicalCoordinates<J>,
+        exterior: &ExteriorWavevectors<J>,
         polarisation: Polarisation,
-    ) -> Result<RawModeDeterminant<B, J>, <B as Backend<J, ComplexPlane>>::Error>
+    ) -> Result<
+        RawModeDeterminant<<B as Backend<J, ComplexPlane>>::Entries>,
+        <B as Backend<J, ComplexPlane>>::Error,
+    >
     where
         J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
         J::Scalar: ComplexScalar,
@@ -108,46 +138,38 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
         B: Backend<J, ComplexPlane>,
         <B as Backend<J, ComplexPlane>>::Entries: ProjectPlaneWaveModeDeterminant,
     {
-        let solution = self
-            .backend()
-            .solve(&coordinates, self.stack(), &exterior, polarisation)?;
-
-        Ok(solution.determinant())
+        Ok(self
+            .solve(coordinates, exterior, polarisation)?
+            .determinant())
     }
 
-    // pub fn retain(
-    //     &self,
-    //     coordinates: CanonicalCoordinates<J>,
-    //     exterior: ExteriorWavevectors<J>,
-    //     polarisation: Polarisation,
-    // ) -> Result<
-    //     RawState<J, <J::Scalar as ComplexField>::RealField, M, B::Workspace>,
-    //     <B as Backend<J, ComplexPlane>>::Error,
-    // >
-    // where
-    //     J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
-    //     J::Scalar: ComplexScalar,
-    //     J::Dimension: Dimension,
-    //     M: Clone,
-    //     ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-    //     B: Backend<J, ComplexPlane>,
-    //     <B as Backend<J, ComplexPlane>>::Entries: ProjectPlaneWaveModeDeterminant,
-    // {
-    //     let workspace =
-    //         self.backend()
-    //             .retain(&coordinates, self.stack(), &exterior, polarisation)?;
+    pub fn retain(
+        &self,
+        coordinates: CanonicalCoordinates<J>,
+        exterior: ExteriorWavevectors<J>,
+        polarisation: Polarisation,
+    ) -> Result<ComplexPlaneState<'_, J, M, B::Workspace>, B::Error>
+    where
+        J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
+        J::Scalar: ComplexScalar,
+        J::Dimension: Dimension,
+        ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+        B: Backend<J, ComplexPlane>,
+    {
+        let workspace = self
+            .backend
+            .retain(&coordinates, &self.stack, &exterior, polarisation)?;
 
-    //     Ok(RawState::new(
-    //         canonical_problem,
-    //         workspace,
-    //         context,
-    //         stack.clone(),
-    //         polarisation,
-    //     ))
-    // }
+        Ok(ComplexPlaneState::new(
+            coordinates,
+            exterior,
+            &self.stack,
+            workspace,
+            polarisation,
+        ))
+    }
 }
 
 pub(crate) type QueryEntries<B, J> = <B as Backend<J, ComplexPlane>>::Entries;
 
-pub(crate) type RawModeDeterminant<B, J> =
-    <QueryEntries<B, J> as ProjectPlaneWaveModeDeterminant>::Determinant;
+pub(crate) type RawModeDeterminant<E> = <E as ProjectPlaneWaveModeDeterminant>::Determinant;

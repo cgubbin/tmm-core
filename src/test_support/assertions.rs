@@ -7,7 +7,7 @@ use crate::{
         BoundaryState, BoundaryWaves, InterfaceStates, Interfaces, LayerBoundaries,
         LayerBoundaryStates, LayerBoundaryWaves,
     },
-    test_support::jet::J0,
+    test_support::jet::RealJ0,
     waves::BidirectionalWaves,
 };
 
@@ -372,8 +372,8 @@ pub(crate) fn assert_interface_continuity(
 }
 
 pub(crate) fn assert_boundary_state_jet_close(
-    actual: &BoundaryState<J0>,
-    expected: &BoundaryState<J0>,
+    actual: &BoundaryState<RealJ0>,
+    expected: &BoundaryState<RealJ0>,
     tolerance: f64,
 ) {
     assert_array_close(actual.field(), expected.field(), tolerance);

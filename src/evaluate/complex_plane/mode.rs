@@ -1,6 +1,7 @@
 use nalgebra::ComplexField;
-use ndarray::Dimension;
+use ndarray::{Dimension, Ix0};
 use num_traits::{Float, FromPrimitive, One};
+use thiserror::Error;
 
 use crate::{
     ComplexPlane, ComplexScalar, ConstitutiveFields, ElectromagneticFields,
@@ -11,12 +12,6 @@ use crate::{
         ExteriorContextProvider, ModalSolutionSource, ModeReconstructionError, PlaneWaveEntries,
         PlaneWaveModeCandidate, PlaneWaveSolutionSource, ReconstructExteriorModeWaves,
         ReconstructLayerModeWaves, RetainedIsotropicLayers,
-    },
-    derivative_parts::DerivativePartsPolicy,
-    differential::IntoDifferentialResponse,
-    evaluate::{
-        RawState,
-        query::{DifferentialResponseFor, PlaneWaveQuery},
     },
     input::JetMapping,
     material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
@@ -30,7 +25,7 @@ use crate::{
     waves::WaveSamplingContext,
 };
 
-use thiserror::Error;
+use super::ComplexPlaneState;
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum QnmCreationError {
@@ -66,31 +61,27 @@ pub enum ModeLayerProjectionError {
 }
 
 #[derive(Clone)]
-pub struct PlaneWaveMode<'a, J, M, W>
+pub struct ComplexPlaneMode<'a, J, M, W>
 where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
+    J: Jet,
 {
-    state: &'a RawState<J, J::Scalar, M, W>,
+    state: &'a ComplexPlaneState<'a, J, M, W>,
     solution: PlaneWaveModeCandidate<J>,
     raw_normalisation: AggregateBilinearNormalization<J>,
 }
 
-impl<'a, J, M, W> PlaneWaveMode<'a, J, M, W>
+impl<'a, J, M, W> ComplexPlaneMode<'a, J, M, W>
 where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
+    J: Jet,
 {
-    /// Construct an excitation after validating the state's projection constraint.
-    pub(crate) fn new(state: &'a RawState<J, J::Scalar, M, W>) -> Result<Self, QnmCreationError>
+    pub(crate) fn new(state: &'a ComplexPlaneState<'a, J, M, W>) -> Result<Self, QnmCreationError>
     where
         J: ComplexJet
             + ScalarAlgebra
             + ScalarAlgebraExpRelExt
             + ConstitutiveSpectralFirstLift<ComplexPlane, M>
-            + Clone,
+            + Clone
+            + JetMapping,
         J::RealJet: ScalarAlgebra,
         J::Scalar: ComplexScalar,
         <J::RealJet as Jet>::Scalar: FromPrimitive + One,
@@ -117,7 +108,7 @@ where
         })
     }
 
-    pub(crate) fn state(&self) -> &'a RawState<J, J::Scalar, M, W> {
+    pub(crate) fn state(&self) -> &'a ComplexPlaneState<'a, J, M, W> {
         self.state
     }
 
@@ -125,14 +116,14 @@ where
         &self.solution
     }
 
-    pub(crate) fn raw_normalisation(&self) -> &AggregateBilinearNormalization<J> {
+    pub(crate) fn seed_normalisation(&self) -> &AggregateBilinearNormalization<J> {
         &self.raw_normalisation
     }
 
     pub(crate) fn into_parts(
         self,
     ) -> (
-        &'a RawState<J, J::Scalar, M, W>,
+        &'a ComplexPlaneState<'a, J, M, W>,
         PlaneWaveModeCandidate<J>,
         AggregateBilinearNormalization<J>,
     ) {
@@ -140,25 +131,18 @@ where
     }
 }
 
-impl<J, M, W> std::fmt::Debug for PlaneWaveMode<'_, J, M, W>
+impl<J, M, W> std::fmt::Debug for ComplexPlaneMode<'_, J, M, W>
 where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
+    J: Jet,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PlaneWaveMode").finish_non_exhaustive()
+        f.debug_struct("ComplexPlaneMode").finish_non_exhaustive()
     }
 }
 
-impl<'a, J, M, W> PlaneWaveMode<'a, J, M, W>
+impl<'a, J, M, W> ComplexPlaneMode<'a, J, M, W>
 where
-    J: Jet + JetMapping,
-    J::Scalar: ComplexField,
-    J::Dimension: Dimension,
-    J::Policy: Default + DerivativePartsPolicy<AggregateBilinearNormalization<J>>,
-    AggregateBilinearNormalization<J>: IntoDifferentialResponse<J::Policy, J::Mapping>,
-    W: ReconstructLayerModeWaves<Algebra = J>,
+    J: Jet<Dimension = Ix0>,
 {
     fn raw_electromagnetic_fields(
         &self,
@@ -170,10 +154,11 @@ where
     where
         J: JetStack + ScalarAlgebra,
         J::Scalar: ComplexScalar,
-        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        <J::Scalar as ComplexField>::RealField: Float,
         J::Stacked: CartesianScalarAlgebra,
         W: PlaneWaveSolutionSource
             + RetainedIsotropicLayers<Algebra = J>
+            + ReconstructLayerModeWaves<Algebra = J>
             + ReconstructExteriorModeWaves<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
@@ -188,61 +173,50 @@ where
         context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)
     }
 
-    pub fn evaluate_fields(
+    pub fn fields(
         &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        ModeFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
+        ComplexModeFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
         FieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
         J: JetStack + ScalarAlgebra,
         J::Scalar: ComplexScalar,
-        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        <J::Scalar as ComplexField>::RealField: Float,
         J::Stacked: CartesianScalarAlgebra,
         W: PlaneWaveSolutionSource
-            + ReconstructExteriorModeWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>,
+            + RetainedIsotropicLayers<Algebra = J>
+            + ReconstructLayerModeWaves<Algebra = J>
+            + ReconstructExteriorModeWaves<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J::Policy: DerivativePartsPolicy<
-            ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-        >,
-        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
-            IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
-        let sampling = sampling.resolve(self.state.stack())?;
+        let sampling = sampling.resolve_canonical(self.state.stack())?;
 
         let reconstructed = self.raw_electromagnetic_fields(&sampling)?;
 
-        let differential_response =
-            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
-
-        Ok(SpatialResponse::new(differential_response, sampling))
+        Ok(SpatialResponse::new(reconstructed, sampling))
     }
 
-    pub fn evaluate_constitutive_fields(
+    pub fn constitutive_fields(
         &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
     ) -> Result<
-        ModeConstitutiveFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
+        ComplexModeConstitutiveFieldResponse<J, <J::Scalar as ComplexField>::RealField>,
         ConstitutiveFieldReconstructionError<<J::Scalar as ComplexField>::RealField>,
     >
     where
         J: JetStack + ScalarAlgebra,
         J::Scalar: ComplexScalar,
-        <J::Scalar as ComplexField>::RealField: Float + FromPrimitive,
+        <J::Scalar as ComplexField>::RealField: Float,
         J::Stacked: CartesianScalarAlgebra,
         W: PlaneWaveSolutionSource
-            + ReconstructExteriorModeWaves<Algebra = J>
-            + RetainedIsotropicLayers<Algebra = J>,
+            + RetainedIsotropicLayers<Algebra = J>
+            + ReconstructLayerModeWaves<Algebra = J>
+            + ReconstructExteriorModeWaves<Algebra = J>,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
-        J::Policy: DerivativePartsPolicy<
-            ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-        >,
-        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>:
-            IntoDifferentialResponse<J::Policy, J::Mapping>,
     {
-        let sampling = sampling.resolve(self.state.stack())?;
+        let sampling = sampling.resolve_canonical(self.state.stack())?;
 
         let electromagnetic_fields = self.raw_electromagnetic_fields(&sampling)?;
 
@@ -250,10 +224,7 @@ where
 
         let reconstructed = electromagnetic_fields.into_constitutive_fields(&constitutive);
 
-        let differential_response =
-            reconstructed.into_differential_response(&J::Policy::default(), self.state.mapping());
-
-        Ok(SpatialResponse::new(differential_response, sampling))
+        Ok(SpatialResponse::new(reconstructed, sampling))
     }
 }
 
@@ -273,9 +244,9 @@ where
     )?)
 }
 
-pub(crate) fn raw_qnm_normalisation_unchecked<J, M, W>(
+pub(crate) fn raw_qnm_normalisation_unchecked<'a, J, M, W>(
     seed: &PlaneWaveModeCandidate<J>,
-    state: &RawState<J, J::Scalar, M, W>,
+    state: &ComplexPlaneState<'a, J, M, W>,
 ) -> Result<AggregateBilinearNormalization<J>, QnmNormalisationError>
 where
     J: ComplexJet
@@ -294,17 +265,12 @@ where
         + ReconstructLayerModeWaves<Algebra = J>,
     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
 {
-    let coordinates = state.problem().coordinates();
+    let coordinates = state.coordinates();
 
     let sequence = raw_layer_integration_inputs_unchecked(seed, state.workspace())?
         .integrate_bilinear()
         .into_brillouin_layers(
-            state
-                .problem()
-                .stack()
-                .layers()
-                .iter()
-                .map(|layer| layer.material()),
+            state.stack().layers().iter().map(|layer| layer.material()),
             coordinates.vacuum_angular_wavenumber(),
         )?;
 
@@ -331,18 +297,12 @@ where
     Ok(scale)
 }
 
-pub type ModeFieldResponse<J, R> = SpatialResponse<
-    DifferentialResponseFor<
-        J,
-        ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-    >,
+pub type ComplexModeFieldResponse<J, R> = SpatialResponse<
+    ElectromagneticFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     R,
 >;
 
-pub type ModeConstitutiveFieldResponse<J, R> = SpatialResponse<
-    DifferentialResponseFor<
-        J,
-        ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
-    >,
+pub type ComplexModeConstitutiveFieldResponse<J, R> = SpatialResponse<
+    ConstitutiveFields<<<J as JetStack>::Stacked as CartesianScalarAlgebra>::Vector>,
     R,
 >;

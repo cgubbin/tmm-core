@@ -1,6 +1,7 @@
 use super::{C, c};
 use crate::algebra::{
-    ArrayJet0, ArrayJet1, ArrayJet2, HolomorphicParameter, RealParameter, ScalarAlgebra,
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, HolomorphicParameter,
+    RealParameter, ScalarAlgebra,
 };
 
 use ndarray::{Array, ArrayBase, Dimension, Ix0, OwnedRepr, arr0};
@@ -8,28 +9,52 @@ use ndarray::{Array, ArrayBase, Dimension, Ix0, OwnedRepr, arr0};
 pub type P = RealParameter;
 pub type H = HolomorphicParameter;
 
-pub type J0 = ArrayJet0<C, Ix0, P>;
-pub type J0H = ArrayJet0<C, Ix0, H>;
-pub type J1 = ArrayJet1<C, Ix0, P>;
-pub type J2 = ArrayJet2<C, Ix0, P>;
+pub type RealJ0 = ArrayJet0<C, Ix0, RealParameter>;
+pub type HoloJ0 = ArrayJet0<C, Ix0, HolomorphicParameter>;
 
-pub fn unit_jet_like<D: Dimension>(source: &ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, P> {
-    ArrayJet0::filled_constant_like(source, c(1.0))
-}
+pub type RealJ1 = ArrayJet1<C, Ix0, RealParameter>;
+pub type HoloJ1 = ArrayJet1<C, Ix0, HolomorphicParameter>;
 
-pub fn zero_jet_from_real_value(value: f64) -> ArrayJet0<C, Ix0, RealParameter> {
-    ArrayJet0::new(arr0(c(value)))
-}
+pub type RealJ2 = ArrayJet2<C, Ix0, RealParameter>;
+pub type HoloJ2 = ArrayJet2<C, Ix0, HolomorphicParameter>;
 
-pub fn zero_jet_from_value(value: C) -> ArrayJet0<C, Ix0, RealParameter> {
+pub type HoloJB1 = ArrayJetBivariate1<C, Ix0, HolomorphicParameter>;
+pub type HoloJB2 = ArrayJetBivariate2<C, Ix0, HolomorphicParameter>;
+
+pub fn real_j0(value: C) -> RealJ0 {
     ArrayJet0::new(arr0(value))
 }
 
-pub fn zero_jet_from_array<D>(array: ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, RealParameter>
+pub fn real_j0_from_real(value: f64) -> RealJ0 {
+    real_j0(c(value))
+}
+
+pub fn real_j0_from_array<D>(array: ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, RealParameter>
 where
     D: Dimension,
 {
     ArrayJet0::new(array)
+}
+
+pub fn holo_j0(value: C) -> HoloJ0 {
+    ArrayJet0::new(arr0(value))
+}
+
+pub fn holo_j0_from_real(value: f64) -> HoloJ0 {
+    holo_j0(c(value))
+}
+
+pub fn holo_j0_from_array<D>(
+    array: ArrayBase<OwnedRepr<C>, D>,
+) -> ArrayJet0<C, D, HolomorphicParameter>
+where
+    D: Dimension,
+{
+    ArrayJet0::new(array)
+}
+
+pub fn unit_jet_like<D: Dimension>(source: &ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, P> {
+    ArrayJet0::filled_constant_like(source, c(1.0))
 }
 
 pub fn independent_first<D>(value: Array<C, D>) -> ArrayJet1<C, D, P>

@@ -157,16 +157,18 @@ mod tests {
         input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
         test_support::{
             C, c,
-            jet::zero_jet_from_value,
+            jet::real_j0,
             materials::linear,
-            stack::{empty_stack, single_layer_stack, two_layer_stack},
+            stack::{
+                canonical_empty_stack, canonical_single_layer_stack, canonical_two_layer_stack,
+            },
         },
     };
 
     type A = ArrayJet0<C, Ix0, RealParameter>;
 
     fn coordinates() -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(zero_jet_from_value(c(2.0)), zero_jet_from_value(c(0.1)))
+        CanonicalCoordinates::new(real_j0(c(2.0)), real_j0(c(0.1)))
     }
 
     pub(super) fn exterior(
@@ -181,11 +183,11 @@ mod tests {
     }
 
     #[test]
-    fn empty_stack_accumulates_identity() {
+    fn canonical_empty_stack_accumulates_identity() {
         let backend = Transfer2::new();
 
         let coordinates = coordinates();
-        let stack = empty_stack();
+        let stack = canonical_empty_stack();
 
         let workspace = backend
             .accumulate::<_, crate::domain::RealAxis, _>(
@@ -207,7 +209,7 @@ mod tests {
     #[test]
     fn single_layer_accumulation_matches_layer_matrix() {
         let backend = Transfer2::new();
-        let stack = single_layer_stack();
+        let stack = canonical_single_layer_stack();
         let coordinates = coordinates();
 
         let workspace = backend
@@ -234,7 +236,7 @@ mod tests {
     #[test]
     fn two_layer_accumulation_preserves_stack_order() {
         let backend = Transfer2::new();
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
         let coordinates = coordinates();
 
         let workspace = backend
@@ -271,7 +273,7 @@ mod tests {
     #[test]
     fn response_only_does_not_retain_layers() {
         let coordinates = coordinates();
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
         let workspace = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
                 &coordinates,
@@ -288,7 +290,7 @@ mod tests {
     #[test]
     fn internal_fields_retains_every_layer() {
         let coordinates = coordinates();
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
         let workspace = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
                 &coordinates,
@@ -307,7 +309,7 @@ mod tests {
     #[test]
     fn te_and_tm_produce_different_matrices() {
         let backend = Transfer2::new();
-        let stack = single_layer_stack();
+        let stack = canonical_single_layer_stack();
 
         let coordinates = coordinates();
 
@@ -340,7 +342,7 @@ mod tests {
     fn solve_and_retain_have_identical_external_solution() {
         let backend = Transfer2::new();
 
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
         let coordinates = coordinates();
         let polarisation = Polarisation::TransverseElectric;
 
@@ -376,13 +378,12 @@ mod tests {
         let stack = CanonicalStack::new(
             material.clone(),
             material.clone(),
-            vec![CanonicalLayer::new(material, zero_jet_from_value(c(0.1)))],
+            vec![CanonicalLayer::new(material, real_j0(c(0.1)))],
         );
 
         let polarisation = Polarisation::TransverseElectric;
 
-        let first_coordinates =
-            CanonicalCoordinates::new(zero_jet_from_value(c(2.0)), zero_jet_from_value(c(0.1)));
+        let first_coordinates = CanonicalCoordinates::new(real_j0(c(2.0)), real_j0(c(0.1)));
 
         let first = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
@@ -409,8 +410,7 @@ mod tests {
             )
             .unwrap();
 
-        let second_coordinates =
-            CanonicalCoordinates::new(zero_jet_from_value(c(3.0)), zero_jet_from_value(c(0.1)));
+        let second_coordinates = CanonicalCoordinates::new(real_j0(c(3.0)), real_j0(c(0.1)));
 
         let second = Transfer2::new()
             .accumulate::<_, crate::domain::RealAxis, _>(
@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn accumulated_transfer_matrix_is_independent_of_exterior_branch_choice() {
         let backend = Transfer2::new();
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
         let coordinates = coordinates();
 
         let exterior = evaluate_exterior_wavevectors::<RealAxis, _, _>(
@@ -490,14 +490,14 @@ mod stability_tests {
         input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
         test_support::{
             C, c,
-            jet::{zero_jet_from_array, zero_jet_from_value},
+            jet::{real_j0, real_j0_from_array},
         },
     };
 
     type A = ArrayJet0<C, Ix0, RealParameter>;
 
     fn coordinates() -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(zero_jet_from_value(c(1.0)), zero_jet_from_value(c(0.0)))
+        CanonicalCoordinates::new(real_j0(c(1.0)), real_j0(c(0.0)))
     }
 
     fn stable_stack() -> CanonicalStack<Constant<f64>, A> {
@@ -506,7 +506,7 @@ mod stability_tests {
             Constant::new(1.0, 1.0),
             vec![CanonicalLayer::new(
                 Constant::new(4.0, 1.0),
-                zero_jet_from_value(c(0.1)),
+                real_j0(c(0.1)),
             )],
         )
     }
@@ -517,7 +517,7 @@ mod stability_tests {
             Constant::new(1.0, 1.0),
             vec![CanonicalLayer::new(
                 Constant::new(-1.0e6, 1.0),
-                zero_jet_from_value(c(1.0)),
+                real_j0(c(1.0)),
             )],
         )
     }
@@ -751,10 +751,10 @@ mod stability_tests {
 
     fn finite_entries() -> Transfer2Entries<Jet0<Array<C, Ix1>, RealParameter>> {
         Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         )
     }
 
@@ -775,10 +775,10 @@ mod stability_tests {
     #[test]
     fn layer_check_reports_layer_index_entry_and_sample_index() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), C::new(f64::INFINITY, 0.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), C::new(f64::INFINITY, 0.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         );
 
         let error =
@@ -797,10 +797,10 @@ mod stability_tests {
     #[test]
     fn accumulation_check_reports_layer_index_entry_and_sample_index() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), C::new(0.0, f64::NEG_INFINITY)]),
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), C::new(0.0, f64::NEG_INFINITY)]),
         );
 
         let error = check_accumulation(&entries, 7)
@@ -819,10 +819,10 @@ mod stability_tests {
     #[test]
     fn layer_check_reports_nan() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), C::new(f64::NAN, 0.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(1.0), C::new(f64::NAN, 0.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         );
 
         let error = check_layer_matrix(&entries, 0).unwrap_err();
@@ -840,10 +840,10 @@ mod stability_tests {
     #[test]
     fn accumulation_check_reports_non_finite_imaginary_component() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![c(4.0), c(5.0), c(6.0)]),
-            zero_jet_from_array(array![C::new(7.0, f64::INFINITY), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![c(4.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![C::new(7.0, f64::INFINITY), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         );
 
         let error = check_accumulation(&entries, 3).unwrap_err();
@@ -861,10 +861,10 @@ mod stability_tests {
     #[test]
     fn checks_report_first_entry_in_matrix_order() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), C::new(f64::NAN, 0.0), c(3.0)]),
-            zero_jet_from_array(array![C::new(f64::INFINITY, 0.0), c(5.0), c(6.0)]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(1.0), C::new(f64::NAN, 0.0), c(3.0)]),
+            real_j0_from_array(array![C::new(f64::INFINITY, 0.0), c(5.0), c(6.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         );
 
         let error = check_layer_matrix(&entries, 1).unwrap_err();
@@ -882,14 +882,14 @@ mod stability_tests {
     #[test]
     fn checks_report_first_sample_within_entry() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_array(array![c(1.0), c(2.0), c(3.0)]),
-            zero_jet_from_array(array![
+            real_j0_from_array(array![c(1.0), c(2.0), c(3.0)]),
+            real_j0_from_array(array![
                 C::new(f64::NAN, 0.0),
                 c(5.0),
                 C::new(f64::INFINITY, 0.0)
             ]),
-            zero_jet_from_array(array![c(7.0), c(8.0), c(9.0)]),
-            zero_jet_from_array(array![c(10.0), c(11.0), c(12.0)]),
+            real_j0_from_array(array![c(7.0), c(8.0), c(9.0)]),
+            real_j0_from_array(array![c(10.0), c(11.0), c(12.0)]),
         );
 
         let error = check_accumulation(&entries, 5).unwrap_err();

@@ -93,7 +93,7 @@ where
     type Workspace: SolutionWorkspace<Entries = Self::Entries>;
 
     /// Backend failure type.
-    type Error: std::error::Error + Send + Sync + 'static;
+    type Error: std::error::Error + Send + Sync + 'static + Clone;
 
     /// Solve the problem and return only the completed response state.
     ///

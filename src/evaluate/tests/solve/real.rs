@@ -1,5 +1,5 @@
 use crate::{
-    IncidentSide, PlaneWaveEvaluator, Polarisation, backend::Scatter2, differential::NoDerivatives,
+    IncidentSide, Polarisation, RealAxisEvaluator, backend::Scatter2, differential::NoDerivatives,
 };
 
 use crate::test_support::{
@@ -8,8 +8,8 @@ use crate::test_support::{
     planar::{dielectric_interface, fresnel_amplitudes, fresnel_power, scalar_real_input},
 };
 
-fn evaluator() -> PlaneWaveEvaluator<Scatter2> {
-    PlaneWaveEvaluator::new(Scatter2::new())
+fn evaluator() -> RealAxisEvaluator<Scatter2> {
+    RealAxisEvaluator::new(Scatter2::new())
 }
 
 #[test]

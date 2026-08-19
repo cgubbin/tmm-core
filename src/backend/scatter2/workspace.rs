@@ -576,8 +576,8 @@ mod tests {
                 assert_zero_jet_close,
             },
             c,
-            jet::{J0, J1, zero_jet_from_array, zero_jet_from_real_value, zero_jet_from_value},
-            planar::{
+            jet::{RealJ0, RealJ1, real_j0, real_j0_from_array, real_j0_from_real},
+            stack::{
                 boundary_test_empty_stack, boundary_test_single_layer_stack,
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
             },
@@ -585,15 +585,15 @@ mod tests {
         waves::{LayerBoundaryWaves, ReconstructLayerBoundaryWaves},
     };
 
-    type Entries0 = Scatter2Entries<J0>;
-    type Entries1 = Scatter2Entries<J1>;
+    type Entries0 = Scatter2Entries<RealJ0>;
+    type Entries1 = Scatter2Entries<RealJ1>;
 
     fn scalar_entries(s11: C, s12: C, s21: C, s22: C) -> Entries0 {
         Scatter2Entries {
-            s11: zero_jet_from_value(s11),
-            s12: zero_jet_from_value(s12),
-            s21: zero_jet_from_value(s21),
-            s22: zero_jet_from_value(s22),
+            s11: real_j0(s11),
+            s12: real_j0(s12),
+            s21: real_j0(s21),
+            s22: real_j0(s22),
         }
     }
 
@@ -671,9 +671,9 @@ mod tests {
     fn new_workspace_starts_with_redheffer_identity() {
         let source = arr0(c(4.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let workspace: Scatter2Workspace<J0> =
+        let workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 3);
 
         assert_complex_close(workspace.total().s11.value()[()], c(0.0), TOLERANCE);
@@ -689,9 +689,9 @@ mod tests {
     fn response_only_workspace_does_not_retain_components() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let workspace: Scatter2Workspace<J0> =
+        let workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 2);
 
         let (_, retained) = workspace.into_parts();
@@ -703,9 +703,9 @@ mod tests {
     fn internal_field_workspace_creates_retained_storage() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let workspace: Scatter2Workspace<J0> =
+        let workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
         let (_, retained) = workspace.into_parts();
@@ -720,9 +720,9 @@ mod tests {
     fn entries_returns_accumulated_total() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let component = first_component();
@@ -736,9 +736,9 @@ mod tests {
     fn into_entries_returns_accumulated_total() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let component = first_component();
@@ -755,9 +755,9 @@ mod tests {
     fn append_cascades_component_onto_total() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 2);
 
         let first = first_component();
@@ -775,9 +775,9 @@ mod tests {
     fn append_retains_component_when_requested() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 1);
 
         let component = first_component();
@@ -797,9 +797,9 @@ mod tests {
     fn append_does_not_create_retention_in_response_only_mode() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         workspace.append(first_component());
@@ -813,9 +813,9 @@ mod tests {
     fn append_layer_cascades_interface_then_propagation() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 1);
 
         let interface = first_component();
@@ -837,9 +837,9 @@ mod tests {
     fn append_layer_retains_both_components() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 1);
 
         let interface = first_component();
@@ -867,9 +867,9 @@ mod tests {
     fn append_layer_records_cuts_around_propagation() {
         let source = arr0(c(0.0));
 
-        let context = make_context(&zero_jet_from_array(source.clone()));
+        let context = make_context(&real_j0_from_array(source.clone()));
 
-        let mut workspace: Scatter2Workspace<J0> =
+        let mut workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::InternalFields, 2);
 
         workspace.append_layer(
@@ -943,8 +943,8 @@ mod tests {
         let left = first_component();
         let right = second_component();
 
-        let left_incoming = zero_jet_from_value(c(0.7));
-        let right_incoming = zero_jet_from_value(c(-0.2));
+        let left_incoming = real_j0(c(0.7));
+        let right_incoming = real_j0(c(-0.2));
 
         let waves = waves_at_cut(&left, &right, &left_incoming, &right_incoming);
 
@@ -970,8 +970,8 @@ mod tests {
     fn transparent_cut_passes_left_incident_wave_forward() {
         let identity = transparent_component();
 
-        let left_incoming = zero_jet_from_value(c(1.0));
-        let right_incoming = zero_jet_from_value(c(0.0));
+        let left_incoming = real_j0(c(1.0));
+        let right_incoming = real_j0(c(0.0));
 
         let waves = waves_at_cut(&identity, &identity, &left_incoming, &right_incoming);
 
@@ -984,8 +984,8 @@ mod tests {
     fn transparent_cut_passes_right_incident_wave_backward() {
         let identity = transparent_component();
 
-        let left_incoming = zero_jet_from_value(c(0.0));
-        let right_incoming = zero_jet_from_value(c(1.0));
+        let left_incoming = real_j0(c(0.0));
+        let right_incoming = real_j0(c(1.0));
 
         let waves = waves_at_cut(&identity, &identity, &left_incoming, &right_incoming);
 
@@ -1033,8 +1033,8 @@ mod tests {
         let prefixes = prefix_cascades(&components, &source);
         let suffixes = suffix_cascades(&components, &source);
 
-        let one = zero_jet_from_value(c(1.0));
-        let zero = zero_jet_from_value(c(0.0));
+        let one = real_j0(c(1.0));
+        let zero = real_j0(c(0.0));
 
         let expected_left = waves_at_cut(&prefixes[1], &suffixes[1], &one, &zero);
 
@@ -1083,8 +1083,8 @@ mod tests {
         let prefixes = prefix_cascades(&components, &source);
         let suffixes = suffix_cascades(&components, &source);
 
-        let zero = zero_jet_from_value(c(0.0));
-        let one = zero_jet_from_value(c(1.0));
+        let zero = real_j0(c(0.0));
+        let one = real_j0(c(1.0));
 
         let expected_left = waves_at_cut(&prefixes[1], &suffixes[1], &zero, &one);
 
@@ -1120,22 +1120,22 @@ mod tests {
         let source = arr0(c(0.0));
 
         let component = Scatter2Entries {
-            s11: J1::from_parts(arr0(c(0.1)), arr0(c(0.02))),
-            s12: J1::from_parts(arr0(c(0.8)), arr0(c(-0.03))),
-            s21: J1::from_parts(arr0(c(0.7)), arr0(c(0.04))),
-            s22: J1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
+            s11: RealJ1::from_parts(arr0(c(0.1)), arr0(c(0.02))),
+            s12: RealJ1::from_parts(arr0(c(0.8)), arr0(c(-0.03))),
+            s21: RealJ1::from_parts(arr0(c(0.7)), arr0(c(0.04))),
+            s22: RealJ1::from_parts(arr0(c(-0.2)), arr0(c(0.01))),
         };
 
         let quantities = IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             &Constant::vacuum(),
             &CanonicalCoordinates::new(
-                J1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
-                J1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
+                RealJ1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
+                RealJ1::from_parts(arr0(c(0.1)), arr0(c(0.0))),
             ),
             Polarisation::TransverseElectric,
         );
 
-        let thickness = J1::from_parts(arr0(c(1.0)), arr0(c(0.0)));
+        let thickness = RealJ1::from_parts(arr0(c(1.0)), arr0(c(0.0)));
 
         let retained = RetainedScatterComponents {
             components: vec![component],
@@ -1156,18 +1156,15 @@ mod tests {
         assert_complex_close(waves[0].left().forward().first()[()], c(0.0), TOLERANCE);
     }
 
-    fn test_coordinates() -> CanonicalCoordinates<J0> {
-        CanonicalCoordinates::new(
-            zero_jet_from_real_value(2.3),
-            zero_jet_from_real_value(0.37),
-        )
+    fn test_coordinates() -> CanonicalCoordinates<RealJ0> {
+        CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37))
     }
 
     fn build_workspace(
-        stack: CanonicalStack<Constant<f64>, J0>,
+        stack: CanonicalStack<Constant<f64>, RealJ0>,
         mode: RunMode,
-    ) -> Scatter2Workspace<J0> {
-        Scatter2::new().accumulate::<J0, RealAxis, _>(
+    ) -> Scatter2Workspace<RealJ0> {
+        Scatter2::new().accumulate::<RealJ0, RealAxis, _>(
             &test_coordinates(),
             &stack,
             &ExteriorWavevectors::new(
@@ -1255,20 +1252,19 @@ mod tests {
         assert_ne!(left, right);
     }
 
-    fn sample_entries(offset: f64) -> Scatter2Entries<J0> {
+    fn sample_entries(offset: f64) -> Scatter2Entries<RealJ0> {
         Scatter2Entries::from_parts(
-            zero_jet_from_real_value(offset + 0.1),
-            zero_jet_from_real_value(offset + 0.2),
-            zero_jet_from_real_value(offset + 0.3),
-            zero_jet_from_real_value(offset + 0.4),
+            real_j0_from_real(offset + 0.1),
+            real_j0_from_real(offset + 0.2),
+            real_j0_from_real(offset + 0.3),
+            real_j0_from_real(offset + 0.4),
         )
     }
 
-    fn sample_quantities() -> IsotropicLayerQuantities<J0> {
+    fn sample_quantities() -> IsotropicLayerQuantities<RealJ0> {
         let material = Constant::vacuum();
 
-        let coordinates =
-            CanonicalCoordinates::new(zero_jet_from_real_value(1.0), zero_jet_from_real_value(0.5));
+        let coordinates = CanonicalCoordinates::new(real_j0_from_real(1.0), real_j0_from_real(0.5));
 
         IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             &material,
@@ -1277,15 +1273,15 @@ mod tests {
         )
     }
 
-    fn sample_thickness() -> J0 {
-        J0::new(arr0(c(1.0)))
+    fn sample_thickness() -> RealJ0 {
+        RealJ0::new(arr0(c(1.0)))
     }
 
     fn sample_source() -> ArrayBase<OwnedRepr<C>, Ix0> {
         ndarray::arr0(c(0.0))
     }
 
-    fn sample_context() -> Scatter2ExteriorContext<J0> {
+    fn sample_context() -> Scatter2ExteriorContext<RealJ0> {
         Scatter2ExteriorContext::new::<RealAxis, _>(
             &test_coordinates(),
             &Constant::vacuum(),
@@ -1484,11 +1480,11 @@ mod tests {
     fn waves_at_identity_cut_equal_external_incoming_waves() {
         let source = sample_source();
 
-        let identity = Scatter2Entries::<J0>::identity_like(&source);
+        let identity = Scatter2Entries::<RealJ0>::identity_like(&source);
 
-        let left_incoming = zero_jet_from_real_value(1.0);
+        let left_incoming = real_j0_from_real(1.0);
 
-        let right_incoming = zero_jet_from_real_value(0.0);
+        let right_incoming = real_j0_from_real(0.0);
 
         let waves = waves_at_cut(&identity, &identity, &left_incoming, &right_incoming);
 
@@ -1501,11 +1497,11 @@ mod tests {
     fn cut_before_network_recovers_left_external_waves() {
         let total = sample_physical_entries();
 
-        let identity = Scatter2Entries::<J0>::identity_like(total.sample_source());
+        let identity = Scatter2Entries::<RealJ0>::identity_like(total.sample_source());
 
-        let left_incoming = zero_jet_from_real_value(1.0);
+        let left_incoming = real_j0_from_real(1.0);
 
-        let right_incoming = zero_jet_from_real_value(0.0);
+        let right_incoming = real_j0_from_real(0.0);
 
         let waves = waves_at_cut(&identity, &total, &left_incoming, &right_incoming);
 
@@ -1514,12 +1510,12 @@ mod tests {
         assert_zero_jet_close(waves.backward(), total.s11());
     }
 
-    fn sample_physical_entries() -> Scatter2Entries<J0> {
+    fn sample_physical_entries() -> Scatter2Entries<RealJ0> {
         Scatter2Entries::from_parts(
-            zero_jet_from_real_value(1.0),
-            zero_jet_from_real_value(1.0),
-            zero_jet_from_real_value(1.0),
-            zero_jet_from_real_value(1.0),
+            real_j0_from_real(1.0),
+            real_j0_from_real(1.0),
+            real_j0_from_real(1.0),
+            real_j0_from_real(1.0),
         )
     }
 
@@ -1527,11 +1523,11 @@ mod tests {
     fn cut_after_network_recovers_right_external_waves() {
         let total = sample_physical_entries();
 
-        let identity = Scatter2Entries::<J0>::identity_like(total.sample_source());
+        let identity = Scatter2Entries::<RealJ0>::identity_like(total.sample_source());
 
-        let left_incoming = zero_jet_from_real_value(1.0);
+        let left_incoming = real_j0_from_real(1.0);
 
-        let right_incoming = zero_jet_from_real_value(0.0);
+        let right_incoming = real_j0_from_real(0.0);
 
         let waves = waves_at_cut(&total, &identity, &left_incoming, &right_incoming);
 
@@ -1611,8 +1607,8 @@ mod tests {
     }
 
     fn assert_layer_boundary_waves_close(
-        actual: &LayerBoundaryWaves<J0>,
-        expected: &LayerBoundaryWaves<J0>,
+        actual: &LayerBoundaryWaves<RealJ0>,
+        expected: &LayerBoundaryWaves<RealJ0>,
     ) {
         assert_bidirectional_waves_close(actual.left(), expected.left(), TOLERANCE);
 
@@ -1620,8 +1616,8 @@ mod tests {
     }
 
     fn assert_layer_boundary_waves_scaled(
-        actual: &LayerBoundaryWaves<J0>,
-        expected: &LayerBoundaryWaves<J0>,
+        actual: &LayerBoundaryWaves<RealJ0>,
+        expected: &LayerBoundaryWaves<RealJ0>,
         scale: C,
     ) {
         for (actual, expected) in [
@@ -1634,7 +1630,7 @@ mod tests {
         }
     }
 
-    fn retained_components_fixture() -> RetainedScatterComponents<J0> {
+    fn retained_components_fixture() -> RetainedScatterComponents<RealJ0> {
         RetainedScatterComponents {
             components: vec![
                 first_component(),
@@ -1657,11 +1653,8 @@ mod tests {
 
         let retained = retained_components_fixture();
 
-        let waves = retained.reconstruct_from_incoming_waves(
-            &zero_jet_from_value(c(0.7)),
-            &zero_jet_from_value(c(-0.2)),
-            &source,
-        );
+        let waves =
+            retained.reconstruct_from_incoming_waves(&real_j0(c(0.7)), &real_j0(c(-0.2)), &source);
 
         assert_eq!(waves.len(), retained.num_layers(),);
     }
@@ -1672,9 +1665,9 @@ mod tests {
 
         let retained = retained_components_fixture();
 
-        let left = zero_jet_from_value(c(0.7));
+        let left = real_j0(c(0.7));
 
-        let right = zero_jet_from_value(c(-0.2));
+        let right = real_j0(c(-0.2));
 
         let scale = c(1.7) + C::i() * c(-0.4);
 
@@ -1699,11 +1692,8 @@ mod tests {
 
         let driven = retained.reconstruct_layer_boundary_waves(IncidentSide::Left, &source);
 
-        let general = retained.reconstruct_from_incoming_waves(
-            &zero_jet_from_value(c(1.0)),
-            &zero_jet_from_value(c(0.0)),
-            &source,
-        );
+        let general =
+            retained.reconstruct_from_incoming_waves(&real_j0(c(1.0)), &real_j0(c(0.0)), &source);
 
         assert_eq!(driven.len(), general.len());
 
@@ -1727,7 +1717,7 @@ mod tests {
             workspace.solution().context().left_admittance(),
         );
 
-        let zero = J0::filled_constant_like(source, C::new(0.0, 0.0));
+        let zero = RealJ0::filled_constant_like(source, C::new(0.0, 0.0));
 
         let expected = workspace
             .retained()

@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
-    IncidentSide, LayerPower, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, LayerPower, Parameter, Polarisation, RealAxisEvaluator,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     observable::Layers,
     parameter::FiniteLayerIndex,
@@ -31,7 +31,7 @@ fn summed_absorption<R>(
 
 #[test]
 fn layer_power_returns_one_record_per_finite_layer() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -52,7 +52,7 @@ fn layer_power_returns_one_record_per_finite_layer() {
 
 #[test]
 fn lossless_layers_have_zero_absorption() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -83,7 +83,7 @@ fn lossless_layers_have_zero_absorption() {
 
 #[test]
 fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -126,7 +126,7 @@ fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
 
 #[test]
 fn summed_layer_absorption_matches_external_absorptance() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 
@@ -170,7 +170,7 @@ fn summed_layer_absorption_matches_external_absorptance() {
 
 #[test]
 fn absorption_is_attributed_to_the_absorbing_layer() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -206,7 +206,7 @@ fn absorption_is_attributed_to_the_absorbing_layer() {
 
 #[test]
 fn right_incidence_uses_same_left_minus_right_absorption_definition() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -244,7 +244,7 @@ fn right_incidence_uses_same_left_minus_right_absorption_definition() {
 
 #[test]
 fn summed_layer_absorption_derivative_matches_external_absorptance_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     for side in [IncidentSide::Left, IncidentSide::Right] {
         let state = evaluator
@@ -282,7 +282,7 @@ fn summed_layer_absorption_derivative_matches_external_absorptance_derivative() 
 
 #[test]
 fn thickness_derivative_of_resolved_absorption_sums_to_external_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
@@ -324,7 +324,7 @@ fn thickness_derivative_of_resolved_absorption_sums_to_external_derivative() {
 
 #[test]
 fn summed_second_layer_absorption_derivative_matches_external_response() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_second(
@@ -374,7 +374,7 @@ fn summed_second_layer_absorption_derivative_matches_external_response() {
 
 #[test]
 fn bivariate_layer_absorption_derivatives_sum_to_external_derivatives() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
     let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
@@ -450,7 +450,7 @@ fn bivariate_layer_absorption_derivatives_sum_to_external_derivatives() {
 
 #[test]
 fn transfer_backend_projects_layer_power() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(

@@ -1,7 +1,7 @@
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
-    FiniteLayerIndex, IncidentSide, PlaneWaveEvaluator, Polarisation,
+    FiniteLayerIndex, IncidentSide, Polarisation, RealAxisEvaluator,
     backend::{RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2},
     test_support::{
         C,
@@ -17,7 +17,7 @@ fn complex_scalar(value: &ComplexArray) -> C {
 
 #[test]
 fn layer_wave_data_returns_one_record_per_finite_layer() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -36,7 +36,7 @@ fn layer_wave_data_returns_one_record_per_finite_layer() {
 
 #[test]
 fn layer_wave_data_uses_each_layers_left_boundary_waves() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -76,7 +76,7 @@ fn layer_wave_data_uses_each_layers_left_boundary_waves() {
 
 #[test]
 fn layer_wave_data_preserves_quantities_in_physical_order() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -111,7 +111,7 @@ fn layer_wave_data_preserves_quantities_in_physical_order() {
 
 #[test]
 fn layer_wave_data_preserves_thicknesses_in_physical_order() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -145,7 +145,7 @@ fn layer_wave_data_preserves_thicknesses_in_physical_order() {
 
 #[test]
 fn incident_side_changes_waves_but_not_layer_metadata() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -184,7 +184,7 @@ fn incident_side_changes_waves_but_not_layer_metadata() {
 
 #[test]
 fn transfer_backend_assembles_layer_wave_data() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(

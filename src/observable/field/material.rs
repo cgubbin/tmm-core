@@ -262,10 +262,10 @@ mod tests {
     use num_complex::Complex64;
 
     use crate::{
-        FiniteLayerIndex, Parameter, PlaneWaveEvaluator, Polarisation,
+        FiniteLayerIndex, Parameter, Polarisation, RealAxisEvaluator,
         backend::{
-            ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource,
-            RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2,
+            ExteriorContextProvider, RetainedIsotropicLayers, scatter2::Scatter2,
+            transfer2::Transfer2,
         },
         spatial::{FieldPosition, ResolvedFieldSampling, ResolvedLayerPosition},
         test_support::{
@@ -340,13 +340,13 @@ mod tests {
     macro_rules! for_each_backend {
         ($evaluator:ident, $body:block) => {{
             {
-                let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+                let $evaluator = RealAxisEvaluator::new(Scatter2::new());
 
                 $body
             }
 
             {
-                let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+                let $evaluator = RealAxisEvaluator::new(Transfer2::new());
 
                 $body
             }
@@ -645,7 +645,7 @@ mod tests {
         let stack = two_layer_stack();
         let sampling = mixed_sampling();
 
-        let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
+        let scatter_state = RealAxisEvaluator::new(Scatter2::new())
             .retain_first(
                 scalar_real_input(2.5, 0.31),
                 &stack,
@@ -654,7 +654,7 @@ mod tests {
             )
             .unwrap();
 
-        let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
+        let transfer_state = RealAxisEvaluator::new(Transfer2::new())
             .retain_first(
                 scalar_real_input(2.5, 0.31),
                 &stack,
@@ -714,12 +714,8 @@ mod spectral_first_tests {
     use num_complex::Complex64;
 
     use crate::{
-        FiniteLayerIndex, Parameter, PlaneWaveEvaluator, Polarisation, RealAxis,
-        algebra::Jet,
-        backend::{
-            PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers, scatter2::Scatter2,
-            transfer2::Transfer2,
-        },
+        FiniteLayerIndex, Parameter, Polarisation, RealAxis, RealAxisEvaluator,
+        backend::{scatter2::Scatter2, transfer2::Transfer2},
         material::ConstitutiveSpectralFirstLift,
         spatial::{FieldPosition, ResolvedFieldSampling, ResolvedLayerPosition},
         test_support::{
@@ -727,7 +723,7 @@ mod spectral_first_tests {
             finite_difference::{
                 FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
             },
-            jet::{J0, J1, J2},
+            jet::{RealJ1, RealJ2},
             planar::{scalar_real_input, two_layer_stack},
         },
     };
@@ -762,12 +758,12 @@ mod spectral_first_tests {
     macro_rules! for_each_backend {
         ($evaluator:ident, $body:block) => {{
             {
-                let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+                let $evaluator = RealAxisEvaluator::new(Scatter2::new());
                 $body
             }
 
             {
-                let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+                let $evaluator = RealAxisEvaluator::new(Transfer2::new());
                 $body
             }
         }};
@@ -1026,19 +1022,19 @@ mod spectral_first_tests {
             let layer_1 = canonical_stack.layer(FiniteLayerIndex::new(1)).unwrap();
 
             let expected_epsilon = [
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.right_exterior(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.left_exterior(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_1.material(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.right_exterior(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(canonical_stack.left_exterior(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_1.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(layer_0.material(), k0),
             ];
 
             let expected_mu = [
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.right_exterior(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.left_exterior(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_1.material(), k0),
-                <J1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.right_exterior(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(canonical_stack.left_exterior(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_1.material(), k0),
+                <RealJ1 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(layer_0.material(), k0),
             ];
 
             /*
@@ -1105,7 +1101,7 @@ mod spectral_first_tests {
              *
              * mixed_sampling()[1] is layer 0.
              */
-            let expected_epsilon = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(
+            let expected_epsilon = <RealJ2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permittivity_spectral_first(
                 canonical_stack
                     .layer(FiniteLayerIndex::new(0))
                     .unwrap()
@@ -1113,7 +1109,7 @@ mod spectral_first_tests {
                 k0,
             );
 
-            let expected_mu = <J2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(
+            let expected_mu = <RealJ2 as ConstitutiveSpectralFirstLift<RealAxis, _>>::relative_permeability_spectral_first(
                 canonical_stack
                     .layer(FiniteLayerIndex::new(0))
                     .unwrap()
@@ -1164,7 +1160,7 @@ mod spectral_first_tests {
         let stack = two_layer_stack();
         let sampling = mixed_sampling();
 
-        let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+        let scatter = RealAxisEvaluator::new(Scatter2::new())
             .retain_second(
                 scalar_real_input(2.5, 0.31),
                 &stack,
@@ -1173,7 +1169,7 @@ mod spectral_first_tests {
             )
             .unwrap();
 
-        let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+        let transfer = RealAxisEvaluator::new(Transfer2::new())
             .retain_second(
                 scalar_real_input(2.5, 0.31),
                 &stack,

@@ -152,10 +152,8 @@ pub use handle::{
     AnalyticalMaterialHandle, DifferentiableMaterialHandle, MaterialHandle,
     MeromorphicMaterialHandle,
 };
-pub(crate) use lifting::{
-    ConstitutiveDerivativeEvaluator, ConstitutiveEvaluator, ConstitutiveLift,
-    ConstitutiveSpectralFirstLift,
-};
+pub(crate) use lifting::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift};
+pub use lifting::{ConstitutiveEvaluator, ConstitutiveLift};
 pub use model::Constant;
 pub use sample::Scalar;
 

@@ -1,5 +1,5 @@
 use crate::{
-    Parameter, PlaneWaveEvaluator, Polarisation,
+    Parameter, Polarisation, RealAxisEvaluator,
     backend::{ExteriorContextProvider, Scatter2, Transfer2},
     test_support::{
         assertions::assert_first_jet_close,
@@ -11,7 +11,7 @@ use crate::{
 fn retained_backends_agree_on_exterior_constitutive_quantities() {
     let stack = two_layer_stack();
 
-    let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+    let scatter = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &stack,
@@ -20,7 +20,7 @@ fn retained_backends_agree_on_exterior_constitutive_quantities() {
         )
         .unwrap();
 
-    let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+    let transfer = RealAxisEvaluator::new(Transfer2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &stack,

@@ -36,7 +36,7 @@ mod stack;
 mod tests;
 
 pub use jet_one::ModeJet1;
-pub use scalar::ScalarAlgebra;
+pub use scalar::{Jet, ScalarAlgebra};
 pub use seed::SeedJet;
 
 pub(crate) use jet_bivariate_one::{ArrayJetBivariate1, JetBivariate1};
@@ -46,7 +46,7 @@ pub(crate) use jet_two::{ArrayJet2, Jet2, SecondOrderExpansion};
 pub(crate) use jet_zero::{ArrayJet0, Jet0};
 
 pub(crate) use exprel::{exprel, exprel_first, exprel_second};
-pub(crate) use scalar::{ComplexJet, Jet, RealScalarAlgebra, ScalarAlgebraExpRelExt};
+pub(crate) use scalar::{ComplexJet, RealScalarAlgebra, ScalarAlgebraExpRelExt};
 pub(crate) use seed::UnsupportedDerivativeSlot;
 pub(crate) use stack::JetStack;
 

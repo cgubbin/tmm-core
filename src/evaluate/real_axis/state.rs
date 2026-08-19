@@ -5,9 +5,7 @@ use num_traits::{FromPrimitive, One, Zero};
 use crate::{
     ComplexScalar, IncidentSide, InterfacePower, LayerPower, PlaneWaveAmplitudes, Polarisation,
     Stack,
-    algebra::{
-        ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra, ScalarAlgebraExpRelExt,
-    },
+    algebra::{ComplexJet, Jet, JetStack, RealScalarAlgebra, ScalarAlgebra},
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, PlaneWaveSolutionView,
         RetainedIsotropicLayers,
@@ -31,10 +29,7 @@ use crate::{
     waves::ReconstructLayerBoundaryWaves,
 };
 
-use super::{
-    RealAxisExcitation,
-    query::{DifferentialResponseFor, PlaneWaveQuery, RealAxisExternalQueries},
-};
+use super::{RealAxisExcitation, query::RealAxisExternalQueries};
 
 /// A completed plane-wave evaluation.
 ///

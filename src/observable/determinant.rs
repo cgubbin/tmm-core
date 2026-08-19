@@ -38,7 +38,7 @@ mod projection_tests {
         test_support::{
             C, TOLERANCE,
             assertions::assert_complex_close,
-            jet::{J0, zero_jet_from_value},
+            jet::{RealJ0, real_j0},
         },
     };
 
@@ -46,10 +46,10 @@ mod projection_tests {
 
     use ndarray::Ix0;
 
-    type Algebra = J0;
+    type Algebra = RealJ0;
 
     fn scalar(value: impl Into<C>) -> Algebra {
-        zero_jet_from_value(value.into())
+        real_j0(value.into())
     }
 
     fn value<J>(jet: &J) -> J::Scalar

@@ -1,5 +1,5 @@
 use crate::{
-    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation, backend::Scatter2,
+    FiniteLayerIndex, IncidentSide, Parameter, Polarisation, RealAxisEvaluator, backend::Scatter2,
 };
 
 use crate::test_support::{
@@ -9,8 +9,8 @@ use crate::test_support::{
 
 const TOLERANCE: f64 = 1.0e-11;
 
-fn evaluator() -> PlaneWaveEvaluator<Scatter2> {
-    PlaneWaveEvaluator::new(Scatter2::new())
+fn evaluator() -> RealAxisEvaluator<Scatter2> {
+    RealAxisEvaluator::new(Scatter2::new())
 }
 
 fn thickness_parameter() -> Parameter {

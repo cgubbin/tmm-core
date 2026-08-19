@@ -100,20 +100,20 @@ mod tests {
         backend::transfer2::{
             Transfer2Entries, entries::right_gauged_mode_candidate, transfer_state_slope,
         },
-        test_support::jet::zero_jet_from_real_value,
+        test_support::jet::real_j0_from_real,
     };
 
     #[test]
     fn outgoing_residual_matches_mode_candidate_residual() {
         let entries = Transfer2Entries::new(
-            zero_jet_from_real_value(2.0),
-            zero_jet_from_real_value(3.0),
-            zero_jet_from_real_value(5.0),
-            zero_jet_from_real_value(7.0),
+            real_j0_from_real(2.0),
+            real_j0_from_real(3.0),
+            real_j0_from_real(5.0),
+            real_j0_from_real(7.0),
         );
 
-        let left_admittance = zero_jet_from_real_value(2.0);
-        let right_admittance = zero_jet_from_real_value(3.0);
+        let left_admittance = real_j0_from_real(2.0);
+        let right_admittance = real_j0_from_real(3.0);
 
         let left_slope = transfer_state_slope(&left_admittance);
 

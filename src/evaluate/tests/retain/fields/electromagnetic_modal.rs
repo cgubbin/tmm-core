@@ -1,47 +1,173 @@
 use lamina_units::Length;
-use ndarray::{ArrayBase, Ix0, Ix1, OwnedRepr};
+use ndarray::{ArrayBase, Dimension, Ix0, Ix1, OwnedRepr, arr0};
 use num_complex::Complex64;
 
 use crate::{
-    CoordinateInput, ElectromagneticFields, Parameter, PlaneWaveEvaluator, Polarisation,
+    ComplexPlane, ComplexPlaneEvaluator, ComplexScalar, ElectromagneticFields, ExteriorWavevectors,
+    Polarisation,
+    algebra::{
+        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, HolomorphicParameter, ScalarAlgebra,
+    },
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ReconstructExteriorModeWaves,
-        ReconstructLayerModeWaves, RetainedIsotropicLayers, Transfer2, scatter2::Scatter2,
+        ReconstructLayerModeWaves, RetainedIsotropicLayers, Scatter2, Transfer2,
+        evaluate_exterior_wavevectors,
     },
     field::VectorField,
-    parameter::FiniteLayerIndex,
+    input::{CanonicalCoordinates, CanonicalStack, canonical::CanonicalLayer},
+    material::{ConstitutiveEvaluator, ConstitutiveLift},
     spatial::{ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
+        C,
         assertions::{assert_array_close, assert_complex_close},
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        planar::{scalar_complex_input, two_layer_stack},
+        jet::{HoloJ0, HoloJ1, HoloJ2, HoloJB2},
+        planar::two_layer_stack,
     },
 };
 
-type C = Complex64;
 type ComplexArray = ArrayBase<OwnedRepr<C>, Ix1>;
 
-macro_rules! for_each_modal_backend {
-    ($evaluator:ident, $body:block) => {{
+const K0: C = C::new(2.5, -0.05);
+const K_PARALLEL: C = C::new(0.31, 0.02);
+
+// -----------------------------------------------------------------------------
+// Evaluation fixtures
+// -----------------------------------------------------------------------------
+
+fn value_coordinates() -> CanonicalCoordinates<HoloJ0> {
+    CanonicalCoordinates::new(
+        HoloJ0::constant(arr0(K0)),
+        HoloJ0::constant(arr0(K_PARALLEL)),
+    )
+}
+
+fn first_spectral_coordinates() -> CanonicalCoordinates<HoloJ1> {
+    CanonicalCoordinates::new(
+        HoloJ1::variable(arr0(K0)),
+        HoloJ1::constant(arr0(K_PARALLEL)),
+    )
+}
+
+fn second_spectral_coordinates() -> CanonicalCoordinates<HoloJ2> {
+    CanonicalCoordinates::new(
+        HoloJ2::variable(arr0(K0)),
+        HoloJ2::constant(arr0(K_PARALLEL)),
+    )
+}
+
+/// Canonical bivariate problem with
+///
+/// - axis 0 = spectral coordinate;
+/// - axis 1 = layer-1 thickness.
+fn bivariate_coordinates() -> CanonicalCoordinates<HoloJB2> {
+    CanonicalCoordinates::new(
+        HoloJB2::variable_axis0(arr0(K0)),
+        HoloJB2::constant(arr0(K_PARALLEL)),
+    )
+}
+
+fn exterior<J, M>(
+    stack: &CanonicalStack<M, J>,
+    coordinates: &CanonicalCoordinates<J>,
+    _polarisation: Polarisation,
+) -> ExteriorWavevectors<J>
+where
+    J: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M> + Clone,
+    J::Scalar: ComplexScalar,
+    J::Dimension: Dimension,
+    ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
+{
+    evaluate_exterior_wavevectors::<ComplexPlane, M, J>(
+        coordinates,
+        stack.left_exterior(),
+        stack.right_exterior(),
+    )
+}
+
+fn first_order_geometry_stack(
+    differentiated_layer: usize,
+) -> CanonicalStack<crate::Constant<f64>, HoloJ1> {
+    let stack = two_layer_stack();
+
+    let layers = stack
+        .layers_left_to_right()
+        .iter()
+        .enumerate()
+        .map(|(index, layer)| {
+            let thickness_cm = layer.thickness().as_centimetres();
+
+            let value = arr0(C::new(thickness_cm, 0.0));
+
+            let thickness = if index == differentiated_layer {
+                HoloJ1::variable(value)
+            } else {
+                HoloJ1::constant(value)
+            };
+
+            CanonicalLayer::new(layer.material().clone(), thickness)
+        })
+        .collect();
+
+    CanonicalStack::new(
+        stack.left_exterior().clone(),
+        stack.right_exterior().clone(),
+        layers,
+    )
+}
+
+fn bivariate_geometry_stack() -> CanonicalStack<crate::Constant<f64>, HoloJB2> {
+    let stack = two_layer_stack();
+
+    let layers = stack
+        .layers_left_to_right()
+        .iter()
+        .enumerate()
+        .map(|(index, layer)| {
+            let thickness_cm = layer.thickness().as_centimetres();
+
+            let value = arr0(C::new(thickness_cm, 0.0));
+
+            let thickness = if index == 1 {
+                HoloJB2::variable_axis1(value)
+            } else {
+                HoloJB2::constant(value)
+            };
+
+            CanonicalLayer::new(layer.material().clone(), thickness)
+        })
+        .collect();
+
+    CanonicalStack::new(
+        stack.left_exterior().clone(),
+        stack.right_exterior().clone(),
+        layers,
+    )
+}
+
+macro_rules! for_each_value_backend {
+    ($stack:expr, $evaluator:ident, $body:block) => {{
         {
-            let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+            let $evaluator =
+                ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&$stack, Scatter2::new()).unwrap();
 
             $body
         }
 
         {
-            let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+            let $evaluator =
+                ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&$stack, Transfer2::new()).unwrap();
 
             $body
         }
     }};
 }
 
-fn modal_input() -> CoordinateInput<C, Ix0> {
-    scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
-}
+// -----------------------------------------------------------------------------
+// Spatial sampling
+// -----------------------------------------------------------------------------
 
 fn sampling() -> FieldSampling<f64> {
     FieldSampling::new()
@@ -57,6 +183,10 @@ fn interface_sampling() -> FieldSampling<f64> {
         .layer_interfaces()
         .right_exterior(ExteriorSampling::point(Length::zero()))
 }
+
+// -----------------------------------------------------------------------------
+// Field assertions
+// -----------------------------------------------------------------------------
 
 fn assert_zero(values: &ComplexArray, tolerance: f64) {
     for &value in values {
@@ -79,40 +209,44 @@ fn assert_vector_close(
 }
 
 fn assert_fields_close(
-    actual: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
-    expected: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
+    actual_electric: &VectorField<C, Ix1>,
+    actual_magnetic: &VectorField<C, Ix1>,
+    expected_electric: &VectorField<C, Ix1>,
+    expected_magnetic: &VectorField<C, Ix1>,
     tolerance: f64,
 ) {
-    assert_vector_close(actual.electric(), expected.electric(), tolerance);
-    assert_vector_close(actual.magnetic(), expected.magnetic(), tolerance);
+    assert_vector_close(actual_electric, expected_electric, tolerance);
+    assert_vector_close(actual_magnetic, expected_magnetic, tolerance);
 }
 
 fn assert_te_structure(
-    fields: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
+    electric: &VectorField<C, Ix1>,
+    magnetic: &VectorField<C, Ix1>,
     tolerance: f64,
 ) {
-    assert_zero(fields.electric().x(), tolerance);
-    assert_zero(fields.electric().z(), tolerance);
-    assert_zero(fields.magnetic().y(), tolerance);
+    assert_zero(electric.x(), tolerance);
+    assert_zero(electric.z(), tolerance);
+    assert_zero(magnetic.y(), tolerance);
 }
 
 fn assert_tm_structure(
-    fields: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
+    electric: &VectorField<C, Ix1>,
+    magnetic: &VectorField<C, Ix1>,
     tolerance: f64,
 ) {
-    assert_zero(fields.electric().y(), tolerance);
-    assert_zero(fields.magnetic().x(), tolerance);
-    assert_zero(fields.magnetic().z(), tolerance);
+    assert_zero(electric.y(), tolerance);
+    assert_zero(magnetic.x(), tolerance);
+    assert_zero(magnetic.z(), tolerance);
 }
 
-fn assert_all_finite(fields: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>) {
+fn assert_all_finite(electric: &VectorField<C, Ix1>, magnetic: &VectorField<C, Ix1>) {
     for component in [
-        fields.electric().x(),
-        fields.electric().y(),
-        fields.electric().z(),
-        fields.magnetic().x(),
-        fields.magnetic().y(),
-        fields.magnetic().z(),
+        electric.x(),
+        electric.y(),
+        electric.z(),
+        magnetic.x(),
+        magnetic.y(),
+        magnetic.z(),
     ] {
         assert!(
             component
@@ -140,12 +274,10 @@ fn assert_complex_close_at_interface(
 }
 
 fn assert_te_interface_continuity(
-    fields: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
+    electric: &VectorField<C, Ix1>,
+    magnetic: &VectorField<C, Ix1>,
     tolerance: f64,
 ) {
-    let electric = fields.electric();
-    let magnetic = fields.magnetic();
-
     for (name, left, right) in [
         ("left exterior / layer 0", 0, 1),
         ("layer 0 / layer 1", 2, 3),
@@ -170,12 +302,10 @@ fn assert_te_interface_continuity(
 }
 
 fn assert_tm_interface_continuity(
-    fields: &crate::observable::ElectromagneticFields<VectorField<C, Ix1>>,
+    electric: &VectorField<C, Ix1>,
+    magnetic: &VectorField<C, Ix1>,
     tolerance: f64,
 ) {
-    let electric = fields.electric();
-    let magnetic = fields.magnetic();
-
     for (name, left, right) in [
         ("left exterior / layer 0", 0, 1),
         ("layer 0 / layer 1", 2, 3),
@@ -204,20 +334,25 @@ fn assert_tm_interface_continuity(
 // -----------------------------------------------------------------------------
 
 #[test]
-fn modal_te_fields_evaluate_from_retained_complex_solution() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+fn modal_te_fields_from_retained_complex_solution() {
+    let stack = two_layer_stack();
+
+    let evaluator =
+        ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+    let polarisation = Polarisation::TransverseElectric;
+
+    let coordinates = value_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseElectric,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
+    let spatial_response = mode.fields(&sampling()).unwrap();
 
     let response = spatial_response.quantity();
 
@@ -227,66 +362,90 @@ fn modal_te_fields_evaluate_from_retained_complex_solution() {
      * layer 1        3
      * right exterior 1
      */
-    assert_eq!(response.value().electric().x().shape(), &[8]);
-    assert_eq!(response.value().electric().y().shape(), &[8]);
-    assert_eq!(response.value().electric().z().shape(), &[8]);
+    assert_eq!(response.electric().value().x().shape(), &[8]);
+    assert_eq!(response.electric().value().y().shape(), &[8]);
+    assert_eq!(response.electric().value().z().shape(), &[8]);
 
-    assert_eq!(response.value().magnetic().x().shape(), &[8]);
-    assert_eq!(response.value().magnetic().y().shape(), &[8]);
-    assert_eq!(response.value().magnetic().z().shape(), &[8]);
+    assert_eq!(response.magnetic().value().x().shape(), &[8]);
+    assert_eq!(response.magnetic().value().y().shape(), &[8]);
+    assert_eq!(response.magnetic().value().z().shape(), &[8]);
 
-    assert_te_structure(response.value(), VALUE_TOLERANCE);
-    assert_all_finite(response.value());
+    assert_te_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
+
+    assert_all_finite(response.electric().value(), response.magnetic().value());
 }
 
 #[test]
-fn modal_tm_fields_evaluate_from_retained_complex_solution() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+fn modal_tm_fields_from_retained_complex_solution() {
+    let stack = two_layer_stack();
+
+    let evaluator =
+        ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+    let polarisation = Polarisation::TransverseMagnetic;
+
+    let coordinates = value_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseMagnetic,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-    let response = spatial_response.quantity();
+    let response = mode.fields(&sampling()).unwrap();
 
-    assert_eq!(response.value().electric().x().shape(), &[8]);
-    assert_eq!(response.value().magnetic().y().shape(), &[8]);
+    let response = response.quantity();
 
-    assert_tm_structure(response.value(), VALUE_TOLERANCE);
-    assert_all_finite(response.value());
+    assert_eq!(response.electric().value().x().shape(), &[8]);
+    assert_eq!(response.magnetic().value().y().shape(), &[8]);
+
+    assert_tm_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
+
+    assert_all_finite(response.electric().value(), response.magnetic().value());
 }
 
 #[test]
 fn modal_fields_are_nonzero() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let stack = two_layer_stack();
 
     for polarisation in [
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
+        let evaluator =
+            ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+        let coordinates = value_coordinates();
+
+        let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
         let state = evaluator
-            .retain_modal(modal_input(), &two_layer_stack(), polarisation)
+            .retain(coordinates, exterior, polarisation)
             .unwrap();
 
         let mode = state.mode().unwrap();
 
-        let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-        let response = spatial_response.quantity();
+        let response = mode.fields(&sampling()).unwrap();
+
+        let response = response.quantity();
 
         let total = [
-            response.value().electric().x(),
-            response.value().electric().y(),
-            response.value().electric().z(),
-            response.value().magnetic().x(),
-            response.value().magnetic().y(),
-            response.value().magnetic().z(),
+            response.electric().value().x(),
+            response.electric().value().y(),
+            response.electric().value().z(),
+            response.magnetic().value().x(),
+            response.magnetic().value().y(),
+            response.magnetic().value().z(),
         ]
         .into_iter()
         .flat_map(|component| component.iter())
@@ -301,138 +460,212 @@ fn modal_fields_are_nonzero() {
 }
 
 // -----------------------------------------------------------------------------
-// Differential response
+// Differential reconstruction
 // -----------------------------------------------------------------------------
 
 #[test]
-fn first_modal_field_derivative_survives_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+fn first_spectral_modal_field_derivative_survives_reconstruction() {
+    let stack = two_layer_stack();
 
-    let parameter = Parameter::Spectral;
+    let evaluator =
+        ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+    let polarisation = Polarisation::TransverseElectric;
+
+    let coordinates = first_spectral_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal_first(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseElectric,
-            parameter,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-    let response = spatial_response.quantity();
+    let response = mode.fields(&sampling()).unwrap();
 
-    assert_eq!(response.derivatives().parameter(), parameter);
+    let response = response.quantity();
 
-    assert_eq!(response.derivatives().first().electric().x().shape(), &[8],);
-    assert_eq!(response.derivatives().first().magnetic().x().shape(), &[8],);
+    assert_eq!(response.electric().first().x().shape(), &[8]);
+    assert_eq!(response.magnetic().first().x().shape(), &[8]);
 
-    assert_te_structure(response.value(), VALUE_TOLERANCE);
+    assert_te_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
 
-    assert_te_structure(response.derivatives().first(), FIRST_DERIVATIVE_TOLERANCE);
+    assert_te_structure(
+        response.electric().first(),
+        response.magnetic().first(),
+        FIRST_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_all_finite(response.value());
-    assert_all_finite(response.derivatives().first());
+    assert_all_finite(response.electric().value(), response.magnetic().value());
+
+    assert_all_finite(response.electric().first(), response.magnetic().first());
 }
 
 #[test]
 fn thickness_modal_field_derivative_survives_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator =
+        ComplexPlaneEvaluator::from_canonical_stack(first_order_geometry_stack(1), Scatter2::new());
 
-    let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
+    let polarisation = Polarisation::TransverseMagnetic;
+
+    let coordinates = CanonicalCoordinates::new(
+        HoloJ1::constant(arr0(K0)),
+        HoloJ1::constant(arr0(K_PARALLEL)),
+    );
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal_first(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseMagnetic,
-            parameter,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-    let response = spatial_response.quantity();
+    let response = mode.fields(&sampling()).unwrap();
 
-    assert_eq!(response.derivatives().parameter(), parameter);
+    let response = response.quantity();
 
-    assert_tm_structure(response.value(), VALUE_TOLERANCE);
+    assert_tm_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
 
-    assert_tm_structure(response.derivatives().first(), FIRST_DERIVATIVE_TOLERANCE);
+    assert_tm_structure(
+        response.electric().first(),
+        response.magnetic().first(),
+        FIRST_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_all_finite(response.derivatives().first());
+    assert_all_finite(response.electric().first(), response.magnetic().first());
 }
 
 #[test]
-fn second_modal_field_derivative_survives_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+fn second_spectral_modal_field_derivative_survives_reconstruction() {
+    let stack = two_layer_stack();
+
+    let evaluator =
+        ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+    let polarisation = Polarisation::TransverseElectric;
+
+    let coordinates = second_spectral_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal_second(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseElectric,
-            Parameter::Spectral,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-    let response = spatial_response.quantity();
+    let response = mode.fields(&sampling()).unwrap();
 
-    assert_te_structure(response.value(), VALUE_TOLERANCE);
+    let response = response.quantity();
 
-    assert_te_structure(response.derivatives().first(), FIRST_DERIVATIVE_TOLERANCE);
+    assert_te_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
 
-    assert_te_structure(response.derivatives().second(), SECOND_DERIVATIVE_TOLERANCE);
+    assert_te_structure(
+        response.electric().first(),
+        response.magnetic().first(),
+        FIRST_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_all_finite(response.derivatives().first());
-    assert_all_finite(response.derivatives().second());
+    assert_te_structure(
+        response.electric().second(),
+        response.magnetic().second(),
+        SECOND_DERIVATIVE_TOLERANCE,
+    );
+
+    assert_all_finite(response.electric().first(), response.magnetic().first());
+
+    assert_all_finite(response.electric().second(), response.magnetic().second());
 }
 
 #[test]
 fn bivariate_modal_field_derivatives_survive_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator =
+        ComplexPlaneEvaluator::from_canonical_stack(bivariate_geometry_stack(), Scatter2::new());
 
-    let axis0 = Parameter::Spectral;
-    let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
+    let polarisation = Polarisation::TransverseMagnetic;
+
+    let coordinates = bivariate_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal_bivariate_second(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseMagnetic,
-            axis0,
-            axis1,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let mode = state.mode().unwrap();
 
-    let spatial_response = mode.evaluate_fields(&sampling()).unwrap();
-    let response = spatial_response.quantity();
+    let response = mode.fields(&sampling()).unwrap();
 
-    let gradient = response.derivatives().first();
+    let response = response.quantity();
 
-    assert_tm_structure(gradient.axis0(), FIRST_DERIVATIVE_TOLERANCE);
-    assert_tm_structure(gradient.axis1(), FIRST_DERIVATIVE_TOLERANCE);
+    assert_tm_structure(
+        response.electric().value(),
+        response.magnetic().value(),
+        VALUE_TOLERANCE,
+    );
 
-    let hessian = response.derivatives().second();
+    assert_tm_structure(
+        response.electric().axis0(),
+        response.magnetic().axis0(),
+        FIRST_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_tm_structure(hessian.axis0_axis0(), SECOND_DERIVATIVE_TOLERANCE);
-    assert_tm_structure(hessian.axis0_axis1(), SECOND_DERIVATIVE_TOLERANCE);
-    assert_tm_structure(hessian.axis1_axis1(), SECOND_DERIVATIVE_TOLERANCE);
+    assert_tm_structure(
+        response.electric().axis1(),
+        response.magnetic().axis1(),
+        FIRST_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_all_finite(gradient.axis0());
-    assert_all_finite(gradient.axis1());
+    assert_tm_structure(
+        response.electric().axis0_axis0(),
+        response.magnetic().axis0_axis0(),
+        SECOND_DERIVATIVE_TOLERANCE,
+    );
 
-    assert_all_finite(hessian.axis0_axis0());
-    assert_all_finite(hessian.axis0_axis1());
-    assert_all_finite(hessian.axis1_axis1());
+    assert_tm_structure(
+        response.electric().axis0_axis1(),
+        response.magnetic().axis0_axis1(),
+        SECOND_DERIVATIVE_TOLERANCE,
+    );
+
+    assert_tm_structure(
+        response.electric().axis1_axis1(),
+        response.magnetic().axis1_axis1(),
+        SECOND_DERIVATIVE_TOLERANCE,
+    );
+
+    assert_all_finite(response.electric().axis0(), response.magnetic().axis0());
+
+    assert_all_finite(response.electric().axis1(), response.magnetic().axis1());
+
+    assert_all_finite(
+        response.electric().axis0_axis0(),
+        response.magnetic().axis0_axis0(),
+    );
+
+    assert_all_finite(
+        response.electric().axis0_axis1(),
+        response.magnetic().axis0_axis1(),
+    );
+
+    assert_all_finite(
+        response.electric().axis1_axis1(),
+        response.magnetic().axis1_axis1(),
+    );
 }
 
 // -----------------------------------------------------------------------------
@@ -441,78 +674,152 @@ fn bivariate_modal_field_derivatives_survive_reconstruction() {
 
 #[test]
 fn modal_fields_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
-
     let stack = two_layer_stack();
-    let sampling = interface_sampling();
+    let request = interface_sampling();
 
     for polarisation in [
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
-        let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
-            .unwrap();
+        for_each_value_backend!(stack, evaluator, {
+            let coordinates = value_coordinates();
 
-        let mode = state.mode().unwrap();
+            let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
-        let spatial_response = mode.evaluate_fields(&sampling).unwrap();
-        let response = spatial_response.quantity();
-
-        assert_eq!(response.value().electric().x().shape(), &[6],);
-
-        match polarisation {
-            Polarisation::TransverseElectric => {
-                assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
-            }
-
-            Polarisation::TransverseMagnetic => {
-                assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
-            }
-        }
-    }
-}
-
-#[test]
-fn first_modal_field_derivatives_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
-
-    let stack = two_layer_stack();
-    let sampling = interface_sampling();
-
-    for parameter in [
-        Parameter::Spectral,
-        Parameter::LayerThickness(FiniteLayerIndex::new(0)),
-        Parameter::LayerThickness(FiniteLayerIndex::new(1)),
-    ] {
-        for polarisation in [
-            Polarisation::TransverseElectric,
-            Polarisation::TransverseMagnetic,
-        ] {
             let state = evaluator
-                .retain_modal_first(modal_input(), &stack, polarisation, parameter)
+                .retain(coordinates, exterior, polarisation)
                 .unwrap();
 
             let mode = state.mode().unwrap();
 
-            let spatial_response = mode.evaluate_fields(&sampling).unwrap();
-            let response = spatial_response.quantity();
+            let response = mode.fields(&request).unwrap();
+
+            let response = response.quantity();
+
+            assert_eq!(response.electric().value().x().shape(), &[6]);
 
             match polarisation {
                 Polarisation::TransverseElectric => {
-                    assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_te_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
+                }
+
+                Polarisation::TransverseMagnetic => {
+                    assert_tm_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
+                }
+            }
+        });
+    }
+}
+
+#[test]
+fn first_spectral_modal_field_derivatives_satisfy_tangential_interface_continuity() {
+    let stack = two_layer_stack();
+    let request = interface_sampling();
+
+    for polarisation in [
+        Polarisation::TransverseElectric,
+        Polarisation::TransverseMagnetic,
+    ] {
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+            let coordinates = first_spectral_coordinates();
+
+            let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+            let state = evaluator
+                .retain(coordinates, exterior, polarisation)
+                .unwrap();
+
+            let mode = state.mode().unwrap();
+
+            let response = mode.fields(&request).unwrap();
+
+            let response = response.quantity();
+
+            match polarisation {
+                Polarisation::TransverseElectric => {
+                    assert_te_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
 
                     assert_te_interface_continuity(
-                        response.derivatives().first(),
+                        response.electric().first(),
+                        response.magnetic().first(),
                         FIRST_DERIVATIVE_TOLERANCE,
                     );
                 }
 
                 Polarisation::TransverseMagnetic => {
-                    assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_tm_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
 
                     assert_tm_interface_continuity(
-                        response.derivatives().first(),
+                        response.electric().first(),
+                        response.magnetic().first(),
+                        FIRST_DERIVATIVE_TOLERANCE,
+                    );
+                }
+            }
+        }
+
+        {
+            let evaluator =
+                ComplexPlaneEvaluator::<HoloJ1, _, _>::compile(&stack, Transfer2::new()).unwrap();
+
+            let coordinates = first_spectral_coordinates();
+
+            let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+            let state = evaluator
+                .retain(coordinates, exterior, polarisation)
+                .unwrap();
+
+            let mode = state.mode().unwrap();
+
+            let response = mode.fields(&request).unwrap();
+
+            let response = response.quantity();
+
+            match polarisation {
+                Polarisation::TransverseElectric => {
+                    assert_te_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
+
+                    assert_te_interface_continuity(
+                        response.electric().first(),
+                        response.magnetic().first(),
+                        FIRST_DERIVATIVE_TOLERANCE,
+                    );
+                }
+
+                Polarisation::TransverseMagnetic => {
+                    assert_tm_interface_continuity(
+                        response.electric().value(),
+                        response.magnetic().value(),
+                        VALUE_TOLERANCE,
+                    );
+
+                    assert_tm_interface_continuity(
+                        response.electric().first(),
+                        response.magnetic().first(),
                         FIRST_DERIVATIVE_TOLERANCE,
                     );
                 }
@@ -522,67 +829,279 @@ fn first_modal_field_derivatives_satisfy_tangential_interface_continuity() {
 }
 
 #[test]
-fn second_modal_field_derivatives_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+fn first_thickness_modal_field_derivatives_satisfy_tangential_interface_continuity() {
+    let request = interface_sampling();
 
-    let stack = two_layer_stack();
-    let sampling = interface_sampling();
-
-    for polarisation in [
-        Polarisation::TransverseElectric,
-        Polarisation::TransverseMagnetic,
-    ] {
-        let state = evaluator
-            .retain_modal_second(modal_input(), &stack, polarisation, Parameter::Spectral)
-            .unwrap();
-
-        let mode = state.mode().unwrap();
-
-        let spatial_response = mode.evaluate_fields(&sampling).unwrap();
-        let response = spatial_response.quantity();
-
-        match polarisation {
-            Polarisation::TransverseElectric => {
-                assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
-
-                assert_te_interface_continuity(
-                    response.derivatives().first(),
-                    FIRST_DERIVATIVE_TOLERANCE,
+    for differentiated_layer in [0, 1] {
+        for polarisation in [
+            Polarisation::TransverseElectric,
+            Polarisation::TransverseMagnetic,
+        ] {
+            {
+                let evaluator = ComplexPlaneEvaluator::from_canonical_stack(
+                    first_order_geometry_stack(differentiated_layer),
+                    Scatter2::new(),
                 );
 
-                assert_te_interface_continuity(
-                    response.derivatives().second(),
-                    SECOND_DERIVATIVE_TOLERANCE,
+                let coordinates = CanonicalCoordinates::new(
+                    HoloJ1::constant(arr0(K0)),
+                    HoloJ1::constant(arr0(K_PARALLEL)),
                 );
+
+                let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+                let state = evaluator
+                    .retain(coordinates, exterior, polarisation)
+                    .unwrap();
+
+                let mode = state.mode().unwrap();
+
+                let response = mode.fields(&request).unwrap();
+
+                let response = response.quantity();
+
+                match polarisation {
+                    Polarisation::TransverseElectric => {
+                        assert_te_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+
+                    Polarisation::TransverseMagnetic => {
+                        assert_tm_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+                }
             }
 
-            Polarisation::TransverseMagnetic => {
-                assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
-
-                assert_tm_interface_continuity(
-                    response.derivatives().first(),
-                    FIRST_DERIVATIVE_TOLERANCE,
+            {
+                let evaluator = ComplexPlaneEvaluator::from_canonical_stack(
+                    first_order_geometry_stack(differentiated_layer),
+                    Transfer2::new(),
                 );
 
-                assert_tm_interface_continuity(
-                    response.derivatives().second(),
-                    SECOND_DERIVATIVE_TOLERANCE,
+                let coordinates = CanonicalCoordinates::new(
+                    HoloJ1::constant(arr0(K0)),
+                    HoloJ1::constant(arr0(K_PARALLEL)),
                 );
+
+                let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+                let state = evaluator
+                    .retain(coordinates, exterior, polarisation)
+                    .unwrap();
+
+                let mode = state.mode().unwrap();
+
+                let response = mode.fields(&request).unwrap();
+
+                let response = response.quantity();
+
+                match polarisation {
+                    Polarisation::TransverseElectric => {
+                        assert_te_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+
+                    Polarisation::TransverseMagnetic => {
+                        assert_tm_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+                }
             }
         }
     }
 }
 
 #[test]
+fn second_spectral_modal_field_derivatives_satisfy_tangential_interface_continuity() {
+    let stack = two_layer_stack();
+    let request = interface_sampling();
+
+    for polarisation in [
+        Polarisation::TransverseElectric,
+        Polarisation::TransverseMagnetic,
+    ] {
+        for backend in [0, 1] {
+            if backend == 0 {
+                let evaluator =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, Scatter2::new())
+                        .unwrap();
+
+                let coordinates = second_spectral_coordinates();
+
+                let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+                let state = evaluator
+                    .retain(coordinates, exterior, polarisation)
+                    .unwrap();
+
+                let mode = state.mode().unwrap();
+
+                let response = mode.fields(&request).unwrap();
+
+                let response = response.quantity();
+
+                match polarisation {
+                    Polarisation::TransverseElectric => {
+                        assert_te_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().second(),
+                            response.magnetic().second(),
+                            SECOND_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+
+                    Polarisation::TransverseMagnetic => {
+                        assert_tm_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().second(),
+                            response.magnetic().second(),
+                            SECOND_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+                }
+            } else {
+                let evaluator =
+                    ComplexPlaneEvaluator::<HoloJ2, _, _>::compile(&stack, Transfer2::new())
+                        .unwrap();
+
+                let coordinates = second_spectral_coordinates();
+
+                let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
+
+                let state = evaluator
+                    .retain(coordinates, exterior, polarisation)
+                    .unwrap();
+
+                let mode = state.mode().unwrap();
+
+                let response = mode.fields(&request).unwrap();
+
+                let response = response.quantity();
+
+                match polarisation {
+                    Polarisation::TransverseElectric => {
+                        assert_te_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+
+                        assert_te_interface_continuity(
+                            response.electric().second(),
+                            response.magnetic().second(),
+                            SECOND_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+
+                    Polarisation::TransverseMagnetic => {
+                        assert_tm_interface_continuity(
+                            response.electric().value(),
+                            response.magnetic().value(),
+                            VALUE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().first(),
+                            response.magnetic().first(),
+                            FIRST_DERIVATIVE_TOLERANCE,
+                        );
+
+                        assert_tm_interface_continuity(
+                            response.electric().second(),
+                            response.magnetic().second(),
+                            SECOND_DERIVATIVE_TOLERANCE,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Modal boundary reconstruction
+// -----------------------------------------------------------------------------
+
+#[test]
 fn modal_last_layer_state_matches_right_exterior_state() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let stack = two_layer_stack();
+
+    let evaluator =
+        ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+    let polarisation = Polarisation::TransverseElectric;
+
+    let coordinates = value_coordinates();
+
+    let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
     let state = evaluator
-        .retain_modal(
-            modal_input(),
-            &two_layer_stack(),
-            Polarisation::TransverseElectric,
-        )
+        .retain(coordinates, exterior, polarisation)
         .unwrap();
 
     let workspace = state.workspace();
@@ -607,144 +1126,84 @@ fn modal_last_layer_state_matches_right_exterior_state() {
     let exterior_waves: crate::observable::BoundaryWaves<_> = exterior.right().clone().into();
 
     let layer_state = layer_waves.into_state(&layer_admittance);
+
     let exterior_state = exterior_waves.into_state(right_admittance);
 
-    eprintln!(
-        "layer:    field={:?}, secondary={:?}",
-        layer_state.field().value()[()],
-        layer_state.secondary().value()[()],
-    );
-
-    eprintln!(
-        "exterior: field={:?}, secondary={:?}",
-        exterior_state.field().value()[()],
-        exterior_state.secondary().value()[()],
-    );
-
-    crate::test_support::assertions::assert_complex_close(
+    assert_complex_close(
         layer_state.field().value()[()],
         exterior_state.field().value()[()],
         VALUE_TOLERANCE,
     );
 
-    crate::test_support::assertions::assert_complex_close(
+    assert_complex_close(
         layer_state.secondary().value()[()],
         exterior_state.secondary().value()[()],
         VALUE_TOLERANCE,
     );
 }
 
-#[test]
-fn transfer_modal_fields_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
-    let stack = two_layer_stack();
-    let sampling = interface_sampling();
-
-    for polarisation in [
-        Polarisation::TransverseElectric,
-        Polarisation::TransverseMagnetic,
-    ] {
-        let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
-            .unwrap();
-
-        let mode = state.mode().unwrap();
-
-        let spatial_response = mode.evaluate_fields(&sampling).unwrap();
-        let response = spatial_response.quantity();
-
-        match polarisation {
-            Polarisation::TransverseElectric => {
-                assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
-            }
-
-            Polarisation::TransverseMagnetic => {
-                assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
-            }
-        }
-    }
-}
+// -----------------------------------------------------------------------------
+// Spatial-response metadata
+// -----------------------------------------------------------------------------
 
 #[test]
 fn modal_field_response_preserves_resolved_sampling() {
+    let stack = two_layer_stack();
+
     for polarisation in [
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
-        for_each_modal_backend!(evaluator, {
-            let stack = two_layer_stack();
+        for_each_value_backend!(stack, evaluator, {
+            let coordinates = value_coordinates();
+
+            let exterior = exterior(evaluator.stack(), &coordinates, polarisation);
 
             let state = evaluator
-                .retain_modal(modal_input(), &stack, polarisation)
+                .retain(coordinates, exterior, polarisation)
                 .unwrap();
 
             let requested = sampling();
 
-            let expected = requested.resolve(&stack).unwrap();
+            let expected = requested.resolve_canonical(evaluator.stack()).unwrap();
 
             let mode = state.mode().unwrap();
 
-            let response = mode.evaluate_fields(&requested).unwrap();
+            let response = mode.fields(&requested).unwrap();
 
-            assert_eq!(response.sampling(), &expected,);
+            assert_eq!(response.sampling(), &expected);
 
             assert_eq!(
-                response.quantity().value().electric().x().len(),
+                response.quantity().electric().value().x().len(),
                 response.sampling().len(),
             );
 
             assert_eq!(
-                response.quantity().value().magnetic().x().len(),
+                response.quantity().magnetic().value().x().len(),
                 response.sampling().len(),
             );
         });
     }
 }
 
-#[test]
-fn normalised_modal_fields_satisfy_tangential_interface_continuity() {
-    let stack = two_layer_stack();
-    let sampling = interface_sampling();
-
-    for polarisation in [
-        Polarisation::TransverseElectric,
-        Polarisation::TransverseMagnetic,
-    ] {
-        for_each_modal_backend!(evaluator, {
-            let state = evaluator
-                .retain_modal(modal_input(), &stack, polarisation)
-                .unwrap();
-
-            let mode = state.mode().unwrap();
-
-            let response = mode.evaluate_fields(&sampling).unwrap();
-
-            match polarisation {
-                Polarisation::TransverseElectric => {
-                    assert_te_interface_continuity(response.quantity().value(), VALUE_TOLERANCE);
-                }
-
-                Polarisation::TransverseMagnetic => {
-                    assert_tm_interface_continuity(response.quantity().value(), VALUE_TOLERANCE);
-                }
-            }
-        });
-    }
-}
+// -----------------------------------------------------------------------------
+// Cross-backend modal equivalence
+// -----------------------------------------------------------------------------
 
 fn squared_field_difference(
-    first: &ElectromagneticFields<VectorField<C, Ix1>>,
-    second: &ElectromagneticFields<VectorField<C, Ix1>>,
+    first_electric: &VectorField<C, Ix1>,
+    first_magnetic: &VectorField<C, Ix1>,
+    second_electric: &VectorField<C, Ix1>,
+    second_magnetic: &VectorField<C, Ix1>,
     sign: C,
 ) -> f64 {
     [
-        (first.electric().x(), second.electric().x()),
-        (first.electric().y(), second.electric().y()),
-        (first.electric().z(), second.electric().z()),
-        (first.magnetic().x(), second.magnetic().x()),
-        (first.magnetic().y(), second.magnetic().y()),
-        (first.magnetic().z(), second.magnetic().z()),
+        (first_electric.x(), second_electric.x()),
+        (first_electric.y(), second_electric.y()),
+        (first_electric.z(), second_electric.z()),
+        (first_magnetic.x(), second_magnetic.x()),
+        (first_magnetic.y(), second_magnetic.y()),
+        (first_magnetic.z(), second_magnetic.z()),
     ]
     .into_iter()
     .flat_map(|(first, second)| {
@@ -757,15 +1216,29 @@ fn squared_field_difference(
 }
 
 fn modal_relative_sign(
-    first: &ElectromagneticFields<VectorField<C, Ix1>>,
-    second: &ElectromagneticFields<VectorField<C, Ix1>>,
+    first_electric: &VectorField<C, Ix1>,
+    first_magnetic: &VectorField<C, Ix1>,
+    second_electric: &VectorField<C, Ix1>,
+    second_magnetic: &VectorField<C, Ix1>,
 ) -> C {
     let positive = C::new(1.0, 0.0);
     let negative = C::new(-1.0, 0.0);
 
-    let positive_error = squared_field_difference(first, second, positive);
+    let positive_error = squared_field_difference(
+        first_electric,
+        first_magnetic,
+        second_electric,
+        second_magnetic,
+        positive,
+    );
 
-    let negative_error = squared_field_difference(first, second, negative);
+    let negative_error = squared_field_difference(
+        first_electric,
+        first_magnetic,
+        second_electric,
+        second_magnetic,
+        negative,
+    );
 
     if positive_error <= negative_error {
         positive
@@ -775,18 +1248,20 @@ fn modal_relative_sign(
 }
 
 fn assert_fields_close_with_sign(
-    actual: &ElectromagneticFields<VectorField<C, Ix1>>,
-    expected: &ElectromagneticFields<VectorField<C, Ix1>>,
+    actual_electric: &VectorField<C, Ix1>,
+    actual_magnetic: &VectorField<C, Ix1>,
+    expected_electric: &VectorField<C, Ix1>,
+    expected_magnetic: &VectorField<C, Ix1>,
     sign: C,
     tolerance: f64,
 ) {
     for (actual, expected) in [
-        (actual.electric().x(), expected.electric().x()),
-        (actual.electric().y(), expected.electric().y()),
-        (actual.electric().z(), expected.electric().z()),
-        (actual.magnetic().x(), expected.magnetic().x()),
-        (actual.magnetic().y(), expected.magnetic().y()),
-        (actual.magnetic().z(), expected.magnetic().z()),
+        (actual_electric.x(), expected_electric.x()),
+        (actual_electric.y(), expected_electric.y()),
+        (actual_electric.z(), expected_electric.z()),
+        (actual_magnetic.x(), expected_magnetic.x()),
+        (actual_magnetic.y(), expected_magnetic.y()),
+        (actual_magnetic.z(), expected_magnetic.z()),
     ] {
         assert_eq!(actual.shape(), expected.shape());
 
@@ -799,34 +1274,60 @@ fn assert_fields_close_with_sign(
 #[test]
 fn normalised_modal_fields_agree_between_backends_up_to_global_sign() {
     let stack = two_layer_stack();
-    let sampling = sampling();
+    let request = sampling();
 
     for polarisation in [
         Polarisation::TransverseElectric,
         Polarisation::TransverseMagnetic,
     ] {
-        let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
-            .retain_modal(modal_input(), &stack, polarisation)
+        let scatter =
+            ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Scatter2::new()).unwrap();
+
+        let transfer =
+            ComplexPlaneEvaluator::<HoloJ0, _, _>::compile(&stack, Transfer2::new()).unwrap();
+
+        let scatter_coordinates = value_coordinates();
+
+        let scatter_exterior = exterior(scatter.stack(), &scatter_coordinates, polarisation);
+
+        let scatter_state = scatter
+            .retain(scatter_coordinates, scatter_exterior, polarisation)
             .unwrap();
 
-        let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
-            .retain_modal(modal_input(), &stack, polarisation)
+        let transfer_coordinates = value_coordinates();
+
+        let transfer_exterior = exterior(transfer.stack(), &transfer_coordinates, polarisation);
+
+        let transfer_state = transfer
+            .retain(transfer_coordinates, transfer_exterior, polarisation)
             .unwrap();
 
         let scatter_mode = scatter_state.mode().unwrap();
 
         let transfer_mode = transfer_state.mode().unwrap();
 
-        let scatter = scatter_mode.evaluate_fields(&sampling).unwrap();
+        let scatter = scatter_mode.fields(&request).unwrap();
 
-        let transfer = transfer_mode.evaluate_fields(&sampling).unwrap();
+        let transfer = transfer_mode.fields(&request).unwrap();
 
-        let scatter_fields = scatter.quantity().value();
+        let scatter_fields = scatter.quantity();
 
-        let transfer_fields = transfer.quantity().value();
+        let transfer_fields = transfer.quantity();
 
-        let sign = modal_relative_sign(scatter_fields, transfer_fields);
+        let sign = modal_relative_sign(
+            scatter_fields.electric().value(),
+            scatter_fields.magnetic().value(),
+            transfer_fields.electric().value(),
+            transfer_fields.magnetic().value(),
+        );
 
-        assert_fields_close_with_sign(scatter_fields, transfer_fields, sign, VALUE_TOLERANCE);
+        assert_fields_close_with_sign(
+            scatter_fields.electric().value(),
+            scatter_fields.magnetic().value(),
+            transfer_fields.electric().value(),
+            transfer_fields.magnetic().value(),
+            sign,
+            VALUE_TOLERANCE,
+        );
     }
 }

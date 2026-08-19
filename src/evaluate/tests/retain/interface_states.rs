@@ -1,5 +1,5 @@
 use crate::{
-    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     parameter::FiniteLayerIndex,
     test_support::{
         assertions::assert_interface_continuity,
@@ -23,7 +23,7 @@ macro_rules! interface_continuity_suite {
                 polarisation: Polarisation,
                 incident_side: IncidentSide,
             ) {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let state = evaluator
                     .retain(scalar_real_input(2.5, 0.31), stack, polarisation)
@@ -94,7 +94,7 @@ macro_rules! interface_continuity_suite {
 
             #[test]
             fn first_spectral_derivative_is_continuous() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -125,7 +125,7 @@ macro_rules! interface_continuity_suite {
 
             #[test]
             fn first_thickness_derivative_is_continuous() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -158,7 +158,7 @@ macro_rules! interface_continuity_suite {
 
             #[test]
             fn second_spectral_derivatives_are_continuous() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -192,7 +192,7 @@ macro_rules! interface_continuity_suite {
 
             #[test]
             fn bivariate_second_derivatives_are_continuous() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 

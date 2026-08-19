@@ -13,7 +13,7 @@ use crate::{
         },
     },
     derivative_parts::IntoValue,
-    evaluate::{PlaneWaveEvaluator, query::PlaneWaveExternalQueries},
+    evaluate::{RealAxisEvaluator, real_axis::RealAxisExternalQueries},
     input::{CanonicalCoordinates, IncidentSide, Polarisation},
     observable::LayerBoundaryWaves,
     parameter::{FiniteLayerIndex, Parameter},
@@ -26,7 +26,7 @@ use crate::{
             assert_second_layers_close, assert_zero_layers_close,
         },
         finite_difference::{FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE},
-        jet::{J0, zero_jet_from_real_value},
+        jet::{RealJ0, real_j0_from_real},
         planar::{scalar_real_input, single_layer_stack, two_layer_stack},
     },
     waves::{BidirectionalWaves, ReconstructLayerBoundaryWaves},
@@ -43,9 +43,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn one_layer_te_left_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.23);
 
@@ -78,9 +78,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn one_layer_te_right_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.23);
 
@@ -113,9 +113,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn one_layer_tm_left_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.23);
 
@@ -148,9 +148,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn one_layer_tm_right_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = single_layer_stack(1.8, 0.23);
 
@@ -183,9 +183,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn two_layer_te_left_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -220,9 +220,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn two_layer_te_right_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -255,9 +255,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn two_layer_tm_left_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -290,9 +290,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn two_layer_tm_right_incidence_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -325,9 +325,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn first_spectral_derivative_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -358,9 +358,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn first_thickness_derivative_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -393,9 +393,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn second_spectral_derivative_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -426,9 +426,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn second_thickness_derivative_matches() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -461,9 +461,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn bivariate_first_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -503,9 +503,9 @@ macro_rules! retained_boundary_wave_equivalence_suite {
 
             #[test]
             fn bivariate_second_derivatives_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -622,14 +622,11 @@ where
 
 #[test]
 fn transfer_single_layer_waves_match_boundary_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
-    let coordinates = CanonicalCoordinates::new(
-        zero_jet_from_real_value(2.3),
-        zero_jet_from_real_value(0.37),
-    );
+    let coordinates = CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37));
 
     let polarisation = Polarisation::TransverseElectric;
 
@@ -673,14 +670,11 @@ fn transfer_single_layer_waves_match_boundary_continuity() {
 
 #[test]
 fn scatter_single_layer_waves_match_boundary_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
-    let coordinates = CanonicalCoordinates::new(
-        zero_jet_from_real_value(2.3),
-        zero_jet_from_real_value(0.37),
-    );
+    let coordinates = CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37));
 
     let polarisation = Polarisation::TransverseElectric;
 
@@ -724,14 +718,11 @@ fn scatter_single_layer_waves_match_boundary_continuity() {
 
 #[test]
 fn transfer_single_layer_reconstruction_localises_boundary_error() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
-    let coordinates = CanonicalCoordinates::new(
-        zero_jet_from_real_value(2.3),
-        zero_jet_from_real_value(0.37),
-    );
+    let coordinates = CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37));
 
     let polarisation = Polarisation::TransverseElectric;
 
@@ -785,7 +776,7 @@ fn transfer_single_layer_reconstruction_localises_boundary_error() {
 
 #[test]
 fn analytic_right_boundary_matches_transfer_state_conversion() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
     let stack = single_layer_stack(1.8, 0.23);
 
     let state = evaluator
@@ -826,7 +817,7 @@ fn analytic_right_boundary_matches_transfer_state_conversion() {
 
 #[test]
 fn plane_wave_state_delegates_boundary_reconstruction_to_workspace() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
@@ -866,7 +857,7 @@ fn plane_wave_state_delegates_boundary_reconstruction_to_workspace() {
 
 #[test]
 fn evaluator_workspace_right_boundary_matches_analytic_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
@@ -904,7 +895,7 @@ fn evaluator_workspace_right_boundary_matches_analytic_continuity() {
     assert_bidirectional_waves_close(actual[0].right(), &expected, 1.0e-12);
 }
 
-fn assert_jet_close_named(label: &str, actual: &J0, expected: &J0, tolerance: f64) {
+fn assert_jet_close_named(label: &str, actual: &RealJ0, expected: &RealJ0, tolerance: f64) {
     println!("At {label}");
 
     approx::assert_relative_eq!(
@@ -924,8 +915,8 @@ fn assert_jet_close_named(label: &str, actual: &J0, expected: &J0, tolerance: f6
 
 fn assert_transfer_state_close(
     label: &str,
-    actual: &TransferState<J0>,
-    expected: &TransferState<J0>,
+    actual: &TransferState<RealJ0>,
+    expected: &TransferState<RealJ0>,
     tolerance: f64,
 ) {
     assert_jet_close_named(
@@ -945,8 +936,8 @@ fn assert_transfer_state_close(
 
 fn assert_bidirectional_waves_close_named(
     label: &str,
-    actual: &BidirectionalWaves<J0>,
-    expected: &BidirectionalWaves<J0>,
+    actual: &BidirectionalWaves<RealJ0>,
+    expected: &BidirectionalWaves<RealJ0>,
     tolerance: f64,
 ) {
     assert_jet_close_named(
@@ -966,7 +957,7 @@ fn assert_bidirectional_waves_close_named(
 
 #[test]
 fn transfer_evaluator_right_boundary_reconstruction_is_stepwise_consistent() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = single_layer_stack(1.8, 0.23);
 
@@ -1083,7 +1074,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn value_boundary_waves_match_normalised_raw_waves() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1121,7 +1112,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn value_boundary_states_match_normalised_raw_states() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1159,7 +1150,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn value_boundary_methods_preserve_layer_order() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1192,7 +1183,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn first_boundary_waves_have_requested_parameter() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1219,7 +1210,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn first_boundary_states_have_requested_parameter() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1248,7 +1239,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn second_boundary_waves_contain_first_and_second_branches() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1276,7 +1267,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn second_boundary_states_contain_first_and_second_branches() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1306,7 +1297,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn bivariate_first_boundary_waves_preserve_parameter_order() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1338,7 +1329,7 @@ macro_rules! boundary_observable_suite {
 
             #[test]
             fn bivariate_second_boundary_states_preserve_all_branches() {
-                let evaluator = PlaneWaveEvaluator::new($backend);
+                let evaluator = RealAxisEvaluator::new($backend);
 
                 let stack = two_layer_stack();
 
@@ -1395,9 +1386,9 @@ macro_rules! boundary_observable_equivalence_suite {
 
             #[test]
             fn value_boundary_waves_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -1436,9 +1427,9 @@ macro_rules! boundary_observable_equivalence_suite {
 
             #[test]
             fn value_boundary_states_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -1477,9 +1468,9 @@ macro_rules! boundary_observable_equivalence_suite {
 
             #[test]
             fn first_boundary_waves_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -1528,9 +1519,9 @@ macro_rules! boundary_observable_equivalence_suite {
 
             #[test]
             fn second_boundary_states_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 
@@ -1587,9 +1578,9 @@ macro_rules! boundary_observable_equivalence_suite {
 
             #[test]
             fn bivariate_second_boundary_waves_match() {
-                let left = PlaneWaveEvaluator::new($left_backend);
+                let left = RealAxisEvaluator::new($left_backend);
 
-                let right = PlaneWaveEvaluator::new($right_backend);
+                let right = RealAxisEvaluator::new($right_backend);
 
                 let stack = two_layer_stack();
 

@@ -6,6 +6,7 @@ mod state;
 
 pub use excitation::RealAxisExcitation;
 pub use pair::{RealAxisExcitationPair, RealAxisPairError};
+pub(crate) use query::RealAxisExternalQueries;
 pub use result::RealAxisResult;
 use state::RealAxisState;
 

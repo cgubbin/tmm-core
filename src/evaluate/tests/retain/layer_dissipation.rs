@@ -2,16 +2,13 @@ use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
-    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
-    backend::{ExteriorContextProvider, scatter2::Scatter2, transfer2::Transfer2},
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
+    backend::{scatter2::Scatter2, transfer2::Transfer2},
     observable::{LayerDissipation, LayerPower, Layers},
     parameter::FiniteLayerIndex,
     test_support::{
         planar::{scalar_real_input, two_layer_stack},
-        stack::{
-            absorbing_two_layer_stack, asymmetric_absorbing_single_layer_stack,
-            electric_loss_stack, magnetic_loss_stack,
-        },
+        stack::{absorbing_two_layer_stack, electric_loss_stack, magnetic_loss_stack},
     },
 };
 
@@ -72,7 +69,7 @@ fn summed_dissipation(layers: &Layers<LayerDissipation<RealArray>>) -> f64 {
 
 #[test]
 fn layer_dissipation_returns_one_record_per_finite_layer() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -93,7 +90,7 @@ fn layer_dissipation_returns_one_record_per_finite_layer() {
 
 #[test]
 fn lossless_stack_has_zero_layer_dissipation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -125,7 +122,7 @@ fn lossless_stack_has_zero_layer_dissipation() {
 
 #[test]
 fn layer_dissipation_matches_layer_power_flux_loss() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 
@@ -157,7 +154,7 @@ fn layer_dissipation_matches_layer_power_flux_loss() {
 
 #[test]
 fn summed_layer_dissipation_matches_external_absorptance() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 
@@ -190,7 +187,7 @@ fn summed_layer_dissipation_matches_external_absorptance() {
 
 #[test]
 fn electric_loss_is_attributed_to_electric_dissipation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     for polarisation in [
         Polarisation::TransverseElectric,
@@ -227,7 +224,7 @@ fn electric_loss_is_attributed_to_electric_dissipation() {
 
 #[test]
 fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     for polarisation in [
         Polarisation::TransverseElectric,
@@ -264,7 +261,7 @@ fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
 
 #[test]
 fn first_layer_dissipation_derivative_matches_layer_power_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     for incident_side in [IncidentSide::Left, IncidentSide::Right] {
         let state = evaluator
@@ -296,7 +293,7 @@ fn first_layer_dissipation_derivative_matches_layer_power_derivative() {
 
 #[test]
 fn thickness_dissipation_derivative_matches_flux_loss_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
@@ -328,7 +325,7 @@ fn thickness_dissipation_derivative_matches_flux_loss_derivative() {
 
 #[test]
 fn second_layer_dissipation_derivatives_match_flux_loss_derivatives() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_second(
@@ -364,7 +361,7 @@ fn second_layer_dissipation_derivatives_match_flux_loss_derivatives() {
 
 #[test]
 fn bivariate_layer_dissipation_matches_flux_loss_on_all_branches() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
     let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
@@ -430,7 +427,7 @@ fn bivariate_layer_dissipation_matches_flux_loss_on_all_branches() {
 
 #[test]
 fn transfer_backend_layer_dissipation_matches_layer_power() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(

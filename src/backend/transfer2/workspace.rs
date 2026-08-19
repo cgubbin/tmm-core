@@ -612,7 +612,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        Constant, CoordinateInput, PlaneWaveEvaluator, Polarisation, RealAxis,
+        ComplexPlaneEvaluator, Constant, CoordinateInput, Polarisation, RealAxis,
         algebra::{ArrayJet0, RealParameter},
         backend::{ExteriorWavevectors, RunMode, Transfer2},
         input::{CanonicalCoordinates, CanonicalStack},
@@ -623,12 +623,12 @@ mod tests {
                 assert_bidirectional_waves_close, assert_complex_close, assert_zero_jet_close,
             },
             c,
-            jet::{J0, zero_jet_from_real_value, zero_jet_from_value},
+            jet::{RealJ0, real_j0, real_j0_from_real},
             materials::constant,
-            planar::{
+            planar::two_layer_stack,
+            stack::{
                 boundary_test_empty_stack, boundary_test_jet, boundary_test_single_layer_stack,
                 boundary_test_two_layer_stack, boundary_test_zero_thickness_stack,
-                scalar_complex_input, two_layer_stack,
             },
         },
     };
@@ -637,15 +637,15 @@ mod tests {
 
     fn matrix(m11: f64, m12: f64, m21: f64, m22: f64) -> Transfer2Entries<A> {
         Transfer2Entries::new(
-            zero_jet_from_value(c(m11)),
-            zero_jet_from_value(c(m12)),
-            zero_jet_from_value(c(m21)),
-            zero_jet_from_value(c(m22)),
+            real_j0(c(m11)),
+            real_j0(c(m12)),
+            real_j0(c(m21)),
+            real_j0(c(m22)),
         )
     }
 
     fn coordinates() -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(zero_jet_from_value(c(2.0)), zero_jet_from_value(c(0.0)))
+        CanonicalCoordinates::new(real_j0(c(2.0)), real_j0(c(0.0)))
     }
 
     fn quantities() -> IsotropicLayerQuantities<A> {
@@ -686,6 +686,33 @@ mod tests {
             &exterior,
             polarisation,
         )
+    }
+
+    fn modal_coordinates() -> CanonicalCoordinates<RealJ0> {
+        CanonicalCoordinates::new(real_j0(C::new(2.5, -0.05)), real_j0(C::new(0.31, 0.02)))
+    }
+
+    fn modal_exterior(
+        stack: &CanonicalStack<Constant<f64>, RealJ0>,
+        coordinates: &CanonicalCoordinates<RealJ0>,
+    ) -> ExteriorWavevectors<RealJ0> {
+        let left = IsotropicLayerQuantities::evaluate::<crate::ComplexPlane, _>(
+            stack.left_exterior(),
+            coordinates,
+            Polarisation::TransverseElectric,
+        )
+        .kappa()
+        .clone();
+
+        let right = IsotropicLayerQuantities::evaluate::<crate::ComplexPlane, _>(
+            stack.right_exterior(),
+            coordinates,
+            Polarisation::TransverseElectric,
+        )
+        .kappa()
+        .clone();
+
+        ExteriorWavevectors::new(left, right)
     }
 
     #[test]
@@ -757,7 +784,7 @@ mod tests {
     fn apply_state_uses_transfer_matrix_convention() {
         let matrix = matrix(1.0, 2.0, 3.0, 4.0);
 
-        let state = TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+        let state = TransferState::new(real_j0(c(5.0)), real_j0(c(7.0)));
 
         let result = matrix.apply_state(&state);
 
@@ -775,8 +802,7 @@ mod tests {
         retained.push(left.clone(), quantities(), thickness(1.0));
         retained.push(right.clone(), quantities(), thickness(1.0));
 
-        let right_exterior =
-            TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+        let right_exterior = TransferState::new(real_j0(c(5.0)), real_j0(c(7.0)));
 
         let states = retained.propagate_right_state(right_exterior.clone());
 
@@ -800,23 +826,17 @@ mod tests {
     fn propagation_panics_without_retention() {
         let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 0);
 
-        workspace.propagate_right_state(TransferState::new(
-            zero_jet_from_value(c(1.0)),
-            zero_jet_from_value(c(0.0)),
-        ));
+        workspace.propagate_right_state(TransferState::new(real_j0(c(1.0)), real_j0(c(0.0))));
     }
 
-    fn test_coordinates() -> CanonicalCoordinates<J0> {
-        CanonicalCoordinates::new(
-            zero_jet_from_real_value(2.3),
-            zero_jet_from_real_value(0.37),
-        )
+    fn test_coordinates() -> CanonicalCoordinates<RealJ0> {
+        CanonicalCoordinates::new(real_j0_from_real(2.3), real_j0_from_real(0.37))
     }
 
     fn build_workspace(
-        stack: CanonicalStack<Constant<f64>, J0>,
+        stack: CanonicalStack<Constant<f64>, RealJ0>,
         mode: RunMode,
-    ) -> Transfer2Workspace<J0> {
+    ) -> Transfer2Workspace<RealJ0> {
         let coordinates = test_coordinates();
         let left_exterior = stack.left_exterior();
         let right_exterior = stack.right_exterior();
@@ -840,7 +860,7 @@ mod tests {
         );
 
         Transfer2::new()
-            .accumulate::<J0, RealAxis, _>(&coordinates, &stack, &exterior, polarisation, mode)
+            .accumulate::<RealJ0, RealAxis, _>(&coordinates, &stack, &exterior, polarisation, mode)
             .expect("scatter workspace accumulation should succeed")
     }
 
@@ -950,11 +970,11 @@ mod tests {
         );
     }
 
-    fn thickness(thickness: f64) -> J0 {
-        J0::new(arr0(c(thickness)))
+    fn thickness(thickness: f64) -> RealJ0 {
+        RealJ0::new(arr0(c(thickness)))
     }
 
-    fn quantities_for_material(material: Constant<f64>) -> IsotropicLayerQuantities<J0> {
+    fn quantities_for_material(material: Constant<f64>) -> IsotropicLayerQuantities<RealJ0> {
         IsotropicLayerQuantities::evaluate::<RealAxis, _>(
             &material,
             &test_coordinates(),
@@ -962,12 +982,12 @@ mod tests {
         )
     }
 
-    fn entries(m11: f64, m12: f64, m21: f64, m22: f64) -> Transfer2Entries<J0> {
+    fn entries(m11: f64, m12: f64, m21: f64, m22: f64) -> Transfer2Entries<RealJ0> {
         Transfer2Entries::new(
-            zero_jet_from_real_value(m11),
-            zero_jet_from_real_value(m12),
-            zero_jet_from_real_value(m21),
-            zero_jet_from_real_value(m22),
+            real_j0_from_real(m11),
+            real_j0_from_real(m12),
+            real_j0_from_real(m21),
+            real_j0_from_real(m22),
         )
     }
 
@@ -1000,8 +1020,7 @@ mod tests {
 
         retained.push(layer1_matrix.clone(), layer1_quantities, layer1_thickness);
 
-        let right_exterior_state =
-            TransferState::new(zero_jet_from_value(c(5.0)), zero_jet_from_value(c(7.0)));
+        let right_exterior_state = TransferState::new(real_j0(c(5.0)), real_j0(c(7.0)));
 
         /*
          * Propagation occurs right-to-left:
@@ -1062,7 +1081,10 @@ mod tests {
         assert_eq!(layer0.right(), layer1.left());
     }
 
-    fn assert_transfer_state_close(actual: &TransferState<J0>, expected: &TransferState<J0>) {
+    fn assert_transfer_state_close(
+        actual: &TransferState<RealJ0>,
+        expected: &TransferState<RealJ0>,
+    ) {
         assert_zero_jet_close(actual.field(), expected.field());
         assert_zero_jet_close(actual.slope(), expected.slope());
     }
@@ -1146,20 +1168,17 @@ mod tests {
         assert_zero_jet_close(&retained_admittance, &fresh_admittance);
     }
 
-    fn modal_input() -> CoordinateInput<C, Ix0> {
-        scalar_complex_input(C::new(2.5, -0.05), C::new(0.31, 0.02))
-    }
-
     #[test]
     fn transfer_total_and_retained_chain_propagate_same_modal_state() {
-        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
         let stack = two_layer_stack();
+        let evaluator = ComplexPlaneEvaluator::compile(&stack, Transfer2::new()).unwrap();
 
-        let polarisation = Polarisation::TransverseElectric;
+        let coordinates = modal_coordinates();
+
+        let exterior = modal_exterior(evaluator.stack(), &coordinates);
 
         let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
+            .retain(coordinates, exterior, Polarisation::TransverseElectric)
             .unwrap();
 
         let workspace = state.workspace();
@@ -1216,12 +1235,9 @@ mod tests {
 
     #[test]
     fn boundary_state_to_waves_inverts_waves_to_state() {
-        let admittance = zero_jet_from_value(C::new(2.3, -0.2));
+        let admittance = real_j0(C::new(2.3, -0.2));
 
-        let original = BoundaryWaves::new(
-            zero_jet_from_value(C::new(0.7, 0.4)),
-            zero_jet_from_value(C::new(-0.2, 0.6)),
-        );
+        let original = BoundaryWaves::new(real_j0(C::new(0.7, 0.4)), real_j0(C::new(-0.2, 0.6)));
 
         let state = original.clone().into_state(&admittance);
 
@@ -1256,14 +1272,15 @@ mod tests {
 
     #[test]
     fn transfer_modal_left_exterior_waves_preserve_candidate_state() {
-        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
         let stack = two_layer_stack();
+        let evaluator = ComplexPlaneEvaluator::compile(&stack, Transfer2::new()).unwrap();
 
-        let polarisation = Polarisation::TransverseElectric;
+        let coordinates = modal_coordinates();
+
+        let exterior = modal_exterior(evaluator.stack(), &coordinates);
 
         let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
+            .retain(coordinates, exterior, Polarisation::TransverseElectric)
             .unwrap();
 
         let workspace = state.workspace();
@@ -1291,14 +1308,15 @@ mod tests {
 
     #[test]
     fn transfer_modal_reconstructed_boundary_waves_match_at_left_interface() {
-        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
         let stack = two_layer_stack();
+        let evaluator = ComplexPlaneEvaluator::compile(&stack, Transfer2::new()).unwrap();
 
-        let polarisation = Polarisation::TransverseElectric;
+        let coordinates = modal_coordinates();
+
+        let exterior = modal_exterior(evaluator.stack(), &coordinates);
 
         let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
+            .retain(coordinates, exterior, Polarisation::TransverseElectric)
             .unwrap();
 
         let workspace = state.workspace();
@@ -1356,14 +1374,15 @@ mod tests {
 
     #[test]
     fn transfer_retained_first_layer_waves_preserve_propagated_left_state() {
-        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
         let stack = two_layer_stack();
+        let evaluator = ComplexPlaneEvaluator::compile(&stack, Transfer2::new()).unwrap();
 
-        let polarisation = Polarisation::TransverseElectric;
+        let coordinates = modal_coordinates();
+
+        let exterior = modal_exterior(evaluator.stack(), &coordinates);
 
         let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
+            .retain(coordinates, exterior, Polarisation::TransverseElectric)
             .unwrap();
 
         let workspace = state.workspace();
@@ -1417,14 +1436,15 @@ mod tests {
 
     #[test]
     fn transfer_modal_candidate_state_matches_its_own_right_gauge() {
-        let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
-
         let stack = two_layer_stack();
+        let evaluator = ComplexPlaneEvaluator::compile(&stack, Transfer2::new()).unwrap();
 
-        let polarisation = Polarisation::TransverseElectric;
+        let coordinates = modal_coordinates();
+
+        let exterior = modal_exterior(evaluator.stack(), &coordinates);
 
         let state = evaluator
-            .retain_modal(modal_input(), &stack, polarisation)
+            .retain(coordinates, exterior, Polarisation::TransverseElectric)
             .unwrap();
 
         let workspace = state.workspace();

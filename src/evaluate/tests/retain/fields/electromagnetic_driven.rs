@@ -3,7 +3,7 @@ use ndarray::{ArrayBase, Ix1, OwnedRepr};
 use num_complex::Complex64;
 
 use crate::{
-    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     algebra::ScalarAlgebra,
     backend::{
         ExteriorContextProvider, RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2,
@@ -98,7 +98,7 @@ fn assert_all_finite(fields: &crate::observable::ElectromagneticFields<VectorFie
 
 #[test]
 fn point_projection_evaluates_te_fields() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -145,7 +145,7 @@ fn point_projection_evaluates_te_fields() {
 
 #[test]
 fn point_projection_evaluates_tm_fields() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -173,7 +173,7 @@ fn point_projection_evaluates_tm_fields() {
 
 #[test]
 fn both_incident_sides_evaluate_fields() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     for polarisation in [
         Polarisation::TransverseElectric,
@@ -212,7 +212,7 @@ fn both_incident_sides_evaluate_fields() {
 
 #[test]
 fn first_field_derivative_survives_point_projection_and_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let parameter = Parameter::Spectral;
 
@@ -248,7 +248,7 @@ fn first_field_derivative_survives_point_projection_and_reconstruction() {
 
 #[test]
 fn thickness_field_derivative_survives_point_projection_and_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
@@ -280,7 +280,7 @@ fn thickness_field_derivative_survives_point_projection_and_reconstruction() {
 
 #[test]
 fn second_field_derivative_survives_point_projection_and_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_second(
@@ -312,7 +312,7 @@ fn second_field_derivative_survives_point_projection_and_reconstruction() {
 
 #[test]
 fn bivariate_field_derivatives_survive_point_projection_and_reconstruction() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
     let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
@@ -365,11 +365,11 @@ fn transfer_and_scatter_backends_agree_on_fields() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter_state = RealAxisEvaluator::new(Scatter2::new())
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
-            let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer_state = RealAxisEvaluator::new(Transfer2::new())
                 .retain(scalar_real_input(2.5, 0.31), &stack, polarisation)
                 .unwrap();
 
@@ -402,7 +402,7 @@ fn transfer_and_scatter_backends_agree_on_first_field_derivative() {
 
     let parameter = Parameter::Spectral;
 
-    let scatter_state = PlaneWaveEvaluator::new(Scatter2::new())
+    let scatter_state = RealAxisEvaluator::new(Scatter2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &stack,
@@ -411,7 +411,7 @@ fn transfer_and_scatter_backends_agree_on_first_field_derivative() {
         )
         .unwrap();
 
-    let transfer_state = PlaneWaveEvaluator::new(Transfer2::new())
+    let transfer_state = RealAxisEvaluator::new(Transfer2::new())
         .retain_first(
             scalar_real_input(2.5, 0.31),
             &stack,
@@ -537,7 +537,7 @@ fn assert_tm_interface_continuity(
 
 #[test]
 fn reconstructed_fields_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
     let sampling = interface_sampling();
@@ -577,7 +577,7 @@ fn reconstructed_fields_satisfy_tangential_interface_continuity() {
 
 #[test]
 fn first_field_derivatives_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
     let sampling = interface_sampling();
@@ -637,7 +637,7 @@ fn first_field_derivatives_satisfy_tangential_interface_continuity() {
 
 #[test]
 fn second_field_derivatives_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
     let sampling = interface_sampling();
@@ -700,7 +700,7 @@ fn second_field_derivatives_satisfy_tangential_interface_continuity() {
 
 #[test]
 fn transfer_backend_fields_satisfy_tangential_interface_continuity() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = two_layer_stack();
     let sampling = interface_sampling();
@@ -738,7 +738,7 @@ fn transfer_backend_fields_satisfy_tangential_interface_continuity() {
 
 #[test]
 fn reconstructed_exterior_and_first_layer_states_match_at_left_interface() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -785,7 +785,7 @@ fn reconstructed_exterior_and_first_layer_states_match_at_left_interface() {
 
 #[test]
 fn reconstructed_forward_waves_obey_layer_propagation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -821,7 +821,7 @@ fn reconstructed_forward_waves_obey_layer_propagation() {
 
 #[test]
 fn reconstructed_backward_waves_obey_layer_propagation() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(
@@ -857,7 +857,7 @@ fn reconstructed_backward_waves_obey_layer_propagation() {
 
 #[test]
 fn reconstructed_layer_waves_obey_propagation_for_both_incident_sides() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -893,7 +893,7 @@ fn reconstructed_layer_waves_obey_propagation_for_both_incident_sides() {
 
 #[test]
 fn reconstructed_layer_waves_are_propagation_consistent_at_left_boundary() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -924,7 +924,7 @@ fn reconstructed_layer_waves_are_propagation_consistent_at_left_boundary() {
 
 #[test]
 fn reconstructed_layer_waves_are_propagation_consistent_at_right_boundary() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(

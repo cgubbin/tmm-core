@@ -561,7 +561,7 @@ mod tests {
             C, TOLERANCE,
             assertions::assert_complex_close,
             c,
-            jet::zero_jet_from_value,
+            jet::real_j0,
             materials::{constant, linear},
         },
     };
@@ -569,19 +569,11 @@ mod tests {
     type A = ArrayJet0<C, Ix0, RealParameter>;
 
     fn entries(m11: C, m12: C, m21: C, m22: C) -> Transfer2Entries<A> {
-        Transfer2Entries::new(
-            zero_jet_from_value(m11),
-            zero_jet_from_value(m12),
-            zero_jet_from_value(m21),
-            zero_jet_from_value(m22),
-        )
+        Transfer2Entries::new(real_j0(m11), real_j0(m12), real_j0(m21), real_j0(m22))
     }
 
     fn coordinates(k0: f64, k_parallel: f64) -> CanonicalCoordinates<A> {
-        CanonicalCoordinates::new(
-            zero_jet_from_value(c(k0)),
-            zero_jet_from_value(c(k_parallel)),
-        )
+        CanonicalCoordinates::new(real_j0(c(k0)), real_j0(c(k_parallel)))
     }
 
     #[test]
@@ -650,7 +642,7 @@ mod tests {
             Polarisation::TransverseElectric,
         );
 
-        let matrix = Transfer2Entries::from_layer(&quantities, &zero_jet_from_value(c(0.0)));
+        let matrix = Transfer2Entries::from_layer(&quantities, &real_j0(c(0.0)));
 
         let identity = Transfer2Entries::<A>::identity_like(&arr0(c(0.0)));
 
@@ -670,7 +662,7 @@ mod tests {
 
         let thickness = 0.2;
 
-        let matrix = Transfer2Entries::from_layer(&quantities, &zero_jet_from_value(c(thickness)));
+        let matrix = Transfer2Entries::from_layer(&quantities, &real_j0(c(thickness)));
 
         let kappa = 4.0;
         let admittance = 4.0;
@@ -697,7 +689,7 @@ mod tests {
             let quantities =
                 IsotropicLayerQuantities::real_axis(&material, &coordinates, polarisation);
 
-            let matrix = Transfer2Entries::from_layer(&quantities, &zero_jet_from_value(c(0.37)));
+            let matrix = Transfer2Entries::from_layer(&quantities, &real_j0(c(0.37)));
 
             assert_complex_close(matrix.determinant()[()], c(1.0), TOLERANCE);
         }
@@ -707,7 +699,7 @@ mod tests {
     fn te_and_tm_use_their_respective_admittances() {
         let material = constant(4.0, 2.0);
         let coordinates = coordinates(3.0, 1.0);
-        let thickness = zero_jet_from_value(c(0.1));
+        let thickness = real_j0(c(0.1));
 
         let te = Transfer2Entries::from_layer(
             &IsotropicLayerQuantities::real_axis(
@@ -741,7 +733,7 @@ mod tests {
                 &coordinates(2.0, 0.2),
                 Polarisation::TransverseElectric,
             ),
-            &zero_jet_from_value(c(0.1)),
+            &real_j0(c(0.1)),
         );
 
         let second = Transfer2Entries::from_layer(
@@ -750,7 +742,7 @@ mod tests {
                 &coordinates(3.0, 0.2),
                 Polarisation::TransverseElectric,
             ),
-            &zero_jet_from_value(c(0.1)),
+            &real_j0(c(0.1)),
         );
 
         assert_ne!(first, second);
@@ -759,10 +751,10 @@ mod tests {
     #[test]
     fn detects_non_finite_entry_and_index() {
         let matrix = Transfer2Entries::new(
-            zero_jet_from_value(c(1.0)),
-            zero_jet_from_value(C::new(f64::INFINITY, 0.0)),
-            zero_jet_from_value(c(0.0)),
-            zero_jet_from_value(c(1.0)),
+            real_j0(c(1.0)),
+            real_j0(C::new(f64::INFINITY, 0.0)),
+            real_j0(c(0.0)),
+            real_j0(c(1.0)),
         );
 
         assert_eq!(

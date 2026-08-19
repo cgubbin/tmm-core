@@ -1,5 +1,5 @@
 use crate::{
-    IncidentSide, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Polarisation, RealAxisEvaluator,
     backend::{Scatter2, Transfer2},
     test_support::{
         TOLERANCE,
@@ -10,7 +10,7 @@ use crate::{
 
 #[test]
 fn left_incidence_exterior_interface_power_matches_plane_wave_power() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -51,7 +51,7 @@ fn left_incidence_exterior_interface_power_matches_plane_wave_power() {
 
 #[test]
 fn net_flux_is_continuous_across_every_interface() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -80,7 +80,7 @@ fn net_flux_is_continuous_across_every_interface() {
 
 #[test]
 fn transfer_backend_projects_interface_power() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(

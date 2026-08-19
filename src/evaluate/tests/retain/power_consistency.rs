@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use ndarray::{ArrayBase, Ix0, OwnedRepr};
 
 use crate::{
-    IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     observable::{InterfacePower, Interfaces},
     parameter::FiniteLayerIndex,
@@ -66,7 +66,7 @@ fn assert_net_flux_continuity(interfaces: &Interfaces<InterfacePower<RealArray>>
 
 #[test]
 fn left_incidence_interface_power_matches_external_power() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -115,7 +115,7 @@ fn left_incidence_interface_power_matches_external_power() {
 
 #[test]
 fn right_incidence_interface_power_matches_external_power() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -168,7 +168,7 @@ fn right_incidence_interface_power_matches_external_power() {
 
 #[test]
 fn net_flux_is_continuous_across_every_interface() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -194,7 +194,7 @@ fn net_flux_is_continuous_across_every_interface() {
 
 #[test]
 fn exterior_flux_drop_matches_absorptance_from_both_sides() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -236,7 +236,7 @@ fn exterior_flux_drop_matches_absorptance_from_both_sides() {
 
 #[test]
 fn first_interface_power_derivative_is_continuous() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_first(
@@ -262,7 +262,7 @@ fn first_interface_power_derivative_is_continuous() {
 
 #[test]
 fn thickness_interface_power_derivative_is_continuous() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let parameter = Parameter::LayerThickness(FiniteLayerIndex::new(1));
 
@@ -290,7 +290,7 @@ fn thickness_interface_power_derivative_is_continuous() {
 
 #[test]
 fn second_interface_power_derivatives_are_continuous() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_second(
@@ -316,7 +316,7 @@ fn second_interface_power_derivatives_are_continuous() {
 
 #[test]
 fn bivariate_interface_power_derivatives_are_continuous() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let axis0 = Parameter::Spectral;
     let axis1 = Parameter::LayerThickness(FiniteLayerIndex::new(1));
@@ -358,7 +358,7 @@ fn bivariate_interface_power_derivatives_are_continuous() {
 
 #[test]
 fn interface_exterior_flux_derivative_matches_external_power_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_first(
@@ -401,7 +401,7 @@ fn interface_exterior_flux_derivative_matches_external_power_derivative() {
 
 #[test]
 fn transfer_backend_projects_interface_power() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let state = evaluator
         .retain(
@@ -424,7 +424,7 @@ fn transfer_backend_projects_interface_power() {
 
 #[test]
 fn absorbing_stack_net_flux_is_continuous_across_interfaces() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 
@@ -450,7 +450,7 @@ fn absorbing_stack_net_flux_is_continuous_across_interfaces() {
 
 #[test]
 fn absorbing_layer_reduces_forward_net_flux() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -502,7 +502,7 @@ fn exterior_absorbed_fraction(interfaces: &Interfaces<InterfacePower<RealArray>>
 
 #[test]
 fn absorbing_stack_flux_loss_matches_external_absorptance() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 
@@ -544,7 +544,7 @@ fn absorbing_stack_flux_loss_matches_external_absorptance() {
 
 #[test]
 fn lossy_internal_net_flux_includes_interference_terms() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -581,7 +581,7 @@ fn lossy_internal_net_flux_includes_interference_terms() {
 
 #[test]
 fn absorbing_stack_first_power_derivative_is_continuous() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_first(
@@ -605,7 +605,7 @@ fn absorbing_stack_first_power_derivative_is_continuous() {
 
 #[test]
 fn absorbing_stack_flux_loss_derivative_matches_absorptance_derivative() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_first(
@@ -643,7 +643,7 @@ fn absorbing_stack_flux_loss_derivative_matches_absorptance_derivative() {
 
 #[test]
 fn absorbing_internal_net_flux_derivative_matches_central_difference() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 

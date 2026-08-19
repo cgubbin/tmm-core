@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use ndarray::Array0;
 
 use crate::{
-    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, PlaneWavePower, Polarisation,
+    FiniteLayerIndex, IncidentSide, Parameter, PlaneWavePower, Polarisation, RealAxisEvaluator,
     backend::{scatter2::Scatter2, transfer2::Transfer2},
     projection::PointProjectionError,
     test_support::{
@@ -43,7 +43,7 @@ fn assert_power_equivalent(
 
 #[test]
 fn projected_scatter_state_matches_direct_scalar_evaluation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = two_layer_stack();
 
@@ -79,7 +79,7 @@ fn projected_scatter_state_matches_direct_scalar_evaluation() {
 
 #[test]
 fn projected_transfer_state_matches_direct_scalar_evaluation() {
-    let evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+    let evaluator = RealAxisEvaluator::new(Transfer2::new());
 
     let stack = two_layer_stack();
 
@@ -115,7 +115,7 @@ fn projected_transfer_state_matches_direct_scalar_evaluation() {
 
 #[test]
 fn projected_first_order_state_matches_direct_scalar_derivatives() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = differentiable_lossless_two_layer_stack();
 
@@ -153,7 +153,7 @@ fn projected_first_order_state_matches_direct_scalar_derivatives() {
 
 #[test]
 fn projected_second_order_state_matches_direct_scalar_derivatives() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = differentiable_lossless_two_layer_stack();
 
@@ -192,7 +192,7 @@ fn projected_second_order_state_matches_direct_scalar_derivatives() {
 
 #[test]
 fn projection_preserves_polarisation() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -209,7 +209,7 @@ fn projection_preserves_polarisation() {
 
 #[test]
 fn projection_preserves_mapping_and_constraint() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain_first(
@@ -232,7 +232,7 @@ fn projection_preserves_mapping_and_constraint() {
 
 #[test]
 fn invalid_state_projection_reports_batch_shape() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -249,7 +249,7 @@ fn invalid_state_projection_reports_batch_shape() {
 
 #[test]
 fn external_power_commutes_with_point_projection() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -288,7 +288,7 @@ fn external_power_commutes_with_point_projection() {
 
 #[test]
 fn interface_power_commutes_with_point_projection() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(
@@ -333,7 +333,7 @@ fn interface_power_commutes_with_point_projection() {
 
 #[test]
 fn layer_power_commutes_with_point_projection() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let state = evaluator
         .retain(

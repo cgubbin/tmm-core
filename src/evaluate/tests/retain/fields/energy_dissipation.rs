@@ -2,14 +2,14 @@ use approx::assert_relative_eq;
 use ndarray::Array1;
 
 use crate::{
-    FiniteLayerIndex, IncidentSide, Parameter, PlaneWaveEvaluator, Polarisation,
+    FiniteLayerIndex, IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
     backend::{ExteriorContextProvider, scatter2::Scatter2, transfer2::Transfer2},
     spatial::{FieldSampling, LayerSampling},
     test_support::{
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        jet::J0,
+        jet::RealJ0,
         planar::{scalar_real_input, two_layer_stack},
         stack::{absorbing_two_layer_stack, two_layer_stack_with_lossless_first_layer},
     },
@@ -69,12 +69,12 @@ fn assert_total_is_sum(
 macro_rules! for_each_backend {
     ($evaluator:ident, $body:block) => {{
         {
-            let $evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+            let $evaluator = RealAxisEvaluator::new(Scatter2::new());
             $body
         }
 
         {
-            let $evaluator = PlaneWaveEvaluator::new(Transfer2::new());
+            let $evaluator = RealAxisEvaluator::new(Transfer2::new());
             $body
         }
     }};
@@ -442,7 +442,7 @@ fn transfer_and_scatter_agree_on_energy_density() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter = RealAxisEvaluator::new(Scatter2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -451,7 +451,7 @@ fn transfer_and_scatter_agree_on_energy_density() {
                 )
                 .unwrap();
 
-            let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer = RealAxisEvaluator::new(Transfer2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -531,7 +531,7 @@ fn transfer_and_scatter_agree_on_dissipation_density() {
         Polarisation::TransverseMagnetic,
     ] {
         for side in [IncidentSide::Left, IncidentSide::Right] {
-            let scatter = PlaneWaveEvaluator::new(Scatter2::new())
+            let scatter = RealAxisEvaluator::new(Scatter2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -540,7 +540,7 @@ fn transfer_and_scatter_agree_on_dissipation_density() {
                 )
                 .unwrap();
 
-            let transfer = PlaneWaveEvaluator::new(Transfer2::new())
+            let transfer = RealAxisEvaluator::new(Transfer2::new())
                 .retain_second(
                     scalar_real_input(2.5, 0.31),
                     &stack,
@@ -625,7 +625,7 @@ fn integrate_uniform_density(density: &[f64], thickness: f64) -> f64 {
 }
 
 fn physical_to_normalised_power_scale(
-    exterior: &impl ExteriorContextProvider<Algebra = J0>,
+    exterior: &impl ExteriorContextProvider<Algebra = RealJ0>,
     side: IncidentSide,
 ) -> f64 {
     let k0 = exterior.vacuum_angular_wavenumber().value()[()].re;
@@ -661,7 +661,7 @@ fn dense_layer_sampling(layer_count: usize) -> FieldSampling<f64> {
 
 #[test]
 fn interface_power_matches_cartesian_poynting_flux() {
-    let evaluator = PlaneWaveEvaluator::new(Scatter2::new());
+    let evaluator = RealAxisEvaluator::new(Scatter2::new());
 
     let stack = absorbing_two_layer_stack();
 

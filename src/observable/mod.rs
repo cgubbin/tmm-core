@@ -48,7 +48,7 @@ pub use boundary::{
     BoundaryProjectionError, BoundaryState, BoundaryWaves, LayerBoundaries, LayerBoundaryStates,
     LayerBoundaryWaves,
 };
-pub use determinant::PlaneWaveDeterminant;
+pub use determinant::{PlaneWaveDeterminant, ProjectPlaneWaveModeDeterminant};
 pub use field::{
     ConstitutiveFields, ElectromagneticDissipation, ElectromagneticEnergy, ElectromagneticFields,
     ElectromagneticIntensities, FieldIndexError, FieldReconstructionError,
@@ -67,7 +67,6 @@ pub use plane_wave::{PlaneWaveAmplitudes, PlaneWavePower};
 pub(crate) use boundary::{
     project_layer_boundary_states, project_layer_boundary_waves, project_layer_mode_waves,
 };
-pub(crate) use determinant::ProjectPlaneWaveModeDeterminant;
 pub(crate) use field::{
     ConstitutiveFieldReconstructionError, ConstitutiveSamplingContext, ConstitutiveSamplingError,
     FieldSamplingContext, IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,

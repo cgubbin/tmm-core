@@ -23,23 +23,25 @@ mod waves;
 #[cfg(test)]
 mod test_support;
 
-pub use algebra::{ModeJet1, ScalarAlgebra, SeedJet};
+pub use algebra::{Jet, ModeJet1, ScalarAlgebra, SeedJet};
 
-pub use backend::ExteriorWavevectors;
+pub use backend::{Backend, ExteriorWavevectors, Scatter2, Transfer2};
 
 pub use domain::{ComplexPlane, RealAxis};
 
 pub use input::{
-    CanonicalCoordinates, CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples,
-    Coordinates, InPlaneCoordinate, IncidentSide, Polarisation, SpectralCoordinate,
+    CanonicalCoordinates, CanonicalStack, CoordinateGrid, CoordinateInput, CoordinateReference,
+    CoordinateSamples, Coordinates, InPlaneCoordinate, IncidentSide, Polarisation,
+    SpectralCoordinate, StackCompileError, StackThicknessJet, compile_canonical_constant_stack,
 };
 
 pub use evaluate::{ComplexPlaneEvaluator, RealAxisEvaluator};
 
 pub use material::{
-    Constant, DerivativeOrder, DifferentiableMaterial, DifferentiableMeromorphicMaterial,
-    EvaluateDifferentiableMaterial, EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial,
-    EvaluateMeromorphicMaterial, Material, MeromorphicMaterial, Sampled, Scalar,
+    AnalyticalMaterialHandle, Constant, ConstitutiveEvaluator, ConstitutiveLift, DerivativeOrder,
+    DifferentiableMaterial, DifferentiableMeromorphicMaterial, EvaluateDifferentiableMaterial,
+    EvaluateDifferentiableMeromorphicMaterial, EvaluateMaterial, EvaluateMeromorphicMaterial,
+    Material, MeromorphicMaterial, Sampled, Scalar,
 };
 
 pub use field::VectorField;
@@ -48,6 +50,7 @@ pub use observable::{
     ConstitutiveFields, DirectedPower, ElectromagneticDissipation, ElectromagneticEnergy,
     ElectromagneticFields, ElectromagneticIntensities, FieldIndexError, InterfacePower,
     LayerDissipation, LayerPower, PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower,
+    ProjectPlaneWaveModeDeterminant,
 };
 pub use parameter::{FiniteLayerIndex, Parameter};
 pub use response::Response;

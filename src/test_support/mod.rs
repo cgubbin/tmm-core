@@ -1,5 +1,4 @@
 pub(crate) mod assertions;
-pub(crate) mod coordinates;
 pub(crate) mod expected;
 pub(crate) mod finite_difference;
 pub(crate) mod jet;

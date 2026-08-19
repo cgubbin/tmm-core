@@ -231,15 +231,15 @@ mod interface_tests {
                 SECOND_DIFFERENCE_STEP, central_first_difference, central_second_difference,
             },
             jet::{
-                J0, P, constant_first, constant_second, independent_first, independent_second,
-                zero_jet_from_real_value,
+                P, RealJ0, constant_first, constant_second, independent_first, independent_second,
+                real_j0_from_real,
             },
         },
     };
 
     use ndarray::{arr0, array};
 
-    fn assert_entries_close(actual: &Scatter2Entries<J0>, expected: &Scatter2Entries<J0>) {
+    fn assert_entries_close(actual: &Scatter2Entries<RealJ0>, expected: &Scatter2Entries<RealJ0>) {
         assert_array_close(actual.s11.value(), expected.s11.value(), TOLERANCE);
         assert_array_close(actual.s12.value(), expected.s12.value(), TOLERANCE);
         assert_array_close(actual.s21.value(), expected.s21.value(), TOLERANCE);
@@ -248,10 +248,7 @@ mod interface_tests {
 
     #[test]
     fn identical_media_are_transparent() {
-        let interface = interface(
-            &zero_jet_from_real_value(2.5),
-            &zero_jet_from_real_value(2.5),
-        );
+        let interface = interface(&real_j0_from_real(2.5), &real_j0_from_real(2.5));
 
         assert_complex_close(interface.s11.value()[()], c(0.0), TOLERANCE);
         assert_complex_close(interface.s12.value()[()], c(1.0), TOLERANCE);
@@ -264,7 +261,7 @@ mod interface_tests {
         let yl = 2.0;
         let yr = 5.0;
 
-        let result = interface(&zero_jet_from_real_value(yl), &zero_jet_from_real_value(yr));
+        let result = interface(&real_j0_from_real(yl), &real_j0_from_real(yr));
 
         let denominator = yl + yr;
 
@@ -295,15 +292,9 @@ mod interface_tests {
 
     #[test]
     fn reflection_changes_sign_when_media_are_swapped() {
-        let left = interface(
-            &zero_jet_from_real_value(2.0),
-            &zero_jet_from_real_value(5.0),
-        );
+        let left = interface(&real_j0_from_real(2.0), &real_j0_from_real(5.0));
 
-        let right = interface(
-            &zero_jet_from_real_value(5.0),
-            &zero_jet_from_real_value(2.0),
-        );
+        let right = interface(&real_j0_from_real(5.0), &real_j0_from_real(2.0));
 
         assert_complex_close(right.s11.value()[()], -left.s11.value()[()], TOLERANCE);
 
@@ -315,7 +306,7 @@ mod interface_tests {
         let yl = 2.0;
         let yr = 5.0;
 
-        let result = interface(&zero_jet_from_real_value(yl), &zero_jet_from_real_value(yr));
+        let result = interface(&real_j0_from_real(yl), &real_j0_from_real(yr));
 
         let lhs = result.s12.value()[()] * c(yl);
 
@@ -707,7 +698,7 @@ mod propagation_tests {
         },
         jet::{
             constant_first, constant_second, independent_first, independent_second,
-            quadratic_second, zero_jet_from_array, zero_jet_from_value,
+            quadratic_second, real_j0, real_j0_from_array,
         },
     };
 
@@ -715,7 +706,7 @@ mod propagation_tests {
 
     #[test]
     fn zero_exponent_is_transparent() {
-        let exponent = zero_jet_from_value(c(0.0));
+        let exponent = real_j0(c(0.0));
 
         let result = propagation_from_exponent(exponent);
 
@@ -728,7 +719,7 @@ mod propagation_tests {
     #[test]
     fn transmission_is_exponential_of_exponent() {
         let value = C::new(0.3, -0.2);
-        let exponent = zero_jet_from_value(value);
+        let exponent = real_j0(value);
 
         let result = propagation_from_exponent(exponent.clone());
         let expected = value.exp();
@@ -742,7 +733,7 @@ mod propagation_tests {
     #[test]
     fn real_negative_exponent_produces_attenuation() {
         let value = C::new(-0.7, 0.0);
-        let exponent = zero_jet_from_value(value);
+        let exponent = real_j0(value);
 
         let result = propagation_from_exponent(exponent);
         let expected = value.exp();
@@ -756,7 +747,7 @@ mod propagation_tests {
     #[test]
     fn imaginary_exponent_produces_phase_only_propagation() {
         let value = C::new(0.0, 0.8);
-        let exponent = zero_jet_from_value(value);
+        let exponent = real_j0(value);
 
         let result = propagation_from_exponent(exponent);
         let expected = value.exp();
@@ -773,7 +764,7 @@ mod propagation_tests {
     #[test]
     fn operates_pointwise_on_arrays() {
         let values = array![C::new(0.0, 0.0), C::new(-0.2, 0.4), C::new(0.1, -0.7),];
-        let exponents = zero_jet_from_array(values.clone());
+        let exponents = real_j0_from_array(values.clone());
 
         let result = propagation_from_exponent(exponents);
 
@@ -1012,16 +1003,19 @@ mod accumulate_tests {
         test_support::{
             TOLERANCE,
             assertions::assert_array_close,
-            coordinates::test_coordinates,
-            jet::J0,
-            stack::{empty_stack, single_layer_stack, stack_with_layers, two_layer_stack},
+            jet::RealJ0,
+            planar::real_canonical_coordinates,
+            stack::{
+                canonical_empty_stack, canonical_single_layer_stack, canonical_stack_with_layers,
+                canonical_two_layer_stack,
+            },
         },
     };
 
     fn exterior_wavevectors(
-        coordinates: &CanonicalCoordinates<J0>,
-        stack: &CanonicalStack<Constant<f64>, J0>,
-    ) -> ExteriorWavevectors<J0> {
+        coordinates: &CanonicalCoordinates<RealJ0>,
+        stack: &CanonicalStack<Constant<f64>, RealJ0>,
+    ) -> ExteriorWavevectors<RealJ0> {
         evaluate_exterior_wavevectors::<RealAxis, _, _>(
             coordinates,
             stack.left_exterior(),
@@ -1029,12 +1023,16 @@ mod accumulate_tests {
         )
     }
 
+    fn test_coordinates() -> CanonicalCoordinates<RealJ0> {
+        real_canonical_coordinates(1.0, 0.5)
+    }
+
     #[test]
     fn response_only_does_not_retain_components() {
         let backend = Scatter2::new();
 
         let coordinates = test_coordinates();
-        let stack = empty_stack();
+        let stack = canonical_empty_stack();
 
         let workspace = backend.accumulate::<_, RealAxis, _>(
             &coordinates,
@@ -1050,11 +1048,11 @@ mod accumulate_tests {
     }
 
     #[test]
-    fn internal_fields_retains_empty_stack_interface() {
+    fn internal_fields_retains_canonical_empty_stack_interface() {
         let backend = Scatter2::new();
 
         let coordinates = test_coordinates();
-        let stack = empty_stack();
+        let stack = canonical_empty_stack();
 
         let workspace = backend.accumulate::<_, RealAxis, _>(
             &coordinates,
@@ -1077,7 +1075,7 @@ mod accumulate_tests {
         let backend = Scatter2::new();
 
         let coordinates = test_coordinates();
-        let stack = single_layer_stack();
+        let stack = canonical_single_layer_stack();
 
         let workspace = backend.accumulate::<_, RealAxis, _>(
             &coordinates,
@@ -1109,7 +1107,7 @@ mod accumulate_tests {
         let backend = Scatter2::new();
 
         let coordinates = test_coordinates();
-        let stack = two_layer_stack();
+        let stack = canonical_two_layer_stack();
 
         let workspace = backend.accumulate::<_, RealAxis, _>(
             &coordinates,
@@ -1141,7 +1139,7 @@ mod accumulate_tests {
 
         for layer_count in 0..5 {
             let coordinates = test_coordinates();
-            let stack = stack_with_layers(layer_count);
+            let stack = canonical_stack_with_layers(layer_count);
 
             let workspace = backend.accumulate::<_, RealAxis, _>(
                 &coordinates,
@@ -1162,11 +1160,11 @@ mod accumulate_tests {
     }
 
     #[test]
-    fn empty_stack_uses_supplied_exterior_wavevector_branches() {
+    fn canonical_empty_stack_uses_supplied_exterior_wavevector_branches() {
         let backend = Scatter2::new();
 
         let coordinates = test_coordinates();
-        let stack = empty_stack();
+        let stack = canonical_empty_stack();
 
         /*
          * Obtain the ordinary branch-selected exterior wavevectors, then reverse

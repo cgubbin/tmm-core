@@ -1,9 +1,9 @@
 use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, Polarisation,
+    ComplexScalar,
     algebra::ScalarAlgebra,
-    backend::{IsotropicLayerQuantities, isotropic::IsotropicMediumQuantities},
+    backend::isotropic::IsotropicMediumQuantities,
     input::CanonicalCoordinates,
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -76,6 +76,7 @@ mod tests {
     use crate::{
         Polarisation,
         algebra::{ArrayJet0, RealParameter},
+        backend::IsotropicLayerQuantities,
         domain::RealAxis,
         input::CanonicalCoordinates,
         material::Constant,
