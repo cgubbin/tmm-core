@@ -202,7 +202,9 @@ mod tests {
 
     use crate::{
         algebra::{ArrayJet0, Jet0, RealParameter},
-        observable::{BoundaryWaves, layer::integrate_hermitian_wave_products},
+        observable::{
+            BoundaryWaves, layer::integration::wave_products::integrate_hermitian_wave_products,
+        },
         test_support::{C, TOLERANCE, assertions::assert_complex_close},
     };
 

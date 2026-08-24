@@ -21,7 +21,7 @@ mod bilinear_state_products;
 mod field_norm;
 mod hermitian_field_overlap;
 mod hermitian_state_products;
-mod wave_products;
+pub(crate) mod wave_products;
 
 pub(crate) use wave_products::{
     IntegratedWaveProducts, integrate_bilinear_cross_wave_products,

@@ -77,7 +77,7 @@ pub(crate) use interface::{
     exterior_boundary_waves, project_layer_admittances,
 };
 pub(crate) use layer::{
-    BilinearLayerOverlap, BilinearLayerOverlapInput, HermitianLayerOverlap,
+    BilinearLayerOverlap, HermitianLayerOverlap,
     HermitianLayerOverlapInput, LayerOverlapInput, LayerOverlapOperand, OverlapError,
 };
 pub(crate) use layer::{LayerIntegrationInput, assemble_layer_integration_inputs};

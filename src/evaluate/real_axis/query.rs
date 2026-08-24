@@ -7,7 +7,7 @@ use crate::{
     backend::PlaneWaveSolutionSource,
     differential::IntoDifferentialResponse,
     input::JetMapping,
-    observable::{ProjectAmplitudes, ProjectPlaneWaveModeDeterminant, ProjectPower},
+    observable::{ProjectAmplitudes, ProjectPower},
 };
 
 use super::{RealAxisResult, RealAxisState};

@@ -110,7 +110,8 @@ pub trait ScalarAlgebra: Clone + Sized + std::fmt::Debug + Jet {
 ///
 /// This is separated from [`ScalarAlgebra`] because its implementation
 /// requires additional floating-point capabilities from the real scalar type.
-pub(crate) trait ScalarAlgebraExpRelExt: ScalarAlgebra {
+#[doc(hidden)]
+pub trait ScalarAlgebraExpRelExt: ScalarAlgebra {
     fn exprel(&self) -> Self;
 }
 
@@ -926,10 +927,9 @@ where
 mod tests {
     use super::*;
 
-    use nalgebra::ComplexField;
     use ndarray::{Ix0, arr0};
     use num_complex::Complex64;
-    use num_traits::{One, Zero};
+    use num_traits::Zero;
 
     use crate::{
         algebra::{

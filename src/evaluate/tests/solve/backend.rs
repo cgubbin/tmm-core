@@ -2,7 +2,7 @@ use ndarray::{ArrayBase, Ix0, OwnedRepr, arr0};
 
 use crate::{
     CanonicalCoordinates, ComplexPlaneEvaluator, FiniteLayerIndex, IncidentSide, Parameter,
-    PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower, Polarisation, RealAxisEvaluator,
+    PlaneWaveAmplitudes, PlaneWavePower, Polarisation, RealAxisEvaluator,
     backend::{Scatter2, Transfer2},
     test_support::{
         C,

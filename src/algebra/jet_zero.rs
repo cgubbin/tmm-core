@@ -26,7 +26,7 @@ use crate::algebra::{JetMultiplyByScalar, exprel};
 
 use super::{
     HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetHermitianProduct, JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike,
+    JetHermitianProduct, JetRealPart, JetReciprocal, JetScaleBy,
     RealParameter,
 };
 

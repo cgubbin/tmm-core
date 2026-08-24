@@ -1,6 +1,6 @@
 use crate::{
     IncidentSide, Polarisation, RealAxisEvaluator,
-    evaluate::real_axis::RealAxisExternalQueries,
+    evaluate::real_axis::query::RealAxisExternalQueries,
     test_support::{
         TOLERANCE,
         assertions::{

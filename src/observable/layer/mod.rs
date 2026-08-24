@@ -23,7 +23,7 @@ mod aggregate;
 mod confinement;
 mod dissipation;
 mod energy;
-mod integration;
+pub(crate) mod integration;
 mod overlap;
 mod participation;
 mod power;
@@ -40,13 +40,11 @@ pub use participation::{LayerParticipation, LayerParticipationError};
 pub use power::LayerPower;
 pub use project::LayerProjectionError;
 
-pub(crate) use integration::{
-    IntegratedHermitianCrossStateProducts, integrate_hermitian_wave_products,
-};
+pub(crate) use integration::IntegratedHermitianCrossStateProducts;
 pub(crate) use overlap::OverlapError;
 pub(crate) use overlap::{
-    BilinearLayerOverlap, BilinearLayerOverlapInput, HermitianLayerOverlap,
-    HermitianLayerOverlapInput, LayerOverlapInput, LayerOverlapOperand,
+    BilinearLayerOverlap, HermitianLayerOverlap, HermitianLayerOverlapInput, LayerOverlapInput,
+    LayerOverlapOperand,
 };
 pub(crate) use project::{LayerIntegrationInput, assemble_layer_integration_inputs};
 

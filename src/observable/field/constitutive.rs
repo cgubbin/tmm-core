@@ -409,7 +409,7 @@ mod brillouin_tests {
     use num_complex::Complex64;
 
     use crate::{
-        algebra::{ArrayJet0, ArrayJet1, Jet, Jet0, Jet1, RealParameter},
+        algebra::{ArrayJet0, ArrayJet1, Jet0, Jet1, RealParameter},
         observable::field::constitutive::IsotropicConstitutiveSpectralFirst,
         test_support::{TOLERANCE, assertions::assert_complex_close},
     };

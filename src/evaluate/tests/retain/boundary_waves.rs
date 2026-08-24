@@ -13,7 +13,7 @@ use crate::{
         },
     },
     derivative_parts::IntoValue,
-    evaluate::{RealAxisEvaluator, real_axis::RealAxisExternalQueries},
+    evaluate::{RealAxisEvaluator, real_axis::query::RealAxisExternalQueries},
     input::{CanonicalCoordinates, IncidentSide, Polarisation},
     observable::LayerBoundaryWaves,
     parameter::{FiniteLayerIndex, Parameter},

@@ -12,7 +12,7 @@ use crate::{
     input::{CanonicalStack, JetMapping},
     material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
-        AggregateBilinearNormalization, ConstitutiveSamplingContext, ConstitutiveSamplingError,
+        ConstitutiveSamplingContext, ConstitutiveSamplingError,
         IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
         ProjectPlaneWaveModeDeterminant,
     },

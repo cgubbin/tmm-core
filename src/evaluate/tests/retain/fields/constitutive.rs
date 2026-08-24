@@ -1,5 +1,5 @@
 use lamina_units::Length;
-use ndarray::{Array1, Ix0, Ix1, arr0};
+use ndarray::{Array1, Ix1, arr0};
 use num_complex::Complex64;
 
 use crate::{

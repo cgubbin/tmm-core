@@ -258,7 +258,6 @@ impl<A> ConstitutiveSequences<A> {
 #[cfg(test)]
 mod tests {
     use lamina_units::Length;
-    use ndarray::Ix1;
     use num_complex::Complex64;
 
     use crate::{

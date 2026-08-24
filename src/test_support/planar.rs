@@ -1,16 +1,15 @@
 //! Shared planar-system fixtures for evaluator tests.
 
 use lamina_units::{InverseLengthUnit, Length};
-use ndarray::{Dimension, Ix0, arr0};
+use ndarray::Dimension;
 use num_complex::Complex64;
 
 use crate::{
     ComplexPlane, ComplexScalar, Constant, ConstitutiveEvaluator, ConstitutiveLift,
     CoordinateInput, Coordinates, ExteriorWavevectors, InPlaneCoordinate, Polarisation,
     ScalarAlgebra, SpectralCoordinate, Stack,
-    algebra::{ArrayJet0, Jet0, RealParameter},
     backend::evaluate_exterior_wavevectors,
-    input::canonical::{CanonicalCoordinates, CanonicalLayer, CanonicalStack},
+    input::canonical::{CanonicalCoordinates, CanonicalStack},
     stack::Layer,
     test_support::jet::{HoloJ0, RealJ0, holo_j0, real_j0},
 };

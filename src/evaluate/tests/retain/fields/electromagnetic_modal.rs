@@ -1,13 +1,9 @@
 use lamina_units::Length;
-use ndarray::{ArrayBase, Dimension, Ix0, Ix1, OwnedRepr, arr0};
-use num_complex::Complex64;
+use ndarray::{ArrayBase, Dimension, Ix1, OwnedRepr, arr0};
 
 use crate::{
-    ComplexPlane, ComplexPlaneEvaluator, ComplexScalar, ElectromagneticFields, ExteriorWavevectors,
-    Polarisation,
-    algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate2, HolomorphicParameter, ScalarAlgebra,
-    },
+    ComplexPlane, ComplexPlaneEvaluator, ComplexScalar, ExteriorWavevectors, Polarisation,
+    algebra::ScalarAlgebra,
     backend::{
         ExteriorContextProvider, ModalSolutionSource, ReconstructExteriorModeWaves,
         ReconstructLayerModeWaves, RetainedIsotropicLayers, Scatter2, Transfer2,

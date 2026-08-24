@@ -1,8 +1,6 @@
 use crate::{
     ComplexScalar,
-    algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, ScalarAlgebra,
-    },
+    algebra::ScalarAlgebra,
     backend::{
         ExteriorContextProvider, IsotropicLayerQuantities, ModalSolutionSource,
         ModeReconstructionError, PlaneWaveModeCandidate, PlaneWaveSolution,

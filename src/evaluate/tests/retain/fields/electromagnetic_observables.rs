@@ -1,6 +1,6 @@
 use lamina_units::Length;
 use nalgebra::ComplexField;
-use ndarray::{Array, Array1, Dimension, Ix1};
+use ndarray::{Array1, Ix1};
 use num_complex::Complex64;
 
 use crate::{
@@ -15,7 +15,6 @@ use crate::{
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        jet::RealJ0,
         planar::{scalar_real_input, two_layer_stack},
     },
 };

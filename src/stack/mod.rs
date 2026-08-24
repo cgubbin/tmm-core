@@ -6,7 +6,7 @@ pub use layer::Layer;
 
 use either::Either;
 use nalgebra::ComplexField;
-use num_traits::{Float, FromPrimitive};
+use num_traits::Float;
 
 use crate::{
     ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, EvaluateMaterial,

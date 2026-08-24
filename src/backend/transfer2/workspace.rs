@@ -612,7 +612,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ComplexPlaneEvaluator, Constant, CoordinateInput, Polarisation, RealAxis,
+        ComplexPlaneEvaluator, Constant, Polarisation, RealAxis,
         algebra::{ArrayJet0, RealParameter},
         backend::{ExteriorWavevectors, RunMode, Transfer2},
         input::{CanonicalCoordinates, CanonicalStack},

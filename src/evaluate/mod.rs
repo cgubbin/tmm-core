@@ -24,6 +24,5 @@ mod real_axis;
 mod tests;
 
 pub use complex_plane::ComplexPlaneEvaluator;
-pub(crate) use complex_plane::ComplexPlaneState;
 pub use error::{RealAxisEvaluationError, SolveRequestError};
 pub use real_axis::RealAxisEvaluator;

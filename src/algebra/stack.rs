@@ -22,7 +22,8 @@ use crate::{
 ///
 /// An empty input returns `Ok(None)`. Shape incompatibilities are reported as
 /// [`ndarray::ShapeError`].
-pub(crate) trait JetStack: Sized + Jet
+#[doc(hidden)]
+pub trait JetStack: Sized + Jet
 where
     Self::Dimension: Dimension,
 {

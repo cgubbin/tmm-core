@@ -107,9 +107,7 @@ mod tests {
         algebra::{
             ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
         },
-        parameter::{
-            BivariateMapping, DerivativeMapping, DirectionalMapping, Parameter, ValueMapping,
-        },
+        parameter::{DerivativeMapping, Parameter, ValueMapping},
     };
 
     type C = Complex64;
