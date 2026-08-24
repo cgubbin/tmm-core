@@ -312,6 +312,7 @@ impl<A> ExteriorContextProvider for Transfer2ExteriorContext<A> {
 }
 
 impl<J> Transfer2ExteriorContext<J> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         left_admittance: J,
         right_admittance: J,

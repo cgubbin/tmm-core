@@ -103,13 +103,13 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
 
                     let admittance = quantities.admittance();
 
-                    let state = waves.into_state(&admittance);
+                    let state = waves.into_state(admittance);
 
                     project_isotropic_field_components(
                         state,
                         quantities.polarisation(),
                         quantities.kappa(),
-                        &admittance,
+                        admittance,
                         k0,
                         beta,
                     )

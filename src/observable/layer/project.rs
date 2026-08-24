@@ -177,7 +177,7 @@ impl<A> LayerIntegrationInput<A> {
 
         let admittance = quantities.admittance();
 
-        let state_products = project_integrated_hermitian_state_products(&products, &admittance);
+        let state_products = project_integrated_hermitian_state_products(&products, admittance);
 
         IntegratedLayerData::new(state_products, quantities)
     }
@@ -196,7 +196,7 @@ impl<A> LayerIntegrationInput<A> {
 
         let admittance = quantities.admittance();
 
-        let state_products = project_integrated_bilinear_state_products(&products, &admittance);
+        let state_products = project_integrated_bilinear_state_products(&products, admittance);
 
         IntegratedLayerData::new(state_products, quantities)
     }

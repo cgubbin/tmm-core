@@ -284,8 +284,8 @@ impl<A> HermitianLayerOverlapInput<A> {
 
         let state = project_integrated_hermitian_cross_state_products(
             &products,
-            &left_admittance,
-            &right_admittance,
+            left_admittance,
+            right_admittance,
         );
 
         let field = project_integrated_hermitian_field_overlap(

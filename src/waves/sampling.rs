@@ -140,28 +140,28 @@ impl<'a, W, A> WaveSamplingContext<'a, W, A> {
         Ok(BoundaryWaveSolution::new(exterior, layers))
     }
 
-    pub(crate) fn propagate_sampling(
-        &self,
-        incident_side: IncidentSide,
-        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
-    ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
-    where
-        A: ScalarAlgebra,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        W: ReconstructExteriorBoundaryWaves<Algebra = A>
-            + ReconstructLayerBoundaryWaves<Algebra = A>
-            + RetainedIsotropicLayers<Algebra = A>
-            + PlaneWaveSolutionSource,
-        W::Entries: ProjectAmplitudes,
-        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
-        <A::Scalar as ComplexField>::RealField: Copy,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
-    {
-        let waves = self.driven_boundary_waves(incident_side)?;
+    // pub(crate) fn propagate_sampling(
+    //     &self,
+    //     incident_side: IncidentSide,
+    //     sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
+    // ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
+    // where
+    //     A: ScalarAlgebra,
+    //     A::Scalar: ComplexScalar,
+    //     A::Dimension: Dimension,
+    //     W: ReconstructExteriorBoundaryWaves<Algebra = A>
+    //         + ReconstructLayerBoundaryWaves<Algebra = A>
+    //         + RetainedIsotropicLayers<Algebra = A>
+    //         + PlaneWaveSolutionSource,
+    //     W::Entries: ProjectAmplitudes,
+    //     <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
+    //     <A::Scalar as ComplexField>::RealField: Copy,
+    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
+    // {
+    //     let waves = self.driven_boundary_waves(incident_side)?;
 
-        self.propagate_reconstructed(&waves, sampling)
-    }
+    //     self.propagate_reconstructed(&waves, sampling)
+    // }
 
     pub(crate) fn propagate_reconstructed(
         &self,

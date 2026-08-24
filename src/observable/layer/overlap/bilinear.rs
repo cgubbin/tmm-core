@@ -358,8 +358,8 @@ impl<A> BilinearLayerOverlapInput<A> {
 
         let state = project_integrated_bilinear_cross_state_products(
             &products,
-            &left_admittance,
-            &right_admittance,
+            left_admittance,
+            right_admittance,
         );
 
         let field = project_integrated_bilinear_field_overlap(

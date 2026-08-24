@@ -220,6 +220,7 @@ impl<A> ExteriorContextProvider for Scatter2ExteriorContext<A> {
 }
 
 impl<J> Scatter2ExteriorContext<J> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         left_admittance: J,
         right_admittance: J,
