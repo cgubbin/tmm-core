@@ -89,7 +89,7 @@ where
         &self,
         sampling: &ResolvedFieldSampling<R>,
     ) -> Result<IsotropicConstitutiveParameters<A::Stacked>, ConstitutiveSamplingError> {
-        let solution = self.workspace.solution();
+        let solution = self.workspace().solution();
         let exterior = solution.context();
 
         let mut sampled = ConstitutiveSequences::with_capacity(sampling.len());
@@ -258,7 +258,6 @@ impl<A> ConstitutiveSequences<A> {
 #[cfg(test)]
 mod tests {
     use lamina_units::Length;
-    use num_complex::Complex64;
 
     use crate::{
         FiniteLayerIndex, Parameter, Polarisation, RealAxisEvaluator,
@@ -275,8 +274,6 @@ mod tests {
     };
 
     use super::{ConstitutiveSamplingContext, ConstitutiveSamplingError};
-
-    type C = Complex64;
 
     /*
      * Deliberately use a non-geometric order and repeat layer 0.

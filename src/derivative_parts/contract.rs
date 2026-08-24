@@ -242,8 +242,11 @@ mod tests {
 
         let doubled = parts.contract_direction(BivariateDirection::new(2.0, 4.0));
 
-        assert_eq!(unit_scaled.first(), &arr0(8.0));
-        assert_eq!(doubled.first(), &arr0(16.0));
+        let (_, unit_scaled_first) = unit_scaled.into_parts();
+        let (_, doubled_first) = doubled.into_parts();
+
+        assert_eq!(unit_scaled_first, &arr0(8.0));
+        assert_eq!(doubled_first, &arr0(16.0));
     }
 
     #[test]

@@ -31,10 +31,6 @@ impl<A> IntegratedHermitianFieldOverlap<A> {
     pub(crate) fn magnetic(&self) -> &A {
         &self.magnetic
     }
-
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.electric, self.magnetic)
-    }
 }
 
 pub(crate) fn project_integrated_hermitian_field_overlap<A>(
@@ -186,7 +182,6 @@ mod tests {
 
         assert_eq!(overlap.electric(), &1);
         assert_eq!(overlap.magnetic(), &2);
-        assert_eq!(overlap.into_parts(), (1, 2));
     }
 
     #[test]

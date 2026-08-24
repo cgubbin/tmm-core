@@ -71,33 +71,14 @@ impl<A> IntegratedHermitianCrossStateProducts<A> {
         &self.secondary_secondary
     }
 
+    #[cfg(test)]
     pub(crate) fn field_secondary(&self) -> &A {
         &self.field_secondary
     }
 
+    #[cfg(test)]
     pub(crate) fn secondary_field(&self) -> &A {
         &self.secondary_field
-    }
-
-    pub(crate) fn into_parts(self) -> (A, A, A, A) {
-        (
-            self.field_field,
-            self.secondary_secondary,
-            self.field_secondary,
-            self.secondary_field,
-        )
-    }
-
-    pub(crate) fn map<B>(
-        self,
-        mut map: impl FnMut(A) -> B,
-    ) -> IntegratedHermitianCrossStateProducts<B> {
-        IntegratedHermitianCrossStateProducts::new(
-            map(self.field_field),
-            map(self.secondary_secondary),
-            map(self.field_secondary),
-            map(self.secondary_field),
-        )
     }
 }
 
@@ -250,25 +231,6 @@ mod tests {
         assert_eq!(products.secondary_secondary(), &2,);
         assert_eq!(products.field_secondary(), &3);
         assert_eq!(products.secondary_field(), &4);
-    }
-
-    #[test]
-    fn into_parts_preserves_component_order() {
-        let products = IntegratedHermitianCrossStateProducts::new(1, 2, 3, 4);
-
-        assert_eq!(products.into_parts(), (1, 2, 3, 4),);
-    }
-
-    #[test]
-    fn map_transforms_every_component() {
-        let products = IntegratedHermitianCrossStateProducts::new(1, 2, 3, 4);
-
-        let mapped = products.map(|value| value * 10);
-
-        assert_eq!(mapped.field_field(), &10);
-        assert_eq!(mapped.secondary_secondary(), &20,);
-        assert_eq!(mapped.field_secondary(), &30,);
-        assert_eq!(mapped.secondary_field(), &40,);
     }
 
     #[test]

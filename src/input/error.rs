@@ -17,30 +17,3 @@ pub enum PlaneWaveInputError {
     #[error("an incident-side reference is only valid for incident-angle coordinates")]
     UnexpectedIncidentReference,
 }
-
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-pub enum SpectralTransformError {
-    #[error("vacuum wavelength must be strictly positive")]
-    NonPositiveWavelength,
-
-    #[error("spectral transformation produced a non-finite value")]
-    NonFiniteResult,
-
-    #[error("spectral coordinate is outside its supported domain")]
-    OutsideDomain,
-}
-
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-pub enum InPlaneTransformError {
-    #[error("incident-angle coordinates require an incident refractive index")]
-    MissingIncidentRefractiveIndex,
-
-    #[error("incident refractive index is invalid for this transformation")]
-    InvalidIncidentRefractiveIndex,
-
-    #[error("in-plane transformation produced a non-finite value")]
-    NonFiniteResult,
-
-    #[error("in-plane coordinate is outside its supported domain")]
-    OutsideDomain,
-}

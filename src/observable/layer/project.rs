@@ -71,14 +71,17 @@ impl<A> LayerIntegrationInput<A> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn waves(&self) -> &BoundaryWaves<A> {
         &self.waves
     }
 
+    #[cfg(test)]
     pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
         &self.quantities
     }
 
+    #[cfg(test)]
     pub(crate) fn thickness(&self) -> &A {
         &self.thickness
     }
@@ -104,10 +107,12 @@ impl<S, A> IntegratedLayerData<S, A> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn state_products(&self) -> &S {
         &self.state_products
     }
 
+    #[cfg(test)]
     pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
         &self.quantities
     }

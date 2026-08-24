@@ -31,21 +31,6 @@ where
             )?,
         })
     }
-
-    /// Return the high-frequency permittivity.
-    pub fn epsilon_infinity(&self) -> R {
-        self.inner.epsilon_infinity()
-    }
-
-    /// Return the plasma wavenumber.
-    pub fn plasma_wavenumber(&self) -> R {
-        self.inner.plasma_wavenumber()
-    }
-
-    /// Return the damping wavenumber.
-    pub fn damping(&self) -> R {
-        self.inner.drude_damping()
-    }
 }
 
 delegate_analytical_material!(Drude);

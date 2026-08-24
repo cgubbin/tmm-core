@@ -24,10 +24,6 @@ impl<T> ValuePart<T> {
         Self { value }
     }
 
-    pub(crate) fn value(&self) -> &T {
-        &self.value
-    }
-
     /// Consume the container and return `value`.
     pub(crate) fn into_inner(self) -> T {
         self.value
@@ -50,14 +46,6 @@ impl<T> DirectionalFirstParts<T> {
     /// Construct directional first-order parts.
     pub(crate) const fn new(value: T, first: T) -> Self {
         Self { value, first }
-    }
-
-    pub(crate) fn value(&self) -> &T {
-        &self.value
-    }
-
-    pub(crate) fn first(&self) -> &T {
-        &self.first
     }
 
     /// Consume the container and return `(value, first)`.
@@ -88,18 +76,6 @@ impl<T> DirectionalSecondParts<T> {
         }
     }
 
-    pub(crate) fn value(&self) -> &T {
-        &self.value
-    }
-
-    pub(crate) fn first(&self) -> &T {
-        &self.first
-    }
-
-    pub(crate) fn second(&self) -> &T {
-        &self.second
-    }
-
     /// Consume the container and return `(value, first, second)`.
     pub(crate) fn into_parts(self) -> (T, T, T) {
         (self.value, self.first, self.second)
@@ -127,18 +103,6 @@ impl<T> BivariateFirstParts<T> {
             axis0,
             axis1,
         }
-    }
-
-    pub(crate) fn value(&self) -> &T {
-        &self.value
-    }
-
-    pub(crate) fn axis0(&self) -> &T {
-        &self.axis0
-    }
-
-    pub(crate) fn axis1(&self) -> &T {
-        &self.axis1
     }
 
     /// Consume the container and return `(value, axis0, axis1)`.
@@ -184,30 +148,6 @@ impl<T> BivariateSecondParts<T> {
             axis0_axis1,
             axis1_axis1,
         }
-    }
-
-    pub(crate) fn value(&self) -> &T {
-        &self.value
-    }
-
-    pub(crate) fn axis0(&self) -> &T {
-        &self.axis0
-    }
-
-    pub(crate) fn axis1(&self) -> &T {
-        &self.axis1
-    }
-
-    pub(crate) fn axis0_axis0(&self) -> &T {
-        &self.axis0_axis0
-    }
-
-    pub(crate) fn axis0_axis1(&self) -> &T {
-        &self.axis0_axis1
-    }
-
-    pub(crate) fn axis1_axis1(&self) -> &T {
-        &self.axis1_axis1
     }
 
     /// Consume the container.

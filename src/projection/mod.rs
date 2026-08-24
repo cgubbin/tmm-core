@@ -39,7 +39,8 @@ pub enum PointProjectionError {
 ///
 /// Implementations recursively project every sampled jet contained by the
 /// structure while preserving non-sampled metadata.
-pub(crate) trait ProjectPoint {
+#[doc(hidden)]
+pub trait ProjectPoint {
     type Dimension: Dimension;
     type Point;
 

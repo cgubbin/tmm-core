@@ -89,24 +89,6 @@ impl<A> IntegratedWaveProducts<A> {
     pub(crate) fn backward_forward(&self) -> &A {
         &self.backward_forward
     }
-
-    pub(crate) fn into_parts(self) -> (A, A, A, A) {
-        (
-            self.forward_forward,
-            self.backward_backward,
-            self.forward_backward,
-            self.backward_forward,
-        )
-    }
-
-    pub(crate) fn map<B>(self, mut map: impl FnMut(A) -> B) -> IntegratedWaveProducts<B> {
-        IntegratedWaveProducts {
-            forward_forward: map(self.forward_forward),
-            backward_backward: map(self.backward_backward),
-            forward_backward: map(self.forward_backward),
-            backward_forward: map(self.backward_forward),
-        }
-    }
 }
 
 /// Analytically integrate `exp(alpha * z)` over `0 <= z <= thickness`.
@@ -452,25 +434,6 @@ mod zero_order_tests {
         assert_eq!(products.backward_backward(), &2);
         assert_eq!(products.forward_backward(), &3);
         assert_eq!(products.backward_forward(), &4);
-    }
-
-    #[test]
-    fn integrated_products_into_parts_preserves_order() {
-        let products = IntegratedWaveProducts::new(1, 2, 3, 4);
-
-        assert_eq!(products.into_parts(), (1, 2, 3, 4),);
-    }
-
-    #[test]
-    fn integrated_products_map_transforms_every_component() {
-        let products = IntegratedWaveProducts::new(1, 2, 3, 4);
-
-        let mapped = products.map(|value| value * 10);
-
-        assert_eq!(mapped.forward_forward(), &10);
-        assert_eq!(mapped.backward_backward(), &20);
-        assert_eq!(mapped.forward_backward(), &30);
-        assert_eq!(mapped.backward_forward(), &40);
     }
 
     #[test]
@@ -1034,10 +997,6 @@ mod derivative_tests {
         )
     }
 
-    fn scalar1_value(value: &A1) -> C {
-        value.value()[()]
-    }
-
     fn scalar1_first(value: &A1) -> C {
         value.first()[()]
     }
@@ -1054,27 +1013,11 @@ mod derivative_tests {
         value.second()[()]
     }
 
-    fn scalar_b1_value(value: &AB1) -> C {
-        value.value()[()]
-    }
-
     fn scalar_b1_axis0(value: &AB1) -> C {
         value.axis0()[()]
     }
 
     fn scalar_b1_axis1(value: &AB1) -> C {
-        value.axis1()[()]
-    }
-
-    fn scalar_b2_value(value: &AB2) -> C {
-        value.value()[()]
-    }
-
-    fn scalar_b2_axis0(value: &AB2) -> C {
-        value.axis0()[()]
-    }
-
-    fn scalar_b2_axis1(value: &AB2) -> C {
         value.axis1()[()]
     }
 

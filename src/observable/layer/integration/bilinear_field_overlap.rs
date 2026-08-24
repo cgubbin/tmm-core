@@ -20,10 +20,6 @@ impl<A> IntegratedBilinearFieldOverlap<A> {
     pub(crate) fn magnetic(&self) -> &A {
         &self.magnetic
     }
-
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.electric, self.magnetic)
-    }
 }
 
 pub(crate) fn project_integrated_bilinear_field_overlap<A>(

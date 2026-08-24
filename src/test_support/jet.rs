@@ -9,17 +9,19 @@ use ndarray::{Array, ArrayBase, Dimension, Ix0, OwnedRepr, arr0};
 pub type P = RealParameter;
 pub type H = HolomorphicParameter;
 
-pub type RealJ0 = ArrayJet0<C, Ix0, RealParameter>;
-pub type HoloJ0 = ArrayJet0<C, Ix0, HolomorphicParameter>;
+pub type RealJ0 = ArrayJet0<C, Ix0, P>;
+pub type HoloJ0 = ArrayJet0<C, Ix0, H>;
 
-pub type RealJ1 = ArrayJet1<C, Ix0, RealParameter>;
-pub type HoloJ1 = ArrayJet1<C, Ix0, HolomorphicParameter>;
+pub type RealJ1 = ArrayJet1<C, Ix0, P>;
+pub type HoloJ1 = ArrayJet1<C, Ix0, H>;
 
-pub type RealJ2 = ArrayJet2<C, Ix0, RealParameter>;
-pub type HoloJ2 = ArrayJet2<C, Ix0, HolomorphicParameter>;
+pub type RealJ2 = ArrayJet2<C, Ix0, P>;
+pub type HoloJ2 = ArrayJet2<C, Ix0, H>;
 
-pub type HoloJB1 = ArrayJetBivariate1<C, Ix0, HolomorphicParameter>;
-pub type HoloJB2 = ArrayJetBivariate2<C, Ix0, HolomorphicParameter>;
+pub type RealJB1 = ArrayJetBivariate1<C, Ix0, P>;
+
+pub type RealJB2 = ArrayJetBivariate2<C, Ix0, P>;
+pub type HoloJB2 = ArrayJetBivariate2<C, Ix0, H>;
 
 pub fn real_j0(value: C) -> RealJ0 {
     ArrayJet0::new(arr0(value))
@@ -30,23 +32,6 @@ pub fn real_j0_from_real(value: f64) -> RealJ0 {
 }
 
 pub fn real_j0_from_array<D>(array: ArrayBase<OwnedRepr<C>, D>) -> ArrayJet0<C, D, RealParameter>
-where
-    D: Dimension,
-{
-    ArrayJet0::new(array)
-}
-
-pub fn holo_j0(value: C) -> HoloJ0 {
-    ArrayJet0::new(arr0(value))
-}
-
-pub fn holo_j0_from_real(value: f64) -> HoloJ0 {
-    holo_j0(c(value))
-}
-
-pub fn holo_j0_from_array<D>(
-    array: ArrayBase<OwnedRepr<C>, D>,
-) -> ArrayJet0<C, D, HolomorphicParameter>
 where
     D: Dimension,
 {

@@ -332,11 +332,9 @@ pub mod material;
 mod observable;
 mod parameter;
 mod projection;
-mod response;
 mod scalar;
 mod spatial;
 pub mod stack;
-mod tensor;
 mod waves;
 
 #[cfg(test)]
@@ -366,13 +364,12 @@ pub use material::{
 pub use field::VectorField;
 
 pub use observable::{
-    ConstitutiveFields, DirectedPower, ElectromagneticDissipation, ElectromagneticEnergy,
-    ElectromagneticFields, ElectromagneticIntensities, FieldIndexError, InterfacePower,
-    LayerDissipation, LayerPower, PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower,
-    ProjectPlaneWaveModeDeterminant,
+    AggregateBilinearNormalization, ConstitutiveFields, DirectedPower, ElectromagneticDissipation,
+    ElectromagneticEnergy, ElectromagneticFields, ElectromagneticIntensities, FieldIndexError,
+    InterfacePower, LayerDissipation, LayerPower, PlaneWaveAmplitudes, PlaneWaveDeterminant,
+    PlaneWavePower, ProjectPlaneWaveModeDeterminant,
 };
 pub use parameter::{FiniteLayerIndex, Parameter};
-pub use response::Response;
 pub use scalar::ComplexScalar;
 
 pub use stack::{

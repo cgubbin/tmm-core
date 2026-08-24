@@ -5,7 +5,7 @@ use crate::{
     observable::{BoundaryState, LayerBoundaries, LayerBoundaryStates},
 };
 
-use super::{InterfaceWaveData, Interfaces};
+use super::Interfaces;
 
 /// Canonical boundary states in the two exterior media.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,24 +107,5 @@ impl<A> LayerBoundaries<LayerBoundaryStates<A>> {
         interfaces.push(InterfaceStates::new(previous_right, right_exterior));
 
         Interfaces::new(interfaces)
-    }
-}
-
-impl<A> Interfaces<InterfaceWaveData<A>> {
-    /// Convert assembled wave data directly into canonical interface states.
-    ///
-    /// This consumes the internal wave data and avoids cloning the directional
-    /// waves solely to construct their states.
-    pub(crate) fn into_states(self) -> Interfaces<InterfaceStates<A>>
-    where
-        A: crate::algebra::ScalarAlgebra,
-        A::Scalar: crate::ComplexScalar,
-        A::Dimension: ndarray::Dimension,
-    {
-        self.map(|interface| {
-            let (left, right) = interface.into_parts();
-
-            InterfaceStates::new(left.into_state(), right.into_state())
-        })
     }
 }

@@ -94,6 +94,7 @@ where
         (self.state, self.incident_side, self.amplitude_scale)
     }
 
+
     fn normalised_boundary_waves(
         &self,
     ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, BoundaryProjectionError>

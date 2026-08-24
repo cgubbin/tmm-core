@@ -221,30 +221,22 @@ mod interface_tests {
 
     use crate::{
         algebra::{ArrayJet0, ArrayJet1, ArrayJet2},
-        backend::scatter2::Scatter2Entries,
         test_support::{
             TOLERANCE,
-            assertions::{assert_array_close, assert_complex_close},
+            assertions::assert_complex_close,
             c,
             finite_difference::{
                 FIRST_DERIVATIVE_TOLERANCE, FIRST_DIFFERENCE_STEP, SECOND_DERIVATIVE_TOLERANCE,
                 SECOND_DIFFERENCE_STEP, central_first_difference, central_second_difference,
             },
             jet::{
-                P, RealJ0, constant_first, constant_second, independent_first, independent_second,
+                P, constant_first, constant_second, independent_first, independent_second,
                 real_j0_from_real,
             },
         },
     };
 
     use ndarray::{arr0, array};
-
-    fn assert_entries_close(actual: &Scatter2Entries<RealJ0>, expected: &Scatter2Entries<RealJ0>) {
-        assert_array_close(actual.s11.value(), expected.s11.value(), TOLERANCE);
-        assert_array_close(actual.s12.value(), expected.s12.value(), TOLERANCE);
-        assert_array_close(actual.s21.value(), expected.s21.value(), TOLERANCE);
-        assert_array_close(actual.s22.value(), expected.s22.value(), TOLERANCE);
-    }
 
     #[test]
     fn identical_media_are_transparent() {

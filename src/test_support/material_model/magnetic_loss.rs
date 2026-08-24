@@ -42,55 +42,6 @@ where
         })
     }
 
-    /// Construct from plasma wavenumber `Ωᴅ`.
-    pub fn from_plasma_wavenumber(
-        mu_infinity: R,
-        plasma_wavenumber: R,
-        drude_damping: R,
-        oscillators: Vec<LorentzOscillator<R>>,
-    ) -> Result<Self, MaterialModelError<R>> {
-        validate_nonnegative("plasma_wavenumber", plasma_wavenumber)?;
-        Self::new(
-            mu_infinity,
-            plasma_wavenumber * plasma_wavenumber,
-            drude_damping,
-            oscillators,
-        )
-    }
-
-    /// Construct a Lorentz-only model.
-    pub fn lorentz_only(
-        mu_infinity: R,
-        oscillators: Vec<LorentzOscillator<R>>,
-    ) -> Result<Self, MaterialModelError<R>> {
-        Self::new(mu_infinity, R::zero(), R::zero(), oscillators)
-    }
-
-    /// Return high-frequency permeability.
-    pub fn mu_infinity(&self) -> R {
-        self.mu_infinity
-    }
-
-    /// Return primitive Drude strength `Ωᴅ²`.
-    pub fn drude_strength(&self) -> R {
-        self.drude_strength
-    }
-
-    /// Return plasma wavenumber.
-    pub fn plasma_wavenumber(&self) -> R {
-        self.drude_strength.sqrt()
-    }
-
-    /// Return Drude damping.
-    pub fn drude_damping(&self) -> R {
-        self.drude_damping
-    }
-
-    /// Return Lorentz oscillators.
-    pub fn oscillators(&self) -> &[LorentzOscillator<R>] {
-        &self.oscillators
-    }
-
     fn relative_permeability_at<C>(&self, k0: C) -> C
     where
         C: ComplexScalar<RealField = R> + Copy,

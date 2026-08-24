@@ -30,16 +30,6 @@ impl<R> CompiledFieldSampling<R> {
     pub(crate) fn len(&self) -> usize {
         self.positions.len()
     }
-
-    /// Returns `true` if no sampling positions are present.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.positions.is_empty()
-    }
-
-    /// Consumes the compiled request and returns its canonical positions.
-    pub(crate) fn into_positions(self) -> Vec<CanonicalFieldPosition<R>> {
-        self.positions
-    }
 }
 
 /// A field-sampling position expressed in the backend's canonical spatial
@@ -128,29 +118,15 @@ mod tests {
     }
 
     #[test]
-    fn reports_length_and_emptiness() {
+    fn reports_length() {
         let empty = CompiledFieldSampling::<f64>::new(Vec::new());
 
-        assert!(empty.is_empty());
         assert_eq!(empty.len(), 0);
 
         let non_empty = CompiledFieldSampling::new(vec![CanonicalFieldPosition::LeftExterior {
             distance: 1.0,
         }]);
 
-        assert!(!non_empty.is_empty());
         assert_eq!(non_empty.len(), 1);
-    }
-
-    #[test]
-    fn into_positions_recovers_positions() {
-        let positions = vec![
-            CanonicalFieldPosition::LeftExterior { distance: 1.0 },
-            CanonicalFieldPosition::RightExterior { distance: 2.0 },
-        ];
-
-        let compiled = CompiledFieldSampling::new(positions.clone());
-
-        assert_eq!(compiled.into_positions(), positions);
     }
 }

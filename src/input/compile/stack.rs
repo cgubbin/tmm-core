@@ -40,13 +40,13 @@ impl<M, J, R> CompiledStack<M, J, R> {
         Self { canonical, context }
     }
 
-    pub(crate) fn canonical(&self) -> &CanonicalStack<M, J> {
-        &self.canonical
-    }
+    // pub(crate) fn canonical(&self) -> &CanonicalStack<M, J> {
+    //     &self.canonical
+    // }
 
-    pub(crate) fn context(&self) -> &StackContext<R> {
-        &self.context
-    }
+    // pub(crate) fn context(&self) -> &StackContext<R> {
+    //     &self.context
+    // }
 
     pub(crate) fn into_parts(self) -> (CanonicalStack<M, J>, StackContext<R>) {
         (self.canonical, self.context)

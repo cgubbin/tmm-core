@@ -1,13 +1,10 @@
 use crate::{
-    algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
-        HolomorphicParameter, RealParameter, ScalarAlgebra,
-    },
+    algebra::ScalarAlgebra,
     observable::{
         BoundaryState, BoundaryWaves, InterfaceStates, Interfaces, LayerBoundaries,
         LayerBoundaryStates, LayerBoundaryWaves,
     },
-    test_support::jet::RealJ0,
+    test_support::jet::{HoloJ0, RealJ0, RealJ1, RealJ2, RealJB1, RealJB2},
     waves::BidirectionalWaves,
 };
 
@@ -148,42 +145,29 @@ pub(crate) fn assert_layer_boundary_waves_close<A>(
     assert_boundary_waves_close(actual.right(), expected.right(), tolerance);
 }
 
-type D = Ix0;
-
-type ZeroJet = ArrayJet0<C, D, RealParameter>;
-type ZeroJetHolo = ArrayJet0<C, D, HolomorphicParameter>;
-
-type FirstJet = ArrayJet1<C, D, RealParameter>;
-
-type SecondJet = ArrayJet2<C, D, RealParameter>;
-
-type BivariateFirstJet = ArrayJetBivariate1<C, D, RealParameter>;
-
-type BivariateSecondJet = ArrayJetBivariate2<C, D, RealParameter>;
-
 pub(crate) const VALUE_TOLERANCE: f64 = 1.0e-11;
 pub(crate) const FIRST_TOLERANCE: f64 = 1.0e-10;
 pub(crate) const SECOND_TOLERANCE: f64 = 1.0e-9;
 
-pub(crate) fn assert_zero_jet_close(actual: &ZeroJet, expected: &ZeroJet) {
+pub(crate) fn assert_zero_jet_close(actual: &RealJ0, expected: &RealJ0) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 }
 
-pub(crate) fn assert_holo_zero_jet_close(actual: &ZeroJetHolo, expected: &ZeroJetHolo) {
+pub(crate) fn assert_holo_zero_jet_close(actual: &HoloJ0, expected: &HoloJ0) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 }
 
-pub(crate) fn assert_zero_jet_zero(actual: &ZeroJet) {
+pub(crate) fn assert_zero_jet_zero(actual: &RealJ0) {
     assert_complex_close(actual.value()[()], c(0.0), VALUE_TOLERANCE);
 }
 
-pub(crate) fn assert_first_jet_close(actual: &FirstJet, expected: &FirstJet) {
+pub(crate) fn assert_first_jet_close(actual: &RealJ1, expected: &RealJ1) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 
     assert_complex_close(actual.first()[()], expected.first()[()], FIRST_TOLERANCE);
 }
 
-pub(crate) fn assert_second_jet_close(actual: &SecondJet, expected: &SecondJet) {
+pub(crate) fn assert_second_jet_close(actual: &RealJ2, expected: &RealJ2) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 
     assert_complex_close(actual.first()[()], expected.first()[()], FIRST_TOLERANCE);
@@ -191,10 +175,7 @@ pub(crate) fn assert_second_jet_close(actual: &SecondJet, expected: &SecondJet) 
     assert_complex_close(actual.second()[()], expected.second()[()], SECOND_TOLERANCE);
 }
 
-pub(crate) fn assert_bivariate_first_jet_close(
-    actual: &BivariateFirstJet,
-    expected: &BivariateFirstJet,
-) {
+pub(crate) fn assert_bivariate_first_jet_close(actual: &RealJB1, expected: &RealJB1) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 
     assert_complex_close(actual.axis0()[()], expected.axis0()[()], FIRST_TOLERANCE);
@@ -202,10 +183,7 @@ pub(crate) fn assert_bivariate_first_jet_close(
     assert_complex_close(actual.axis1()[()], expected.axis1()[()], FIRST_TOLERANCE);
 }
 
-pub(crate) fn assert_bivariate_second_jet_close(
-    actual: &BivariateSecondJet,
-    expected: &BivariateSecondJet,
-) {
+pub(crate) fn assert_bivariate_second_jet_close(actual: &RealJB2, expected: &RealJB2) {
     assert_complex_close(actual.value()[()], expected.value()[()], VALUE_TOLERANCE);
 
     assert_complex_close(actual.axis0()[()], expected.axis0()[()], FIRST_TOLERANCE);
@@ -232,8 +210,8 @@ pub(crate) fn assert_bivariate_second_jet_close(
 }
 
 pub(crate) fn assert_zero_waves_close(
-    actual: &BoundaryWaves<ZeroJet>,
-    expected: &BoundaryWaves<ZeroJet>,
+    actual: &BoundaryWaves<RealJ0>,
+    expected: &BoundaryWaves<RealJ0>,
     tolerance: f64,
 ) {
     assert_complex_close(actual.forward()[()], expected.forward()[()], tolerance);
@@ -242,8 +220,8 @@ pub(crate) fn assert_zero_waves_close(
 }
 
 pub(crate) fn assert_zero_layer_close(
-    actual: &LayerBoundaryWaves<ZeroJet>,
-    expected: &LayerBoundaryWaves<ZeroJet>,
+    actual: &LayerBoundaryWaves<RealJ0>,
+    expected: &LayerBoundaryWaves<RealJ0>,
     tolerance: f64,
 ) {
     assert_zero_waves_close(actual.left(), expected.left(), tolerance);
@@ -252,8 +230,8 @@ pub(crate) fn assert_zero_layer_close(
 }
 
 pub(crate) fn assert_zero_layers_close(
-    actual: &[LayerBoundaryWaves<ZeroJet>],
-    expected: &[LayerBoundaryWaves<ZeroJet>],
+    actual: &[LayerBoundaryWaves<RealJ0>],
+    expected: &[LayerBoundaryWaves<RealJ0>],
     tolerance: f64,
 ) {
     assert_eq!(
@@ -268,8 +246,8 @@ pub(crate) fn assert_zero_layers_close(
 }
 
 pub(crate) fn assert_first_waves_close(
-    actual: &BoundaryWaves<FirstJet>,
-    expected: &BoundaryWaves<FirstJet>,
+    actual: &BoundaryWaves<RealJ1>,
+    expected: &BoundaryWaves<RealJ1>,
 ) {
     assert_first_jet_close(actual.forward(), expected.forward());
 
@@ -277,8 +255,8 @@ pub(crate) fn assert_first_waves_close(
 }
 
 pub(crate) fn assert_second_waves_close(
-    actual: &BoundaryWaves<SecondJet>,
-    expected: &BoundaryWaves<SecondJet>,
+    actual: &BoundaryWaves<RealJ2>,
+    expected: &BoundaryWaves<RealJ2>,
 ) {
     assert_second_jet_close(actual.forward(), expected.forward());
 
@@ -286,8 +264,8 @@ pub(crate) fn assert_second_waves_close(
 }
 
 pub(crate) fn assert_bivariate_first_waves_close(
-    actual: &BoundaryWaves<BivariateFirstJet>,
-    expected: &BoundaryWaves<BivariateFirstJet>,
+    actual: &BoundaryWaves<RealJB1>,
+    expected: &BoundaryWaves<RealJB1>,
 ) {
     assert_bivariate_first_jet_close(actual.forward(), expected.forward());
 
@@ -295,8 +273,8 @@ pub(crate) fn assert_bivariate_first_waves_close(
 }
 
 pub(crate) fn assert_bivariate_second_waves_close(
-    actual: &BoundaryWaves<BivariateSecondJet>,
-    expected: &BoundaryWaves<BivariateSecondJet>,
+    actual: &BoundaryWaves<RealJB2>,
+    expected: &BoundaryWaves<RealJB2>,
 ) {
     assert_bivariate_second_jet_close(actual.forward(), expected.forward());
 
@@ -304,8 +282,8 @@ pub(crate) fn assert_bivariate_second_waves_close(
 }
 
 pub(crate) fn assert_first_layers_close(
-    actual: &[LayerBoundaryWaves<FirstJet>],
-    expected: &[LayerBoundaryWaves<FirstJet>],
+    actual: &[LayerBoundaryWaves<RealJ1>],
+    expected: &[LayerBoundaryWaves<RealJ1>],
 ) {
     assert_eq!(actual.len(), expected.len());
 
@@ -317,8 +295,8 @@ pub(crate) fn assert_first_layers_close(
 }
 
 pub(crate) fn assert_second_layers_close(
-    actual: &[LayerBoundaryWaves<SecondJet>],
-    expected: &[LayerBoundaryWaves<SecondJet>],
+    actual: &[LayerBoundaryWaves<RealJ2>],
+    expected: &[LayerBoundaryWaves<RealJ2>],
 ) {
     assert_eq!(actual.len(), expected.len());
 
@@ -330,8 +308,8 @@ pub(crate) fn assert_second_layers_close(
 }
 
 pub(crate) fn assert_bivariate_first_layers_close(
-    actual: &[LayerBoundaryWaves<BivariateFirstJet>],
-    expected: &[LayerBoundaryWaves<BivariateFirstJet>],
+    actual: &[LayerBoundaryWaves<RealJB1>],
+    expected: &[LayerBoundaryWaves<RealJB1>],
 ) {
     assert_eq!(actual.len(), expected.len());
 
@@ -343,8 +321,8 @@ pub(crate) fn assert_bivariate_first_layers_close(
 }
 
 pub(crate) fn assert_bivariate_second_layers_close(
-    actual: &[LayerBoundaryWaves<BivariateSecondJet>],
-    expected: &[LayerBoundaryWaves<BivariateSecondJet>],
+    actual: &[LayerBoundaryWaves<RealJB2>],
+    expected: &[LayerBoundaryWaves<RealJB2>],
 ) {
     assert_eq!(actual.len(), expected.len());
 

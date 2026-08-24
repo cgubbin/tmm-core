@@ -84,10 +84,11 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
         Self { stack, backend }
     }
 
-    pub(crate) fn backend(&self) -> &B {
-        &self.backend
-    }
+    // pub(crate) fn backend(&self) -> &B {
+    //     &self.backend
+    // }
 
+    #[cfg(test)]
     pub(crate) fn stack(&self) -> &CanonicalStack<M, J> {
         &self.stack
     }

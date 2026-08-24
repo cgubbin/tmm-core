@@ -2,17 +2,14 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 
 use crate::{
-    ComplexScalar, IncidentSide, Polarisation,
+    ComplexScalar, Polarisation,
     algebra::{CartesianScalarAlgebra, JetStack, ScalarAlgebra},
     backend::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, RetainedIsotropicLayers,
     },
-    observable::{Amplitudes, BoundaryProjectionError, BoundaryState, ProjectAmplitudes},
+    observable::{BoundaryProjectionError, BoundaryState},
     spatial::{CanonicalFieldPosition, CompiledFieldSampling, FieldSamplingError},
-    waves::{
-        BoundaryWaveSolution, ReconstructExteriorBoundaryWaves, ReconstructLayerBoundaryWaves,
-        WaveSamplingContext, WaveSamplingError,
-    },
+    waves::{BoundaryWaveSolution, WaveSamplingContext, WaveSamplingError},
 };
 
 use super::ElectromagneticFields;
@@ -133,33 +130,6 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
         }
 
         components.stack()
-    }
-
-    pub(crate) fn reconstruct(
-        &self,
-        incident_side: IncidentSide,
-        sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
-    ) -> Result<
-        ElectromagneticFields<<A::Stacked as CartesianScalarAlgebra>::Vector>,
-        FieldReconstructionError<<A::Scalar as ComplexField>::RealField>,
-    >
-    where
-        A: ScalarAlgebra + JetStack + Clone,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        A::Stacked: CartesianScalarAlgebra,
-        <A::Scalar as ComplexField>::RealField: Copy,
-        W: ReconstructExteriorBoundaryWaves<Algebra = A>
-            + ReconstructLayerBoundaryWaves<Algebra = A>
-            + RetainedIsotropicLayers<Algebra = A>
-            + PlaneWaveSolutionSource,
-        W::Entries: ProjectAmplitudes,
-        <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
-        <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
-    {
-        let boundary_waves = self.waves.driven_boundary_waves(incident_side)?;
-
-        self.reconstruct_from_boundary_waves(&boundary_waves, sampling)
     }
 }
 
@@ -824,8 +794,13 @@ mod integration_tests {
 
         let context = FieldSamplingContext::new(&workspace);
 
+        let boundary_waves = context
+            .waves
+            .driven_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
         let fields = context
-            .reconstruct(IncidentSide::Left, &sampling)
+            .reconstruct_from_boundary_waves(&boundary_waves, &sampling)
             .expect("field reconstruction should succeed");
 
         let electric = fields.electric();
@@ -851,8 +826,12 @@ mod integration_tests {
 
         let wave_context = WaveSamplingContext::new(&workspace);
 
+        let waves = wave_context
+            .driven_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
         let sampled_waves = wave_context
-            .propagate_sampling(IncidentSide::Left, &sampling)
+            .propagate_reconstructed(&waves, &sampling)
             .expect("wave sampling should succeed");
 
         assert_eq!(sampled_waves.len(), positions.len(),);

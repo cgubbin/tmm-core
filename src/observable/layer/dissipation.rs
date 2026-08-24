@@ -181,10 +181,6 @@ mod tests {
         Jet0::new(arr0(value))
     }
 
-    fn real_jet(value: f64) -> R0 {
-        Jet0::new(arr0(value))
-    }
-
     fn scalar(value: &R0) -> f64 {
         value.value()[()]
     }

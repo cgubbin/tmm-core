@@ -58,39 +58,6 @@ where
         )
     }
 
-    /// Construct a Lorentz-only model.
-    pub fn lorentz_only(
-        epsilon_infinity: R,
-        oscillators: Vec<LorentzOscillator<R>>,
-    ) -> Result<Self, MaterialModelError<R>> {
-        Self::new(epsilon_infinity, R::zero(), R::zero(), oscillators)
-    }
-
-    /// Return high-frequency permittivity.
-    pub fn epsilon_infinity(&self) -> R {
-        self.epsilon_infinity
-    }
-
-    /// Return primitive Drude strength `Ωᴅ²`.
-    pub fn drude_strength(&self) -> R {
-        self.drude_strength
-    }
-
-    /// Return plasma wavenumber.
-    pub fn plasma_wavenumber(&self) -> R {
-        self.drude_strength.sqrt()
-    }
-
-    /// Return Drude damping.
-    pub fn drude_damping(&self) -> R {
-        self.drude_damping
-    }
-
-    /// Return Lorentz oscillators.
-    pub fn oscillators(&self) -> &[LorentzOscillator<R>] {
-        &self.oscillators
-    }
-
     fn relative_permittivity_at<C>(&self, k0: C) -> C
     where
         C: ComplexScalar<RealField = R> + Copy,

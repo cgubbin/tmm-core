@@ -68,16 +68,14 @@ impl<A> LayerBoundaryStates<A> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn left(&self) -> &TransferState<A> {
         &self.left
     }
 
+    #[cfg(test)]
     pub(crate) fn right(&self) -> &TransferState<A> {
         &self.right
-    }
-
-    pub(crate) fn quantities(&self) -> &IsotropicLayerQuantities<A> {
-        &self.quantities
     }
 
     pub(crate) fn into_parts(
@@ -190,10 +188,6 @@ impl<A> RetainedTransferLayers<A> {
 
     pub(crate) fn get_thickness(&self, layer_index: usize) -> Option<&A> {
         self.layers.get(layer_index).map(|layer| layer.thickness())
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.layers.is_empty()
     }
 
     pub(crate) fn layers(&self) -> &[RetainedTransferLayer<A>] {
@@ -360,10 +354,6 @@ impl<A> Transfer2Workspace<A> {
         (self.solution, self.retained)
     }
 
-    pub(crate) fn retains_layers(&self) -> bool {
-        self.retained.is_some()
-    }
-
     /// Append a finite layer to the accumulated transfer matrix.
     ///
     /// Layers must be appended in physical left-to-right stack order. The
@@ -395,33 +385,6 @@ impl<A> Transfer2Workspace<A> {
         if let Some(retained) = &mut self.retained {
             retained.push(next, quantities, thickness);
         }
-    }
-
-    /// Propagate a known right exterior state through all retained layers.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the workspace was constructed without layer retention.
-    pub(crate) fn propagate_right_state(
-        &self,
-        right_exterior_state: TransferState<A>,
-    ) -> Vec<LayerBoundaryStates<A>>
-    where
-        A: ScalarAlgebra,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-    {
-        self.retained
-            .as_ref()
-            .expect("transfer layers were not retained")
-            .propagate_right_state(right_exterior_state)
-    }
-
-    fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
-    where
-        A: ScalarAlgebra,
-    {
-        self.solution.entries().sample_source()
     }
 }
 
@@ -719,7 +682,7 @@ mod tests {
     fn response_only_workspace_starts_at_identity() {
         let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 2);
 
-        assert!(!workspace.retains_layers());
+        assert!(!workspace.retained().is_some());
 
         assert_complex_close(workspace.entries().m11()[()], c(1.0), TOLERANCE);
         assert_complex_close(workspace.entries().m12()[()], c(0.0), TOLERANCE);
@@ -732,7 +695,7 @@ mod tests {
         let workspace =
             Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::InternalFields, 3);
 
-        assert!(workspace.retains_layers());
+        assert!(workspace.retained().is_some());
         assert_eq!(workspace.retained().unwrap().len(), 0);
     }
 
@@ -819,14 +782,6 @@ mod tests {
         assert_eq!(states[0].right(), &expected_right_layer_left,);
 
         assert_eq!(states[0].left(), &expected_left_exterior,);
-    }
-
-    #[test]
-    #[should_panic(expected = "transfer layers were not retained")]
-    fn propagation_panics_without_retention() {
-        let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 0);
-
-        workspace.propagate_right_state(TransferState::new(real_j0(c(1.0)), real_j0(c(0.0))));
     }
 
     fn test_coordinates() -> CanonicalCoordinates<RealJ0> {

@@ -41,13 +41,6 @@ fn second_spectral_coordinates() -> CanonicalCoordinates<HoloJ2> {
     )
 }
 
-fn bivariate_spectral_coordinates() -> CanonicalCoordinates<HoloJB2> {
-    CanonicalCoordinates::new(
-        <HoloJB2 as SeedJet>::variable(arr0(K0), 0).unwrap(),
-        <HoloJB2 as SeedJet>::constant(arr0(K_PARALLEL)),
-    )
-}
-
 macro_rules! for_each_modal_backend {
     ($jet:ty, $name:ident, $stack:expr, $body:block) => {{
         {
@@ -277,7 +270,7 @@ fn second_order_spectral_modes_have_constant_unit_qnm_normalisation() {
     }
 }
 
-// #[test]
+#[test]
 fn scatter_layer_mode_reconstruction_is_linear_in_candidate_scale() {
     let stack = two_layer_stack();
 
@@ -393,46 +386,6 @@ fn bivariate_stack() -> CanonicalStack<crate::Constant<f64>, HoloJB2> {
         layers,
     )
 }
-
-fn bivariate_coordinates() -> CanonicalCoordinates<HoloJB2> {
-    CanonicalCoordinates::new(
-        <HoloJB2 as SeedJet>::variable(arr0(K0), 0).unwrap(),
-        <HoloJB2 as SeedJet>::constant(arr0(K_PARALLEL)),
-    )
-}
-
-// fn assert_bivariate_unit_normalisation<B>(
-//     evaluator: &ComplexPlaneEvaluator<HoloJB2, crate::Constant<f64>, B>,
-//     polarisation: Polarisation,
-// ) where
-//     B: crate::backend::Backend<HoloJ1, ComplexPlane>,
-//     // plus whatever mode()/normalisation bounds the compiler requests
-// {
-//     let coordinates = CanonicalCoordinates::new(
-//         <HoloJB2 as SeedJet>::constant(arr0(K0)),
-//         <HoloJB2 as SeedJet>::constant(arr0(K_PARALLEL)),
-//     );
-
-//     let exterior = principal_exterior_wavevectors(evaluator.stack(), &coordinates);
-
-//     let state = evaluator
-//         .retain(coordinates, exterior, polarisation)
-//         .unwrap();
-
-//     let mode = state.mode().unwrap();
-
-//     let normalisation = raw_qnm_normalisation_unchecked(mode.solution(), mode.state()).unwrap();
-
-//     let total = normalisation.total();
-
-//     assert_complex_close(total.value()[()], C::new(1.0, 0.0), VALUE_TOLERANCE);
-
-//     assert_complex_close(
-//         total.first()[()],
-//         C::new(0.0, 0.0),
-//         FIRST_DERIVATIVE_TOLERANCE,
-//     );
-// }
 
 #[test]
 fn bivariate_modes_have_constant_unit_qnm_normalisation() {

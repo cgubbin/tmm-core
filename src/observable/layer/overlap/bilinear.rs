@@ -44,14 +44,6 @@ impl<C> BilinearLayerNormalization<C> {
         }
     }
 
-    pub(crate) const fn from_parts(electric: C, magnetic: C, total: C) -> Self {
-        Self {
-            electric,
-            magnetic,
-            total,
-        }
-    }
-
     pub fn electric(&self) -> &C {
         &self.electric
     }
@@ -161,23 +153,6 @@ impl<A> Layers<BilinearLayerNormalization<A>> {
             electric, magnetic, total,
         ))
     }
-}
-
-fn bilinear_normalization_coefficients<A>(
-    vacuum_angular_wavenumber: &A,
-    epsilon: &A,
-    epsilon_first: &A,
-    mu: &A,
-    mu_first: &A,
-) -> (A, A)
-where
-    A: ScalarAlgebra,
-{
-    let electric = epsilon.add(&vacuum_angular_wavenumber.multiply(epsilon_first));
-
-    let magnetic = mu.add(&vacuum_angular_wavenumber.multiply(mu_first));
-
-    (electric, magnetic)
 }
 
 /// Matched left and right solution data for one physical finite layer.
@@ -315,6 +290,7 @@ impl<C> AggregateBilinearOverlap<C> {
 }
 
 impl<A> BilinearLayerOverlapInput<A> {
+    #[allow(dead_code)]
     fn integrate(
         self,
         left_vacuum_angular_wavenumber: &A,
@@ -386,6 +362,7 @@ where
     A::Scalar: ComplexScalar,
     A::Dimension: Dimension,
 {
+    #[allow(dead_code)]
     pub(crate) fn integrate(
         self,
         left_vacuum_angular_wavenumber: &A,
@@ -412,6 +389,7 @@ impl<C> Layers<BilinearLayerOverlap<C>>
 where
     C: ScalarAlgebra,
 {
+    #[allow(dead_code)]
     pub fn aggregate(&self) -> Result<AggregateBilinearOverlap<C>, LayerAggregateError> {
         let mut layers = self.iter();
 

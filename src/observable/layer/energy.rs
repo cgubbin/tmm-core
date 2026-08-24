@@ -154,12 +154,7 @@ impl<A> BrillouinLayerInput<A> {
         }
     }
 
-    pub(crate) fn integrated(
-        &self,
-    ) -> &IntegratedLayerData<IntegratedHermitianCrossStateProducts<A>, A> {
-        &self.integrated
-    }
-
+    #[cfg(test)]
     pub(crate) fn derivative(&self) -> &BrillouinConstitutiveDerivatives<A> {
         &self.derivative
     }
@@ -235,16 +230,6 @@ impl<A> BrillouinBilinearLayerInput<A> {
             integrated,
             derivative,
         }
-    }
-
-    pub(crate) fn integrated(
-        &self,
-    ) -> &IntegratedLayerData<IntegratedBilinearCrossStateProducts<A>, A> {
-        &self.integrated
-    }
-
-    pub(crate) fn derivative(&self) -> &BrillouinConstitutiveDerivatives<A> {
-        &self.derivative
     }
 
     pub(crate) fn into_parts(

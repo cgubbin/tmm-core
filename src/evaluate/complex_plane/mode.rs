@@ -108,26 +108,16 @@ where
         })
     }
 
-    pub(crate) fn state(&self) -> &'a ComplexPlaneState<'a, J, M, W> {
+    pub fn state(&self) -> &'a ComplexPlaneState<'a, J, M, W> {
         self.state
     }
 
-    pub(crate) fn solution(&self) -> &PlaneWaveModeCandidate<J> {
+    pub fn solution(&self) -> &PlaneWaveModeCandidate<J> {
         &self.solution
     }
 
-    pub(crate) fn seed_normalisation(&self) -> &AggregateBilinearNormalization<J> {
+    pub fn seed_normalisation(&self) -> &AggregateBilinearNormalization<J> {
         &self.raw_normalisation
-    }
-
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        &'a ComplexPlaneState<'a, J, M, W>,
-        PlaneWaveModeCandidate<J>,
-        AggregateBilinearNormalization<J>,
-    ) {
-        (self.state, self.solution, self.raw_normalisation)
     }
 }
 

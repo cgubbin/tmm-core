@@ -267,14 +267,6 @@ impl<A> IsotropicLayerQuantities<A> {
     pub(crate) fn into_admittance(self) -> A {
         self.admittance
     }
-
-    /// Consume the layer quantities.
-    ///
-    /// Components are returned as
-    /// `(medium, admittance, polarisation)`.
-    pub(crate) fn into_parts(self) -> (IsotropicMediumQuantities<A>, A, Polarisation) {
-        (self.medium, self.admittance, self.polarisation)
-    }
 }
 
 impl<A> IsotropicLayerQuantities<A> {

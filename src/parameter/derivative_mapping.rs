@@ -62,25 +62,6 @@ impl DerivativeMapping {
         Ok(assignment)
     }
 
-    /// Append a variable in the next available jet slot.
-    pub(crate) fn with(mut self, variable: Parameter) -> Result<Self, DerivativeMappingError> {
-        if let Some(first_slot) = self.slot_for(variable) {
-            return Err(DerivativeMappingError::DuplicateVariable {
-                variable,
-                first_slot,
-                second_slot: self.slots.len(),
-            });
-        }
-
-        self.slots.push(variable);
-        Ok(self)
-    }
-
-    /// Return the parameter assigned to `slot`.
-    pub(crate) fn parameter(&self, slot: usize) -> Option<Parameter> {
-        self.slots.get(slot).copied()
-    }
-
     /// Return the slot occupied by `variable`.
     pub(crate) fn slot_for(&self, variable: Parameter) -> Option<usize> {
         self.slots

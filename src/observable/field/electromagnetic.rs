@@ -299,20 +299,6 @@ mod tests {
         }
     }
 
-    fn assert_vector_close(actual: &Vector, expected: &Vector) {
-        assert_complex_array_close(actual.x(), expected.x());
-
-        assert_complex_array_close(actual.y(), expected.y());
-
-        assert_complex_array_close(actual.z(), expected.z());
-    }
-
-    fn assert_field_equals(actual: &Field, electric: &Vector, magnetic: &Vector) {
-        assert_vector_close(actual.electric(), electric);
-
-        assert_vector_close(actual.magnetic(), magnetic);
-    }
-
     #[test]
     fn construction_preserves_electric_and_magnetic_fields() {
         let electric = scalar_vector(1.0);

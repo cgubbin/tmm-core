@@ -55,24 +55,6 @@ impl From<FiniteLayerIndex> for usize {
     }
 }
 
-impl Parameter {
-    pub(crate) fn validate(
-        self,
-        finite_layer_count: usize,
-    ) -> Result<(), ParameterValidationError> {
-        match self {
-            Parameter::LayerThickness(FiniteLayerIndex(layer)) if layer >= finite_layer_count => {
-                Err(ParameterValidationError::LayerOutOfBounds {
-                    index: layer,
-                    finite_layer_count,
-                })
-            }
-
-            _ => Ok(()),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ParameterValidationError {
     #[error(

@@ -68,10 +68,6 @@ impl<T> LayerBoundaries<T> {
     pub(crate) fn into_inner(self) -> Vec<T> {
         self.layers
     }
-
-    pub(crate) fn map<U>(self, map: impl FnMut(T) -> U) -> LayerBoundaries<U> {
-        LayerBoundaries::new(self.layers.into_iter().map(map).collect())
-    }
 }
 
 impl<S, T> ScaleBy<S> for LayerBoundaries<T>

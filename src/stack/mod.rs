@@ -4,16 +4,15 @@ mod layer;
 pub use builder::StackBuilder;
 pub use layer::Layer;
 
-use either::Either;
 use nalgebra::ComplexField;
 use num_traits::Float;
 
 use crate::{
-    ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, EvaluateMaterial,
-    IncidentSide, MeromorphicMaterial,
+    ComplexScalar, DifferentiableMaterial, DifferentiableMeromorphicMaterial, IncidentSide,
+    MeromorphicMaterial,
     material::{
         AnalyticalMaterialHandle, DifferentiableMaterialHandle, Material, MaterialHandle,
-        MeromorphicMaterialHandle, Sampled,
+        MeromorphicMaterialHandle,
     },
 };
 
@@ -43,22 +42,8 @@ pub struct Stack<M, F> {
     layers_left_to_right: Vec<Layer<M, F>>,
 }
 
-pub(crate) enum PropagationDirection {
-    LeftToRight,
-    RightToLeft,
-}
-
-impl IncidentSide {
-    fn propagation_direction(self) -> PropagationDirection {
-        match self {
-            Self::Left => PropagationDirection::LeftToRight,
-
-            Self::Right => PropagationDirection::RightToLeft,
-        }
-    }
-}
-
 impl<M, F> Stack<M, F> {
+    #[cfg(test)]
     pub(crate) fn new(
         left_exterior: M,
         layers_left_to_right: Vec<Layer<M, F>>,
@@ -183,29 +168,6 @@ impl<M, F> Stack<M, F> {
         self.layers_left_to_right.iter()
     }
 
-    /// Finite layers in the requested geometric direction.
-    pub(crate) fn layers_in_direction(
-        &self,
-        direction: PropagationDirection,
-    ) -> impl DoubleEndedIterator<Item = &Layer<M, F>> {
-        match direction {
-            PropagationDirection::LeftToRight => Either::Left(self.layers_left_to_right.iter()),
-
-            PropagationDirection::RightToLeft => {
-                Either::Right(self.layers_left_to_right.iter().rev())
-            }
-        }
-    }
-
-    /// Exterior encountered first in the requested direction.
-    pub(crate) fn entrance_exterior(&self, direction: PropagationDirection) -> &M {
-        match direction {
-            PropagationDirection::LeftToRight => self.left_exterior(),
-
-            PropagationDirection::RightToLeft => self.right_exterior(),
-        }
-    }
-
     pub(crate) fn incident_exterior(&self, incident_side: IncidentSide) -> &M {
         match incident_side {
             IncidentSide::Left => self.left_exterior(),
@@ -214,35 +176,7 @@ impl<M, F> Stack<M, F> {
         }
     }
 
-    /// Exterior encountered last in the requested direction.
-    pub(crate) fn exit_exterior(&self, direction: PropagationDirection) -> &M {
-        match direction {
-            PropagationDirection::LeftToRight => self.right_exterior(),
-
-            PropagationDirection::RightToLeft => self.left_exterior(),
-        }
-    }
-
-    /// Evaluate the relative permittivity of the incident exterior medium.
-    ///
-    /// `vacuum_angular_wavenumber` is the vacuum angular wavenumber `k₀`,
-    /// expressed in inverse centimetres.
-    ///
-    /// The exterior medium is selected from `side`.
-    pub(crate) fn incident_relative_permittivity<I, C>(
-        &self,
-        vacuum_angular_wavenumber: I,
-        side: IncidentSide,
-    ) -> I::Mapped<C>
-    where
-        C: ComplexScalar<RealField = M::Real> + Copy,
-        I: Sampled<Elem = M::Real>,
-        M: EvaluateMaterial<C>,
-    {
-        self.incident_exterior(side)
-            .evaluate_relative_permittivity(vacuum_angular_wavenumber)
-    }
-
+    #[cfg(test)]
     pub(crate) fn into_parts(self) -> (M, Vec<Layer<M, F>>, M) {
         (
             self.left_exterior,
@@ -373,53 +307,6 @@ mod tests {
     }
 
     #[test]
-    fn layers_in_direction_respects_propagation_direction() {
-        let stack = test_stack();
-
-        let left_to_right = stack
-            .layers_in_direction(PropagationDirection::LeftToRight)
-            .map(|layer| layer.material().id)
-            .collect::<Vec<_>>();
-
-        let right_to_left = stack
-            .layers_in_direction(PropagationDirection::RightToLeft)
-            .map(|layer| layer.material().id)
-            .collect::<Vec<_>>();
-
-        assert_eq!(left_to_right, vec![1, 2]);
-        assert_eq!(right_to_left, vec![2, 1]);
-    }
-
-    #[test]
-    fn entrance_and_exit_exteriors_follow_direction() {
-        let stack = test_stack();
-
-        assert_eq!(
-            stack
-                .entrance_exterior(PropagationDirection::LeftToRight,)
-                .id,
-            0,
-        );
-
-        assert_eq!(
-            stack.exit_exterior(PropagationDirection::LeftToRight,).id,
-            3,
-        );
-
-        assert_eq!(
-            stack
-                .entrance_exterior(PropagationDirection::RightToLeft,)
-                .id,
-            3,
-        );
-
-        assert_eq!(
-            stack.exit_exterior(PropagationDirection::RightToLeft,).id,
-            0,
-        );
-    }
-
-    #[test]
     fn incident_exterior_selects_requested_side() {
         let stack = test_stack();
 
@@ -445,23 +332,6 @@ mod tests {
 
         assert_eq!(material.id, 7);
         assert_eq!(thickness, Length::nanometres(350.0),);
-    }
-
-    #[test]
-    fn incident_relative_permittivity_uses_requested_exterior() {
-        let stack = test_stack();
-
-        let k0 = crate::material::Scalar::new(1000.0);
-
-        let left: Complex64 = stack.incident_relative_permittivity(k0, IncidentSide::Left);
-
-        let right: Complex64 = stack.incident_relative_permittivity(
-            crate::material::Scalar::new(1000.0),
-            IncidentSide::Right,
-        );
-
-        assert_eq!(left, Complex64::new(1.0, 0.0));
-        assert_eq!(right, Complex64::new(4.0, 0.0));
     }
 
     #[test]

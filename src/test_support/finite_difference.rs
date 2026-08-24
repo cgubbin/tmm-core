@@ -1,11 +1,4 @@
-use crate::{
-    algebra::{ArrayJet1, ArrayJet2},
-    test_support::assertions::assert_array_close,
-};
-
-use super::{C, c, jet::P};
-
-use ndarray::{Array, ArrayBase, Data, Dimension};
+use super::C;
 
 pub const VALUE_TOLERANCE: f64 = 1e-12;
 pub const FIRST_DERIVATIVE_TOLERANCE: f64 = 1e-7;
@@ -43,75 +36,4 @@ pub fn central_second_difference(function: impl Fn(f64) -> C, x: f64, step: f64)
     let centre = function(x);
 
     (function(x + step) - centre * 2.0 + function(x - step)) / step.powi(2)
-}
-
-/// Apply a centred first difference pointwise to an array-valued function.
-pub fn central_first_difference_array<D>(
-    function: impl Fn(f64) -> Array<C, D>,
-    x: f64,
-    step: f64,
-) -> Array<C, D>
-where
-    D: Dimension,
-{
-    assert!(step.is_finite());
-    assert!(step > 0.0);
-
-    let upper = function(x + step);
-    let lower = function(x - step);
-
-    (upper - lower) / c(2.0 * step)
-}
-
-/// Apply a centred second difference pointwise to an array-valued function.
-pub fn central_second_difference_array<D>(
-    function: impl Fn(f64) -> Array<C, D>,
-    x: f64,
-    step: f64,
-) -> Array<C, D>
-where
-    D: Dimension,
-{
-    assert!(step.is_finite());
-    assert!(step > 0.0);
-
-    let upper = function(x + step);
-    let centre = function(x);
-    let lower = function(x - step);
-
-    (upper - centre * c(2.0) + lower) / c(step.powi(2))
-}
-
-/// Assert the value and first derivative carried by a first-order jet.
-pub fn assert_first_order_jet_close<D>(
-    actual: &ArrayJet1<C, D, P>,
-    expected_value: &ArrayBase<impl Data<Elem = C>, D>,
-    expected_first: &ArrayBase<impl Data<Elem = C>, D>,
-) where
-    D: Dimension,
-{
-    assert_array_close(actual.value(), expected_value, VALUE_TOLERANCE);
-
-    assert_array_close(actual.first(), expected_first, FIRST_DERIVATIVE_TOLERANCE);
-}
-
-/// Assert the value, first derivative, and second derivative carried by a
-/// second-order jet.
-pub fn assert_second_order_jet_close<D>(
-    actual: &ArrayJet2<C, D, P>,
-    expected_value: &ArrayBase<impl Data<Elem = C>, D>,
-    expected_first: &ArrayBase<impl Data<Elem = C>, D>,
-    expected_second: &ArrayBase<impl Data<Elem = C>, D>,
-) where
-    D: Dimension,
-{
-    assert_array_close(actual.value(), expected_value, VALUE_TOLERANCE);
-
-    assert_array_close(actual.first(), expected_first, FIRST_DERIVATIVE_TOLERANCE);
-
-    assert_array_close(
-        actual.second(),
-        expected_second,
-        SECOND_DERIVATIVE_TOLERANCE,
-    );
 }

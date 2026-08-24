@@ -155,9 +155,9 @@ impl<A> Scatter2Workspace<A> {
         &self.solution
     }
 
-    pub(crate) fn entries(&self) -> &Scatter2ProjectiveEntries<A> {
-        self.solution.entries()
-    }
+    // pub(crate) fn entries(&self) -> &Scatter2ProjectiveEntries<A> {
+    //     self.solution.entries()
+    // }
 
     fn total(&self) -> Scatter2Entries<A>
     where
@@ -584,7 +584,6 @@ mod tests {
     };
 
     type Entries0 = Scatter2Entries<RealJ0>;
-    type Entries1 = Scatter2Entries<RealJ1>;
 
     fn scalar_entries(s11: C, s12: C, s21: C, s22: C) -> Entries0 {
         Scatter2Entries {

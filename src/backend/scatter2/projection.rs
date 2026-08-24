@@ -379,16 +379,6 @@ mod tests {
         )
     }
 
-    fn assert_state_close(actual: &BoundaryState<RealJ0>, expected: &BoundaryState<RealJ0>) {
-        assert_array_close(actual.field().value(), expected.field().value(), TOLERANCE);
-
-        assert_array_close(
-            actual.secondary().value(),
-            expected.secondary().value(),
-            TOLERANCE,
-        );
-    }
-
     fn assert_state_scaled(
         actual: &BoundaryState<RealJ0>,
         expected: &BoundaryState<RealJ0>,

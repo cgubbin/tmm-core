@@ -86,7 +86,7 @@ where
         }
     }
 
-    pub(crate) fn project_point<Idx>(
+    pub fn project_point<Idx>(
         &self,
         index: &Idx,
     ) -> Result<RealAxisState<J::PointJet, M, W::Point>, PointProjectionError>
@@ -147,17 +147,6 @@ where
         &self,
     ) -> &CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping> {
         &self.context
-    }
-
-    /// Consume the state and return its components.
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        CanonicalProblem<M, J>,
-        W,
-        CompilationContext<<J::Scalar as ComplexField>::RealField, J::Dimension, J::Mapping>,
-    ) {
-        (self.problem, self.workspace, self.context)
     }
 
     /// Transform the retained workspace while preserving the canonical

@@ -57,33 +57,14 @@ impl<A> IntegratedBilinearCrossStateProducts<A> {
         &self.secondary_secondary
     }
 
+    #[allow(dead_code)]
     pub(crate) fn field_secondary(&self) -> &A {
         &self.field_secondary
     }
 
+    #[allow(dead_code)]
     pub(crate) fn secondary_field(&self) -> &A {
         &self.secondary_field
-    }
-
-    pub(crate) fn into_parts(self) -> (A, A, A, A) {
-        (
-            self.field_field,
-            self.secondary_secondary,
-            self.field_secondary,
-            self.secondary_field,
-        )
-    }
-
-    pub(crate) fn map<B>(
-        self,
-        mut map: impl FnMut(A) -> B,
-    ) -> IntegratedBilinearCrossStateProducts<B> {
-        IntegratedBilinearCrossStateProducts::new(
-            map(self.field_field),
-            map(self.secondary_secondary),
-            map(self.field_secondary),
-            map(self.secondary_field),
-        )
     }
 }
 
@@ -320,23 +301,5 @@ mod tests {
         assert_complex_close(scalar(state.field_secondary()), Complex64::new(0.0, 0.0));
 
         assert_complex_close(scalar(state.secondary_field()), Complex64::new(0.0, 0.0));
-    }
-
-    #[test]
-    fn into_parts_preserves_documented_order() {
-        let state = IntegratedBilinearCrossStateProducts::new(
-            jet(Complex64::new(1.0, 0.0)),
-            jet(Complex64::new(2.0, 0.0)),
-            jet(Complex64::new(3.0, 0.0)),
-            jet(Complex64::new(4.0, 0.0)),
-        );
-
-        let (field_field, secondary_secondary, field_secondary, secondary_field) =
-            state.into_parts();
-
-        assert_eq!(scalar(&field_field), Complex64::new(1.0, 0.0));
-        assert_eq!(scalar(&secondary_secondary), Complex64::new(2.0, 0.0));
-        assert_eq!(scalar(&field_secondary), Complex64::new(3.0, 0.0));
-        assert_eq!(scalar(&secondary_field), Complex64::new(4.0, 0.0));
     }
 }

@@ -3,13 +3,12 @@ use ndarray::Array1;
 
 use crate::{
     FiniteLayerIndex, IncidentSide, Parameter, Polarisation, RealAxisEvaluator,
-    backend::{ExteriorContextProvider, scatter2::Scatter2, transfer2::Transfer2},
+    backend::{scatter2::Scatter2, transfer2::Transfer2},
     spatial::{FieldSampling, LayerSampling},
     test_support::{
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
-        jet::RealJ0,
         planar::{scalar_real_input, two_layer_stack},
         stack::{absorbing_two_layer_stack, two_layer_stack_with_lossless_first_layer},
     },
@@ -622,28 +621,6 @@ fn integrate_uniform_density(density: &[f64], thickness: f64) -> f64 {
     let interior: f64 = density[1..density.len() - 1].iter().sum();
 
     dz * (endpoints + interior)
-}
-
-fn physical_to_normalised_power_scale(
-    exterior: &impl ExteriorContextProvider<Algebra = RealJ0>,
-    side: IncidentSide,
-) -> f64 {
-    let k0 = exterior.vacuum_angular_wavenumber().value()[()].re;
-
-    let incident_admittance = match side {
-        IncidentSide::Left => exterior.left_admittance().value()[()].re,
-        IncidentSide::Right => exterior.right_admittance().value()[()].re,
-    };
-
-    /*
-     * Cartesian field observables use the physical phasor convention
-     *
-     *     <S> = 1/2 Re(E × H*)
-     *
-     * while integrated layer observables are expressed relative to unit
-     * incident power.
-     */
-    2.0 * k0 / incident_admittance
 }
 
 const DENSITY_INTEGRATION_POINTS: usize = 2001;

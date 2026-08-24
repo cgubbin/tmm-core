@@ -38,14 +38,11 @@ impl<A> LayerOverlapInput<A> {
         }
     }
 
-    fn into_parts(self) -> (LayerOverlapOperand<A>, LayerOverlapOperand<A>, A) {
-        (self.left, self.right, self.thickness)
-    }
-
     pub(crate) fn into_hermitian(self) -> HermitianLayerOverlapInput<A> {
         HermitianLayerOverlapInput::new(self.left, self.right, self.thickness)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn into_bilinear(self) -> BilinearLayerOverlapInput<A> {
         BilinearLayerOverlapInput::new(self.left, self.right, self.thickness)
     }

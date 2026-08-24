@@ -30,20 +30,4 @@ where
         /// Invalid value.
         value: R,
     },
-
-    /// A parameter required to be positive is zero or negative.
-    #[error("material parameter `{name}` must be positive, found {value:?}")]
-    NonPositiveParameter {
-        /// Parameter name.
-        name: &'static str,
-        /// Invalid value.
-        value: R,
-    },
-
-    /// A coefficient list is empty.
-    #[error("material parameter `{name}` must contain at least one coefficient")]
-    EmptyCoefficients {
-        /// Parameter name.
-        name: &'static str,
-    },
 }

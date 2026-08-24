@@ -80,9 +80,9 @@ impl<A> PlaneWaveModeCandidate<A> {
         &self.residual
     }
 
-    pub(crate) fn into_state(self) -> BoundaryState<A> {
-        self.state
-    }
+    // pub(crate) fn into_state(self) -> BoundaryState<A> {
+    //     self.state
+    // }
 
     pub(crate) fn into_residual(self) -> A {
         self.residual

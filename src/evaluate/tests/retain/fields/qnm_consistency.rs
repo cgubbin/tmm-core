@@ -54,12 +54,6 @@ fn sampling() -> FieldSampling<f64> {
         .layer(1, LayerSampling::uniform(QNM_INTEGRATION_POINTS))
 }
 
-fn sampling_with_points(points: usize) -> FieldSampling<f64> {
-    FieldSampling::new()
-        .layer(0, LayerSampling::uniform(points))
-        .layer(1, LayerSampling::uniform(points))
-}
-
 /// Return finite-layer thicknesses from a canonical scalar stack.
 ///
 /// Canonical thicknesses are already stored in centimetres. Spatial numerical

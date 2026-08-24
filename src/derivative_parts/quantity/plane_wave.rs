@@ -482,10 +482,4 @@ mod tests {
         assert_eq!(x_y.into_parts(), (7, 17, 27));
         assert_eq!(y_y.into_parts(), (8, 18, 28));
     }
-
-    use num_complex::Complex64;
-
-    fn c(real: f64, imag: f64) -> Complex64 {
-        Complex64::new(real, imag)
-    }
 }

@@ -11,17 +11,11 @@ use crate::{
     backend::evaluate_exterior_wavevectors,
     input::canonical::{CanonicalCoordinates, CanonicalStack},
     stack::Layer,
-    test_support::jet::{HoloJ0, RealJ0, holo_j0, real_j0},
+    test_support::jet::{RealJ0, real_j0},
 };
 
 pub type C = Complex64;
 pub type R = f64;
-
-/// Scalar vacuum angular wavenumber used by most evaluator tests.
-pub const K0: R = 2.0;
-
-/// Scalar conserved parallel angular wavenumber.
-pub const K_PARALLEL: R = 0.0;
 
 /// Thickness of the finite-layer fixture, in centimetres.
 pub const FILM_THICKNESS_CM: R = 0.125;
@@ -101,10 +95,6 @@ pub fn sampled_real_input(k0: &'_ [R], k_parallel: &'_ [R]) -> CoordinateInput<R
 
 pub fn real_canonical_coordinates(k0: f64, k_parallel: f64) -> CanonicalCoordinates<RealJ0> {
     CanonicalCoordinates::new(real_j0(c(k0)), real_j0(c(k_parallel)))
-}
-
-pub fn canonical_complex_coordinates(k0: C, k_parallel: C) -> CanonicalCoordinates<HoloJ0> {
-    CanonicalCoordinates::new(holo_j0(k0), holo_j0(k_parallel))
 }
 
 /// Fresnel amplitudes at normal incidence for the scattering convention used

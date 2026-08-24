@@ -140,29 +140,6 @@ impl<'a, W, A> WaveSamplingContext<'a, W, A> {
         Ok(BoundaryWaveSolution::new(exterior, layers))
     }
 
-    // pub(crate) fn propagate_sampling(
-    //     &self,
-    //     incident_side: IncidentSide,
-    //     sampling: &CompiledFieldSampling<<A::Scalar as ComplexField>::RealField>,
-    // ) -> Result<Vec<BidirectionalWaves<A>>, WaveSamplingError>
-    // where
-    //     A: ScalarAlgebra,
-    //     A::Scalar: ComplexScalar,
-    //     A::Dimension: Dimension,
-    //     W: ReconstructExteriorBoundaryWaves<Algebra = A>
-    //         + ReconstructLayerBoundaryWaves<Algebra = A>
-    //         + RetainedIsotropicLayers<Algebra = A>
-    //         + PlaneWaveSolutionSource,
-    //     W::Entries: ProjectAmplitudes,
-    //     <W::Entries as ProjectAmplitudes>::Amplitudes: Amplitudes<Algebra = A>,
-    //     <A::Scalar as ComplexField>::RealField: Copy,
-    //     <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = A>,
-    // {
-    //     let waves = self.driven_boundary_waves(incident_side)?;
-
-    //     self.propagate_reconstructed(&waves, sampling)
-    // }
-
     pub(crate) fn propagate_reconstructed(
         &self,
         waves: &BoundaryWaveSolution<A>,
@@ -270,6 +247,7 @@ mod tests {
         mode: RunMode,
     ) -> crate::backend::scatter2::Scatter2Workspace<A> {
         let coordinates = coordinates();
+
         let exterior = evaluate_exterior_wavevectors::<RealAxis, _, _>(
             &coordinates,
             stack.left_exterior(),
@@ -286,10 +264,28 @@ mod tests {
     }
 
     #[test]
-    fn sampling_requires_retained_layer_data() {
-        let workspace = build_workspace(boundary_test_single_layer_stack(), RunMode::ResponseOnly);
+    fn reconstructed_sampling_requires_retained_layer_data() {
+        /*
+         * Build a valid reconstructed boundary-wave solution from a retained
+         * workspace, then ask a response-only workspace to propagate it inside
+         * a finite layer.
+         *
+         * `propagate_reconstructed` itself does not reconstruct waves or check
+         * the run mode up front. Its relevant failure is therefore the missing
+         * retained layer data required to propagate within the layer.
+         */
+        let retained = build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
 
-        let context = WaveSamplingContext::new(&workspace);
+        let retained_context = WaveSamplingContext::new(&retained);
+
+        let waves = retained_context
+            .driven_boundary_waves(IncidentSide::Left)
+            .unwrap();
+
+        let response_only =
+            build_workspace(boundary_test_single_layer_stack(), RunMode::ResponseOnly);
+
+        let context = WaveSamplingContext::new(&response_only);
 
         let sampling = CompiledFieldSampling::new(vec![CanonicalFieldPosition::Layer {
             index: FiniteLayerIndex::new(0),
@@ -297,30 +293,28 @@ mod tests {
         }]);
 
         let error = context
-            .propagate_sampling(IncidentSide::Left, &sampling)
+            .propagate_reconstructed(&waves, &sampling)
             .unwrap_err();
 
-        assert_eq!(error, WaveSamplingError::LayersNotRetained,);
+        assert_eq!(error, WaveSamplingError::MissingLayerData { index: 0 },);
     }
 
     #[test]
-    fn empty_stack_samples_both_exteriors() {
+    fn reconstructed_sampling_samples_both_exteriors_for_empty_stack() {
         let workspace = build_workspace(boundary_test_empty_stack(), RunMode::InternalFields);
 
         let context = WaveSamplingContext::new(&workspace);
+
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
 
         let sampling = CompiledFieldSampling::new(vec![
             CanonicalFieldPosition::LeftExterior { distance: 0.2 },
             CanonicalFieldPosition::RightExterior { distance: 0.3 },
         ]);
 
-        let actual = context
-            .propagate_sampling(IncidentSide::Left, &sampling)
-            .unwrap();
+        let actual = context.propagate_reconstructed(&waves, &sampling).unwrap();
 
         assert_eq!(actual.len(), 2);
-
-        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
 
         let exterior = waves.exterior();
 
@@ -341,11 +335,13 @@ mod tests {
     }
 
     #[test]
-    fn samples_inside_retained_finite_layer() {
+    fn reconstructed_sampling_samples_inside_retained_finite_layer() {
         let workspace =
             build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
 
         let context = WaveSamplingContext::new(&workspace);
+
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
 
         let position = CanonicalLayerPosition::FromLeft(0.1);
 
@@ -354,13 +350,9 @@ mod tests {
             position,
         }]);
 
-        let actual = context
-            .propagate_sampling(IncidentSide::Left, &sampling)
-            .unwrap();
+        let actual = context.propagate_reconstructed(&waves, &sampling).unwrap();
 
         assert_eq!(actual.len(), 1);
-
-        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
 
         let boundaries = waves.layers();
 
@@ -378,11 +370,13 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_preserves_layer_position_semantics() {
+    fn reconstructed_sampling_preserves_layer_position_semantics() {
         let workspace =
             build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
 
         let context = WaveSamplingContext::new(&workspace);
+
+        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
 
         let positions = [
             CanonicalLayerPosition::FromLeft(0.1),
@@ -401,11 +395,8 @@ mod tests {
                 .collect(),
         );
 
-        let actual = context
-            .propagate_sampling(IncidentSide::Left, &sampling)
-            .unwrap();
+        let actual = context.propagate_reconstructed(&waves, &sampling).unwrap();
 
-        let waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
         let boundaries = waves.layers();
 
         let quantities = workspace
@@ -427,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn sampling_respects_incident_side() {
+    fn reconstructed_sampling_respects_incident_side() {
         let workspace =
             build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
 
@@ -442,19 +433,23 @@ mod tests {
             CanonicalFieldPosition::RightExterior { distance: 0.0 },
         ]);
 
+        let left_waves = context.driven_boundary_waves(IncidentSide::Left).unwrap();
+
+        let right_waves = context.driven_boundary_waves(IncidentSide::Right).unwrap();
+
         let left = context
-            .propagate_sampling(IncidentSide::Left, &sampling)
+            .propagate_reconstructed(&left_waves, &sampling)
             .unwrap();
 
         let right = context
-            .propagate_sampling(IncidentSide::Right, &sampling)
+            .propagate_reconstructed(&right_waves, &sampling)
             .unwrap();
 
         assert_ne!(left, right);
     }
 
     #[test]
-    fn exterior_boundary_sampling_matches_solution_amplitudes() {
+    fn reconstructed_exterior_boundary_sampling_matches_solution_amplitudes() {
         let workspace =
             build_workspace(boundary_test_single_layer_stack(), RunMode::InternalFields);
 
@@ -462,7 +457,13 @@ mod tests {
 
         for side in [IncidentSide::Left, IncidentSide::Right] {
             let waves = context.driven_boundary_waves(side).unwrap();
-            let exterior = waves.exterior();
+
+            let sampling = CompiledFieldSampling::new(vec![
+                CanonicalFieldPosition::LeftExterior { distance: 0.0 },
+                CanonicalFieldPosition::RightExterior { distance: 0.0 },
+            ]);
+
+            let sampled = context.propagate_reconstructed(&waves, &sampling).unwrap();
 
             let solution = workspace.solution();
 
@@ -473,35 +474,25 @@ mod tests {
             let zero = real_j0_from_real(0.0);
             let one = real_j0_from_real(1.0);
 
-            match side {
-                IncidentSide::Left => {
-                    assert_bidirectional_waves_close(
-                        exterior.left(),
-                        &BidirectionalWaves::new(one.clone(), amplitudes.reflection().clone()),
-                        TOLERANCE,
-                    );
+            let (expected_left, expected_right) = match side {
+                IncidentSide::Left => (
+                    BidirectionalWaves::new(one.clone(), amplitudes.reflection().clone()),
+                    BidirectionalWaves::new(amplitudes.transmission().clone(), zero.clone()),
+                ),
 
-                    assert_bidirectional_waves_close(
-                        exterior.right(),
-                        &BidirectionalWaves::new(amplitudes.transmission().clone(), zero.clone()),
-                        TOLERANCE,
-                    );
-                }
+                IncidentSide::Right => (
+                    BidirectionalWaves::new(zero.clone(), amplitudes.transmission().clone()),
+                    BidirectionalWaves::new(amplitudes.reflection().clone(), one.clone()),
+                ),
+            };
 
-                IncidentSide::Right => {
-                    assert_bidirectional_waves_close(
-                        exterior.left(),
-                        &BidirectionalWaves::new(zero.clone(), amplitudes.transmission().clone()),
-                        TOLERANCE,
-                    );
+            /*
+             * Sampling at zero exterior distance must return the reconstructed
+             * boundary amplitudes unchanged.
+             */
+            assert_bidirectional_waves_close(&sampled[0], &expected_left, TOLERANCE);
 
-                    assert_bidirectional_waves_close(
-                        exterior.right(),
-                        &BidirectionalWaves::new(amplitudes.reflection().clone(), one.clone()),
-                        TOLERANCE,
-                    );
-                }
-            }
+            assert_bidirectional_waves_close(&sampled[1], &expected_right, TOLERANCE);
         }
     }
 }

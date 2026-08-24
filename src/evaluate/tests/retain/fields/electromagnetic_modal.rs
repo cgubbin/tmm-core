@@ -15,7 +15,7 @@ use crate::{
     spatial::{ExteriorSampling, FieldSampling, LayerSampling},
     test_support::{
         C,
-        assertions::{assert_array_close, assert_complex_close},
+        assertions::assert_complex_close,
         finite_difference::{
             FIRST_DERIVATIVE_TOLERANCE, SECOND_DERIVATIVE_TOLERANCE, VALUE_TOLERANCE,
         },
@@ -192,27 +192,6 @@ fn assert_zero(values: &ComplexArray, tolerance: f64) {
             value.norm(),
         );
     }
-}
-
-fn assert_vector_close(
-    actual: &VectorField<C, Ix1>,
-    expected: &VectorField<C, Ix1>,
-    tolerance: f64,
-) {
-    assert_array_close(actual.x(), expected.x(), tolerance);
-    assert_array_close(actual.y(), expected.y(), tolerance);
-    assert_array_close(actual.z(), expected.z(), tolerance);
-}
-
-fn assert_fields_close(
-    actual_electric: &VectorField<C, Ix1>,
-    actual_magnetic: &VectorField<C, Ix1>,
-    expected_electric: &VectorField<C, Ix1>,
-    expected_magnetic: &VectorField<C, Ix1>,
-    tolerance: f64,
-) {
-    assert_vector_close(actual_electric, expected_electric, tolerance);
-    assert_vector_close(actual_magnetic, expected_magnetic, tolerance);
 }
 
 fn assert_te_structure(

@@ -43,10 +43,12 @@ impl<R> IntegratedFieldNorms<R> {
         Self { electric, magnetic }
     }
 
+    #[cfg(test)]
     pub(crate) fn electric(&self) -> &R {
         &self.electric
     }
 
+    #[cfg(test)]
     pub(crate) fn magnetic(&self) -> &R {
         &self.magnetic
     }

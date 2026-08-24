@@ -22,11 +22,11 @@ pub(crate) mod compile;
 mod coordinate;
 mod coordinate_input;
 mod error;
-mod request;
 
 pub(crate) use canonical::{CanonicalBackendInput, CanonicalProblem};
 pub(crate) use compile::{
-    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping, ProjectionConstraint, ProjectionConstraintError, ValidationConfig, compile_real,
+    CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping,
+    ProjectionConstraint, ProjectionConstraintError, ValidationConfig, compile_real,
 };
 pub(crate) use coordinate::ReferenceRequirement;
 pub(crate) use coordinate_input::CoordinateValues;
@@ -35,7 +35,7 @@ pub use canonical::{CanonicalCoordinates, CanonicalStack};
 pub use compile::{StackCompileError, StackThicknessJet, compile_canonical_constant_stack};
 pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
 pub use coordinate_input::{
-    CoordinateGrid, CoordinateInput, CoordinatePoint, CoordinateReference, CoordinateSamples,
+    CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples,
 };
 pub use error::PlaneWaveInputError;
 

@@ -1,11 +1,13 @@
 //! Internal directional-wave data used by interface projections.
 
+#[cfg(test)]
 use ndarray::Dimension;
 
+#[cfg(test)]
+use crate::{ComplexScalar, observable::BoundaryState};
 use crate::{
-    ComplexScalar,
     algebra::{ScalarAlgebra, ScaleBy},
-    observable::{BoundaryState, BoundaryWaves},
+    observable::BoundaryWaves,
 };
 
 /// Directional waves in the two exterior media.
@@ -20,10 +22,12 @@ impl<A> ExteriorBoundaryWaves<A> {
         Self { left, right }
     }
 
+    #[cfg(test)]
     pub(crate) fn left(&self) -> &BoundaryWaves<A> {
         &self.left
     }
 
+    #[cfg(test)]
     pub(crate) fn right(&self) -> &BoundaryWaves<A> {
         &self.right
     }
@@ -67,10 +71,12 @@ impl<A> InterfaceSide<A> {
         Self { waves, admittance }
     }
 
+    #[cfg(test)]
     pub(crate) fn waves(&self) -> &BoundaryWaves<A> {
         &self.waves
     }
 
+    #[cfg(test)]
     pub(crate) fn admittance(&self) -> &A {
         &self.admittance
     }
@@ -79,6 +85,7 @@ impl<A> InterfaceSide<A> {
     ///
     /// This is primarily useful for diagnostics. Consuming projections should
     /// prefer [`Self::into_state`] to avoid cloning the directional waves.
+    #[cfg(test)]
     pub(crate) fn state(&self) -> BoundaryState<A>
     where
         A: ScalarAlgebra + Clone,
@@ -86,16 +93,6 @@ impl<A> InterfaceSide<A> {
         A::Dimension: Dimension,
     {
         self.waves.clone().into_state(&self.admittance)
-    }
-
-    /// Consume this side and derive its canonical state.
-    pub(crate) fn into_state(self) -> BoundaryState<A>
-    where
-        A: ScalarAlgebra,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-    {
-        self.waves.into_state(&self.admittance)
     }
 
     pub(crate) fn into_parts(self) -> (BoundaryWaves<A>, A) {
@@ -130,10 +127,12 @@ impl<A> InterfaceWaveData<A> {
         Self { left, right }
     }
 
+    #[cfg(test)]
     pub(crate) fn left(&self) -> &InterfaceSide<A> {
         &self.left
     }
 
+    #[cfg(test)]
     pub(crate) fn right(&self) -> &InterfaceSide<A> {
         &self.right
     }

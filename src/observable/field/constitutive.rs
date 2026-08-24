@@ -66,13 +66,6 @@ impl<A> IsotropicConstitutiveParameters<A> {
     pub fn into_parts(self) -> (A, A) {
         (self.epsilon, self.mu)
     }
-
-    pub fn map<B>(self, mut f: impl FnMut(A) -> B) -> IsotropicConstitutiveParameters<B> {
-        IsotropicConstitutiveParameters {
-            epsilon: f(self.epsilon),
-            mu: f(self.mu),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,23 +79,18 @@ impl<A> IsotropicConstitutiveSpectralFirst<A> {
         Self { epsilon, mu }
     }
 
+    #[cfg(test)]
     pub fn epsilon(&self) -> &A {
         &self.epsilon
     }
 
+    #[cfg(test)]
     pub fn mu(&self) -> &A {
         &self.mu
     }
 
     pub fn into_parts(self) -> (A, A) {
         (self.epsilon, self.mu)
-    }
-
-    pub fn map<B>(self, mut f: impl FnMut(A) -> B) -> IsotropicConstitutiveParameters<B> {
-        IsotropicConstitutiveParameters {
-            epsilon: f(self.epsilon),
-            mu: f(self.mu),
-        }
     }
 }
 
@@ -125,18 +113,17 @@ impl<A> IsotropicConstitutiveSpectralData<A> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn parameters(&self) -> &IsotropicConstitutiveParameters<A> {
         &self.parameters
     }
 
-    pub(crate) fn spectral_first(&self) -> &IsotropicConstitutiveSpectralFirst<A> {
-        &self.spectral_first
-    }
-
+    #[cfg(test)]
     pub(crate) fn mu_spectral_first(&self) -> &A {
         self.spectral_first.mu()
     }
 
+    #[cfg(test)]
     pub(crate) fn epsilon_spectral_first(&self) -> &A {
         self.spectral_first.epsilon()
     }
@@ -193,14 +180,17 @@ impl<A> IsotropicBrillouinFactors<A> {
         Self { electric, magnetic }
     }
 
+    #[cfg(test)]
     pub(crate) fn electric(&self) -> &A {
         &self.electric
     }
 
+    #[cfg(test)]
     pub(crate) fn magnetic(&self) -> &A {
         &self.magnetic
     }
 
+    #[cfg(test)]
     pub(crate) fn into_parts(self) -> (A, A) {
         (self.electric, self.magnetic)
     }
@@ -234,10 +224,6 @@ impl<A> ElectromagneticEnergyCoefficients<A> {
     pub(crate) fn magnetic(&self) -> &A {
         &self.magnetic
     }
-
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.electric, self.magnetic)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -257,10 +243,6 @@ impl<A> ElectromagneticDissipationCoefficients<A> {
 
     pub(crate) fn magnetic(&self) -> &A {
         &self.magnetic
-    }
-
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.electric, self.magnetic)
     }
 }
 
@@ -295,7 +277,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{Array1, Ix1, arr1};
+    use ndarray::{Ix1, arr1};
     use num_complex::Complex64;
 
     use crate::field::VectorField;
@@ -307,8 +289,6 @@ mod tests {
     type Vector = VectorField<C, D>;
     type Field = ConstitutiveFields<Vector>;
 
-    const TOLERANCE: f64 = 1.0e-12;
-
     fn c(real: f64, imaginary: f64) -> C {
         C::new(real, imaginary)
     }
@@ -319,70 +299,6 @@ mod tests {
             arr1(&[c(value + 0.1, 0.0)]),
             arr1(&[c(value + 0.2, 0.0)]),
         )
-    }
-
-    fn vector(x: &[C], y: &[C], z: &[C]) -> Vector {
-        VectorField::new_unchecked(
-            Array1::from_vec(x.to_vec()),
-            Array1::from_vec(y.to_vec()),
-            Array1::from_vec(z.to_vec()),
-        )
-    }
-
-    fn assert_real_close(actual: f64, expected: f64) {
-        let error = (actual - expected).abs();
-
-        assert!(
-            error <= TOLERANCE,
-            "expected {expected:e}, \
-             got {actual:e}; \
-             absolute error = {error:e}",
-        );
-    }
-
-    fn assert_complex_close(actual: C, expected: C) {
-        let error = (actual - expected).norm();
-
-        assert!(
-            error <= TOLERANCE,
-            "expected {expected:?}, \
-             got {actual:?}; \
-             absolute error = {error:e}",
-        );
-    }
-
-    fn assert_real_array_close(actual: &Array1<f64>, expected: &Array1<f64>) {
-        assert_eq!(actual.raw_dim(), expected.raw_dim(),);
-
-        for (&actual, &expected) in actual.iter().zip(expected.iter()) {
-            assert_real_close(actual, expected);
-        }
-    }
-
-    fn assert_complex_array_close(actual: &Array1<C>, expected: &Array1<C>) {
-        assert_eq!(actual.raw_dim(), expected.raw_dim(),);
-
-        for (&actual, &expected) in actual.iter().zip(expected.iter()) {
-            assert_complex_close(actual, expected);
-        }
-    }
-
-    fn assert_vector_close(actual: &Vector, expected: &Vector) {
-        assert_complex_array_close(actual.x(), expected.x());
-
-        assert_complex_array_close(actual.y(), expected.y());
-
-        assert_complex_array_close(actual.z(), expected.z());
-    }
-
-    fn assert_field_equals(
-        actual: &Field,
-        electric_displacement: &Vector,
-        magnetic_induction: &Vector,
-    ) {
-        assert_vector_close(actual.electric_displacement(), electric_displacement);
-
-        assert_vector_close(actual.magnetic_induction(), magnetic_induction);
     }
 
     #[test]

@@ -3,7 +3,7 @@ use ndarray::{Array, Ix0, arr0};
 use num_complex::Complex64;
 
 use crate::{
-    AnalyticalMaterialStack, CanonicalCoordinates, Constant, Stack,
+    AnalyticalMaterialStack, Constant, Stack,
     algebra::Jet0,
     input::canonical::{CanonicalLayer, CanonicalStack},
     test_support::{
@@ -73,18 +73,6 @@ pub fn absorbing_single_layer_stack() -> AnalyticalMaterialStack<C> {
         .finalise()
 }
 
-pub fn asymmetric_absorbing_single_layer_stack(
-    left: f64,
-    right: f64,
-) -> AnalyticalMaterialStack<C> {
-    Stack::from_analytical_materials(Constant::dielectric(left), Constant::dielectric(right))
-        .analytical_layer(
-            Drude::new(1.0, 15000.0, 20.0).unwrap(),
-            Length::micrometres(100.0),
-        )
-        .finalise()
-}
-
 pub fn absorbing_two_layer_stack() -> AnalyticalMaterialStack<C> {
     Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
         .analytical_layer(
@@ -139,28 +127,10 @@ pub fn differentiable_lossless_two_layer_stack() -> AnalyticalMaterialStack<C> {
         .finalise()
 }
 
-pub fn two_layer_stack_with_thicknesses(first: f64, second: f64) -> AnalyticalMaterialStack<C> {
-    Stack::from_analytical_materials(Constant::vacuum(), Constant::dielectric(1.7))
-        .analytical_layer(Constant::dielectric(2.0), Length::micrometres(first))
-        .analytical_layer(
-            Drude::new(1.0, 30000.0, 30.0).unwrap(),
-            Length::micrometres(second),
-        )
-        .finalise()
-}
-
-pub(crate) type BoundaryTestScalar = Complex64;
 pub(crate) type BoundaryTestJet = RealJ0;
 
 pub(crate) fn boundary_test_jet(value: Complex64) -> BoundaryTestJet {
     Jet0::new(arr0(value))
-}
-
-pub(crate) fn boundary_test_coordinates() -> CanonicalCoordinates<BoundaryTestJet> {
-    CanonicalCoordinates::new(
-        boundary_test_jet(Complex64::new(2.3, 0.0)),
-        boundary_test_jet(Complex64::new(0.37, 0.0)),
-    )
 }
 
 /// An asymmetric one-layer stack.

@@ -40,10 +40,7 @@ use num_traits::{One, Zero};
 use crate::{
     ComplexScalar, IncidentSide, PlaneWaveAmplitudes, PlaneWaveDeterminant, PlaneWavePower,
     Polarisation,
-    algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
-        RealScalarAlgebra, ScalarAlgebra,
-    },
+    algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::{
         ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries, PlaneWaveModeCandidate,
         isotropic::{IsotropicLayerQuantities, IsotropicMediumQuantities},
@@ -58,21 +55,6 @@ use super::{
     projection::{right_incoming_column, right_outgoing_column},
     state::transfer_state_slope,
 };
-
-/// Zero-order entry-wise transfer representation.
-pub(crate) type Transfer2Jet0<C, D, P> = Transfer2Entries<ArrayJet0<C, D, P>>;
-
-/// First-order entry-wise transfer representation.
-pub(crate) type Transfer2Jet1<C, D, P> = Transfer2Entries<ArrayJet1<C, D, P>>;
-
-/// Second-order entry-wise transfer representation.
-pub(crate) type Transfer2Jet2<C, D, P> = Transfer2Entries<ArrayJet2<C, D, P>>;
-
-/// Bivariate entrywise transfer representation
-pub(crate) type Transfer2JetBivariate1<C, D, P> = Transfer2Entries<ArrayJetBivariate1<C, D, P>>;
-
-/// Second-order bivariate entrywise transfer representation
-pub(crate) type Transfer2JetBivariate2<C, D, P> = Transfer2Entries<ArrayJetBivariate2<C, D, P>>;
 
 /// Internal algebraic representation of a 2×2 transfer matrix.
 ///
@@ -114,10 +96,10 @@ impl<A> Transfer2Entries<A> {
         &self.m22
     }
 
-    /// Consume the matrix and return its entries in row-major order.
-    pub(crate) fn into_parts(self) -> (A, A, A, A) {
-        (self.m11, self.m12, self.m21, self.m22)
-    }
+    // /// Consume the matrix and return its entries in row-major order.
+    // pub(crate) fn into_parts(self) -> (A, A, A, A) {
+    //     (self.m11, self.m12, self.m21, self.m22)
+    // }
 
     pub(crate) fn first_non_finite(&self) -> Option<(Transfer2Entry, Vec<usize>)>
     where
@@ -144,12 +126,12 @@ impl<A> Transfer2Entries<A> {
         })
     }
 
-    pub(super) fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
-    where
-        A: ScalarAlgebra,
-    {
-        self.m11().value()
-    }
+    // pub(super) fn sample_source(&self) -> &ArrayBase<OwnedRepr<A::Scalar>, A::Dimension>
+    // where
+    //     A: ScalarAlgebra,
+    // {
+    //     self.m11().value()
+    // }
 }
 
 impl<A> Transfer2Entries<A> {
@@ -182,44 +164,26 @@ impl<A> Transfer2Entries<A> {
         A::Dimension: Dimension,
     {
         let m11 = self
-            .m11
-            .multiply(&rhs.m11)
-            .add(&self.m12.multiply(&rhs.m21));
+            .m11()
+            .multiply(rhs.m11())
+            .add(&self.m12().multiply(rhs.m21()));
 
         let m12 = self
-            .m11
-            .multiply(&rhs.m12)
-            .add(&self.m12.multiply(&rhs.m22));
+            .m11()
+            .multiply(rhs.m12())
+            .add(&self.m12().multiply(rhs.m22()));
 
         let m21 = self
-            .m21
-            .multiply(&rhs.m11)
-            .add(&self.m22.multiply(&rhs.m21));
+            .m21()
+            .multiply(rhs.m11())
+            .add(&self.m22().multiply(rhs.m21()));
 
         let m22 = self
-            .m21
-            .multiply(&rhs.m12)
-            .add(&self.m22.multiply(&rhs.m22));
+            .m21()
+            .multiply(rhs.m12())
+            .add(&self.m22().multiply(rhs.m22()));
 
         Self::new(m11, m12, m21, m22)
-    }
-
-    /// Compute the determinant using the supplied scalar algebra.
-    ///
-    /// The determinant is:
-    ///
-    /// ```text
-    /// det(M) = m11 m22 - m12 m21.
-    /// ```
-    pub(crate) fn determinant(&self) -> A
-    where
-        A: ScalarAlgebra,
-        A::Scalar: ComplexField,
-        A::Dimension: Dimension,
-    {
-        self.m11
-            .multiply(&self.m22)
-            .subtract(&self.m12.multiply(&self.m21))
     }
 
     pub(crate) fn from_layer(quantities: &IsotropicLayerQuantities<A>, thickness: &A) -> Self
@@ -622,17 +586,6 @@ mod tests {
     }
 
     #[test]
-    fn determinant_uses_standard_formula() {
-        let matrix = entries(c(2.0), c(3.0), c(5.0), c(7.0));
-
-        assert_complex_close(
-            matrix.determinant()[()],
-            c(2.0 * 7.0 - 3.0 * 5.0),
-            TOLERANCE,
-        );
-    }
-
-    #[test]
     fn zero_thickness_layer_is_identity() {
         let material = constant(4.0, 1.0);
         let coordinates = coordinates(2.0, 0.3);
@@ -676,24 +629,6 @@ mod tests {
         assert_complex_close(matrix.m21()[()], c(admittance * theta.sin()), TOLERANCE);
 
         assert_complex_close(matrix.m22()[()], c(theta.cos()), TOLERANCE);
-    }
-
-    #[test]
-    fn homogeneous_layer_has_unit_determinant() {
-        let material = constant(3.0, 1.5);
-        let coordinates = coordinates(2.0, 0.4);
-
-        for polarisation in [
-            Polarisation::TransverseElectric,
-            Polarisation::TransverseMagnetic,
-        ] {
-            let quantities =
-                IsotropicLayerQuantities::real_axis(&material, &coordinates, polarisation);
-
-            let matrix = Transfer2Entries::from_layer(&quantities, &real_j0(c(0.37)));
-
-            assert_complex_close(matrix.determinant()[()], c(1.0), TOLERANCE);
-        }
     }
 
     #[test]

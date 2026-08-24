@@ -22,13 +22,6 @@ fn scalar(value: &RealArray) -> f64 {
     value[()]
 }
 
-fn summed_absorption<R>(
-    layers: &crate::observable::Layers<crate::observable::LayerPower<R>>,
-    scalar: impl Fn(&R) -> f64,
-) -> f64 {
-    layers.iter().map(|layer| scalar(layer.absorbed())).sum()
-}
-
 #[test]
 fn layer_power_returns_one_record_per_finite_layer() {
     let evaluator = RealAxisEvaluator::new(Scatter2::new());

@@ -1,19 +1,8 @@
-use ndarray::{ArrayBase, Ix0, OwnedRepr};
-
 use crate::{
     FiniteLayerIndex, IncidentSide, Polarisation, RealAxisEvaluator,
     backend::{RetainedIsotropicLayers, scatter2::Scatter2, transfer2::Transfer2},
-    test_support::{
-        C,
-        planar::{scalar_real_input, two_layer_stack},
-    },
+    test_support::planar::{scalar_real_input, two_layer_stack},
 };
-
-type ComplexArray = ArrayBase<OwnedRepr<C>, Ix0>;
-
-fn complex_scalar(value: &ComplexArray) -> C {
-    value[()]
-}
 
 #[test]
 fn layer_wave_data_returns_one_record_per_finite_layer() {

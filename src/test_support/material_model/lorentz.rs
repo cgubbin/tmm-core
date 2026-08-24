@@ -1,8 +1,5 @@
 //! Lorentz oscillator model.
 
-use super::{
-    MaterialModelError, delegate::delegate_analytical_material, drude_lorentz::DrudeLorentz,
-};
 use crate::ComplexScalar;
 use num_traits::Float;
 use std::fmt::Debug;
@@ -21,60 +18,6 @@ impl<R> LorentzOscillator<R>
 where
     R: Float + Debug,
 {
-    /// Construct from primitive oscillator strength `S`.
-    pub fn new(strength: R, resonance: R, damping: R) -> Result<Self, MaterialModelError<R>> {
-        Self::from_strength(strength, resonance, damping)
-    }
-
-    /// Construct from primitive oscillator strength `S`.
-    pub fn from_strength(
-        strength: R,
-        resonance: R,
-        damping: R,
-    ) -> Result<Self, MaterialModelError<R>> {
-        validate_nonnegative("strength", strength)?;
-        validate_positive("resonance", resonance)?;
-        validate_nonnegative("damping", damping)?;
-
-        Ok(Self {
-            strength,
-            resonance,
-            damping,
-        })
-    }
-
-    /// Construct from the zero-frequency contribution `Δε`, using `S = Δε Ω²`.
-    pub fn from_delta_epsilon(
-        delta_epsilon: R,
-        resonance: R,
-        damping: R,
-    ) -> Result<Self, MaterialModelError<R>> {
-        validate_nonnegative("delta_epsilon", delta_epsilon)?;
-        validate_positive("resonance", resonance)?;
-
-        Self::from_strength(delta_epsilon * resonance * resonance, resonance, damping)
-    }
-
-    /// Return primitive strength `S`.
-    pub fn strength(&self) -> R {
-        self.strength
-    }
-
-    /// Return the static contribution `S / Ω²`.
-    pub fn delta_epsilon(&self) -> R {
-        self.strength / (self.resonance * self.resonance)
-    }
-
-    /// Return resonance wavenumber.
-    pub fn resonance(&self) -> R {
-        self.resonance
-    }
-
-    /// Return damping wavenumber.
-    pub fn damping(&self) -> R {
-        self.damping
-    }
-
     pub(crate) fn value_at<C>(&self, k0: C) -> C
     where
         C: ComplexScalar<RealField = R> + Copy,
@@ -126,69 +69,4 @@ where
 
         (first, second, third)
     }
-}
-
-/// Pure Lorentz material model.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Lorentz<R> {
-    pub(crate) inner: DrudeLorentz<R>,
-}
-
-impl<R> Lorentz<R>
-where
-    R: Float + Debug,
-{
-    /// Construct a Lorentz model.
-    pub fn new(
-        epsilon_infinity: R,
-        oscillators: Vec<LorentzOscillator<R>>,
-    ) -> Result<Self, MaterialModelError<R>> {
-        Ok(Self {
-            inner: DrudeLorentz::lorentz_only(epsilon_infinity, oscillators)?,
-        })
-    }
-
-    /// Return the high-frequency permittivity.
-    pub fn epsilon_infinity(&self) -> R {
-        self.inner.epsilon_infinity()
-    }
-
-    /// Return oscillator terms.
-    pub fn oscillators(&self) -> &[LorentzOscillator<R>] {
-        self.inner.oscillators()
-    }
-}
-
-delegate_analytical_material!(Lorentz);
-
-fn validate_finite<R>(name: &'static str, value: R) -> Result<(), MaterialModelError<R>>
-where
-    R: Float + Debug,
-{
-    if !value.is_finite() {
-        return Err(MaterialModelError::NonFiniteParameter { name, value });
-    }
-    Ok(())
-}
-
-fn validate_nonnegative<R>(name: &'static str, value: R) -> Result<(), MaterialModelError<R>>
-where
-    R: Float + Debug,
-{
-    validate_finite(name, value)?;
-    if value < R::zero() {
-        return Err(MaterialModelError::NegativeParameter { name, value });
-    }
-    Ok(())
-}
-
-fn validate_positive<R>(name: &'static str, value: R) -> Result<(), MaterialModelError<R>>
-where
-    R: Float + Debug,
-{
-    validate_finite(name, value)?;
-    if value <= R::zero() {
-        return Err(MaterialModelError::NonPositiveParameter { name, value });
-    }
-    Ok(())
 }

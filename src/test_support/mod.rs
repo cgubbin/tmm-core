@@ -15,5 +15,3 @@ pub type C = Complex64;
 pub fn c(x: f64) -> C {
     C::new(x, 0.0)
 }
-
-type TestAlgebra = ndarray::Array<C, ndarray::Ix0>;

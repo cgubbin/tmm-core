@@ -19,10 +19,7 @@ use num_traits::{One, Zero};
 
 use crate::{
     ComplexScalar, PlaneWaveAmplitudes, PlaneWavePower, Polarisation,
-    algebra::{
-        ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, Jet,
-        RealScalarAlgebra, ScalarAlgebra,
-    },
+    algebra::{Jet, RealScalarAlgebra, ScalarAlgebra},
     backend::{
         ExteriorContextProvider, ExteriorWavevectors, PlaneWaveEntries,
         isotropic::IsotropicMediumQuantities,
@@ -31,21 +28,6 @@ use crate::{
     material::{ConstitutiveEvaluator, ConstitutiveLift},
     observable::{ProjectAmplitudes, ProjectPower},
 };
-
-/// Zero-order entry-wise scattering representation.
-pub(crate) type Scatter2Jet0<C, D, P> = Scatter2Entries<ArrayJet0<C, D, P>>;
-
-/// First-order entry-wise scattering representation.
-pub(crate) type Scatter2Jet1<C, D, P> = Scatter2Entries<ArrayJet1<C, D, P>>;
-
-/// Second-order entry-wise scattering representation.
-pub(crate) type Scatter2Jet2<C, D, P> = Scatter2Entries<ArrayJet2<C, D, P>>;
-
-/// Bivariate entry-wise scattering representation.
-pub(crate) type Scatter2JetBivariate1<C, D, P> = Scatter2Entries<ArrayJetBivariate1<C, D, P>>;
-
-/// Bivariate entry-wise scattering representation.
-pub(crate) type Scatter2JetBivariate2<C, D, P> = Scatter2Entries<ArrayJetBivariate2<C, D, P>>;
 
 /// Four scalar entries of a 2×2 scattering matrix.
 ///
@@ -129,17 +111,9 @@ impl<A> Scatter2Entries<A> {
 
     pub(crate) fn amplitudes_ref(&self, side: IncidentSide) -> (&'_ A, &'_ A) {
         match side {
-            IncidentSide::Left => (&self.s11, &self.s21),
+            IncidentSide::Left => (self.s11(), self.s21()),
 
-            IncidentSide::Right => (&self.s22, &self.s12),
-        }
-    }
-
-    pub(crate) fn into_amplitudes(self, side: IncidentSide) -> (A, A) {
-        match side {
-            IncidentSide::Left => (self.s11, self.s21),
-
-            IncidentSide::Right => (self.s22, self.s12),
+            IncidentSide::Right => (self.s22(), self.s12()),
         }
     }
 
@@ -293,27 +267,6 @@ impl<J> Scatter2ExteriorContext<J> {
         match side {
             IncidentSide::Left => (&self.left_admittance, &self.right_admittance),
             IncidentSide::Right => (&self.right_admittance, &self.left_admittance),
-        }
-    }
-
-    pub(super) fn incident_and_transmitted_kappa(&self, side: IncidentSide) -> (&J, &J) {
-        match side {
-            IncidentSide::Left => (&self.left_kappa, &self.right_kappa),
-            IncidentSide::Right => (&self.right_kappa, &self.left_kappa),
-        }
-    }
-
-    pub(super) fn incident_and_transmitted_mu(&self, side: IncidentSide) -> (&J, &J) {
-        match side {
-            IncidentSide::Left => (&self.left_mu, &self.right_mu),
-            IncidentSide::Right => (&self.right_mu, &self.left_mu),
-        }
-    }
-
-    pub(super) fn incident_and_transmitted_epsilon(&self, side: IncidentSide) -> (&J, &J) {
-        match side {
-            IncidentSide::Left => (&self.left_epsilon, &self.right_epsilon),
-            IncidentSide::Right => (&self.right_epsilon, &self.left_epsilon),
         }
     }
 }
@@ -921,15 +874,6 @@ mod determinant_helper_tests {
         J::Scalar: Copy,
     {
         jet.value()[()]
-    }
-
-    fn entries_with_s21(s21: impl Into<Complex64>) -> Scatter2Entries<Algebra> {
-        Scatter2Entries {
-            s11: scalar(0.0),
-            s12: scalar(0.0),
-            s21: scalar(s21),
-            s22: scalar(0.0),
-        }
     }
 
     #[test]

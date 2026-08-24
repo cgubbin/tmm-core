@@ -344,6 +344,7 @@ where
         self.spectral.raw_dim()
     }
 
+    #[cfg(test)]
     pub(crate) fn into_parts(self) -> (Array<S, D>, Array<S, D>) {
         (self.spectral, self.in_plane)
     }
