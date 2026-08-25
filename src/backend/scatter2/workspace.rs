@@ -155,17 +155,6 @@ impl<A> Scatter2Workspace<A> {
         &self.solution
     }
 
-    // pub(crate) fn entries(&self) -> &Scatter2ProjectiveEntries<A> {
-    //     self.solution.entries()
-    // }
-
-    fn total(&self) -> Scatter2Entries<A>
-    where
-        A: ScalarAlgebra,
-    {
-        self.solution.entries().entries()
-    }
-
     pub(crate) fn retained(&self) -> Option<&RetainedScatterComponents<A>> {
         self.retained.as_ref()
     }
@@ -673,13 +662,15 @@ mod tests {
         let workspace: Scatter2Workspace<RealJ0> =
             Scatter2Workspace::new(&source, context, RunMode::ResponseOnly, 3);
 
-        assert_complex_close(workspace.total().s11.value()[()], c(0.0), TOLERANCE);
+        let entries = workspace.solution().entries().entries();
 
-        assert_complex_close(workspace.total().s12.value()[()], c(1.0), TOLERANCE);
+        assert_complex_close(entries.s11.value()[()], c(0.0), TOLERANCE);
 
-        assert_complex_close(workspace.total().s21.value()[()], c(1.0), TOLERANCE);
+        assert_complex_close(entries.s12.value()[()], c(1.0), TOLERANCE);
 
-        assert_complex_close(workspace.total().s22.value()[()], c(0.0), TOLERANCE);
+        assert_complex_close(entries.s21.value()[()], c(1.0), TOLERANCE);
+
+        assert_complex_close(entries.s22.value()[()], c(0.0), TOLERANCE);
     }
 
     #[test]
@@ -726,7 +717,11 @@ mod tests {
 
         workspace.append(component.clone());
 
-        assert_entries_close(&workspace.total(), &component, TOLERANCE);
+        assert_entries_close(
+            &workspace.solution().entries().entries(),
+            &component,
+            TOLERANCE,
+        );
     }
 
     #[test]
@@ -745,7 +740,7 @@ mod tests {
         let solution = workspace.into_solution();
         let (entries, ..) = solution.into_parts();
 
-        assert_entries_close(&entries.into_entries(), &component, TOLERANCE);
+        assert_entries_close(&entries.entries(), &component, TOLERANCE);
     }
 
     #[test]
@@ -765,7 +760,11 @@ mod tests {
 
         let expected = cascade(&first, &second);
 
-        assert_entries_close(&workspace.total(), &expected, TOLERANCE);
+        assert_entries_close(
+            &workspace.solution().entries().entries(),
+            &expected,
+            TOLERANCE,
+        );
     }
 
     #[test]
@@ -827,7 +826,11 @@ mod tests {
 
         let expected = cascade(&interface, &propagation);
 
-        assert_entries_close(&workspace.total(), &expected, TOLERANCE);
+        assert_entries_close(
+            &workspace.solution().entries().entries(),
+            &expected,
+            TOLERANCE,
+        );
     }
 
     #[test]

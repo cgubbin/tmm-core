@@ -90,11 +90,6 @@ where
         &self.amplitude_scale
     }
 
-    pub(crate) fn into_parts(self) -> (&'a RealAxisState<J, M, W>, IncidentSide, J::RealJet) {
-        (self.state, self.incident_side, self.amplitude_scale)
-    }
-
-
     fn normalised_boundary_waves(
         &self,
     ) -> Result<LayerBoundaries<LayerBoundaryWaves<J>>, BoundaryProjectionError>

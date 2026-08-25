@@ -47,11 +47,6 @@ impl<M, J> CanonicalLayer<M, J> {
     pub(crate) fn thickness_cm(&self) -> &J {
         &self.thickness_cm
     }
-
-    /// Consume the layer and return `(material, thickness_cm)`.
-    pub(crate) fn into_parts(self) -> (M, J) {
-        (self.material, self.thickness_cm)
-    }
 }
 
 /// A validated planar stack prepared for backend evaluation.
@@ -119,21 +114,6 @@ impl<M, J> CanonicalStack<M, J> {
     pub(crate) fn layer_count(&self) -> usize {
         self.layers_left_to_right.len()
     }
-
-    /// Consume the stack and return its geometric components.
-    ///
-    /// The returned tuple contains:
-    ///
-    /// 1. the left exterior material;
-    /// 2. the right exterior material;
-    /// 3. the finite layers in left-to-right order.
-    pub(crate) fn into_parts(self) -> (M, M, Vec<CanonicalLayer<M, J>>) {
-        (
-            self.left_exterior,
-            self.right_exterior,
-            self.layers_left_to_right,
-        )
-    }
 }
 
 #[cfg(test)]
@@ -146,8 +126,6 @@ mod tests {
 
         assert_eq!(layer.material(), &"film");
         assert_eq!(layer.thickness_cm(), &vec![0.1, 0.2]);
-
-        assert_eq!(layer.into_parts(), ("film", vec![0.1, 0.2]),);
     }
 
     #[test]
@@ -164,12 +142,6 @@ mod tests {
         assert_eq!(stack.right_exterior(), &"right");
         assert_eq!(stack.layers(), layers.as_slice());
         assert_eq!(stack.layer_count(), 3);
-
-        let (left_exterior, right_exterior, returned_layers) = stack.into_parts();
-
-        assert_eq!(left_exterior, "left");
-        assert_eq!(right_exterior, "right");
-        assert_eq!(returned_layers, layers);
     }
 
     #[test]

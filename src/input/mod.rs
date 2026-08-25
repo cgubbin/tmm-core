@@ -23,7 +23,7 @@ mod coordinate;
 mod coordinate_input;
 mod error;
 
-pub(crate) use canonical::{CanonicalBackendInput, CanonicalProblem};
+pub(crate) use canonical::CanonicalProblem;
 pub(crate) use compile::{
     CompilationContext, CompileJet, CompilePlaneWaveError, CoordinateContext, JetMapping,
     ProjectionConstraint, ProjectionConstraintError, ValidationConfig, compile_real,

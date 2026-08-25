@@ -2,6 +2,8 @@ use nalgebra::ComplexField;
 use ndarray::Dimension;
 use num_traits::{FromPrimitive, One};
 
+#[cfg(test)]
+use crate::observable::IsotropicConstitutiveSpectralData;
 use crate::{
     CanonicalCoordinates, ComplexPlane, ComplexScalar, ExteriorWavevectors, Polarisation,
     algebra::{ComplexJet, Jet, JetStack, ScalarAlgebra, ScalarAlgebraExpRelExt},
@@ -12,8 +14,7 @@ use crate::{
     input::{CanonicalStack, JetMapping},
     material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
-        ConstitutiveSamplingContext, ConstitutiveSamplingError,
-        IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData,
+        ConstitutiveSamplingContext, ConstitutiveSamplingError, IsotropicConstitutiveParameters,
         ProjectPlaneWaveModeDeterminant,
     },
     spatial::ResolvedFieldSampling,
@@ -117,6 +118,7 @@ where
         context.sample(sampling)
     }
 
+    #[cfg(test)]
     pub(crate) fn raw_constitutive_spectral_first_parameters<E>(
         &self,
         sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,

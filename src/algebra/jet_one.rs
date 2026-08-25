@@ -51,7 +51,6 @@ use std::marker::PhantomData;
 
 pub(crate) type ArrayJet1<C, D, P> = Jet1<ArrayBase<OwnedRepr<C>, D>, P>;
 
-pub(crate) type PhysicalJet1<C, D> = ArrayJet1<C, D, RealParameter>;
 pub type ModeJet1<C, D> = ArrayJet1<C, D, HolomorphicParameter>;
 
 /// A first-order directional jet.
@@ -150,14 +149,6 @@ impl<I> FirstOrderExpansion<I> {
         Self { value, first }
     }
 
-    pub(crate) fn value(&self) -> &I {
-        &self.value
-    }
-
-    pub(crate) fn first(&self) -> &I {
-        &self.first
-    }
-
     pub(crate) fn into_parts(self) -> (I, I) {
         (self.value, self.first)
     }
@@ -227,11 +218,6 @@ where
             inverse,
             self.first.jet_negate().jet_multiply(&inverse_squared),
         )
-    }
-
-    /// Divide two first-order jets elementwise.
-    pub(crate) fn divide(&self, rhs: &Self) -> Self {
-        self.multiply(&rhs.reciprocal())
     }
 }
 
@@ -399,18 +385,6 @@ where
 }
 
 impl<I, P> Jet1<I, P> {
-    /// Apply the same representation transformation independently to the value
-    /// and derivative.
-    ///
-    /// This does not apply the differential chain rule and must not be used as a
-    /// general function map.
-    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet1<O, P>
-    where
-        F: FnMut(I) -> O,
-    {
-        Jet1::from_parts(f(self.value), f(self.first))
-    }
-
     pub(crate) fn variable(value: I) -> Self
     where
         I: JetOneLike,
@@ -423,6 +397,8 @@ impl<I, P> Jet1<I, P> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ScalarAlgebra;
+
     use super::*;
 
     use approx::assert_relative_eq;
@@ -1117,21 +1093,6 @@ mod tests {
             epsilon = 2.0e-9,
             max_relative = 2.0e-9,
         );
-    }
-
-    // ---------------------------------------------------------------------
-    // Representation mapping
-    // ---------------------------------------------------------------------
-
-    #[test]
-    fn map_applies_same_transformation_to_both_components() {
-        let jet: ArrayJet1<_, _, RealParameter> = ArrayJet1::from_parts(a0(2.0, 3.0), a0(5.0, 7.0));
-
-        let mapped = jet.map_components(|array| array[()]);
-
-        assert_complex_close(*mapped.value(), c(2.0, 3.0));
-
-        assert_complex_close(*mapped.first(), c(5.0, 7.0));
     }
 
     // ---------------------------------------------------------------------

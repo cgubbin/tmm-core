@@ -25,9 +25,8 @@
 use crate::algebra::{JetMultiplyByScalar, exprel};
 
 use super::{
-    HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetHermitianProduct, JetRealPart, JetReciprocal, JetScaleBy,
-    RealParameter,
+    JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct, JetHermitianProduct,
+    JetRealPart, JetReciprocal, JetScaleBy, RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -36,9 +35,6 @@ use num_traits::{FromPrimitive, float::FloatCore};
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJet0<C, D, P> = Jet0<ArrayBase<OwnedRepr<C>, D>, P>;
-
-pub(crate) type PhysicalJet0<C, D> = ArrayJet0<C, D, RealParameter>;
-pub(crate) type ModeJet0<C, D> = ArrayJet0<C, D, HolomorphicParameter>;
 
 /// A zero-order jet containing only a primal value.
 ///
@@ -145,11 +141,6 @@ where
         let inverse = self.value.jet_elementwise_reciprocal();
 
         Self::new(inverse)
-    }
-
-    /// Divide two zero-order jets elementwise.
-    pub(crate) fn divide(&self, rhs: &Self) -> Self {
-        self.multiply(&rhs.reciprocal())
     }
 }
 
@@ -282,19 +273,5 @@ where
         let result = value.mapv(|x| x.sqrt());
 
         Self::new(result)
-    }
-}
-
-impl<I, P> Jet0<I, P> {
-    /// Transform the wrapped representation without applying a differential
-    /// chain rule.
-    ///
-    /// This is a structural mapping operation rather than composition with a
-    /// scalar function.
-    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet0<O, P>
-    where
-        F: FnMut(I) -> O,
-    {
-        Jet0::new(f(self.value))
     }
 }

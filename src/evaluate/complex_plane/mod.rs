@@ -171,6 +171,4 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
     }
 }
 
-pub(crate) type QueryEntries<B, J> = <B as Backend<J, ComplexPlane>>::Entries;
-
 pub(crate) type RawModeDeterminant<E> = <E as ProjectPlaneWaveModeDeterminant>::Determinant;

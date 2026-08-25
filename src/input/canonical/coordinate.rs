@@ -36,12 +36,4 @@ impl<J> CanonicalCoordinates<J> {
     pub fn parallel_angular_wavenumber(&self) -> &J {
         &self.parallel_angular_wavenumber
     }
-
-    /// Consume the coordinates and return `(k₀, k∥)`.
-    pub(crate) fn into_parts(self) -> (J, J) {
-        (
-            self.vacuum_angular_wavenumber,
-            self.parallel_angular_wavenumber,
-        )
-    }
 }

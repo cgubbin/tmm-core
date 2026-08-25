@@ -111,10 +111,6 @@ impl<E: PlaneWaveEntries> PlaneWaveSolution<E> {
         self.entries = entries;
     }
 
-    pub(crate) fn entries_mut(&mut self) -> &mut E {
-        &mut self.entries
-    }
-
     pub fn amplitudes(&self, incident_side: IncidentSide) -> E::Amplitudes
     where
         E: ProjectAmplitudes,

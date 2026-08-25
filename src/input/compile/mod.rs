@@ -18,7 +18,6 @@ pub(crate) mod context;
 mod coordinates;
 mod error;
 mod layout;
-mod problem;
 mod stack;
 mod validation;
 
@@ -37,11 +36,11 @@ use stack::compile_stack;
 use validation::ValidationError;
 
 use crate::{
-    ComplexPlane, ComplexScalar, SeedJet, Stack,
+    ComplexScalar, SeedJet, Stack,
     algebra::ScalarAlgebra,
     domain::RealAxis,
     input::{
-        CoordinateReference, Coordinates, InPlaneCoordinate,
+        CoordinateReference, Coordinates,
         canonical::CanonicalProblem,
         compile::coordinates::CanonicalCoordinateJet,
         coordinate_input::{CoordinateInput, CoordinateValues},
@@ -130,54 +129,6 @@ where
         metadata,
         &spectral,
         &in_plane,
-        reference,
-        sampled_shape,
-        stack,
-        validation,
-        mapping,
-    )?;
-
-    let mapping = J::compile_mapping(mapping).map_err(MappingError::Mapping)?;
-
-    Ok(finish_compilation(metadata, values, mapping, core))
-}
-
-pub(crate) fn compile_complex<M, J>(
-    input: CoordinateInput<J::Scalar, J::Dimension>,
-    stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
-    validation: &ValidationConfig<<J::Scalar as ComplexField>::RealField>,
-    mapping: &DerivativeMapping,
-) -> Result<
-    (
-        CanonicalProblem<M, J>,
-        CompilationContext<J::Scalar, J::Dimension, J::Mapping>,
-    ),
-    CompilePlaneWaveError<J::Scalar>,
->
-where
-    J: CompileJet<M, ComplexPlane>,
-    J::Scalar: ComplexScalar,
-    <J::Scalar as ComplexField>::RealField: Float + FloatConst + FromPrimitive + Debug + Copy,
-    J::Dimension: Dimension,
-    M: Clone,
-    ComplexPlane: ConstitutiveEvaluator<J::Scalar, J::Dimension, M>,
-{
-    mapping.validate_against_stack(J::VARIABLE_SLOTS, stack.len())?;
-
-    let (metadata, values, reference) = input.into_parts();
-
-    if matches!(metadata.in_plane(), InPlaneCoordinate::IncidentAngle(_)) {
-        return Err(CompilePlaneWaveError::Coordinates(
-            CoordinateCompileError::ComplexIncidentAngleUnsupported,
-        ));
-    }
-
-    let sampled_shape = values.raw_dim();
-
-    let core = compile_core::<M, J, ComplexPlane>(
-        metadata,
-        values.spectral(),
-        values.in_plane(),
         reference,
         sampled_shape,
         stack,
@@ -315,12 +266,12 @@ impl DerivativeMapping {
 mod tests {
     use super::*;
 
-    use lamina_units::{AngleUnit, FrequencyUnit, InverseLengthUnit, Length};
+    use lamina_units::{AngleUnit, InverseLengthUnit, Length};
     use ndarray::{Array, Dimension, Ix1, array};
     use num_complex::Complex64;
 
     use crate::{
-        Constant,
+        ComplexPlane, Constant,
         algebra::{ArrayJet0, ArrayJet1, HolomorphicParameter, RealParameter},
         input::{
             CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, SpectralCoordinate,
@@ -370,23 +321,9 @@ mod tests {
         )
     }
 
-    fn coordinates_with_effective_index() -> Coordinates {
-        Coordinates::new(
-            SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
-            InPlaneCoordinate::EffectiveIndex,
-        )
-    }
-
     fn coordinates_with_angle() -> Coordinates {
         Coordinates::new(
             SpectralCoordinate::VacuumAngularWavenumber(InverseLengthUnit::PerCentimetre),
-            InPlaneCoordinate::IncidentAngle(AngleUnit::Radian),
-        )
-    }
-
-    fn frequency_coordinates_with_angle() -> Coordinates {
-        Coordinates::new(
-            SpectralCoordinate::Frequency(FrequencyUnit::Hertz),
             InPlaneCoordinate::IncidentAngle(AngleUnit::Radian),
         )
     }
@@ -400,30 +337,11 @@ mod tests {
         .unwrap()
     }
 
-    fn complex_input_with_parallel_wavenumber() -> CoordinateInput<C, D> {
-        CoordinateInput::samples(
-            coordinates_with_parallel_wavenumber(),
-            array![C::new(2.0, 0.1), C::new(3.0, -0.2),],
-            array![C::new(0.5, 0.3), C::new(0.75, -0.4),],
-        )
-        .unwrap()
-    }
-
     fn real_angle_input(side: IncidentSide) -> CoordinateInput<R, D> {
         CoordinateInput::incident_angle_samples(
             coordinates_with_angle(),
             array![2.0],
             array![0.25],
-            side,
-        )
-        .unwrap()
-    }
-
-    fn complex_angle_input(side: IncidentSide) -> CoordinateInput<C, D> {
-        CoordinateInput::incident_angle_samples(
-            frequency_coordinates_with_angle(),
-            array![C::new(1.0, 0.1)],
-            array![C::new(0.2, 0.0)],
             side,
         )
         .unwrap()
@@ -616,143 +534,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(context.mapping().parameter(), Parameter::Spectral,);
-    }
-
-    #[test]
-    fn compile_complex_preserves_backend_coordinates() {
-        let input = complex_input_with_parallel_wavenumber();
-
-        let expected_spectral = input.spectral().clone();
-        let expected_in_plane = input.in_plane().clone();
-
-        let (canonical, _) = compile_complex::<_, ComplexValueJet>(
-            input,
-            &test_stack(),
-            &validation(),
-            &no_derivatives(),
-        )
-        .unwrap();
-
-        assert_complex_array_eq(
-            canonical.coordinates().vacuum_angular_wavenumber().value(),
-            &expected_spectral,
-        );
-
-        assert_complex_array_eq(
-            canonical
-                .coordinates()
-                .parallel_angular_wavenumber()
-                .value(),
-            &expected_in_plane,
-        );
-    }
-
-    #[test]
-    fn compile_complex_preserves_caller_values_in_context() {
-        let input = complex_input_with_parallel_wavenumber();
-
-        let expected_spectral = input.spectral().clone();
-        let expected_in_plane = input.in_plane().clone();
-
-        let (_, context) = compile_complex::<_, ComplexValueJet>(
-            input,
-            &test_stack(),
-            &validation(),
-            &no_derivatives(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            context.coordinates().values().spectral(),
-            &expected_spectral,
-        );
-
-        assert_eq!(
-            context.coordinates().values().in_plane(),
-            &expected_in_plane,
-        );
-    }
-
-    #[test]
-    fn compile_complex_intrinsic_input_has_free_projection_constraint() {
-        let (_, context) = compile_complex::<_, ComplexValueJet>(
-            complex_input_with_parallel_wavenumber(),
-            &test_stack(),
-            &validation(),
-            &no_derivatives(),
-        )
-        .unwrap();
-
-        assert_eq!(context.projection_constraint(), ProjectionConstraint::Free,);
-    }
-
-    #[test]
-    fn compile_complex_rejects_incident_angle_even_with_valid_reference() {
-        let error = compile_complex::<_, ComplexValueJet>(
-            complex_angle_input(IncidentSide::Left),
-            &test_stack(),
-            &ValidationConfig::permissive(),
-            &no_derivatives(),
-        )
-        .unwrap_err();
-
-        assert!(matches!(
-            error,
-            CompilePlaneWaveError::Coordinates(
-                CoordinateCompileError::ComplexIncidentAngleUnsupported
-            )
-        ));
-    }
-
-    #[test]
-    fn compile_complex_accepts_complex_effective_index() {
-        let spectral = array![C::new(2.0, 0.1)];
-
-        let effective_index = array![C::new(1.5, -0.2)];
-
-        let input = CoordinateInput::samples(
-            coordinates_with_effective_index(),
-            spectral.clone(),
-            effective_index.clone(),
-        )
-        .unwrap();
-
-        let (canonical, context) = compile_complex::<_, ComplexValueJet>(
-            input,
-            &test_stack(),
-            &validation(),
-            &no_derivatives(),
-        )
-        .unwrap();
-
-        let expected = spectral[0] * effective_index[0];
-
-        assert_complex_eq(
-            canonical
-                .coordinates()
-                .parallel_angular_wavenumber()
-                .value()[0],
-            expected,
-        );
-
-        assert_eq!(context.projection_constraint(), ProjectionConstraint::Free,);
-    }
-
-    #[test]
-    fn compile_complex_validates_mapping_before_coordinate_policy() {
-        type ComplexFirstJet = ArrayJet1<C, D, HolomorphicParameter>;
-
-        let stack = test_stack();
-
-        let error = compile_complex::<_, ComplexFirstJet>(
-            complex_angle_input(IncidentSide::Left),
-            &stack,
-            &validation(),
-            &out_of_range_layer_mapping(stack.len()),
-        )
-        .unwrap_err();
-
-        assert!(matches!(error, CompilePlaneWaveError::Mapping(_)));
     }
 
     #[test]

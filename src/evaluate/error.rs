@@ -35,8 +35,4 @@ impl<C, B> RealAxisEvaluationError<C, B> {
     pub(crate) fn compile(source: C) -> Self {
         Self::Compile { source }
     }
-
-    pub(crate) fn backend(source: B) -> Self {
-        Self::Backend { source }
-    }
 }

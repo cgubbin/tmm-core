@@ -71,7 +71,6 @@ use ndarray::Dimension;
 use crate::{
     ComplexScalar,
     algebra::ScalarAlgebra,
-    domain::{ComplexPlane, RealAxis},
     input::{CanonicalCoordinates, Polarisation},
     material::{ConstitutiveEvaluator, ConstitutiveLift},
 };
@@ -155,28 +154,6 @@ impl<A> IsotropicMediumQuantities<A> {
 }
 
 impl<A> IsotropicMediumQuantities<A> {
-    /// Evaluate medium quantities on the real spectral axis.
-    pub(crate) fn real_axis<M>(material: &M, coordinates: &CanonicalCoordinates<A>) -> Self
-    where
-        A: ScalarAlgebra + ConstitutiveLift<RealAxis, M>,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        RealAxis: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
-    {
-        Self::evaluate::<RealAxis, M>(material, coordinates)
-    }
-
-    /// Evaluate medium quantities in the complex spectral plane.
-    pub(crate) fn complex_plane<M>(material: &M, coordinates: &CanonicalCoordinates<A>) -> Self
-    where
-        A: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        ComplexPlane: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
-    {
-        Self::evaluate::<ComplexPlane, M>(material, coordinates)
-    }
-
     /// Evaluate polarization-independent quantities for one isotropic medium.
     pub(crate) fn evaluate<E, M>(material: &M, coordinates: &CanonicalCoordinates<A>) -> Self
     where
@@ -270,38 +247,6 @@ impl<A> IsotropicLayerQuantities<A> {
 }
 
 impl<A> IsotropicLayerQuantities<A> {
-    /// Evaluate polarization-specialized quantities on the real spectral axis.
-    pub(crate) fn real_axis<M>(
-        material: &M,
-        coordinates: &CanonicalCoordinates<A>,
-        polarisation: Polarisation,
-    ) -> Self
-    where
-        A: ScalarAlgebra + ConstitutiveLift<RealAxis, M>,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        RealAxis: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
-    {
-        IsotropicMediumQuantities::real_axis(material, coordinates).with_polarisation(polarisation)
-    }
-
-    /// Evaluate polarization-specialized quantities in the complex spectral
-    /// plane.
-    pub(crate) fn complex_plane<M>(
-        material: &M,
-        coordinates: &CanonicalCoordinates<A>,
-        polarisation: Polarisation,
-    ) -> Self
-    where
-        A: ScalarAlgebra + ConstitutiveLift<ComplexPlane, M>,
-        A::Scalar: ComplexScalar,
-        A::Dimension: Dimension,
-        ComplexPlane: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
-    {
-        IsotropicMediumQuantities::complex_plane(material, coordinates)
-            .with_polarisation(polarisation)
-    }
-
     /// Evaluate medium quantities and specialize them to `polarisation`.
     pub(crate) fn evaluate<E, M>(
         material: &M,
@@ -317,13 +262,6 @@ impl<A> IsotropicLayerQuantities<A> {
         IsotropicMediumQuantities::evaluate::<E, M>(material, coordinates)
             .with_polarisation(polarisation)
     }
-
-    pub(crate) fn from_parts(kappa: A, epsilon: A, mu: A, polarisation: Polarisation) -> Self
-    where
-        A: ScalarAlgebra,
-    {
-        IsotropicMediumQuantities::from_parts(epsilon, mu, kappa).with_polarisation(polarisation)
-    }
 }
 
 #[cfg(test)]
@@ -333,6 +271,70 @@ where
 {
     pub(crate) fn test_fixture(kappa: A, epsilon: A, mu: A, polarisation: Polarisation) -> Self {
         IsotropicMediumQuantities::from_parts(epsilon, mu, kappa).with_polarisation(polarisation)
+    }
+
+    pub(crate) fn from_parts(kappa: A, epsilon: A, mu: A, polarisation: Polarisation) -> Self
+    where
+        A: ScalarAlgebra,
+    {
+        IsotropicMediumQuantities::from_parts(epsilon, mu, kappa).with_polarisation(polarisation)
+    }
+
+    /// Evaluate polarization-specialized quantities on the real spectral axis.
+    pub(crate) fn real_axis<M>(
+        material: &M,
+        coordinates: &CanonicalCoordinates<A>,
+        polarisation: Polarisation,
+    ) -> Self
+    where
+        A: ScalarAlgebra + ConstitutiveLift<crate::RealAxis, M>,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        crate::RealAxis: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        IsotropicMediumQuantities::real_axis(material, coordinates).with_polarisation(polarisation)
+    }
+
+    /// Evaluate polarization-specialized quantities in the complex spectral
+    /// plane.
+    pub(crate) fn complex_plane<M>(
+        material: &M,
+        coordinates: &CanonicalCoordinates<A>,
+        polarisation: Polarisation,
+    ) -> Self
+    where
+        A: ScalarAlgebra + ConstitutiveLift<crate::ComplexPlane, M>,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        crate::ComplexPlane: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        IsotropicMediumQuantities::complex_plane(material, coordinates)
+            .with_polarisation(polarisation)
+    }
+}
+
+#[cfg(test)]
+impl<A> IsotropicMediumQuantities<A> {
+    /// Evaluate medium quantities on the real spectral axis.
+    pub(crate) fn real_axis<M>(material: &M, coordinates: &CanonicalCoordinates<A>) -> Self
+    where
+        A: ScalarAlgebra + ConstitutiveLift<crate::RealAxis, M>,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        crate::RealAxis: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        Self::evaluate::<crate::RealAxis, M>(material, coordinates)
+    }
+
+    /// Evaluate medium quantities in the complex spectral plane.
+    pub(crate) fn complex_plane<M>(material: &M, coordinates: &CanonicalCoordinates<A>) -> Self
+    where
+        A: ScalarAlgebra + ConstitutiveLift<crate::ComplexPlane, M>,
+        A::Scalar: ComplexScalar,
+        A::Dimension: Dimension,
+        crate::ComplexPlane: ConstitutiveEvaluator<A::Scalar, A::Dimension, M>,
+    {
+        Self::evaluate::<crate::ComplexPlane, M>(material, coordinates)
     }
 }
 

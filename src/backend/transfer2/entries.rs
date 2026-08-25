@@ -711,7 +711,6 @@ mod projection_tests {
     use crate::{
         RealAxis,
         algebra::{ArrayJet0, Jet0, RealParameter},
-        backend::transfer2::projection::outgoing_residual,
         input::{CanonicalCoordinates, IncidentSide},
         test_support::materials::constant,
     };
@@ -843,24 +842,6 @@ mod projection_tests {
                 max_relative = TOLERANCE,
             );
         }
-    }
-
-    #[test]
-    fn outgoing_residual_matches_direct_boundary_condition() {
-        let entries = Transfer2Entries::new(jet(c(2.0)), jet(c(3.0)), jet(c(5.0)), jet(c(7.0)));
-
-        let left_slope = jet(C::new(0.0, -2.0));
-        let right_slope = jet(C::new(0.0, -3.0));
-
-        let residual = outgoing_residual(&entries, &left_slope, &right_slope);
-
-        let p = c(2.0) - c(3.0) * C::new(0.0, -3.0);
-
-        let q = c(5.0) - c(7.0) * C::new(0.0, -3.0);
-
-        let expected = C::new(0.0, -2.0) * p - q;
-
-        assert_close(residual[()], expected);
     }
 
     #[test]

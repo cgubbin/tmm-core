@@ -26,8 +26,8 @@ use crate::algebra::{FirstOrderExpansion, JetMultiplyByScalar, exprel, exprel_fi
 use crate::differential::BivariateGradient;
 
 use super::{
-    HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetHermitianProduct, JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
+    JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct, JetHermitianProduct,
+    JetOneLike, JetRealPart, JetScaleBy, JetZeroLike, RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -37,9 +37,6 @@ use num_traits::float::FloatCore;
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJetBivariate1<C, D, P> = JetBivariate1<ArrayBase<OwnedRepr<C>, D>, P>;
-
-pub(crate) type PhysicalJetBivariate1<C, D> = ArrayJetBivariate1<C, D, RealParameter>;
-pub(crate) type ModeJetBivariate1<C, D> = ArrayJetBivariate1<C, D, HolomorphicParameter>;
 
 /// A first-order bivariate jet.
 ///
@@ -80,10 +77,6 @@ impl<I, P> JetBivariate1<I, P> {
         self.first.axis1()
     }
 
-    pub(crate) fn first(&self) -> &BivariateGradient<I> {
-        &self.first
-    }
-
     pub(crate) fn into_parts(self) -> (I, BivariateGradient<I>) {
         (self.value, self.first)
     }
@@ -110,6 +103,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<I, P> JetBivariate1<I, P>
 where
     I: JetZeroLike,
@@ -394,14 +388,6 @@ where
     {
         self.compose_unary(|x| C::one() / *x, |x| -C::one() / (*x * *x))
     }
-
-    /// Divide two first-order bivariate jets elementwise.
-    pub(crate) fn divide(&self, rhs: &Self) -> Self
-    where
-        C: Copy,
-    {
-        self.multiply(&rhs.reciprocal())
-    }
 }
 
 impl<C, D, P> ArrayJetBivariate1<C, D, P>
@@ -425,6 +411,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{ScalarAlgebra, algebra::HolomorphicParameter};
+
     use super::*;
 
     use approx::assert_relative_eq;
@@ -789,21 +777,6 @@ mod tests {
         assert_close(result.axis0()[()], original.axis0()[()]);
 
         assert_close(result.axis1()[()], original.axis1()[()]);
-    }
-
-    #[test]
-    fn division_agrees_with_multiplication_by_reciprocal() {
-        let numerator: HolomorphicJet =
-            JetBivariate1::from_components(a(2.0, 1.0), a(0.5, -0.3), a(-0.2, 0.7));
-
-        let denominator: HolomorphicJet =
-            JetBivariate1::from_components(a(3.0, -0.5), a(-0.4, 0.2), a(0.6, 0.1));
-
-        let direct = numerator.divide(&denominator);
-
-        let expanded = numerator.multiply(&denominator.reciprocal());
-
-        assert_eq!(direct, expanded);
     }
 
     // ---------------------------------------------------------------------

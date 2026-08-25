@@ -60,7 +60,6 @@
 //! - crystallisation policies in `policy`;
 //! - recursive implementations for evaluated quantities in `quantity`.
 
-mod contract;
 mod decompose;
 mod parts;
 mod policy;

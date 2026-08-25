@@ -9,7 +9,6 @@ use crate::{
 };
 use nalgebra::ComplexField;
 use ndarray::{Array, ArrayView, Dimension};
-use num_traits::Zero;
 
 /// One Cartesian vector value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -202,9 +201,10 @@ where
     }
 
     /// Construct a zero vector with the same sampling shape as `values`.
+    #[cfg(test)]
     pub(crate) fn zeros_like(values: &Array<C, D>) -> Self
     where
-        C: Clone + Zero,
+        C: Clone + num_traits::Zero,
     {
         let dimension = values.raw_dim();
 
@@ -281,6 +281,7 @@ where
     /// ```
     ///
     /// The result is real and non-negative up to floating-point roundoff.
+    #[cfg(test)]
     pub(crate) fn magnitude_squared(&self) -> ScalarField<C::RealField, D>
     where
         C: ComplexField + Copy,
@@ -567,6 +568,7 @@ mod tests {
     use super::*;
     use ndarray::{Array1, Array2, Ix1, arr1, array};
     use num_complex::Complex64;
+    use num_traits::Zero;
 
     type C = Complex64;
     type D = Ix1;

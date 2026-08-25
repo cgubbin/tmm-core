@@ -32,43 +32,6 @@ pub use coordinate::CanonicalCoordinates;
 pub(crate) use stack::CanonicalLayer;
 pub use stack::CanonicalStack;
 
-use crate::Polarisation;
-
-/// Complete canonical problem consumed by an oriented backend.
-///
-/// The solver input and all finite-layer thicknesses use the same sampled
-/// algebraic representation `J`.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct CanonicalBackendInput<M, J> {
-    problem: CanonicalProblem<M, J>,
-    polarisation: Polarisation,
-}
-
-impl<M, J> CanonicalBackendInput<M, J> {
-    /// Construct a canonical oriented problem.
-    pub(crate) fn new(problem: CanonicalProblem<M, J>, polarisation: Polarisation) -> Self {
-        Self {
-            problem,
-            polarisation,
-        }
-    }
-
-    /// Return the canonical problem.
-    pub(crate) fn problem(&self) -> &CanonicalProblem<M, J> {
-        &self.problem
-    }
-
-    /// Return the polarisation.
-    pub(crate) fn polarisation(&self) -> Polarisation {
-        self.polarisation
-    }
-
-    /// Consume the problem and return its components.
-    pub(crate) fn into_parts(self) -> (CanonicalProblem<M, J>, Polarisation) {
-        (self.problem, self.polarisation)
-    }
-}
-
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanonicalProblem<M, J> {
@@ -90,10 +53,5 @@ impl<M, J> CanonicalProblem<M, J> {
     /// Return the canonical oriented stack.
     pub(crate) fn stack(&self) -> &CanonicalStack<M, J> {
         &self.stack
-    }
-
-    /// Consume the problem and return its components.
-    pub(crate) fn into_parts(self) -> (CanonicalCoordinates<J>, CanonicalStack<M, J>) {
-        (self.coordinates, self.stack)
     }
 }

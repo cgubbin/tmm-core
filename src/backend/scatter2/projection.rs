@@ -86,10 +86,6 @@ impl<A> Scatter2ProjectiveEntries<A> {
     {
         self.n11.value()
     }
-
-    pub(crate) fn into_parts(self) -> (A, A, A, A, A) {
-        (self.denominator, self.n11, self.n12, self.n21, self.n22)
-    }
 }
 
 impl<A> Scatter2ProjectiveEntries<A>
@@ -120,15 +116,6 @@ where
     A: ScalarAlgebra,
 {
     pub(crate) fn entries(&self) -> Scatter2Entries<A> {
-        Scatter2Entries::from_parts(
-            self.n11.divide(&self.denominator),
-            self.n12.divide(&self.denominator),
-            self.n21.divide(&self.denominator),
-            self.n22.divide(&self.denominator),
-        )
-    }
-
-    pub(crate) fn into_entries(self) -> Scatter2Entries<A> {
         Scatter2Entries::from_parts(
             self.n11.divide(&self.denominator),
             self.n12.divide(&self.denominator),
@@ -398,10 +385,10 @@ mod tests {
     }
 
     #[test]
-    fn into_entries_divides_every_numerator_by_common_denominator() {
+    fn entries_divides_every_numerator_by_common_denominator() {
         let data = projection(c(2.0), c(3.0), c(5.0), c(7.0), c(11.0));
 
-        let entries = data.into_entries();
+        let entries = data.entries();
 
         assert_complex_close(scalar(entries.s11()), c(1.5), TOLERANCE);
 
@@ -420,8 +407,8 @@ mod tests {
 
         let scaled = scale_projection(&data, scale);
 
-        let actual = scaled.into_entries();
-        let expected = data.into_entries();
+        let actual = scaled.entries();
+        let expected = data.entries();
 
         assert_array_close(actual.s11().value(), expected.s11().value(), TOLERANCE);
 
@@ -456,7 +443,7 @@ mod tests {
 
         let determinant = data.project_determinant(&context);
 
-        let entries = data.into_entries();
+        let entries = data.entries();
 
         let slope = transfer_state_slope(context.left_admittance());
 
@@ -648,7 +635,7 @@ mod cascade_tests {
             &Projection::from_entries(&left),
             &Projection::from_entries(&right),
         )
-        .into_entries();
+        .entries();
 
         assert_entries_close(&actual, &expected);
     }
@@ -679,9 +666,9 @@ mod cascade_tests {
             right.n22().scale(right_scale),
         );
 
-        let expected = cascade_projection(&left, &right).into_entries();
+        let expected = cascade_projection(&left, &right).entries();
 
-        let actual = cascade_projection(&scaled_left, &scaled_right).into_entries();
+        let actual = cascade_projection(&scaled_left, &scaled_right).entries();
 
         assert_entries_close(&actual, &expected);
     }
@@ -692,7 +679,7 @@ mod cascade_tests {
 
         let identity: Projection = Projection::identity_like(&source);
 
-        let entries = identity.into_entries();
+        let entries = identity.entries();
 
         assert_array_close(entries.s11().value(), &ndarray::arr0(c(0.0)), TOLERANCE);
 

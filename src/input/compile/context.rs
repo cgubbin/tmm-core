@@ -104,6 +104,7 @@ where
     }
 
     /// Consume the context and return its components.
+    #[cfg(test)]
     pub(crate) fn into_parts(
         self,
     ) -> (
@@ -164,29 +165,16 @@ impl<R> StackContext<R> {
         Self { layer_thicknesses }
     }
 
-    /// Return all finite-layer thicknesses in left-to-right order.
-    pub(crate) fn layer_thicknesses(&self) -> &[Length<R>] {
-        &self.layer_thicknesses
-    }
-
     /// Return the thickness of finite layer `index`.
+    #[cfg(test)]
     pub(crate) fn layer_thickness(&self, index: usize) -> Option<&Length<R>> {
         self.layer_thicknesses.get(index)
     }
 
     /// Return the number of finite layers.
+    #[cfg(test)]
     pub(crate) fn layer_count(&self) -> usize {
         self.layer_thicknesses.len()
-    }
-
-    /// Whether the stack contains no finite layers.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.layer_thicknesses.is_empty()
-    }
-
-    /// Consume the context and return the finite-layer thicknesses.
-    pub(crate) fn into_layer_thicknesses(self) -> Vec<Length<R>> {
-        self.layer_thicknesses
     }
 }
 
@@ -228,6 +216,7 @@ where
     }
 
     /// Consume the context and return its caller-facing components.
+    #[cfg(test)]
     pub(crate) fn into_parts(self) -> (Coordinates, CoordinateValues<R, D>) {
         (self.coordinates, self.values)
     }
@@ -283,28 +272,24 @@ mod tests {
 
         let context = StackContext::new(thicknesses.clone());
 
-        assert_eq!(context.layer_thicknesses(), thicknesses.as_slice(),);
+        assert_eq!(&context.layer_thicknesses, thicknesses.as_slice(),);
 
-        assert_eq!(context.layer_count(), 3);
-        assert!(!context.is_empty());
+        assert_eq!(context.layer_thicknesses.len(), 3);
 
-        assert_eq!(context.layer_thickness(0), Some(&thicknesses[0]),);
+        assert_eq!(context.layer_thicknesses.get(0), Some(&thicknesses[0]),);
 
-        assert_eq!(context.layer_thickness(2), Some(&thicknesses[2]),);
+        assert_eq!(context.layer_thicknesses.get(2), Some(&thicknesses[2]),);
 
-        assert_eq!(context.layer_thickness(3), None,);
-
-        assert_eq!(context.into_layer_thicknesses(), thicknesses,);
+        assert_eq!(context.layer_thicknesses.get(3), None,);
     }
 
     #[test]
     fn empty_stack_context_is_empty() {
         let context = StackContext::<f64>::new(Vec::new());
 
-        assert!(context.is_empty());
-        assert_eq!(context.layer_count(), 0);
-        assert_eq!(context.layer_thickness(0), None);
-        assert!(context.layer_thicknesses().is_empty());
+        assert_eq!(context.layer_thicknesses.len(), 0);
+        assert_eq!(context.layer_thicknesses.get(0), None);
+        assert!(context.layer_thicknesses.is_empty());
     }
 
     #[test]

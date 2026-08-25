@@ -151,10 +151,6 @@ pub(crate) struct RetainedTransferLayers<A> {
 }
 
 impl<A> RetainedTransferLayers<A> {
-    pub(crate) fn new() -> Self {
-        Self { layers: Vec::new() }
-    }
-
     pub(crate) fn from_layers(layers: Vec<RetainedTransferLayer<A>>) -> Self {
         Self { layers }
     }
@@ -757,7 +753,7 @@ mod tests {
 
     #[test]
     fn retained_layers_propagate_from_right_to_left() {
-        let mut retained = RetainedTransferLayers::new();
+        let mut retained = RetainedTransferLayers { layers: vec![] };
 
         let left = matrix(1.0, 2.0, 0.0, 1.0);
         let right = matrix(1.0, 0.0, 3.0, 1.0);
@@ -969,7 +965,7 @@ mod tests {
 
         let layer1_thickness = thickness(8.0);
 
-        let mut retained = RetainedTransferLayers::new();
+        let mut retained = RetainedTransferLayers { layers: vec![] };
 
         retained.push(layer0_matrix.clone(), layer0_quantities, layer0_thickness);
 

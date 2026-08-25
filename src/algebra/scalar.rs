@@ -6,8 +6,7 @@ use std::fmt::Debug;
 use crate::differential::{BivariateGradient, BivariateHessian};
 
 use super::{
-    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, FirstOrderExpansion,
-    RealParameter, SecondOrderExpansion,
+    ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
 };
 
 /// Common representation metadata for a differential jet.
@@ -139,34 +138,6 @@ pub trait RealScalarAlgebra: ScalarAlgebra + ComplexJet {
     fn hermitian_product(&self, other: &Self) -> Self {
         self.conjugated().multiply(other)
     }
-}
-
-// -------------------------------------------------------------------------
-// Sampled unary-function composition
-// -------------------------------------------------------------------------
-
-/// Compose a sampled scalar function with a first-order argument jet.
-///
-/// `expansion` contains the sampled function value and derivative with
-/// respect to its direct argument. The jet algebra applies the chain rule
-/// using the derivatives already carried by `argument`.
-pub(crate) trait FirstOrderFunctionAlgebra: ScalarAlgebra {
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>>,
-    ) -> Self;
-}
-
-/// Compose a sampled scalar function with a second-order argument jet.
-///
-/// `expansion` contains the sampled function value and first, and second derivatives with
-/// respect to its direct argument. The jet algebra applies the chain rule
-/// using the derivatives already carried by `argument`.
-pub(crate) trait SecondOrderFunctionAlgebra: ScalarAlgebra {
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<Self::Scalar>, Self::Dimension>>,
-    ) -> Self;
 }
 
 // -------------------------------------------------------------------------
@@ -449,20 +420,6 @@ where
     }
 }
 
-impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJet1<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self {
-        ArrayJet1::compose_sampled_function(argument, expansion)
-    }
-}
-
 // -------------------------------------------------------------------------
 // Second-order univariate jets
 // -------------------------------------------------------------------------
@@ -595,20 +552,6 @@ where
 
     fn imaginary(&self) -> Self::RealJet {
         ArrayJet2::imaginary(self)
-    }
-}
-
-impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJet2<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self {
-        ArrayJet2::compose_sampled_function(argument, expansion)
     }
 }
 
@@ -748,20 +691,6 @@ where
 
     fn imaginary(&self) -> Self::RealJet {
         ArrayJetBivariate1::imaginary(self)
-    }
-}
-
-impl<C, D, P> FirstOrderFunctionAlgebra for ArrayJetBivariate1<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: FirstOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self {
-        ArrayJetBivariate1::compose_sampled_function(argument, expansion)
     }
 }
 
@@ -909,20 +838,6 @@ where
     }
 }
 
-impl<C, D, P> SecondOrderFunctionAlgebra for ArrayJetBivariate2<C, D, P>
-where
-    C: ComplexField + Copy,
-    D: Dimension,
-    P: Clone + Debug,
-{
-    fn compose_sampled_function(
-        argument: &Self,
-        expansion: SecondOrderExpansion<ArrayBase<OwnedRepr<C>, D>>,
-    ) -> Self {
-        ArrayJetBivariate2::compose_sampled_function(argument, expansion)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -933,8 +848,7 @@ mod tests {
 
     use crate::{
         algebra::{
-            ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2,
-            HolomorphicParameter, RealParameter,
+            ArrayJet0, ArrayJet1, ArrayJet2, ArrayJetBivariate1, ArrayJetBivariate2, RealParameter,
         },
         differential::{BivariateGradient, BivariateHessian},
     };
@@ -946,9 +860,6 @@ mod tests {
     type J2 = ArrayJet2<C, Ix0, RealParameter>;
     type JB1 = ArrayJetBivariate1<C, Ix0, RealParameter>;
     type JB2 = ArrayJetBivariate2<C, Ix0, RealParameter>;
-
-    type HolomorphicJ1 = ArrayJet1<C, Ix0, HolomorphicParameter>;
-    type HolomorphicJ2 = ArrayJet2<C, Ix0, HolomorphicParameter>;
 
     fn c(real: f64, imaginary: f64) -> C {
         C::new(real, imaginary)
@@ -1040,108 +951,6 @@ mod tests {
         );
 
         assert_eq!(jet.first(), &array![C::zero(), C::zero(), C::zero()],);
-    }
-
-    // ---------------------------------------------------------------------
-    // Sampled function composition
-    // ---------------------------------------------------------------------
-
-    #[test]
-    fn first_order_composition_respects_preseeded_holomorphic_direction() {
-        /*
-         * x(z) = 3 + 2 z locally
-         *
-         *     x      = 3
-         *     dx/dz  = 2
-         *
-         * f(x) = x²
-         *
-         *     f(3)   = 9
-         *     f'(3)  = 6
-         *
-         * Therefore
-         *
-         *     df/dz = f'(x) dx/dz = 12.
-         */
-
-        let argument = HolomorphicJ1::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)));
-
-        let expansion = FirstOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)));
-
-        let result = <HolomorphicJ1 as FirstOrderFunctionAlgebra>::compose_sampled_function(
-            &argument, expansion,
-        );
-
-        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
-        assert_eq!(result.first(), &arr0(c(12.0, 0.0)));
-    }
-
-    #[test]
-    fn second_order_composition_applies_full_chain_rule() {
-        /*
-         * At the evaluation point:
-         *
-         *     x       = 3
-         *     x'      = 2
-         *     x''     = 5
-         *
-         * f(x) = x²:
-         *
-         *     f       = 9
-         *     f'      = 6
-         *     f''     = 2
-         *
-         * Therefore
-         *
-         *     (f ∘ x)'  = f' x'
-         *                = 12
-         *
-         *     (f ∘ x)'' = f'' (x')² + f' x''
-         *                = 2 * 4 + 6 * 5
-         *                = 38.
-         */
-
-        let argument =
-            HolomorphicJ2::from_parts(arr0(c(3.0, 0.0)), arr0(c(2.0, 0.0)), arr0(c(5.0, 0.0)));
-
-        let expansion =
-            SecondOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)), arr0(c(2.0, 0.0)));
-
-        let result = <HolomorphicJ2 as SecondOrderFunctionAlgebra>::compose_sampled_function(
-            &argument, expansion,
-        );
-
-        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
-        assert_eq!(result.first(), &arr0(c(12.0, 0.0)));
-        assert_eq!(result.second(), &arr0(c(38.0, 0.0)));
-    }
-
-    #[test]
-    fn bivariate_first_order_composition_applies_chain_rule_to_both_axes() {
-        /*
-         * x_u = 2
-         * x_v = -3
-         * f'(x) = 6
-         *
-         * Therefore
-         *
-         *     f_u = 12
-         *     f_v = -18.
-         */
-
-        let argument = JB1::from_parts(
-            arr0(c(3.0, 0.0)),
-            BivariateGradient::new(arr0(c(2.0, 0.0)), arr0(c(-3.0, 0.0))),
-        );
-
-        let expansion = FirstOrderExpansion::new(arr0(c(9.0, 0.0)), arr0(c(6.0, 0.0)));
-
-        let result =
-            <JB1 as FirstOrderFunctionAlgebra>::compose_sampled_function(&argument, expansion);
-
-        assert_eq!(result.value(), &arr0(c(9.0, 0.0)));
-        assert_eq!(result.axis0(), &arr0(c(12.0, 0.0)));
-        assert_eq!(result.axis1(), &arr0(c(-18.0, 0.0)));
     }
 
     // ---------------------------------------------------------------------

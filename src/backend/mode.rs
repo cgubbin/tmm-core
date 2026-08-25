@@ -27,18 +27,6 @@ pub enum ModeReconstructionError {
     },
 }
 
-/// Gauge used to select a representative vector from the one-dimensional
-/// null space of the outgoing boundary system.
-///
-/// Different gauges represent the same physical mode up to an arbitrary
-/// nonzero complex scale.
-#[doc(hidden)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ModalGauge {
-    FirstAdjugateColumn,
-    SecondAdjugateColumn,
-}
-
 /// Unnormalised candidate solution of the outgoing homogeneous boundary
 /// problem.
 ///
@@ -76,13 +64,10 @@ impl<A> PlaneWaveModeCandidate<A> {
         &self.right_outgoing
     }
 
+    #[cfg(test)]
     pub(crate) fn residual(&self) -> &A {
         &self.residual
     }
-
-    // pub(crate) fn into_state(self) -> BoundaryState<A> {
-    //     self.state
-    // }
 
     pub(crate) fn into_residual(self) -> A {
         self.residual

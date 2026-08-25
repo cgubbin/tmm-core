@@ -40,9 +40,8 @@
 use crate::algebra::{JetMultiplyByScalar, exprel, exprel_first, exprel_second};
 
 use super::{
-    HolomorphicParameter, JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct,
-    JetHermitianProduct, JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike,
-    RealParameter,
+    JetAdditive, JetBilinear, JetConjugate, JetConstant, JetCrossProduct, JetHermitianProduct,
+    JetOneLike, JetRealPart, JetReciprocal, JetScaleBy, JetZeroLike, RealParameter,
 };
 
 use nalgebra::ComplexField;
@@ -51,9 +50,6 @@ use num_traits::{FromPrimitive, float::FloatCore};
 use std::marker::PhantomData;
 
 pub(crate) type ArrayJet2<C, D, P> = Jet2<ArrayBase<OwnedRepr<C>, D>, P>;
-
-pub(crate) type PhysicalJet2<C, D> = ArrayJet2<C, D, RealParameter>;
-pub(crate) type ModeJet2<C, D> = ArrayJet2<C, D, HolomorphicParameter>;
 
 /// A second-order directional jet.
 ///
@@ -232,11 +228,6 @@ where
             .jet_subtract(&self.second.jet_multiply(&inverse_squared));
 
         Self::from_parts(inverse, first, second)
-    }
-
-    /// Divide two second-order jets elementwise.
-    pub(crate) fn divide(&self, rhs: &Self) -> Self {
-        self.multiply(&rhs.reciprocal())
     }
 }
 
@@ -452,15 +443,6 @@ where
     }
 }
 
-impl<I, P> Jet2<I, P> {
-    pub(crate) fn map_components<O, F>(self, mut f: F) -> Jet2<O, P>
-    where
-        F: FnMut(I) -> O,
-    {
-        Jet2::from_parts(f(self.value), f(self.first), f(self.second))
-    }
-}
-
 /// Sampled value and first two derivatives of a scalar function with respect
 /// to its direct argument.
 ///
@@ -484,18 +466,6 @@ impl<I> SecondOrderExpansion<I> {
             first,
             second,
         }
-    }
-
-    pub(crate) fn value(&self) -> &I {
-        &self.value
-    }
-
-    pub(crate) fn first(&self) -> &I {
-        &self.first
-    }
-
-    pub(crate) fn second(&self) -> &I {
-        &self.second
     }
 
     pub(crate) fn into_parts(self) -> (I, I, I) {
@@ -527,6 +497,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{ScalarAlgebra, algebra::HolomorphicParameter};
+
     use super::*;
 
     use approx::assert_relative_eq;
@@ -1298,21 +1270,6 @@ mod tests {
         assert_complex_close(result.first().0, expected_first.0);
 
         assert_complex_close(result.second().0, expected_second.0);
-    }
-
-    // ---------------------------------------------------------------------
-    // Representation mapping
-    // ---------------------------------------------------------------------
-
-    #[test]
-    fn map_components_transforms_all_components_independently() {
-        let jet: RealJet2<_> = Jet2::from_parts(a0(2.0, 3.0), a0(5.0, 7.0), a0(11.0, 13.0));
-
-        let mapped = jet.map_components(|array| array[()]);
-
-        assert_complex_close(*mapped.value(), c(2.0, 3.0));
-        assert_complex_close(*mapped.first(), c(5.0, 7.0));
-        assert_complex_close(*mapped.second(), c(11.0, 13.0));
     }
 
     // ---------------------------------------------------------------------

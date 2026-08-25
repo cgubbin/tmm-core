@@ -2,6 +2,8 @@ use nalgebra::ComplexField;
 use ndarray::{Dimension, Ix0, NdIndex};
 use num_traits::{FromPrimitive, One, Zero};
 
+#[cfg(test)]
+use crate::observable::{LayerIntegrationInput, LayerProjectionError};
 use crate::{
     ComplexScalar, IncidentSide, InterfacePower, LayerPower, PlaneWaveAmplitudes, Polarisation,
     Stack,
@@ -10,19 +12,15 @@ use crate::{
         ExteriorContextProvider, PlaneWaveEntries, PlaneWaveSolutionSource, PlaneWaveSolutionView,
         RetainedIsotropicLayers,
     },
-    input::{
-        CanonicalProblem, CompilationContext, JetMapping, ProjectionConstraint,
-        ProjectionConstraintError,
-    },
+    input::{CanonicalProblem, CompilationContext, JetMapping, ProjectionConstraintError},
     material::{ConstitutiveDerivativeEvaluator, ConstitutiveSpectralFirstLift},
     observable::{
         BoundaryProjectionError, ConstitutiveSamplingContext, ConstitutiveSamplingError,
         InterfaceProjectionError, InterfaceStates, InterfaceWaveData, Interfaces,
         IsotropicConstitutiveParameters, IsotropicConstitutiveSpectralData, LayerBoundaries,
-        LayerBoundaryStates, LayerBoundaryWaves, LayerIntegrationInput, LayerProjectionError,
-        Layers, ProjectAmplitudes, assemble_interface_wave_data, assemble_layer_integration_inputs,
-        exterior_boundary_states, exterior_boundary_waves, project_layer_admittances,
-        project_layer_boundary_states, project_layer_boundary_waves,
+        LayerBoundaryStates, LayerBoundaryWaves, Layers, ProjectAmplitudes,
+        assemble_interface_wave_data, exterior_boundary_states, exterior_boundary_waves,
+        project_layer_admittances, project_layer_boundary_states, project_layer_boundary_waves,
     },
     projection::{JetPointProjection, PointProjectionError, ProjectPoint},
     spatial::ResolvedFieldSampling,
@@ -256,6 +254,7 @@ where
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn raw_layer_integration_inputs_unchecked(
         &self,
         incident_side: IncidentSide,
@@ -264,6 +263,8 @@ where
         W: ReconstructLayerBoundaryWaves<Algebra = J> + RetainedIsotropicLayers<Algebra = J>,
         J: Clone,
     {
+        use crate::observable::assemble_layer_integration_inputs;
+
         let boundary_waves = self.raw_layer_boundary_waves_unchecked(incident_side)?;
 
         assemble_layer_integration_inputs(&self.workspace, boundary_waves)
@@ -304,7 +305,7 @@ where
 
     pub fn excitation(
         &self,
-        incident_side: IncidentSide,
+        requested: IncidentSide,
     ) -> Result<RealAxisExcitation<'_, J, M, W>, ProjectionConstraintError>
     where
         J: ComplexJet + ScalarAlgebra + RealScalarAlgebra,
@@ -315,16 +316,9 @@ where
         W::Entries: PlaneWaveEntries,
         <W::Entries as PlaneWaveEntries>::ExteriorContext: ExteriorContextProvider<Algebra = J>,
     {
-        if let ProjectionConstraint::Fixed(side) = self.context().projection_constraint() {
-            if side != incident_side {
-                return Err(ProjectionConstraintError {
-                    constraint: side,
-                    requested: incident_side,
-                });
-            }
-        }
+        self.context.projection_constraint().validate(requested)?;
 
-        Ok(RealAxisExcitation::new(self, incident_side))
+        Ok(RealAxisExcitation::new(self, requested))
     }
 }
 

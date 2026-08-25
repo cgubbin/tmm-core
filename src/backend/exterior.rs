@@ -38,11 +38,6 @@ impl<A> ExteriorWavevectors<A> {
     pub fn right(&self) -> &A {
         &self.right
     }
-
-    /// Consume the container into `(left, right)`.
-    pub(crate) fn into_parts(self) -> (A, A) {
-        (self.left, self.right)
-    }
 }
 
 pub(crate) fn evaluate_exterior_wavevectors<E, M, J>(

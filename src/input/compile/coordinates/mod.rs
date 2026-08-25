@@ -147,13 +147,6 @@ pub(crate) struct CanonicalSpectral<J> {
 }
 
 impl<J> CanonicalSpectral<J> {
-    /// Construct a canonical spectral coordinate.
-    pub(crate) fn new(vacuum_angular_wavenumber: J) -> Self {
-        Self {
-            vacuum_angular_wavenumber,
-        }
-    }
-
     /// Return the canonical vacuum angular wavenumber.
     pub(crate) fn vacuum_angular_wavenumber(&self) -> &J {
         &self.vacuum_angular_wavenumber
@@ -284,14 +277,6 @@ impl<'a> CoordinateMapping<'a> {
 
     pub(crate) fn in_plane_slot(&self) -> Option<usize> {
         self.mapping.slot_for(Parameter::InPlane)
-    }
-
-    pub(crate) fn slot_for(&self, variable: CoordinateVariable) -> Option<usize> {
-        match variable {
-            CoordinateVariable::Spectral => self.spectral_slot(),
-
-            CoordinateVariable::InPlane => self.in_plane_slot(),
-        }
     }
 }
 
