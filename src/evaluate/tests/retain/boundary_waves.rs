@@ -800,15 +800,15 @@ fn analytic_right_boundary_matches_transfer_state_conversion() {
     let exterior_waves =
         right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
 
-    let exterior_state = transfer_state_from_waves(&exterior_waves, &right_admittance);
+    let exterior_state = transfer_state_from_waves(&exterior_waves, right_admittance);
 
     let direct = bidirectional_waves_from_state(&exterior_state, &layer_admittance);
 
     let analytic = analytic_single_layer_boundary_waves(
         &amplitudes,
-        &solution.context().left_admittance(),
+        solution.context().left_admittance(),
         &layer_admittance,
-        &right_admittance,
+        right_admittance,
         IncidentSide::Left,
     );
 
@@ -888,7 +888,7 @@ fn evaluator_workspace_right_boundary_matches_analytic_continuity() {
     let right_exterior =
         right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
 
-    let right_state = transfer_state_from_waves(&right_exterior, &right_admittance);
+    let right_state = transfer_state_from_waves(&right_exterior, right_admittance);
 
     let expected = bidirectional_waves_from_state(&right_state, &layer_admittance);
 
@@ -995,7 +995,7 @@ fn transfer_evaluator_right_boundary_reconstruction_is_stepwise_consistent() {
      * Stage 2: convert them to the transfer-state representation.
      */
     let expected_right_state =
-        transfer_state_from_waves(&expected_exterior_waves, &right_admittance);
+        transfer_state_from_waves(&expected_exterior_waves, right_admittance);
 
     /*
      * Stage 3: propagate through retained layers and inspect the stored right

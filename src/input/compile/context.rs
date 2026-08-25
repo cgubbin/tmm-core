@@ -276,7 +276,7 @@ mod tests {
 
         assert_eq!(context.layer_thicknesses.len(), 3);
 
-        assert_eq!(context.layer_thicknesses.get(0), Some(&thicknesses[0]),);
+        assert_eq!(context.layer_thicknesses.first(), Some(&thicknesses[0]),);
 
         assert_eq!(context.layer_thicknesses.get(2), Some(&thicknesses[2]),);
 
@@ -288,7 +288,7 @@ mod tests {
         let context = StackContext::<f64>::new(Vec::new());
 
         assert_eq!(context.layer_thicknesses.len(), 0);
-        assert_eq!(context.layer_thicknesses.get(0), None);
+        assert_eq!(context.layer_thicknesses.first(), None);
         assert!(context.layer_thicknesses.is_empty());
     }
 

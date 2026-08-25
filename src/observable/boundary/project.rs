@@ -403,7 +403,7 @@ mod tests {
 
         let admittance = workspace.quantities[0].admittance();
 
-        let expected = observable.into_states(&admittance);
+        let expected = observable.into_states(admittance);
 
         assert_eq!(states, &expected);
     }

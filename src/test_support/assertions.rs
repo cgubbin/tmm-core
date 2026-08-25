@@ -240,7 +240,7 @@ pub(crate) fn assert_zero_layers_close(
         "backends returned different layer counts",
     );
 
-    for (_layer_index, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+    for (actual, expected) in actual.iter().zip(expected.iter()) {
         assert_zero_layer_close(actual, expected, tolerance);
     }
 }
@@ -344,7 +344,7 @@ pub(crate) fn assert_interface_continuity(
         "a valid stack must contain at least one interface",
     );
 
-    for (_index, interface) in interfaces.iter().enumerate() {
+    for interface in interfaces.iter() {
         assert_boundary_state_close(interface.left(), interface.right(), tolerance);
     }
 }

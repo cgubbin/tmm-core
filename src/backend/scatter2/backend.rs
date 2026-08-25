@@ -717,7 +717,7 @@ mod propagation_tests {
         let expected = value.exp();
 
         assert_complex_close(result.s11[()], C::new(0.0, 0.0), VALUE_TOLERANCE);
-        assert_complex_close(result.s12[()], expected.clone(), VALUE_TOLERANCE);
+        assert_complex_close(result.s12[()], expected, VALUE_TOLERANCE);
         assert_complex_close(result.s21[()], expected, VALUE_TOLERANCE);
         assert_complex_close(result.s22[()], C::new(0.0, 0.0), VALUE_TOLERANCE);
     }

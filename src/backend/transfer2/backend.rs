@@ -203,7 +203,7 @@ mod tests {
             Transfer2Entries::<A>::identity_like(coordinates.vacuum_angular_wavenumber().value());
 
         assert_eq!(workspace.entries(), &identity);
-        assert!(!workspace.retained().is_some());
+        assert!(workspace.retained().is_none());
     }
 
     #[test]
@@ -284,7 +284,7 @@ mod tests {
             )
             .unwrap();
 
-        assert!(!workspace.retained().is_some());
+        assert!(workspace.retained().is_none());
     }
 
     #[test]

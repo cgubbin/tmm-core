@@ -143,13 +143,13 @@ fn first_order_thickness_stack(
                 <HoloJ1 as SeedJet>::constant(arr0(C::new(thickness_cm, 0.0)))
             };
 
-            CanonicalLayer::new(layer.material().clone(), thickness)
+            CanonicalLayer::new(*layer.material(), thickness)
         })
         .collect();
 
     CanonicalStack::new(
-        physical.left_exterior().clone(),
-        physical.right_exterior().clone(),
+        *physical.left_exterior(),
+        *physical.right_exterior(),
         layers,
     )
 }
@@ -376,13 +376,13 @@ fn bivariate_stack() -> CanonicalStack<crate::Constant<f64>, HoloJB2> {
                 <HoloJB2 as SeedJet>::constant(value)
             };
 
-            CanonicalLayer::new(layer.material().clone(), thickness)
+            CanonicalLayer::new(*layer.material(), thickness)
         })
         .collect();
 
     CanonicalStack::new(
-        physical.left_exterior().clone(),
-        physical.right_exterior().clone(),
+        *physical.left_exterior(),
+        *physical.right_exterior(),
         layers,
     )
 }

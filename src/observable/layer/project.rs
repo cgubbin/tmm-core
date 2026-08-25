@@ -577,7 +577,7 @@ mod tests {
 
         let admittance = quantities.admittance();
 
-        let expected = project_integrated_bilinear_state_products(&products, &admittance);
+        let expected = project_integrated_bilinear_state_products(&products, admittance);
 
         let actual = input_for_actual.integrate_bilinear();
 

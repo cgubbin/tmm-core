@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(scalar(layer.left_flux()), 0.9);
         assert_eq!(scalar(layer.right_flux()), 0.7);
 
-        approx::assert_relative_eq!(scalar(&layer.absorbed()), 0.2, epsilon = 1e-15);
+        approx::assert_relative_eq!(scalar(layer.absorbed()), 0.2, epsilon = 1e-15);
     }
 
     #[test]

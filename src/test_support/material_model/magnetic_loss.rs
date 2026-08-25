@@ -49,11 +49,11 @@ where
         let mut epsilon = C::from_real(self.mu_infinity);
 
         if self.drude_strength > R::zero() {
-            epsilon = epsilon + self.drude_value(k0);
+            epsilon += self.drude_value(k0);
         }
 
         for oscillator in &self.oscillators {
-            epsilon = epsilon + oscillator.value_at(k0);
+            epsilon += oscillator.value_at(k0);
         }
 
         epsilon

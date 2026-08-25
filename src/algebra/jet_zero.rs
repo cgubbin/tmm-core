@@ -47,17 +47,6 @@ pub struct Jet0<I, P = RealParameter> {
     parameter: PhantomData<P>,
 }
 
-#[cfg(test)]
-mod jet0_deref {
-    impl<I, P> std::ops::Deref for super::Jet0<I, P> {
-        type Target = I;
-
-        fn deref(&self) -> &Self::Target {
-            &self.value
-        }
-    }
-}
-
 impl<I, P> Jet0<I, P> {
     /// Construct a zero-order jet.
     pub(crate) fn new(value: I) -> Self {
@@ -273,5 +262,16 @@ where
         let result = value.mapv(|x| x.sqrt());
 
         Self::new(result)
+    }
+}
+
+#[cfg(test)]
+mod jet0_deref {
+    impl<I, P> std::ops::Deref for super::Jet0<I, P> {
+        type Target = I;
+
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
     }
 }

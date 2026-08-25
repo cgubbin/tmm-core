@@ -678,7 +678,7 @@ mod tests {
     fn response_only_workspace_starts_at_identity() {
         let workspace = Transfer2Workspace::new(&arr0(c(0.0)), context(), RunMode::ResponseOnly, 2);
 
-        assert!(!workspace.retained().is_some());
+        assert!(workspace.retained().is_none());
 
         assert_complex_close(workspace.entries().m11()[()], c(1.0), TOLERANCE);
         assert_complex_close(workspace.entries().m12()[()], c(0.0), TOLERANCE);
@@ -1054,7 +1054,7 @@ mod tests {
         let right_waves =
             right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
 
-        let expected_right_state = transfer_state_from_waves(&right_waves, &right_admittance);
+        let expected_right_state = transfer_state_from_waves(&right_waves, right_admittance);
 
         let states = workspace
             .retained()
@@ -1080,7 +1080,7 @@ mod tests {
         let exterior_waves =
             right_exterior_waves(&amplitudes, IncidentSide::Left, right_admittance.value());
 
-        let right_state = transfer_state_from_waves(&exterior_waves, &right_admittance);
+        let right_state = transfer_state_from_waves(&exterior_waves, right_admittance);
 
         let retained = workspace.retained().expect("layers should be retained");
 
@@ -1290,7 +1290,7 @@ mod tests {
 
         let exterior_state = exterior_waves.into_state(exterior_admittance);
 
-        let layer_state = layer_waves.into_state(&layer_admittance);
+        let layer_state = layer_waves.into_state(layer_admittance);
 
         eprintln!(
             "candidate:  field={:?}, secondary={:?}",
@@ -1358,7 +1358,7 @@ mod tests {
 
         let waves: crate::observable::BoundaryWaves<_> = waves[0].left().clone().into();
 
-        let reconstructed = waves.into_state(&admittance);
+        let reconstructed = waves.into_state(admittance);
 
         eprintln!(
             "transfer:     field={:?}, slope={:?}",

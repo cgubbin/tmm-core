@@ -103,13 +103,13 @@ fn first_order_geometry_stack(
                 HoloJ1::constant(value)
             };
 
-            CanonicalLayer::new(layer.material().clone(), thickness)
+            CanonicalLayer::new(*layer.material(), thickness)
         })
         .collect();
 
     CanonicalStack::new(
-        stack.left_exterior().clone(),
-        stack.right_exterior().clone(),
+        *stack.left_exterior(),
+        *stack.right_exterior(),
         layers,
     )
 }
@@ -132,13 +132,13 @@ fn bivariate_geometry_stack() -> CanonicalStack<crate::Constant<f64>, HoloJB2> {
                 HoloJB2::constant(value)
             };
 
-            CanonicalLayer::new(layer.material().clone(), thickness)
+            CanonicalLayer::new(*layer.material(), thickness)
         })
         .collect();
 
     CanonicalStack::new(
-        stack.left_exterior().clone(),
-        stack.right_exterior().clone(),
+        *stack.left_exterior(),
+        *stack.right_exterior(),
         layers,
     )
 }
@@ -1100,7 +1100,7 @@ fn modal_last_layer_state_matches_right_exterior_state() {
 
     let exterior_waves: crate::observable::BoundaryWaves<_> = exterior.right().clone().into();
 
-    let layer_state = layer_waves.into_state(&layer_admittance);
+    let layer_state = layer_waves.into_state(layer_admittance);
 
     let exterior_state = exterior_waves.into_state(right_admittance);
 
