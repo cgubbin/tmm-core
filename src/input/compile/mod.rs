@@ -96,6 +96,7 @@ struct CompiledCore<M, J, R> {
     projection_constraint: ProjectionConstraint,
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn compile_real<M, J>(
     input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
@@ -142,6 +143,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)]
 fn compile_core<M, J, E>(
     metadata: Coordinates,
     spectral_values: &Array<J::Scalar, J::Dimension>,

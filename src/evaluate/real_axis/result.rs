@@ -65,6 +65,7 @@ where
     }
 
     /// Consume the result and return its components.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (

@@ -122,6 +122,7 @@ where
     }
 
     /// Borrow all component arrays.
+    #[allow(clippy::type_complexity)]
     pub fn components(&self) -> (&Array<C, D>, &Array<C, D>, &Array<C, D>) {
         (&self.x, &self.y, &self.z)
     }

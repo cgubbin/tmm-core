@@ -449,6 +449,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn layer_dissipation(
         &self,
     ) -> Result<
@@ -470,6 +471,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn layer_energy_nondispersive(
         &self,
     ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
@@ -489,6 +491,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn layer_participation_nondispersive(
         &self,
     ) -> Result<
@@ -533,6 +536,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn layer_energy_dispersive(
         &self,
     ) -> Result<DifferentialResponseFor<J, Layers<LayerEnergy<J::RealJet>>>, LayerEnergyError>
@@ -556,6 +560,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn layer_participation_dispersive(
         &self,
     ) -> Result<
@@ -606,6 +611,7 @@ where
             .into_differential_response(&J::Policy::default(), self.state.mapping()))
     }
 
+    #[allow(clippy::type_complexity)]
     fn raw_electromagnetic_fields(
         &self,
         sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,

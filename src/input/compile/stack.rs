@@ -69,6 +69,7 @@ pub enum StackCompileError<R> {
     },
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn compile_stack<M, J>(
     stack: &Stack<M, <J::Scalar as ComplexField>::RealField>,
     sampled_shape: J::Dimension,

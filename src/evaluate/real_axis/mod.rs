@@ -322,6 +322,7 @@ impl<B> RealAxisEvaluator<B> {
 }
 
 impl<B> RealAxisEvaluator<B> {
+    #[allow(clippy::type_complexity)]
     fn _solve<J, M>(
         &self,
         input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,
@@ -367,6 +368,7 @@ impl<B> RealAxisEvaluator<B> {
         Ok(RealAxisResult::new(solution, context))
     }
 
+    #[allow(clippy::type_complexity)]
     fn _retain<J, M>(
         &self,
         input: CoordinateInput<<J::Scalar as ComplexField>::RealField, J::Dimension>,

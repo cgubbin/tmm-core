@@ -46,6 +46,7 @@ impl<'a, W, A> FieldSamplingContext<'a, W, A> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub(crate) fn reconstruct_from_boundary_waves(
         &self,
         boundary_waves: &BoundaryWaveSolution<A>,
@@ -166,6 +167,7 @@ impl<A> FieldComponentSequences<A> {
         self.hz.push(hz);
     }
 
+    #[allow(clippy::type_complexity)]
     fn stack(
         self,
     ) -> Result<

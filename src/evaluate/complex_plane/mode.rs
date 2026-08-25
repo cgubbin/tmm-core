@@ -134,6 +134,7 @@ impl<'a, J, M, W> ComplexPlaneMode<'a, J, M, W>
 where
     J: Jet<Dimension = Ix0>,
 {
+    #[allow(clippy::type_complexity)]
     fn raw_electromagnetic_fields(
         &self,
         sampling: &ResolvedFieldSampling<<J::Scalar as ComplexField>::RealField>,
@@ -163,6 +164,7 @@ where
         context.reconstruct_from_boundary_waves(&boundary_waves, &compiled_sampling)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn fields(
         &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,
@@ -188,6 +190,7 @@ where
         Ok(SpatialResponse::new(reconstructed, sampling))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn constitutive_fields(
         &self,
         sampling: &FieldSampling<<J::Scalar as ComplexField>::RealField>,

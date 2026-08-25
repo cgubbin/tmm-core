@@ -101,6 +101,7 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
 impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
     /// Solve a canonical complex-plane problem without retaining internal
     /// finite-layer state.
+    #[allow(clippy::type_complexity)]
     pub fn solve(
         &self,
         coordinates: &CanonicalCoordinates<J>,
@@ -121,6 +122,7 @@ impl<J, M, B> ComplexPlaneEvaluator<J, M, B> {
             .solve(coordinates, &self.stack, exterior, polarisation)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn determinant(
         &self,
         coordinates: &CanonicalCoordinates<J>,
