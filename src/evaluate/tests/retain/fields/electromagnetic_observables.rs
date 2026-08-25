@@ -208,10 +208,10 @@ fn field_norm_values_match_electromagnetic_fields() {
 
                 assert_eq!(fields.sampling(), norms.sampling());
 
-                assert_norm_values_match_fields(fields.value(), norms.value());
+                assert_norm_values_match_fields(fields.quantity(), norms.quantity());
 
-                assert_all_real_finite(norms.value().electric());
-                assert_all_real_finite(norms.value().magnetic());
+                assert_all_real_finite(norms.quantity().electric());
+                assert_all_real_finite(norms.quantity().magnetic());
             });
         }
     }
@@ -243,16 +243,16 @@ fn complex_poynting_values_match_electromagnetic_fields() {
                     .unwrap();
 
                 let expected = fields
-                    .value()
+                    .quantity()
                     .clone()
                     .map_vectors(Jet0::new)
                     .complex_poynting_vector();
 
                 assert_eq!(fields.sampling(), poynting.sampling());
 
-                assert_complex_vector_close(poynting.value(), &expected, VALUE_TOLERANCE);
+                assert_complex_vector_close(poynting.quantity(), &expected, VALUE_TOLERANCE);
 
-                assert_all_complex_vector_finite(poynting.value());
+                assert_all_complex_vector_finite(poynting.quantity());
             });
         }
     }
@@ -284,16 +284,16 @@ fn time_averaged_poynting_values_match_electromagnetic_fields() {
                     .unwrap();
 
                 let expected = fields
-                    .value()
+                    .quantity()
                     .clone()
                     .map_vectors(Jet0::new)
                     .time_averaged_poynting_vector();
 
                 assert_eq!(fields.sampling(), poynting.sampling());
 
-                assert_real_vector_close(poynting.value(), &expected, VALUE_TOLERANCE);
+                assert_real_vector_close(poynting.quantity(), &expected, VALUE_TOLERANCE);
 
-                assert_all_real_vector_finite(poynting.value());
+                assert_all_real_vector_finite(poynting.quantity());
             });
         }
     }

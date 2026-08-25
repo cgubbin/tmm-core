@@ -1103,7 +1103,7 @@ macro_rules! boundary_observable_suite {
                         .expect("boundary-wave response should assemble");
 
                     assert_layer_waves_collection_close(
-                        response.value(),
+                        &response,
                         &expected.into_value().into_inner(),
                         VALUE_TOLERANCE,
                     );
@@ -1141,7 +1141,7 @@ macro_rules! boundary_observable_suite {
                         .expect("boundary-state response should assemble");
 
                     assert_layer_states_collection_close(
-                        response.value(),
+                        &response,
                         &expected.into_value().into_inner(),
                         VALUE_TOLERANCE,
                     );
@@ -1170,15 +1170,15 @@ macro_rules! boundary_observable_suite {
 
                 let states = excitation.boundary_states().unwrap();
 
-                assert_eq!(waves.value().len(), 2);
-                assert_eq!(states.value().len(), 2);
+                assert_eq!(waves.len(), 2);
+                assert_eq!(states.len(), 2);
 
                 /*
                  * The corresponding layer-state and layer-wave entries must
                  * remain aligned. A stronger wave-to-state equality is tested
                  * separately below.
                  */
-                assert_eq!(waves.value().len(), states.value().len(),);
+                assert_eq!(waves.len(), states.len(),);
             }
 
             #[test]
@@ -1417,8 +1417,8 @@ macro_rules! boundary_observable_equivalence_suite {
                             .unwrap();
 
                         assert_layer_waves_collection_close(
-                            left_response.value(),
-                            right_response.value(),
+                            &left_response,
+                            &right_response,
                             VALUE_TOLERANCE,
                         );
                     }
@@ -1458,8 +1458,8 @@ macro_rules! boundary_observable_equivalence_suite {
                             .unwrap();
 
                         assert_layer_states_collection_close(
-                            left_response.value(),
-                            right_response.value(),
+                            &left_response,
+                            &right_response,
                             VALUE_TOLERANCE,
                         );
                     }

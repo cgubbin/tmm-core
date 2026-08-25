@@ -349,8 +349,10 @@ pub use domain::{ComplexPlane, RealAxis};
 pub use input::{
     CanonicalCoordinates, CanonicalStack, CoordinateGrid, CoordinateInput, CoordinateReference,
     CoordinateSamples, Coordinates, InPlaneCoordinate, IncidentSide, Polarisation,
-    SpectralCoordinate, StackCompileError, StackThicknessJet, compile_canonical_constant_stack,
+    StackCompileError, StackThicknessJet, compile_canonical_constant_stack,
 };
+
+pub use lamina_units::SpectralCoordinate;
 
 pub use evaluate::{ComplexPlaneEvaluator, RealAxisEvaluator};
 
@@ -376,3 +378,9 @@ pub use stack::{
     AnalyticalMaterialStack, DifferentiableMaterialStack, Layer, MaterialStack,
     MeromorphicMaterialStack, Stack,
 };
+
+pub mod units {
+    pub use lamina_units::{
+        AngleUnit, AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, Length, LengthUnit,
+    };
+}

@@ -87,18 +87,16 @@ fn left_incidence_interface_power_matches_external_power() {
         .expect("interface power should project");
 
     let first = interfaces
-        .value()
         .first()
         .expect("left exterior interface should exist");
 
     let last = interfaces
-        .value()
         .last()
         .expect("right exterior interface should exist");
 
-    let reflectance = scalar(external.value().reflectance());
+    let reflectance = scalar(external.reflectance());
 
-    let transmittance = scalar(external.value().transmittance());
+    let transmittance = scalar(external.transmittance());
 
     assert_real_value_close(first.left().forward_flux(), 1.0, VALUE_TOLERANCE);
 
@@ -136,18 +134,16 @@ fn right_incidence_interface_power_matches_external_power() {
         .expect("interface power should project");
 
     let first = interfaces
-        .value()
         .first()
         .expect("left exterior interface should exist");
 
     let last = interfaces
-        .value()
         .last()
         .expect("right exterior interface should exist");
 
-    let reflectance = scalar(external.value().reflectance());
+    let reflectance = scalar(external.reflectance());
 
-    let transmittance = scalar(external.value().transmittance());
+    let transmittance = scalar(external.transmittance());
 
     assert_real_zero(first.left().forward_flux(), VALUE_TOLERANCE);
 
@@ -187,7 +183,7 @@ fn net_flux_is_continuous_across_every_interface() {
 
             let interfaces = excitation.interface_power().unwrap();
 
-            assert_net_flux_continuity(interfaces.value(), VALUE_TOLERANCE);
+            assert_net_flux_continuity(&interfaces, VALUE_TOLERANCE);
         }
     }
 }
@@ -215,12 +211,12 @@ fn exterior_flux_drop_matches_absorptance_from_both_sides() {
 
             let interfaces = excitation.interface_power().unwrap();
 
-            let first = interfaces.value().first().unwrap();
-            let last = interfaces.value().last().unwrap();
+            let first = interfaces.first().unwrap();
+            let last = interfaces.last().unwrap();
 
             let flux_drop = scalar(first.left_net_flux()) - scalar(last.right_net_flux());
 
-            let expected = scalar(external.value().absorptance());
+            let expected = scalar(external.absorptance());
 
             dbg!(&expected, &flux_drop);
 
@@ -417,9 +413,9 @@ fn transfer_backend_projects_interface_power() {
 
     let response = excitation.interface_power().unwrap();
 
-    assert_eq!(response.value().len(), 3);
+    assert_eq!(response.len(), 3);
 
-    assert_net_flux_continuity(response.value(), VALUE_TOLERANCE);
+    assert_net_flux_continuity(&response, VALUE_TOLERANCE);
 }
 
 #[test]
@@ -443,7 +439,7 @@ fn absorbing_stack_net_flux_is_continuous_across_interfaces() {
 
             let response = excitation.interface_power().unwrap();
 
-            assert_net_flux_continuity(response.value(), VALUE_TOLERANCE);
+            assert_net_flux_continuity(&response, VALUE_TOLERANCE);
         }
     }
 }
@@ -466,10 +462,10 @@ fn absorbing_layer_reduces_forward_net_flux() {
 
     let response = excitation.interface_power().unwrap();
 
-    assert_eq!(response.value().len(), 2);
+    assert_eq!(response.len(), 2);
 
-    let left_boundary = response.value().get(0).unwrap();
-    let right_boundary = response.value().get(1).unwrap();
+    let left_boundary = response.get(0).unwrap();
+    let right_boundary = response.get(1).unwrap();
 
     let entering = scalar(left_boundary.right_net_flux());
 
@@ -523,9 +519,9 @@ fn absorbing_stack_flux_loss_matches_external_absorptance() {
 
             let interfaces = excitation.interface_power().unwrap();
 
-            let actual = exterior_absorbed_fraction(interfaces.value());
+            let actual = exterior_absorbed_fraction(&interfaces);
 
-            let expected = scalar(external.value().absorptance());
+            let expected = scalar(external.absorptance());
 
             assert_relative_eq!(
                 actual,
@@ -561,10 +557,7 @@ fn lossy_internal_net_flux_includes_interference_terms() {
     let response = excitation.interface_power().unwrap();
 
     // Choose a side inside the absorbing finite layer.
-    let interface = response
-        .value()
-        .get(1)
-        .expect("internal interface should exist");
+    let interface = response.get(1).expect("internal interface should exist");
 
     let power = interface.right();
 
@@ -707,9 +700,9 @@ fn absorbing_internal_net_flux_derivative_matches_central_difference() {
         excitation.interface_power().unwrap()
     };
 
-    let plus_value = scalar(plus.value().get(1).unwrap().right_net_flux());
+    let plus_value = scalar(plus.get(1).unwrap().right_net_flux());
 
-    let minus_value = scalar(minus.value().get(1).unwrap().right_net_flux());
+    let minus_value = scalar(minus.get(1).unwrap().right_net_flux());
 
     let finite_difference = (plus_value - minus_value) / (2.0 * step);
 

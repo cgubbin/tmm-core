@@ -28,21 +28,21 @@ fn left_incidence_exterior_interface_power_matches_plane_wave_power() {
 
     let interfaces = excitation.interface_power().unwrap();
 
-    let first = interfaces.value().first().unwrap();
+    let first = interfaces.first().unwrap();
 
-    let last = interfaces.value().last().unwrap();
+    let last = interfaces.last().unwrap();
 
     assert_real_close(first.left().forward_flux()[()], 1.0, TOLERANCE);
 
     assert_real_array_close(
         first.left().backward_flux(),
-        &external.value().reflectance().mapv(|value| -value),
+        &external.reflectance().mapv(|value| -value),
         TOLERANCE,
     );
 
     assert_real_array_close(
         last.right().forward_flux(),
-        external.value().transmittance(),
+        external.transmittance(),
         TOLERANCE,
     );
 
@@ -67,9 +67,7 @@ fn net_flux_is_continuous_across_every_interface() {
 
     let response = excitation.interface_power().unwrap();
 
-    dbg!(&response);
-
-    for interface in response.value().iter() {
+    for interface in response.iter() {
         assert_real_array_close(
             interface.left_net_flux(),
             interface.right_net_flux(),
@@ -96,5 +94,5 @@ fn transfer_backend_projects_interface_power() {
 
     let response = excitation.interface_power().unwrap();
 
-    assert_eq!(response.value().len(), 3);
+    assert_eq!(response.len(), 3);
 }

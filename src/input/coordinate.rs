@@ -1,6 +1,4 @@
-use lamina_units::{AngleUnit, InverseLengthUnit};
-
-pub use lamina_units::SpectralCoordinate;
+use lamina_units::{AngleUnit, InverseLengthUnit, SpectralCoordinate};
 
 /// In-plane coordinate used to parameterise a plane-wave input.
 ///

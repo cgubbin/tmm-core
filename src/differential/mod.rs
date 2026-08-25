@@ -33,4 +33,4 @@ pub use bivariate::{BivariateFirst, BivariateGradient, BivariateHessian, Bivaria
 
 pub use directional::{DirectionalFirst, DirectionalSecond};
 
-pub use response::{DifferentialResponse, NoDerivatives};
+pub use response::DifferentialResponse;

@@ -105,8 +105,8 @@ macro_rules! backend_equivalence_suite {
                         let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
-                            left_amplitudes.value(),
-                            right_amplitudes.value(),
+                            &left_amplitudes,
+                            &right_amplitudes,
                             VALUE_TOLERANCE,
                         );
                     }
@@ -139,8 +139,8 @@ macro_rules! backend_equivalence_suite {
                         let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
-                            left_amplitudes.value(),
-                            right_amplitudes.value(),
+                            &left_amplitudes,
+                            &right_amplitudes,
                             VALUE_TOLERANCE,
                         );
                     }
@@ -173,8 +173,8 @@ macro_rules! backend_equivalence_suite {
                         let right_amplitudes = right_result.amplitudes(side).unwrap();
 
                         assert_amplitudes_equal(
-                            left_amplitudes.value(),
-                            right_amplitudes.value(),
+                            &left_amplitudes,
+                            &right_amplitudes,
                             VALUE_TOLERANCE,
                         );
                     }
@@ -206,11 +206,7 @@ macro_rules! backend_equivalence_suite {
 
                         let right_power = right_result.power(side).unwrap();
 
-                        assert_power_equal(
-                            left_power.value(),
-                            right_power.value(),
-                            VALUE_TOLERANCE,
-                        );
+                        assert_power_equal(&left_power, &right_power, VALUE_TOLERANCE);
                     }
                 }
             }
@@ -240,11 +236,7 @@ macro_rules! backend_equivalence_suite {
 
                         let right_power = right_result.power(side).unwrap();
 
-                        assert_power_equal(
-                            left_power.value(),
-                            right_power.value(),
-                            VALUE_TOLERANCE,
-                        );
+                        assert_power_equal(&left_power, &right_power, VALUE_TOLERANCE);
                     }
                 }
             }
@@ -820,17 +812,13 @@ macro_rules! backend_equivalence_suite {
 
                     let right_amplitudes = right_state.excitation(side).unwrap().amplitudes();
 
-                    assert_amplitudes_equal(
-                        left_amplitudes.value(),
-                        right_amplitudes.value(),
-                        VALUE_TOLERANCE,
-                    );
+                    assert_amplitudes_equal(&left_amplitudes, &right_amplitudes, VALUE_TOLERANCE);
 
                     let left_power = left_state.excitation(side).unwrap().power();
 
                     let right_power = right_state.excitation(side).unwrap().power();
 
-                    assert_power_equal(left_power.value(), right_power.value(), VALUE_TOLERANCE);
+                    assert_power_equal(&left_power, &right_power, VALUE_TOLERANCE);
                 }
             }
 

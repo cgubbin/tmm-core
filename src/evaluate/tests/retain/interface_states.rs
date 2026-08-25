@@ -35,7 +35,7 @@ macro_rules! interface_continuity_suite {
                     .interface_states()
                     .expect("interface states should assemble");
 
-                assert_interface_continuity(response.value(), VALUE_TOLERANCE);
+                assert_interface_continuity(&response, VALUE_TOLERANCE);
             }
 
             #[test]

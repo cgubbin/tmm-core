@@ -268,7 +268,7 @@ impl DerivativeMapping {
 mod tests {
     use super::*;
 
-    use lamina_units::{AngleUnit, InverseLengthUnit, Length};
+    use lamina_units::{AngleUnit, InverseLengthUnit, Length, SpectralCoordinate};
     use ndarray::{Array, Dimension, Ix1, array};
     use num_complex::Complex64;
 
@@ -276,7 +276,7 @@ mod tests {
         ComplexPlane, Constant,
         algebra::{ArrayJet0, ArrayJet1, HolomorphicParameter, RealParameter},
         input::{
-            CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide, SpectralCoordinate,
+            CoordinateInput, Coordinates, InPlaneCoordinate, IncidentSide,
             compile::coordinates::SpectralInputError,
         },
         parameter::{DerivativeMapping, FiniteLayerIndex, Parameter},

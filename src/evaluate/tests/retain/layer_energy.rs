@@ -30,7 +30,7 @@ fn nondispersive_energy_returns_one_record_per_layer() {
         .layer_energy_nondispersive()
         .unwrap();
 
-    assert_eq!(energy.value().len(), 2);
+    assert_eq!(energy.len(), 2);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn nondispersive_layer_energy_is_positive() {
                 .layer_energy_nondispersive()
                 .unwrap();
 
-            for layer in energy.value().iter() {
+            for layer in energy.iter() {
                 assert!(scalar(layer.electric()) >= 0.0,);
 
                 assert!(scalar(layer.magnetic()) >= 0.0,);
@@ -81,7 +81,7 @@ fn nondispersive_energy_total_is_component_sum() {
         .layer_energy_nondispersive()
         .unwrap();
 
-    for layer in energy.value().iter() {
+    for layer in energy.iter() {
         assert_relative_eq!(
             scalar(layer.total()),
             scalar(layer.electric()) + scalar(layer.magnetic()),

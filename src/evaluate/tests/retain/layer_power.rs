@@ -40,7 +40,7 @@ fn layer_power_returns_one_record_per_finite_layer() {
 
     let response = excitation.layer_power().unwrap();
 
-    assert_eq!(response.value().len(), 2);
+    assert_eq!(response.len(), 2);
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn lossless_layers_have_zero_absorption() {
 
             let response = excitation.layer_power().unwrap();
 
-            for layer in response.value().iter() {
+            for layer in response.iter() {
                 assert_relative_eq!(
                     scalar(layer.absorbed()),
                     0.0,
@@ -94,14 +94,14 @@ fn layer_fluxes_are_taken_from_adjacent_interface_sides() {
 
     let layers = excitation.layer_power().unwrap();
 
-    assert_eq!(layers.value().len() + 1, interfaces.value().len(),);
+    assert_eq!(layers.len() + 1, interfaces.len(),);
 
-    for index in 0..layers.value().len() {
-        let layer = layers.value().get(FiniteLayerIndex::new(index)).unwrap();
+    for index in 0..layers.len() {
+        let layer = layers.get(FiniteLayerIndex::new(index)).unwrap();
 
-        let left_interface = interfaces.value().get(index).unwrap();
+        let left_interface = interfaces.get(index).unwrap();
 
-        let right_interface = interfaces.value().get(index + 1).unwrap();
+        let right_interface = interfaces.get(index + 1).unwrap();
 
         assert_real_array_close(
             layer.left_flux(),
@@ -138,13 +138,9 @@ fn summed_layer_absorption_matches_external_absorptance() {
 
             let layers = excitation.layer_power().unwrap();
 
-            let actual: f64 = layers
-                .value()
-                .iter()
-                .map(|layer| scalar(layer.absorbed()))
-                .sum();
+            let actual: f64 = layers.iter().map(|layer| scalar(layer.absorbed())).sum();
 
-            let expected = scalar(external.value().absorptance());
+            let expected = scalar(external.absorptance());
 
             assert_relative_eq!(
                 actual,
@@ -179,10 +175,10 @@ fn absorption_is_attributed_to_the_absorbing_layer() {
 
     let response = excitation.layer_power().unwrap();
 
-    assert_eq!(response.value().len(), 2);
+    assert_eq!(response.len(), 2);
 
-    let lossless = response.value().get(FiniteLayerIndex::new(0)).unwrap();
-    let absorbing = response.value().get(FiniteLayerIndex::new(1)).unwrap();
+    let lossless = response.get(FiniteLayerIndex::new(0)).unwrap();
+    let absorbing = response.get(FiniteLayerIndex::new(1)).unwrap();
 
     assert_relative_eq!(
         scalar(lossless.absorbed()),
@@ -215,7 +211,7 @@ fn right_incidence_uses_same_left_minus_right_absorption_definition() {
 
     let response = excitation.layer_power().unwrap();
 
-    for layer in response.value().iter() {
+    for layer in response.iter() {
         let expected = scalar(layer.left_flux()) - scalar(layer.right_flux());
 
         assert_relative_eq!(
@@ -226,11 +222,7 @@ fn right_incidence_uses_same_left_minus_right_absorption_definition() {
         );
     }
 
-    let total: f64 = response
-        .value()
-        .iter()
-        .map(|layer| scalar(layer.absorbed()))
-        .sum();
+    let total: f64 = response.iter().map(|layer| scalar(layer.absorbed())).sum();
 
     assert!(total > 0.0);
 }
@@ -461,17 +453,13 @@ fn transfer_backend_projects_layer_power() {
 
     let layers = excitation.layer_power().unwrap();
 
-    assert_eq!(layers.value().len(), 2);
+    assert_eq!(layers.len(), 2);
 
-    let total: f64 = layers
-        .value()
-        .iter()
-        .map(|layer| scalar(layer.absorbed()))
-        .sum();
+    let total: f64 = layers.iter().map(|layer| scalar(layer.absorbed())).sum();
 
     assert_relative_eq!(
         total,
-        scalar(external.value().absorptance()),
+        scalar(external.absorptance()),
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );

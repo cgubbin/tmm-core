@@ -33,7 +33,7 @@ pub(crate) use coordinate_input::CoordinateValues;
 
 pub use canonical::{CanonicalCoordinates, CanonicalStack};
 pub use compile::{StackCompileError, StackThicknessJet, compile_canonical_constant_stack};
-pub use coordinate::{Coordinates, InPlaneCoordinate, SpectralCoordinate};
+pub use coordinate::{Coordinates, InPlaneCoordinate};
 pub use coordinate_input::{
     CoordinateGrid, CoordinateInput, CoordinateReference, CoordinateSamples,
 };

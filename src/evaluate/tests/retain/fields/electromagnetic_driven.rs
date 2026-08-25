@@ -131,16 +131,16 @@ fn point_projection_evaluates_te_fields() {
      *
      * giving eight points on the final spatial axis.
      */
-    assert_eq!(response.value().electric().x().shape(), &[8]);
-    assert_eq!(response.value().electric().y().shape(), &[8]);
-    assert_eq!(response.value().electric().z().shape(), &[8]);
+    assert_eq!(response.electric().x().shape(), &[8]);
+    assert_eq!(response.electric().y().shape(), &[8]);
+    assert_eq!(response.electric().z().shape(), &[8]);
 
-    assert_eq!(response.value().magnetic().x().shape(), &[8]);
-    assert_eq!(response.value().magnetic().y().shape(), &[8]);
-    assert_eq!(response.value().magnetic().z().shape(), &[8]);
+    assert_eq!(response.magnetic().x().shape(), &[8]);
+    assert_eq!(response.magnetic().y().shape(), &[8]);
+    assert_eq!(response.magnetic().z().shape(), &[8]);
 
-    assert_te_structure(response.value(), VALUE_TOLERANCE);
-    assert_all_finite(response.value());
+    assert_te_structure(response, VALUE_TOLERANCE);
+    assert_all_finite(response);
 }
 
 #[test]
@@ -164,11 +164,11 @@ fn point_projection_evaluates_tm_fields() {
     let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
     let response = spatial_response.quantity();
 
-    assert_eq!(response.value().electric().x().shape(), &[8]);
-    assert_eq!(response.value().magnetic().y().shape(), &[8]);
+    assert_eq!(response.electric().x().shape(), &[8]);
+    assert_eq!(response.magnetic().y().shape(), &[8]);
 
-    assert_tm_structure(response.value(), VALUE_TOLERANCE);
-    assert_all_finite(response.value());
+    assert_tm_structure(response, VALUE_TOLERANCE);
+    assert_all_finite(response);
 }
 
 #[test]
@@ -195,15 +195,15 @@ fn both_incident_sides_evaluate_fields() {
             let spatial_response = excitation.evaluate_fields(&sampling()).unwrap();
             let response = spatial_response.quantity();
 
-            assert_all_finite(response.value());
+            assert_all_finite(response);
 
             match polarisation {
                 Polarisation::TransverseElectric => {
-                    assert_te_structure(response.value(), VALUE_TOLERANCE);
+                    assert_te_structure(response, VALUE_TOLERANCE);
                 }
 
                 Polarisation::TransverseMagnetic => {
-                    assert_tm_structure(response.value(), VALUE_TOLERANCE);
+                    assert_tm_structure(response, VALUE_TOLERANCE);
                 }
             }
         }
@@ -390,7 +390,7 @@ fn transfer_and_scatter_backends_agree_on_fields() {
                 .unwrap();
             let transfer = transfer_spatial.quantity();
 
-            assert_fields_close(scatter.value(), transfer.value(), VALUE_TOLERANCE);
+            assert_fields_close(scatter, transfer, VALUE_TOLERANCE);
         }
     }
 }
@@ -560,15 +560,15 @@ fn reconstructed_fields_satisfy_tangential_interface_continuity() {
                 .unwrap();
 
             let response = spatial_response.quantity();
-            assert_eq!(response.value().electric().x().shape(), &[6]);
+            assert_eq!(response.electric().x().shape(), &[6]);
 
             match polarisation {
                 Polarisation::TransverseElectric => {
-                    assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_te_interface_continuity(response, VALUE_TOLERANCE);
                 }
 
                 Polarisation::TransverseMagnetic => {
-                    assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_tm_interface_continuity(response, VALUE_TOLERANCE);
                 }
             }
         }
@@ -725,11 +725,11 @@ fn transfer_backend_fields_satisfy_tangential_interface_continuity() {
 
             match polarisation {
                 Polarisation::TransverseElectric => {
-                    assert_te_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_te_interface_continuity(response, VALUE_TOLERANCE);
                 }
 
                 Polarisation::TransverseMagnetic => {
-                    assert_tm_interface_continuity(response.value(), VALUE_TOLERANCE);
+                    assert_tm_interface_continuity(response, VALUE_TOLERANCE);
                 }
             }
         }

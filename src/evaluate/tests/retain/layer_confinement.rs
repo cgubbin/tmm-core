@@ -27,7 +27,7 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_nondispersive(
         .unwrap();
 
     assert_relative_eq!(
-        confinement.value().total()[()],
+        confinement.total()[()],
         1.0,
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
@@ -57,9 +57,8 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
         .unwrap();
 
     assert_relative_eq!(
-        confinement.value().electric()[()],
+        confinement.electric()[()],
         participation
-            .value()
             .get(FiniteLayerIndex::new(1))
             .unwrap()
             .electric()[()],
@@ -68,9 +67,8 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
     );
 
     assert_relative_eq!(
-        confinement.value().magnetic()[()],
+        confinement.magnetic()[()],
         participation
-            .value()
             .get(FiniteLayerIndex::new(1))
             .unwrap()
             .magnetic()[()],
@@ -79,12 +77,8 @@ fn one_layer_nondispersive_confinement_matches_its_participation() {
     );
 
     assert_relative_eq!(
-        confinement.value().total()[()],
-        participation
-            .value()
-            .get(FiniteLayerIndex::new(1))
-            .unwrap()
-            .total()[()],
+        confinement.total()[()],
+        participation.get(FiniteLayerIndex::new(1)).unwrap().total()[()],
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );
@@ -161,7 +155,7 @@ fn selecting_all_layers_through_public_api_gives_unit_confinement_dispersive() {
         .unwrap();
 
     assert_relative_eq!(
-        confinement.value().total()[()],
+        confinement.total()[()],
         1.0,
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
@@ -191,9 +185,8 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
         .unwrap();
 
     assert_relative_eq!(
-        confinement.value().electric()[()],
+        confinement.electric()[()],
         participation
-            .value()
             .get(FiniteLayerIndex::new(1))
             .unwrap()
             .electric()[()],
@@ -202,9 +195,8 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
     );
 
     assert_relative_eq!(
-        confinement.value().magnetic()[()],
+        confinement.magnetic()[()],
         participation
-            .value()
             .get(FiniteLayerIndex::new(1))
             .unwrap()
             .magnetic()[()],
@@ -213,12 +205,8 @@ fn one_layer_dispersive_confinement_matches_its_participation() {
     );
 
     assert_relative_eq!(
-        confinement.value().total()[()],
-        participation
-            .value()
-            .get(FiniteLayerIndex::new(1))
-            .unwrap()
-            .total()[()],
+        confinement.total()[()],
+        participation.get(FiniteLayerIndex::new(1)).unwrap().total()[()],
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );

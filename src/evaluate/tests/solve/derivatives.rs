@@ -114,7 +114,6 @@ fn first_thickness_derivative_matches_central_difference() {
         .expect("lower finite-difference sample should succeed")
         .amplitudes(IncidentSide::Left)
         .unwrap()
-        .value()
         .reflection()[()];
 
     let above = evaluator
@@ -126,7 +125,6 @@ fn first_thickness_derivative_matches_central_difference() {
         .expect("upper finite-difference sample should succeed")
         .amplitudes(IncidentSide::Left)
         .unwrap()
-        .value()
         .reflection()[()];
 
     let finite_difference = (above - below) / (2.0 * step);
@@ -162,14 +160,14 @@ fn first_thickness_derivative_matches_central_difference() {
 //         )
 //         .unwrap()
 //         .amplitudes(IncidentSide::Left).unwrap()
-//         .value()
+//
 //         .reflection()[()];
 
 //     let centre = evaluator
 //         .evaluate(input.clone(), &stack, Polarisation::TransverseElectric)
 //         .unwrap()
 //         .amplitudes(IncidentSide::Left).unwrap()
-//         .value()
+//
 //         .reflection()[()];
 
 //     let above = evaluator
@@ -180,7 +178,7 @@ fn first_thickness_derivative_matches_central_difference() {
 //         )
 //         .unwrap()
 //         .amplitudes(IncidentSide::Left).unwrap()
-//         .value()
+//
 //         .reflection()[()];
 
 //     let finite_difference = (above - 2.0 * centre + below) / (step * step);

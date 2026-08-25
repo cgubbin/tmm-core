@@ -53,6 +53,36 @@ pub enum CoordinateReference {
 ///
 /// `S` may be real for scattering calculations or complex for modal
 /// continuation. Both arrays have the same dimension and exact sampled shape.
+///
+/// Coordinate inputs are divided into two classes.
+///
+/// # Intrinsic coordinates
+///
+/// Intrinsic coordinates can be converted to the canonical spectral and
+/// in-plane angular wavenumbers using only the supplied coordinate values and
+/// units.
+///
+/// Examples include vacuum angular wavenumber and parallel angular
+/// wavenumber.
+///
+/// Use [`CoordinateInput::intrinsic`] when both coordinate axes are intrinsic.
+///
+/// # Extrinsic coordinates
+///
+/// Extrinsic coordinates require additional physical context from the optical
+/// problem before they can be converted to canonical coordinates.
+///
+/// For example, an incidence angle satisfies
+///
+/// ```text
+/// k_parallel = n_incident * k0 * sin(theta),
+/// ```
+///
+/// so its canonical value depends on both the spectral coordinate and the
+/// refractive index of the incident exterior medium.
+///
+/// Extrinsic inputs are therefore resolved during problem compilation, after
+/// the relevant stack context is available.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CoordinateInput<S, D>
 where
@@ -381,11 +411,11 @@ where
 mod tests {
     use super::*;
 
-    use lamina_units::{AngleUnit, InverseLengthUnit};
+    use lamina_units::{AngleUnit, InverseLengthUnit, SpectralCoordinate};
     use ndarray::{IxDyn, arr1, arr2};
     use num_complex::Complex64;
 
-    use crate::input::{InPlaneCoordinate, SpectralCoordinate};
+    use crate::input::InPlaneCoordinate;
 
     fn intrinsic_coordinates() -> Coordinates {
         Coordinates::new(

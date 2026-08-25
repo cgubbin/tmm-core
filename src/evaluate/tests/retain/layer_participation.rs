@@ -25,7 +25,7 @@ fn public_nondispersive_layer_participation_returns_one_record_per_layer() {
         .layer_participation_nondispersive()
         .unwrap();
 
-    assert_eq!(participation.value().len(), 2);
+    assert_eq!(participation.len(), 2);
 }
 
 #[test]
@@ -44,11 +44,7 @@ fn public_nondispersive_layer_participation_sums_to_unity() {
         .layer_participation_nondispersive()
         .unwrap();
 
-    let total: f64 = participation
-        .value()
-        .iter()
-        .map(|layer| layer.total()[()])
-        .sum();
+    let total: f64 = participation.iter().map(|layer| layer.total()[()]).sum();
 
     assert_relative_eq!(
         total,
@@ -119,7 +115,7 @@ fn public_dispersive_layer_participation_returns_one_record_per_layer() {
         .layer_participation_dispersive()
         .unwrap();
 
-    assert_eq!(participation.value().len(), 2);
+    assert_eq!(participation.len(), 2);
 }
 
 #[test]
@@ -138,11 +134,7 @@ fn public_dispersive_layer_participation_sums_to_unity() {
         .layer_participation_dispersive()
         .unwrap();
 
-    let total: f64 = participation
-        .value()
-        .iter()
-        .map(|layer| layer.total()[()])
-        .sum();
+    let total: f64 = participation.iter().map(|layer| layer.total()[()]).sum();
 
     assert_relative_eq!(
         total,

@@ -85,7 +85,7 @@ fn layer_dissipation_returns_one_record_per_finite_layer() {
 
     let response = excitation.layer_dissipation().unwrap();
 
-    assert_eq!(response.value().len(), 2);
+    assert_eq!(response.len(), 2);
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn lossless_stack_has_zero_layer_dissipation() {
 
             let response = excitation.layer_dissipation().unwrap();
 
-            for layer in response.value().iter() {
+            for layer in response.iter() {
                 assert_real_zero(layer.electric(), VALUE_TOLERANCE);
 
                 assert_real_zero(layer.magnetic(), VALUE_TOLERANCE);
@@ -143,11 +143,7 @@ fn layer_dissipation_matches_layer_power_flux_loss() {
 
             let power = excitation.layer_power().unwrap();
 
-            assert_layer_dissipation_matches_power(
-                dissipation.value(),
-                power.value(),
-                VALUE_TOLERANCE,
-            );
+            assert_layer_dissipation_matches_power(&dissipation, &power, VALUE_TOLERANCE);
         }
     }
 }
@@ -176,8 +172,8 @@ fn summed_layer_dissipation_matches_external_absorptance() {
             let external = excitation.power();
 
             assert_relative_eq!(
-                summed_dissipation(dissipation.value(),),
-                scalar(external.value().absorptance(),),
+                summed_dissipation(&dissipation,),
+                scalar(external.absorptance(),),
                 epsilon = VALUE_TOLERANCE,
                 max_relative = VALUE_TOLERANCE,
             );
@@ -208,7 +204,7 @@ fn electric_loss_is_attributed_to_electric_dissipation() {
 
             let response = excitation.layer_dissipation().unwrap();
 
-            let layer = response.value().get(FiniteLayerIndex::new(0)).unwrap();
+            let layer = response.get(FiniteLayerIndex::new(0)).unwrap();
 
             assert_real_zero(layer.magnetic(), VALUE_TOLERANCE);
 
@@ -245,7 +241,7 @@ fn magnetic_loss_is_attributed_to_magnetic_dissipation() {
 
             let response = excitation.layer_dissipation().unwrap();
 
-            let layer = response.value().get(FiniteLayerIndex::new(0)).unwrap();
+            let layer = response.get(FiniteLayerIndex::new(0)).unwrap();
 
             assert_real_zero(layer.electric(), VALUE_TOLERANCE);
 
@@ -445,5 +441,5 @@ fn transfer_backend_layer_dissipation_matches_layer_power() {
 
     let power = excitation.layer_power().unwrap();
 
-    assert_layer_dissipation_matches_power(dissipation.value(), power.value(), VALUE_TOLERANCE);
+    assert_layer_dissipation_matches_power(&dissipation, &power, VALUE_TOLERANCE);
 }

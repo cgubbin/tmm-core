@@ -96,27 +96,29 @@ fn energy_density_is_finite_and_total_is_sum_of_components() {
 
                 let point = state.project_point(&()).unwrap();
 
-                let response = point
+                let spatial_response = point
                     .excitation(side)
                     .unwrap()
                     .evaluate_energy_density(&sampling)
                     .unwrap();
 
                 assert_eq!(
-                    response.sampling().len(),
+                    spatial_response.sampling().len(),
                     sampling.resolve(&stack).unwrap().len(),
                 );
 
-                assert_all_finite(response.value().electric());
+                let response = spatial_response.quantity();
 
-                assert_all_finite(response.value().magnetic());
+                assert_all_finite(response.electric());
 
-                assert_all_finite(response.value().total());
+                assert_all_finite(response.magnetic());
+
+                assert_all_finite(response.total());
 
                 assert_total_is_sum(
-                    response.value().electric(),
-                    response.value().magnetic(),
-                    response.value().total(),
+                    response.electric(),
+                    response.magnetic(),
+                    response.total(),
                     VALUE_TOLERANCE,
                 );
             });
@@ -141,27 +143,28 @@ fn nondispersive_lossless_energy_density_is_nonnegative() {
 
                 let point = state.project_point(&()).unwrap();
 
-                let response = point
+                let spatial_response = point
                     .excitation(side)
                     .unwrap()
                     .evaluate_energy_density(&sampling)
                     .unwrap();
+                let response = spatial_response.quantity();
 
-                for &value in response.value().electric() {
+                for &value in response.electric() {
                     assert!(
                         value >= -VALUE_TOLERANCE,
                         "electric energy density should be nonnegative: {value}",
                     );
                 }
 
-                for &value in response.value().magnetic() {
+                for &value in response.magnetic() {
                     assert!(
                         value >= -VALUE_TOLERANCE,
                         "magnetic energy density should be nonnegative: {value}",
                     );
                 }
 
-                for &value in response.value().total() {
+                for &value in response.total() {
                     assert!(
                         value >= -VALUE_TOLERANCE,
                         "total energy density should be nonnegative: {value}",
@@ -189,17 +192,18 @@ fn lossless_stack_has_zero_dissipation_density() {
 
                 let point = state.project_point(&()).unwrap();
 
-                let response = point
+                let spatial_response = point
                     .excitation(side)
                     .unwrap()
                     .evaluate_dissipation_density(&sampling)
                     .unwrap();
+                let response = spatial_response.quantity();
 
-                assert_all_close_to_zero(response.value().electric(), VALUE_TOLERANCE);
+                assert_all_close_to_zero(response.electric(), VALUE_TOLERANCE);
 
-                assert_all_close_to_zero(response.value().magnetic(), VALUE_TOLERANCE);
+                assert_all_close_to_zero(response.magnetic(), VALUE_TOLERANCE);
 
-                assert_all_close_to_zero(response.value().total(), VALUE_TOLERANCE);
+                assert_all_close_to_zero(response.total(), VALUE_TOLERANCE);
             });
         }
     }
@@ -235,7 +239,7 @@ fn dissipation_density_is_localised_to_absorbing_layer() {
                     .evaluate_dissipation_density(&sampling)
                     .unwrap();
 
-                let total = response.value().total();
+                let total = response.quantity().total();
 
                 assert_eq!(total.len(), 8);
 
@@ -673,20 +677,20 @@ fn interface_power_matches_cartesian_poynting_flux() {
      */
     for (sz, flux) in [
         (
-            poynting.value().z()[0],
-            interfaces.value().get(0).unwrap().right_net_flux()[()],
+            poynting.quantity().z()[0],
+            interfaces.get(0).unwrap().right_net_flux()[()],
         ),
         (
-            poynting.value().z()[1],
-            interfaces.value().get(1).unwrap().left_net_flux()[()],
+            poynting.quantity().z()[1],
+            interfaces.get(1).unwrap().left_net_flux()[()],
         ),
         (
-            poynting.value().z()[2],
-            interfaces.value().get(1).unwrap().right_net_flux()[()],
+            poynting.quantity().z()[2],
+            interfaces.get(1).unwrap().right_net_flux()[()],
         ),
         (
-            poynting.value().z()[3],
-            interfaces.value().get(2).unwrap().left_net_flux()[()],
+            poynting.quantity().z()[3],
+            interfaces.get(2).unwrap().left_net_flux()[()],
         ),
     ] {
         assert_relative_eq!(
@@ -722,11 +726,13 @@ fn integrated_dissipation_density_matches_layer_flux_loss() {
 
                 let excitation = point.excitation(side).expect("state should be projectable");
 
-                let dissipation = excitation.evaluate_dissipation_density(&sampling).unwrap();
+                let dissipation_response =
+                    excitation.evaluate_dissipation_density(&sampling).unwrap();
+                let dissipation = dissipation_response.quantity();
 
                 let layer_power = excitation.layer_power().unwrap();
 
-                let density = dissipation.value().total();
+                let density = dissipation.total();
 
                 assert_eq!(density.len(), 2 * DISSIPATION_INTEGRATION_POINTS,);
 
@@ -750,7 +756,6 @@ fn integrated_dissipation_density_matches_layer_flux_loss() {
                     let integrated = integrate_uniform_density(layer_density, thickness);
 
                     let layer = layer_power
-                        .value()
                         .get(FiniteLayerIndex::new(layer_index))
                         .expect("layer power should contain every finite layer");
 
@@ -790,15 +795,16 @@ fn integrated_energy_density_matches_layer_energy() {
 
                 let excitation = point.excitation(side).expect("state should be projectable");
 
-                let density = excitation.evaluate_energy_density(&sampling).unwrap();
+                let density_response = excitation.evaluate_energy_density(&sampling).unwrap();
+                let density = density_response.quantity();
 
                 let layer_energy = excitation.layer_energy_dispersive().unwrap();
 
-                let electric_density = density.value().electric();
+                let electric_density = density.electric();
 
-                let magnetic_density = density.value().magnetic();
+                let magnetic_density = density.magnetic();
 
-                let total_density = density.value().total();
+                let total_density = density.total();
 
                 assert_eq!(
                     total_density.len(),
@@ -842,7 +848,6 @@ fn integrated_energy_density_matches_layer_energy() {
                     );
 
                     let expected = layer_energy
-                        .value()
                         .get(FiniteLayerIndex::new(layer_index))
                         .expect("layer energy should contain every finite layer");
 

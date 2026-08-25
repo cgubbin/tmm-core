@@ -73,7 +73,7 @@ fn projected_scatter_state_matches_direct_scalar_evaluation() {
         let projected = projected.excitation(side).unwrap().power();
         let direct = direct.excitation(side).unwrap().power();
 
-        assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
+        assert_power_equivalent(&projected, &direct, VALUE_TOLERANCE);
     }
 }
 
@@ -109,7 +109,7 @@ fn projected_transfer_state_matches_direct_scalar_evaluation() {
         let projected = projected.excitation(side).unwrap().power();
         let direct = direct.excitation(side).unwrap().power();
 
-        assert_power_equivalent(projected.value(), direct.value(), VALUE_TOLERANCE);
+        assert_power_equivalent(&projected, &direct, VALUE_TOLERANCE);
     }
 }
 
@@ -265,22 +265,22 @@ fn external_power_commutes_with_point_projection() {
     let point = point_state.excitation(IncidentSide::Left).unwrap().power();
 
     assert_relative_eq!(
-        point.value().reflectance()[()],
-        batch.value().reflectance()[1],
+        point.reflectance()[()],
+        batch.reflectance()[1],
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );
 
     assert_relative_eq!(
-        point.value().transmittance()[()],
-        batch.value().transmittance()[1],
+        point.transmittance()[()],
+        batch.transmittance()[1],
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );
 
     assert_relative_eq!(
-        point.value().absorptance()[()],
-        batch.value().absorptance()[1],
+        point.absorptance()[()],
+        batch.absorptance()[1],
         epsilon = VALUE_TOLERANCE,
         max_relative = VALUE_TOLERANCE,
     );
@@ -312,9 +312,9 @@ fn interface_power_commutes_with_point_projection() {
         .interface_power()
         .unwrap();
 
-    assert_eq!(point.value().len(), batch.value().len());
+    assert_eq!(point.len(), batch.len());
 
-    for (point, batch) in point.value().iter().zip(batch.value().iter()) {
+    for (point, batch) in point.iter().zip(batch.iter()) {
         assert_relative_eq!(
             point.left_net_flux()[()],
             batch.left_net_flux()[1],
@@ -357,9 +357,9 @@ fn layer_power_commutes_with_point_projection() {
         .layer_power()
         .unwrap();
 
-    assert_eq!(point.value().len(), batch.value().len());
+    assert_eq!(point.len(), batch.len());
 
-    for (point, batch) in point.value().iter().zip(batch.value().iter()) {
+    for (point, batch) in point.iter().zip(batch.iter()) {
         assert_relative_eq!(
             point.left_flux()[()],
             batch.left_flux()[2],

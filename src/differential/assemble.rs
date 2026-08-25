@@ -37,7 +37,7 @@ use crate::{
     },
     differential::{
         BivariateFirst, BivariateGradient, BivariateHessian, BivariateSecond, DifferentialResponse,
-        DirectionalFirst, DirectionalSecond, NoDerivatives,
+        DirectionalFirst, DirectionalSecond,
     },
     parameter::{BivariateMapping, DirectionalMapping, ValueMapping},
 };
@@ -76,10 +76,10 @@ where
 }
 
 impl<T> AssembleDifferentialResponse<ValueMapping> for ValuePart<T> {
-    type Output = DifferentialResponse<T, NoDerivatives>;
+    type Output = T;
 
     fn assemble(self, _mapping: &ValueMapping) -> Self::Output {
-        DifferentialResponse::new(self.into_inner(), NoDerivatives)
+        self.into_inner()
     }
 }
 
@@ -195,8 +195,7 @@ mod tests {
 
         let response = parts.assemble(&mapping);
 
-        assert_eq!(response.value(), &10);
-        assert_eq!(response.derivatives(), &NoDerivatives,);
+        assert_eq!(response, 10);
     }
 
     #[test]
@@ -266,8 +265,7 @@ mod tests {
 
         let response = jet.into_differential_response(&ValueOnly, &mapping);
 
-        assert_eq!(response.value(), &10);
-        assert_eq!(response.derivatives(), &NoDerivatives,);
+        assert_eq!(response, 10);
     }
 
     #[test]

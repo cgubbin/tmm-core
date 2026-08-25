@@ -54,14 +54,14 @@ fn solve_and_retain_value_paths_have_identical_amplitudes() {
         let retained = retained.excitation(side).unwrap().amplitudes();
 
         assert_complex_close(
-            solved.value().reflection()[()],
-            retained.value().reflection()[()],
+            solved.reflection()[()],
+            retained.reflection()[()],
             TOLERANCE,
         );
 
         assert_complex_close(
-            solved.value().transmission()[()],
-            retained.value().transmission()[()],
+            solved.transmission()[()],
+            retained.transmission()[()],
             TOLERANCE,
         );
     }
@@ -95,20 +95,20 @@ fn solve_and_retain_value_paths_have_identical_power() {
         .power();
 
     assert_real_close(
-        solved.value().reflectance()[()],
-        retained.value().reflectance()[()],
+        solved.reflectance()[()],
+        retained.reflectance()[()],
         TOLERANCE,
     );
 
     assert_real_close(
-        solved.value().transmittance()[()],
-        retained.value().transmittance()[()],
+        solved.transmittance()[()],
+        retained.transmittance()[()],
         TOLERANCE,
     );
 
     assert_real_close(
-        solved.value().absorptance()[()],
-        retained.value().absorptance()[()],
+        solved.absorptance()[()],
+        retained.absorptance()[()],
         TOLERANCE,
     );
 }

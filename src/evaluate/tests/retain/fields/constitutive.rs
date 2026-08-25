@@ -136,19 +136,19 @@ fn excitation_constitutive_fields_equal_epsilon_e_and_mu_h() {
                 assert_eq!(fields.sampling(), constitutive.sampling(),);
 
                 let expected_d =
-                    multiply_vector(fields.value().electric(), parameters.epsilon().value());
+                    multiply_vector(fields.quantity().electric(), parameters.epsilon().value());
 
                 let expected_b =
-                    multiply_vector(fields.value().magnetic(), parameters.mu().value());
+                    multiply_vector(fields.quantity().magnetic(), parameters.mu().value());
 
                 assert_vector_close(
-                    constitutive.value().electric_displacement(),
+                    constitutive.quantity().electric_displacement(),
                     &expected_d,
                     VALUE_TOLERANCE,
                 );
 
                 assert_vector_close(
-                    constitutive.value().magnetic_induction(),
+                    constitutive.quantity().magnetic_induction(),
                     &expected_b,
                     VALUE_TOLERANCE,
                 );
