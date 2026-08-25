@@ -3,8 +3,14 @@ name = "lamina-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Rust project template with library and binary"
-license = "MIT"
+authors = ["Christopher R. Gubbin <cgubbin@gmail.com>"]
+description = "Transfer- and scattering-matrix methods for planar electromagnetic systems"
+categories = ["science", "mathematics"]
+keywords = ["optics", "photonics", "electromagnetics", "transfer-matrix", "scattering-matrix"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cgubbin/lamina-core/"
+homepage = "https://github.com/cgubbin/lamina-core/"
+readme = "README.md"
 
 [lib]
 name = "lamina_core"
